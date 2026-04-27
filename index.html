@@ -418,9 +418,7 @@ textarea{resize:vertical;min-height:68px;}
 <div class="login-screen" id="login-screen">
   <div class="login-card">
     <div class="brand-stack">
-      <div class="brand-real">real</div>
-      <div class="brand-real-sub">REAL BROKERAGE</div>
-      <div class="brand-team">The Garuccio Group</div>
+      <div style="font-family:'Fraunces',serif;font-size:42px;font-weight:300;color:var(--green-dk);letter-spacing:-1px;">Nest Track</div>
       <div class="brand-tag">#UncompromisingService</div>
     </div>
 
@@ -459,7 +457,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <div style="text-align:center;font-size:11px;color:var(--text3);padding-top:8px;border-top:0.5px solid var(--border);">
-      Powered by <strong>NestTrack</strong> · Real Brokerage
+      Powered by <strong>Nest Track</strong>
     </div>
   </div>
 </div>
@@ -471,10 +469,8 @@ textarea{resize:vertical;min-height:68px;}
 <div class="topbar">
   <button class="menu-btn" onclick="toggleSidebar()" aria-label="Menu">☰</button>
   <div class="tb-brand">
-    <div class="real">real</div>
-    <div class="team">The Garuccio Group</div>
+    <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.5px;color:var(--green-dk);">Nest Track</div>
   </div>
-  <div class="tb-tag">#UncompromisingService</div>
   <div class="tb-r">
     
     <div class="user-pill">
@@ -670,7 +666,7 @@ textarea{resize:vertical;min-height:68px;}
     <!-- Trail Header -->
     <div style="background:linear-gradient(135deg,#1D9E75,#0F6E56);padding:16px 20px;color:#fff;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;letter-spacing:-0.3px;">🏡 The Home Buyers Trail</div>
-      <div style="font-size:12px;opacity:0.85;margin-top:2px;">Greater Cleveland · Garuccio Group Edition</div>
+      <div style="font-size:12px;opacity:0.85;margin-top:2px;">Your Real Estate Portal</div>
     </div>
 
     <!-- Trail Map -->
@@ -894,8 +890,18 @@ textarea{resize:vertical;min-height:68px;}
       <div id="ns-net-sub" style="font-size:12px;opacity:0.85;"></div>
     </div>
     <div class="card" id="ns-breakdown" style="padding:0;overflow:hidden;"></div>
-    <div class="notice" style="background:#FEF3C7;color:#92400E;font-size:11.5px;">Title fees based on real Northeast Ohio closings. Tax proration estimated at 9 months. Your actual net will vary — contact Tom for a precise net sheet.</div>
+    <div class="notice" style="background:#FEF3C7;color:#92400E;font-size:11.5px;">Title fees based on real Northeast Ohio closings. Tax proration estimated at 9 months. Your actual net will vary — contact your agent for a precise net sheet.</div>
     <a href="tel:4407547449" class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;font-size:14px;padding:13px;">📞 Get a Precise Net Sheet from Tom</a>
+
+    <!-- Email Net Sheet -->
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;font-weight:500;">📧 Email This Net Sheet</div>
+      <div style="display:flex;gap:8px;">
+        <input type="email" id="ns-email" placeholder="Enter email address" style="flex:1;" />
+        <button onclick="emailNetSheet()" class="btn btn-g" style="flex-shrink:0;white-space:nowrap;">Send PDF</button>
+      </div>
+      <div id="ns-email-status" style="font-size:12px;display:none;"></div>
+    </div>
   </div>
 </div>
 
@@ -1708,6 +1714,7 @@ textarea{resize:vertical;min-height:68px;}
         <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.4;">Upload is best. Google Drive share links usually do not display as images unless converted/public.</div>
         <div id="ap-photo-preview" style="margin-top:8px;"></div>
       </div>
+      <div><label class="flabel">Brokerage Name</label><input type="text" id="ap-brokerage" placeholder="e.g. Real Brokerage, Keller Williams..."/></div>
       <div><label class="flabel">Calendar / Booking Link</label><input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/></div>
       <div><label class="flabel">Google Review Link</label><input type="url" id="ap-google" placeholder="https://g.page/.../review"/></div>
       <div><label class="flabel">Zillow Review Link</label><input type="url" id="ap-zillow" placeholder="https://www.zillow.com/reviews/write/..."/></div>
@@ -3277,6 +3284,138 @@ window.populateBuyerStepSelector = populateBuyerStepSelector;
 
 // ─── NET SHEET CALCULATOR ───
 // Line items sourced from actual Erieview Title Agency closing (Bay Village, 3/31/26)
+
+// ─── EMAIL NET SHEET ───
+async function emailNetSheet() {
+  var emailEl = document.getElementById('ns-email');
+  var statusEl = document.getElementById('ns-email-status');
+  var email = emailEl ? emailEl.value.trim() : '';
+  if (!email || !email.includes('@')) {
+    if (statusEl) { statusEl.textContent = 'Please enter a valid email address.'; statusEl.style.color = '#E24B4A'; statusEl.style.display = 'block'; }
+    return;
+  }
+  if (statusEl) { statusEl.textContent = 'Sending...'; statusEl.style.color = 'var(--text3)'; statusEl.style.display = 'block'; }
+
+  // Gather net sheet data
+  var price = parseFloat(document.getElementById('ns-price').value) || 0;
+  if (!price) {
+    if (statusEl) { statusEl.textContent = 'Please calculate a net sheet first.'; statusEl.style.color = '#E24B4A'; statusEl.style.display = 'block'; }
+    return;
+  }
+
+  var county = document.getElementById('ns-county').value;
+  var taxes = parseFloat(document.getElementById('ns-taxes').value) || 0;
+  var mortgage = parseFloat(document.getElementById('ns-mortgage').value) || 0;
+  var listPct = parseFloat(document.getElementById('ns-list-pct').value) || 2.5;
+  var buyPct = parseFloat(document.getElementById('ns-buy-pct').value) || 2.5;
+  var credits = parseFloat(document.getElementById('ns-credits').value) || 0;
+  var warranty = parseFloat(document.getElementById('ns-warranty').value) || 0;
+
+  // Recalculate
+  var listComm = price * listPct / 100;
+  var buyComm = price * buyPct / 100;
+  var conveyance = Math.round(price / 1000) * 4;
+  var countyServiceFee = county === 'cuyahoga' ? 0.50 : 0;
+  var closingFee=125,cpcCoverage=55,disbursementFee=65,escrowFee=400,examFee=400,patriotSearch=10,shippingFee=50,taxSearch=40,titleUpdate=75,deedPrep=75,waterSewerHold=200;
+  var totalTitleFees = closingFee+cpcCoverage+disbursementFee+escrowFee+examFee+patriotSearch+shippingFee+taxSearch+titleUpdate+deedPrep+waterSewerHold;
+  var taxProration = Math.round(taxes * 0.75);
+  var totalDeductions = listComm+buyComm+conveyance+countyServiceFee+totalTitleFees+taxProration+credits+warranty+mortgage;
+  var net = price - totalDeductions;
+
+  var fmt = function(n) { return (n<0?'-':'')+'$'+Math.round(Math.abs(n)).toLocaleString(); };
+  var fmtd = function(n) { return n>0?'- '+fmt(n):'$0'; };
+  var countyName = county.charAt(0).toUpperCase()+county.slice(1);
+
+  // Agent info
+  var agent = currentAgent();
+  var agentName = agent ? agent.name : 'Tom Garuccio';
+  var agentPhone = agent ? (agent.phone||'440-754-7449') : '440-754-7449';
+  var agentEmail = agent ? (agent.email||'Tom@GaruccioGroup.com') : 'Tom@GaruccioGroup.com';
+
+  // Build HTML email
+  var date = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#F5F4F0;font-family:Helvetica,Arial,sans-serif;">'
+    + '<div style="max-width:600px;margin:24px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,0.08);">'
+    // Header
+    + '<div style="background:linear-gradient(135deg,#B45309,#D97706);padding:28px 32px;color:#fff;">'
+    + '<div style="font-size:22px;font-weight:300;letter-spacing:-0.5px;margin-bottom:4px;">🏡 Nest Track</div>'
+    + '<div style="font-size:18px;font-weight:500;">Net Sheet Estimate</div>'
+    + '<div style="font-size:13px;opacity:0.85;margin-top:4px;">' + date + ' &middot; ' + countyName + ' County</div>'
+    + '</div>'
+    // Net proceeds hero
+    + '<div style="background:#FEF3C7;padding:24px 32px;text-align:center;border-bottom:1px solid #F59E0B;">'
+    + '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:#92400E;margin-bottom:8px;">Estimated Net Proceeds</div>'
+    + '<div style="font-size:48px;font-weight:300;color:#92400E;letter-spacing:-2px;">' + fmt(net) + '</div>'
+    + '<div style="font-size:13px;color:#B45309;margin-top:4px;">' + (net < 0 ? 'You would need to bring ' + fmt(Math.abs(net)) + ' to closing' : 'estimated take-home at closing') + '</div>'
+    + '</div>'
+    // Breakdown
+    + '<div style="padding:24px 32px;">'
+    + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+    + '<tr style="background:#F5F4F0;"><td colspan="2" style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;">Sale Price</td></tr>'
+    + '<tr><td style="padding:10px 12px;font-weight:600;">Sale Price</td><td style="padding:10px 12px;text-align:right;font-weight:600;">' + fmt(price) + '</td></tr>'
+    + '<tr style="background:#F5F4F0;"><td colspan="2" style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;">Commissions</td></tr>'
+    + '<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Listing Agent Commission (' + listPct + '%)</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(listComm) + '</td></tr>'
+    + '<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Buyer Agent Commission (' + buyPct + '%)</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(buyComm) + '</td></tr>'
+    + '<tr style="background:#F5F4F0;"><td colspan="2" style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;">Government Fees</td></tr>'
+    + '<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Conveyance Fee (' + countyName + ' Co.)</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(conveyance) + '</td></tr>'
+    + (countyServiceFee ? '<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">County Service Fee</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(countyServiceFee) + '</td></tr>' : '')
+    + '<tr style="background:#F5F4F0;"><td colspan="2" style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;">Title & Closing Fees (Erieview Title)</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Closing Fee</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(closingFee) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">CPC Coverage</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(cpcCoverage) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Disbursement / Funding Fee</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(disbursementFee) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Escrow Fee</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(escrowFee) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Exam Fee</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(examFee) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Patriot Search Fee</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(patriotSearch) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Shipping & Handling</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(shippingFee) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Special Tax Search</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(taxSearch) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Title Update & Conditional Filing</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(titleUpdate) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Deed Preparation</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(deedPrep) + '</td></tr>'
+    + '<tr><td style="padding:6px 12px;border-bottom:1px solid #f0f0f0;">Water/Sewer Hold (est.)</td><td style="padding:6px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(waterSewerHold) + '</td></tr>'
+    + '<tr style="background:#F5F4F0;"><td colspan="2" style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;">Taxes & Other</td></tr>'
+    + (taxes>0?'<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Prorated Property Taxes (est. 9 months)</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(taxProration) + '</td></tr>':'')
+    + (credits>0?'<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Seller Concessions</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(credits) + '</td></tr>':'')
+    + (warranty>0?'<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Home Warranty</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(warranty) + '</td></tr>':'')
+    + (mortgage>0?'<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">Mortgage Payoff</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid #f0f0f0;">' + fmtd(mortgage) + '</td></tr>':'')
+    // Net total row
+    + '<tr style="background:#FEF3C7;"><td style="padding:14px 12px;font-weight:700;font-size:14px;color:#92400E;">Estimated Net Proceeds</td><td style="padding:14px 12px;text-align:right;font-weight:700;font-size:14px;color:#92400E;">' + fmt(net) + '</td></tr>'
+    + '</table>'
+    + '</div>'
+    // Disclaimer
+    + '<div style="padding:16px 32px;background:#FEF3C7;font-size:12px;color:#92400E;">This is an estimate only. Title fees based on real Northeast Ohio closings (Erieview Title). Tax proration estimated at 9 of 12 months. Your actual net will vary.</div>'
+    // Agent footer
+    + '<div style="padding:20px 32px;border-top:1px solid #f0f0f0;display:flex;align-items:center;gap:16px;">'
+    + '<div style="width:48px;height:48px;border-radius:50%;background:#1D9E75;color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:300;flex-shrink:0;">' + (agentName.split(' ').map(function(x){return x[0]||'';}).join('').substring(0,2).toUpperCase()) + '</div>'
+    + '<div><div style="font-weight:600;font-size:14px;">' + agentName + '</div>'
+    + '<div style="font-size:12px;color:#888;">' + (agent&&agent.brokerage?agent.brokerage:'&nbsp;') + '</div>'
+    + '<div style="font-size:12px;color:#888;">' + agentPhone + ' &middot; ' + agentEmail + '</div></div>'
+    + '</div>'
+    + '<div style="padding:12px 32px 20px;text-align:center;"><span style="font-size:11px;color:#aaa;">Powered by Nest Track</span></div>'
+    + '</div></body></html>';
+
+  // Send via Cloudflare Worker → Resend
+  try {
+    var resp = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+      body: JSON.stringify({
+        to: email,
+        subject: 'Your Net Sheet Estimate — ' + fmt(net) + ' Estimated Net',
+        html: html,
+        from: 'Nest Track <notifications@mail.garucciogroup.com>'
+      })
+    });
+    if (resp.ok) {
+      if (statusEl) { statusEl.textContent = '✅ Net sheet sent to ' + email; statusEl.style.color = 'var(--green-dk)'; statusEl.style.display = 'block'; }
+      if (emailEl) emailEl.value = '';
+    } else {
+      throw new Error('Send failed');
+    }
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '❌ Failed to send. Try again.'; statusEl.style.color = '#E24B4A'; statusEl.style.display = 'block'; }
+  }
+}
+window.emailNetSheet = emailNetSheet;
+
 function calcNetSheet() {
   var price = parseFloat(document.getElementById('ns-price').value) || 0;
   var result = document.getElementById('ns-result');
@@ -3729,9 +3868,9 @@ function partnerActionButtons(p) {
   const buttons = [];
   if (phone) {
     buttons.push(`<a class="btn btn-sm" href="tel:${phone}">☎ Call</a>`);
-    buttons.push(`<a class="btn btn-sm" href="sms:${phone}?&body=${encodeURIComponent('Hi '+(p.name||'')+', I was referred through The Garuccio Group preferred partner list.')}">💬 Text</a>`);
+    buttons.push(`<a class="btn btn-sm" href="sms:${phone}?&body=${encodeURIComponent('Hi '+(p.name||'')+', I was referred through a preferred partner list.')}">💬 Text</a>`);
   }
-  if (p.email) buttons.push(`<a class="btn btn-sm" href="mailto:${partnerEsc(p.email)}?subject=${encodeURIComponent('Referral from The Garuccio Group')}">✉️ Email</a>`);
+  if (p.email) buttons.push(`<a class="btn btn-sm" href="mailto:${partnerEsc(p.email)}?subject=${encodeURIComponent('Referral from Nest Track')}">✉️ Email</a>`);
   if (p.web) {
     const web = /^https?:\/\//i.test(p.web) ? p.web : 'https://' + p.web;
     buttons.push(`<a class="btn btn-sm" href="${partnerEsc(web)}" target="_blank" rel="noopener">🌐 Site</a>`);
@@ -4852,9 +4991,9 @@ async function agentChatWith(uid) {
   // Open direct SMS to buyer
   const phone = (b.phone||'').replace(/\D/g,'');
   if (phone) {
-    window.open(`sms:${phone}?body=${encodeURIComponent(`Hi ${b.firstName}, this is ${userProfile.firstName} from The Garuccio Group!`)}`, '_blank');
+    window.open(`sms:${phone}?body=${encodeURIComponent(`Hi ${b.firstName}, this is ${userProfile.firstName}!`)}`, '_blank');
   } else {
-    window.open(`mailto:${b.email}?subject=The Garuccio Group&body=Hi ${b.firstName}, this is ${userProfile.firstName} from The Garuccio Group!`, '_blank');
+    window.open(`mailto:${b.email}?subject=Nest Track&body=Hi ${b.firstName}, this is ${userProfile.firstName}!`, '_blank');
   }
 }
 async function aiBuyerSummary(uid) {
