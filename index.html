@@ -549,7 +549,14 @@ textarea{resize:vertical;min-height:68px;}
 
   <div class="ns">Account</div>
   <button class="nb" data-pg="dash" onclick="go('dash',this)">📊 My Dashboard</button>
-  <button class="nb" data-pg="agent" onclick="go('agent',this)" id="agent-nav" style="display:none;">👔 Agent Backend <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+  <!-- Agent Tools Section -->
+  <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
+    <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);padding:10px 12px 4px;">Agent Tools</div>
+    <button class="nb" data-pg="agent" onclick="go('agent',this)" id="agent-nav">👔 Agent Backend <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
+    <button class="nb" data-pg="tax-lookup" onclick="go('tax-lookup',this)">🏛️ Tax Lookup</button>
+    <button class="nb" data-pg="social-planner" onclick="go('social-planner',this)">📱 Social Planner</button>
+  </div>
 </div>
 
 <!-- MAIN -->
@@ -928,6 +935,28 @@ textarea{resize:vertical;min-height:68px;}
 <!-- MORTGAGE CALC -->
 <div class="page" id="page-mortgage">
   <div class="ph"><div class="pt">Mortgage Calculator</div></div>
+
+  <!-- Live Rate Widget -->
+  <div class="card" style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:18px 20px;">
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:8px;">📊 Current Mortgage Rates</div>
+    <div style="display:flex;gap:20px;align-items:flex-end;">
+      <div>
+        <div style="font-size:11px;opacity:0.75;margin-bottom:2px;">30-Year Fixed</div>
+        <div style="font-family:'Fraunces',serif;font-size:36px;font-weight:300;letter-spacing:-1px;" id="rate-30">—</div>
+      </div>
+      <div>
+        <div style="font-size:11px;opacity:0.75;margin-bottom:2px;">15-Year Fixed</div>
+        <div style="font-family:'Fraunces',serif;font-size:28px;font-weight:300;letter-spacing:-0.5px;" id="rate-15">—</div>
+      </div>
+      <div style="margin-left:auto;text-align:right;">
+        <div style="font-size:10px;opacity:0.7;" id="rate-date">Loading...</div>
+        <div style="font-size:10px;opacity:0.6;margin-top:2px;">Source: Freddie Mac</div>
+      </div>
+    </div>
+    <button onclick="applyRateToCalc()" style="margin-top:10px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;">Use current rate ↓</button>
+  </div>
+
+  <!-- Calculator -->
   <div class="card" style="display:flex;flex-direction:column;gap:14px;">
     <div>
       <label class="flabel">Calculate For</label>
@@ -943,15 +972,288 @@ textarea{resize:vertical;min-height:68px;}
       <div><label class="flabel">Property Tax (annual)</label><input type="number" id="mort-tax" value="6500"/></div>
       <div><label class="flabel">Home Insurance (annual)</label><input type="number" id="mort-ins" value="1400"/></div>
       <div><label class="flabel">HOA (monthly)</label><input type="number" id="mort-hoa" value="0"/></div>
-      <div><label class="flabel">PMI %  (if &lt;20% down)</label><input type="number" id="mort-pmi" value="0.5" step="0.05"/></div>
+      <div><label class="flabel">PMI % (if &lt;20% down)</label><input type="number" id="mort-pmi" value="0.5" step="0.05"/></div>
     </div>
     <button class="btn btn-g" onclick="calcMort()">Calculate Payment</button>
     <div id="mort-result" style="display:none;"></div>
   </div>
-  <div class="card">
-    <div style="font-weight:500;font-size:14px;margin-bottom:6px;">Need pre-approval first?</div>
-    <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px;">Tom Garuccio is a licensed mortgage professional. Get pre-approved directly — quick, simple, and gives you negotiating power.</div>
-    <a href="https://1660690.my1003app.com/2784866/register?time=1775863969580" target="_blank" class="btn btn-g">Get Pre-Approved →</a>
+
+  <!-- Tom Mortgage Contact -->
+  <div class="card" style="border:1.5px solid var(--green-md);">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;flex-shrink:0;">TG</div>
+      <div>
+        <div style="font-weight:600;font-size:15px;">Tom Garuccio</div>
+        <div style="font-size:12px;color:var(--text2);">Licensed Mortgage Professional</div>
+        <div style="font-size:12px;color:var(--green-dk);font-weight:500;">440-754-7449</div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Have a mortgage question? Tom can walk you through loan options, rates, and what you qualify for — no pressure, just answers.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+      <a href="tel:4407547449" class="btn" style="justify-content:center;gap:6px;font-size:13px;">📞 Call Tom</a>
+      <a href="sms:4407547449" class="btn" style="justify-content:center;gap:6px;font-size:13px;">💬 Text Tom</a>
+      <a href="mailto:Tom@GaruccioGroup.com" class="btn" style="justify-content:center;gap:6px;font-size:13px;">✉️ Email Tom</a>
+      <a href="https://1660690.my1003app.com/2784866/register?time=1775863969580" target="_blank" class="btn btn-g" style="justify-content:center;gap:6px;font-size:13px;">🏦 Get Pre-Approved</a>
+    </div>
+  </div>
+</div>
+
+
+<!-- AGENT TOOLS -->
+</div><span class="pill pill-p">Agent Only</span></div>
+
+  <!-- Tool Cards -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <button onclick="go('listing-desc',document.querySelector('[data-pg=listing-desc]'))" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:var(--r);padding:16px 12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;font-family:inherit;">
+      <span style="font-size:24px;">✍️</span>
+      <span style="font-size:13px;font-weight:500;">Listing Description Generator</span>
+      <span style="font-size:11px;opacity:0.7;">AI-powered MLS + social copy</span>
+    </button>
+    <button onclick="go('tax-lookup',document.querySelector('[data-pg=tax-lookup]'))" style="background:var(--blue-lt);color:var(--blue-dk);border:1px solid #93C5FD;border-radius:var(--r);padding:16px 12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;font-family:inherit;">
+      <span style="font-size:24px;">🏛️</span>
+      <span style="font-size:13px;font-weight:500;">Property Tax Lookup</span>
+      <span style="font-size:11px;opacity:0.7;">Cuyahoga · Lorain · Medina</span>
+    </button>
+    <button onclick="go('social-planner',document.querySelector('[data-pg=social-planner]'))" style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;border-radius:var(--r);padding:16px 12px;display:flex;flex-direction:column;gap:6px;cursor:pointer;text-align:left;font-family:inherit;">
+      <span style="font-size:24px;">📱</span>
+      <span style="font-size:13px;font-weight:500;">Social Media Planner</span>
+      <span style="font-size:11px;opacity:0.7;">AI-powered Facebook & Instagram</span>
+    </button>
+  </div>
+</div>
+
+<!-- LISTING DESCRIPTION GENERATOR -->
+<div class="page" id="page-listing-desc">
+  <div class="ph"><div class="pt">Listing Description Generator</div><span class="pill pill-p">✦ Claude AI</span></div>
+  <div class="card" style="display:flex;flex-direction:column;gap:13px;">
+    <div class="fg2">
+      <div><label class="flabel">Property Address</label><input type="text" id="ld-address" placeholder="123 Main St, Avon Lake, OH 44012"/></div>
+      <div><label class="flabel">List Price</label><input type="number" id="ld-price" placeholder="450000"/></div>
+    </div>
+    <div class="fg2">
+      <div><label class="flabel">Bedrooms</label><input type="number" id="ld-beds" placeholder="4"/></div>
+      <div><label class="flabel">Bathrooms</label><input type="number" id="ld-baths" placeholder="2.5" step="0.5"/></div>
+      <div><label class="flabel">Square Footage</label><input type="number" id="ld-sqft" placeholder="2400"/></div>
+      <div><label class="flabel">Year Built</label><input type="number" id="ld-year" placeholder="1998"/></div>
+    </div>
+    <div><label class="flabel">Key Features (one per line)</label><textarea id="ld-features" rows="4" placeholder="Updated kitchen with quartz countertops&#10;New roof 2022&#10;Finished basement&#10;3-car garage&#10;Backs to private wooded lot"></textarea></div>
+    <div><label class="flabel">Neighborhood / Area Highlights</label><input type="text" id="ld-area" placeholder="e.g. Westlake schools, walk to Crocker Park, quiet cul-de-sac"/></div>
+    <!-- Photo upload -->
+    <div>
+      <label class="flabel">Photos (optional — AI will describe what it sees)</label>
+      <input type="file" id="ld-photos" accept="image/*" multiple style="font-size:13px;"/>
+    </div>
+    <!-- Tax info import -->
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px;">
+      <div style="font-size:12px;font-weight:500;margin-bottom:8px;">📋 Import Tax Info (optional)</div>
+      <div class="fg2">
+        <div><label class="flabel">Annual Taxes</label><input type="number" id="ld-taxes" placeholder="6500"/></div>
+        <div><label class="flabel">Assessed Value</label><input type="number" id="ld-assessed" placeholder="220000"/></div>
+      </div>
+    </div>
+    <div>
+      <label class="flabel">Tone / Style</label>
+      <select id="ld-tone">
+        <option value="professional">Professional & polished</option>
+        <option value="warm">Warm & inviting</option>
+        <option value="luxury">Luxury & elevated</option>
+        <option value="concise">Concise & punchy</option>
+      </select>
+    </div>
+    <button class="btn btn-g" onclick="generateListingDesc()">✦ Generate with Claude</button>
+    <div id="ld-result" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- TAX LOOKUP -->
+<div class="page" id="page-tax-lookup">
+  <div class="ph"><div class="pt">Property Tax Lookup</div></div>
+  <div class="notice">Look up property tax info for any address in Cuyahoga, Lorain, or Medina county. Data pulled from county auditor records.</div>
+  <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+    <div><label class="flabel">Property Address</label><input type="text" id="tl-address" placeholder="123 Main St, Avon Lake, OH 44012"/></div>
+    <div>
+      <label class="flabel">County</label>
+      <select id="tl-county">
+        <option value="cuyahoga">Cuyahoga County</option>
+        <option value="lorain">Lorain County</option>
+        <option value="medina">Medina County</option>
+      </select>
+    </div>
+    <button class="btn btn-g" onclick="lookupPropertyTax()">Look Up Property</button>
+    <div id="tl-result" style="display:none;"></div>
+  </div>
+  <div class="notice" style="font-size:12px;">Tax data is from county auditor public records. Always verify with the county for the most current information.</div>
+</div>
+
+<!-- SOCIAL MEDIA PLANNER -->
+<div class="page" id="page-social-planner">
+  <div class="ph"><div class="pt">Social Media Planner</div><span class="pill pill-p">✦ Claude AI</span></div>
+
+  <!-- Stats row - dynamic -->
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;" id="sp-stats">
+    <div class="card" style="text-align:center;padding:12px 8px;">
+      <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:300;color:var(--green-dk);">$380K</div>
+      <div style="font-size:11px;color:var(--text3);">Median List Price</div>
+    </div>
+    <div class="card" style="text-align:center;padding:12px 8px;">
+      <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:300;color:var(--green-dk);">18</div>
+      <div style="font-size:11px;color:var(--text3);">Avg Days on Market</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;">
+    <button class="btn btn-sm" id="sp-tab-single" onclick="spSwitchTab('single')" style="background:var(--green);color:#fff;border-color:var(--green);">Single Post</button>
+    <button class="btn btn-sm" id="sp-tab-week" onclick="spSwitchTab('week')" style="background:var(--surface2);color:var(--text2);">Full Week</button>
+    <button class="btn btn-sm" id="sp-tab-tips" onclick="spSwitchTab('tips')" style="background:var(--surface2);color:var(--text2);">Tips & Hashtags</button>
+  </div>
+
+  <!-- SINGLE POST -->
+  <div id="sp-panel-single">
+    <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;font-weight:500;">Topic</div>
+      <div id="sp-topic-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;">
+        <button class="sp-topic selected" onclick="spSelectTopic(this,'home_value')" style="padding:10px;border:1.5px solid var(--green);border-radius:var(--r);background:var(--green-lt);color:var(--green-dk);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">🏠 Home Values</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'market_stats')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">📊 Market Stats</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'seller_tips')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">💡 Seller Tips</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'buyer_tips')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">🔑 Buyer Tips</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'myth_bust')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">❌ Myth Buster</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'local_pride')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">🏘️ Local Pride</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'testimonial')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">⭐ Client Story</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'neighborhood')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">🏡 Neighborhood</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'military')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">🎖️ Military / VA</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'investment')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">💰 Investment</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'mortgage_tips')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">🏦 Mortgage Tips</button>
+        <button class="sp-topic" onclick="spSelectTopic(this,'educational')" style="padding:10px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;text-align:left;">📚 Educational</button>
+      </div>
+      <div class="fg2">
+        <div>
+          <label class="flabel">Your Market / Area</label>
+          <input type="text" id="sp-neighborhood" placeholder="e.g. Denver, CO · Austin Metro · South Jersey" value=""/>
+        </div>
+        <div>
+          <label class="flabel">Tone</label>
+          <select id="sp-tone">
+            <option value="conversational and local">Conversational & Local</option>
+            <option value="bold and direct">Bold & Direct</option>
+            <option value="storytelling">Storytelling</option>
+            <option value="educational">Educational</option>
+            <option value="urgency-driven">Urgency-Driven</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg2">
+        <div>
+          <label class="flabel">Call to Action</label>
+          <select id="sp-cta">
+            <option value="garucciogroup.netlify.app">Link in bio</option>
+            <option value="DM me directly">DM me for more info</option>
+            <option value="comment below">Comment below</option>
+            <option value="tag a friend or neighbor">Tag a friend</option>
+            <option value="call or text me directly">Call or text me</option>
+          </select>
+        </div>
+        <div>
+          <label class="flabel">Versions</label>
+          <select id="sp-qty">
+            <option value="1">1 post</option>
+            <option value="2" selected>2 versions</option>
+            <option value="3">3 versions</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="flabel">Extra Details (optional)</label><textarea id="sp-extra" rows="2" placeholder="Specific neighborhoods, recent sale, local event, personal story..."></textarea></div>
+      <button class="btn btn-g" id="sp-btn" onclick="spGenerateSingle()">✦ Generate Post</button>
+    </div>
+    <div id="sp-single-output" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- FULL WEEK -->
+  <div id="sp-panel-week" style="display:none;flex-direction:column;gap:12px;">
+    <div class="notice">The planner assigns a topic to each day. Tap any day to change it, then generate all 5 posts at once.</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;" id="sp-week-grid">
+      <div class="card" id="sp-wb0" onclick="spSelectDay(0)" style="padding:10px;text-align:center;cursor:pointer;border:1.5px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#378ADD;margin:0 auto 4px;"></div>
+        <div style="font-size:11px;font-weight:600;">Mon</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;" id="sp-wt0">Market Stats</div>
+      </div>
+      <div class="card" id="sp-wb1" onclick="spSelectDay(1)" style="padding:10px;text-align:center;cursor:pointer;border:1.5px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#C8923A;margin:0 auto 4px;"></div>
+        <div style="font-size:11px;font-weight:600;">Tue</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;" id="sp-wt1">Seller Tips</div>
+      </div>
+      <div class="card" id="sp-wb2" onclick="spSelectDay(2)" style="padding:10px;text-align:center;cursor:pointer;border:1.5px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#2D6A4F;margin:0 auto 4px;"></div>
+        <div style="font-size:11px;font-weight:600;">Wed</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;" id="sp-wt2">Local Pride</div>
+      </div>
+      <div class="card" id="sp-wb3" onclick="spSelectDay(3)" style="padding:10px;text-align:center;cursor:pointer;border:1.5px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#7F77DD;margin:0 auto 4px;"></div>
+        <div style="font-size:11px;font-weight:600;">Thu</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;" id="sp-wt3">Buyer Tips</div>
+      </div>
+      <div class="card" id="sp-wb4" onclick="spSelectDay(4)" style="padding:10px;text-align:center;cursor:pointer;border:1.5px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:#D4537E;margin:0 auto 4px;"></div>
+        <div style="font-size:11px;font-weight:600;">Fri</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;" id="sp-wt4">Home Values</div>
+      </div>
+    </div>
+    <!-- Day customizer -->
+    <div id="sp-day-customizer" class="card" style="display:none;padding:12px;">
+      <div style="font-size:12px;font-weight:500;margin-bottom:8px;">Change topic for <span id="sp-custom-day-name"></span></div>
+      <select id="sp-custom-topic" onchange="spUpdateWeekDay()" style="width:100%;font-size:13px;padding:8px;">
+        <option value="market_stats">Market Stats</option>
+        <option value="seller_tips">Seller Tips</option>
+        <option value="buyer_tips">Buyer Tips</option>
+        <option value="local_pride">Local Pride</option>
+        <option value="home_value">Home Values</option>
+        <option value="testimonial">Client Story</option>
+        <option value="myth_bust">Myth Buster</option>
+        <option value="neighborhood">Neighborhood</option>
+        <option value="military">Military / VA</option>
+        <option value="investment">Investment</option>
+        <option value="mortgage_tips">Mortgage Tips</option>
+        <option value="educational">Educational</option>
+      </select>
+    </div>
+    <button class="btn btn-g" id="sp-week-btn" onclick="spGenerateWeek()">✦ Generate Full Week</button>
+    <div id="sp-week-output" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- TIPS -->
+  <div id="sp-panel-tips" style="display:none;flex-direction:column;gap:12px;">
+    <div class="card">
+      <div style="font-size:13px;font-weight:500;margin-bottom:10px;">📅 Best Times to Post</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.8;">
+        <strong>Facebook:</strong> Tue–Thu 9am–11am, Wed 1pm–4pm<br>
+        <strong>Instagram:</strong> Mon–Fri 6am–9am, 12pm–2pm<br>
+        <strong>LinkedIn:</strong> Tue–Thu 7am–9am, 12pm<br>
+        <strong>TikTok:</strong> Tue–Fri 9am–12pm, 2pm–5pm
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:500;margin-bottom:10px;">#️⃣ Hashtag Strategy (3–5 max)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#NortheastOhioRealEstate</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#ClevelandHomes</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#AvonLakeRealEstate</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#WestlakeHomes</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#OhioRealEstate</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#SellMyHome</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#HomeValues</span>
+        <span style="background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:500;">#RealEstateTips</span>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:500;margin-bottom:10px;">📋 Weekly Content Formula</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:2;">
+        <strong>Monday:</strong> Market data / stats<br>
+        <strong>Tuesday:</strong> Seller or buyer tip<br>
+        <strong>Wednesday:</strong> Local community / neighborhood<br>
+        <strong>Thursday:</strong> Educational / myth buster<br>
+        <strong>Friday:</strong> Client story / personal
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2550,7 +2852,8 @@ async function showApp() {
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
   // Show agent backend nav if agent
-  document.getElementById('agent-nav').style.display = isAgent ? 'flex' : 'none';
+  var agentSection = document.getElementById('agent-tools-section'); if (agentSection) agentSection.style.display = isAgent ? 'flex' : 'none';
+  var agentBtn = document.getElementById('agent-nav'); if (agentBtn) agentBtn.style.display = '';
   const mtb = document.getElementById('manage-team-btn');
   if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
   updateAgentRefs();
@@ -2763,6 +3066,7 @@ function go(page, el) {
   if (page === 'dash') renderDash();
   if (page === 'home') renderHome();
   if (page === 'education') renderEducation();
+  if (page === 'mortgage') fetchMortgageRates();
   if (page === 'chat') { clearChatBadge(); var msgs=document.getElementById('chat-messages'); if(msgs){msgs.innerHTML='';msgs.removeAttribute('data-last-date');} var emp=document.getElementById('chat-empty'); if(emp) emp.style.display='block'; if(currentChatRoom) watchChat(isAgent?null:null); else setupChatHead(); }
   if (page === 'photochecklist') renderPhotoChecklist();
   if (page === 'mortgage') buildMortgageDropdown();
@@ -3117,6 +3421,363 @@ function buildMortgageDropdown() {
 }
 window.buildMortgageDropdown = buildMortgageDropdown;
 window.renderSaved = renderSaved;
+
+
+// ─── LIVE MORTGAGE RATES (Freddie Mac PMMS) ───
+var currentRates = { rate30: 6.75, rate15: 6.0, date: '' };
+
+async function fetchMortgageRates() {
+  try {
+    // Freddie Mac PMMS data via FRED API (St. Louis Fed - free, no key needed for this endpoint)
+    var resp = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US&vintage_date=' + new Date().toISOString().split('T')[0], {mode:'cors'});
+    if (!resp.ok) throw new Error('FRED fetch failed');
+    var text = await resp.text();
+    var lines = text.trim().split('
+');
+    var lastLine = lines[lines.length-1].split(',');
+    var rate30 = parseFloat(lastLine[1]);
+    var dateStr = lastLine[0];
+    if (!isNaN(rate30)) {
+      currentRates.rate30 = rate30;
+      currentRates.date = dateStr;
+    }
+
+    // Also fetch 15yr
+    var resp15 = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE15US', {mode:'cors'});
+    if (resp15.ok) {
+      var text15 = await resp15.text();
+      var lines15 = text15.trim().split('
+');
+      var last15 = lines15[lines15.length-1].split(',');
+      var rate15 = parseFloat(last15[1]);
+      if (!isNaN(rate15)) currentRates.rate15 = rate15;
+    }
+  } catch(e) {
+    console.log('Rate fetch failed, using defaults:', e.message);
+  }
+  // Update UI
+  var el30 = document.getElementById('rate-30');
+  var el15 = document.getElementById('rate-15');
+  var elDate = document.getElementById('rate-date');
+  if (el30) el30.textContent = currentRates.rate30.toFixed(2) + '%';
+  if (el15) el15.textContent = currentRates.rate15.toFixed(2) + '%';
+  if (elDate && currentRates.date) {
+    var d = new Date(currentRates.date + 'T12:00:00');
+    elDate.textContent = 'Week of ' + d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
+}
+
+function applyRateToCalc() {
+  var rateInput = document.getElementById('mort-rate');
+  if (rateInput && currentRates.rate30) {
+    rateInput.value = currentRates.rate30.toFixed(3);
+    calcMort();
+  }
+}
+window.applyRateToCalc = applyRateToCalc;
+
+// ─── LISTING DESCRIPTION GENERATOR ───
+async function generateListingDesc() {
+  var addr = document.getElementById('ld-address').value.trim();
+  var price = document.getElementById('ld-price').value;
+  var beds = document.getElementById('ld-beds').value;
+  var baths = document.getElementById('ld-baths').value;
+  var sqft = document.getElementById('ld-sqft').value;
+  var year = document.getElementById('ld-year').value;
+  var features = document.getElementById('ld-features').value.trim();
+  var area = document.getElementById('ld-area').value.trim();
+  var tone = document.getElementById('ld-tone').value;
+  var taxes = document.getElementById('ld-taxes').value;
+  var assessed = document.getElementById('ld-assessed').value;
+  var resultEl = document.getElementById('ld-result');
+
+  if (!addr && !beds) { alert('Please enter at least an address or property details.'); return; }
+
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<div class="notice">✦ Claude is writing your listing copy...</div>';
+
+  var prompt = 'You are a top real estate agent creating listing copy for a property. Write the following marketing materials:\n\n'
+    + '1. MLS DESCRIPTION (max 500 characters, factual, no emojis)\n'
+    + '2. SOCIAL MEDIA POST (Instagram/Facebook, engaging, with relevant emojis, max 300 characters)\n'
+    + '3. EMAIL SUBJECT LINE (compelling, max 60 characters)\n\n'
+    + 'PROPERTY DETAILS:\n'
+    + (addr ? 'Address: ' + addr + '\n' : '')
+    + (price ? 'List Price: $' + parseInt(price).toLocaleString() + '\n' : '')
+    + (beds ? 'Bedrooms: ' + beds + '\n' : '')
+    + (baths ? 'Bathrooms: ' + baths + '\n' : '')
+    + (sqft ? 'Square Footage: ' + parseInt(sqft).toLocaleString() + ' sq ft\n' : '')
+    + (year ? 'Year Built: ' + year + '\n' : '')
+    + (taxes ? 'Annual Taxes: $' + parseInt(taxes).toLocaleString() + '\n' : '')
+    + (assessed ? 'Assessed Value: $' + parseInt(assessed).toLocaleString() + '\n' : '')
+    + (features ? 'Key Features:\n' + features + '\n' : '')
+    + (area ? 'Area/Neighborhood: ' + area + '\n' : '')
+    + '\nTone: ' + tone
+    + '\n\nFormat your response with clear headers: MLS DESCRIPTION, SOCIAL MEDIA POST, EMAIL SUBJECT LINE.';
+
+  try {
+    var response = await claudeAPI(prompt, 1200);
+    resultEl.innerHTML = '<div class="card" style="white-space:pre-wrap;font-size:13px;line-height:1.7;">' + escapeHtml(response) + '</div>'
+      + '<div style="display:flex;gap:8px;margin-top:8px;">'
+      + '<button onclick="navigator.clipboard.writeText(document.querySelector(\'#ld-result .card\').textContent)" class="btn btn-sm">📋 Copy All</button>'
+      + '</div>';
+  } catch(e) {
+    resultEl.innerHTML = '<div class="notice" style="color:#E24B4A;">Failed to generate. Please try again.</div>';
+  }
+}
+
+// ─── SOCIAL MEDIA PLANNER ───
+var spSelectedTopic = 'home_value';
+var spWeekTopics = ['market_stats','seller_tips','local_pride','buyer_tips','home_value'];
+var spActiveDayIdx = null;
+
+var spTopicMap = {
+  home_value: { label:'Home Values', desc:'Free home valuation offer targeting local homeowners curious what their home is worth. Mention Zestimates are inaccurate and you provide real comps based on actual sales data in Northeast Ohio.' },
+  market_stats: { label:'Market Stats', desc:'Local Northeast Ohio market data including median prices, days on market, and active listings. Use real numbers to educate homeowners and attract sellers.' },
+  seller_tips: { label:'Seller Tips', desc:'Actionable tips for homeowners thinking about selling in Northeast Ohio. Address fears about timing, where they'll go next, and give them confidence to take action.' },
+  buyer_tips: { label:'Buyer Tips', desc:'Practical advice for buyers navigating the Northeast Ohio market. Down payment myths, pre-approval importance, and what to expect in a competitive market.' },
+  myth_bust: { label:'Myth Buster', desc:'Correct a common misconception about buying or selling in Northeast Ohio — Zestimates are wrong, homes sell year-round not just spring, you don't need to fix everything before listing.' },
+  local_pride: { label:'Local Pride', desc:'Celebrate life in Northeast Ohio — Cleveland suburbs, the community feel, lifestyle, Lake Erie, Metro Parks, and everything that makes the area special.' },
+  testimonial: { label:'Client Story', desc:'A personal story about helping a local homeowner successfully sell or find their home in Northeast Ohio. Make it feel real, specific, and emotional.' },
+  neighborhood: { label:'Neighborhood', desc:'Highlight a specific suburb or neighborhood in Northeast Ohio — Avon Lake, Westlake, Bay Village, Rocky River — and why people love living there.' },
+  military: { label:'Military / VA', desc:'Helping veterans and active duty military in Northeast Ohio buy or sell homes. Highlight VA loan benefits and commitment to serving those who served.' },
+  investment: { label:'Investment', desc:'Northeast Ohio as a smart investment market — affordable prices, rental income potential, growing tech sector, and long-term appreciation.' },
+  mortgage_tips: { label:'Mortgage Tips', desc:'Mortgage education for buyers — current rates, down payment options, pre-approval process, and how to get the best rate in today's market.' },
+  educational: { label:'Educational', desc:'Real estate education post — explain a term, process, or concept in simple language that helps buyers and sellers feel more confident and informed.' }
+};
+
+function spSwitchTab(tab) {
+  ['single','week','tips'].forEach(function(t) {
+    var panel = document.getElementById('sp-panel-'+t);
+    var btn = document.getElementById('sp-tab-'+t);
+    if (panel) panel.style.display = t===tab ? 'flex' : 'none';
+    if (btn) {
+      btn.style.background = t===tab ? 'var(--green)' : 'var(--surface2)';
+      btn.style.color = t===tab ? '#fff' : 'var(--text2)';
+    }
+  });
+}
+window.spSwitchTab = spSwitchTab;
+
+function spSelectTopic(el, topic) {
+  document.querySelectorAll('.sp-topic').forEach(function(p) {
+    p.style.border = '1.5px solid var(--border)';
+    p.style.background = 'var(--surface)';
+    p.style.color = 'var(--text)';
+  });
+  el.style.border = '1.5px solid var(--green)';
+  el.style.background = 'var(--green-lt)';
+  el.style.color = 'var(--green-dk)';
+  spSelectedTopic = topic;
+}
+window.spSelectTopic = spSelectTopic;
+
+function spSelectDay(idx) {
+  document.querySelectorAll('[id^=sp-wb]').forEach(function(d){ d.style.borderColor='var(--border)'; });
+  var wb = document.getElementById('sp-wb'+idx);
+  if (wb) wb.style.borderColor = 'var(--green)';
+  spActiveDayIdx = idx;
+  var days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+  var nameEl = document.getElementById('sp-custom-day-name');
+  var topicEl = document.getElementById('sp-custom-topic');
+  var custEl = document.getElementById('sp-day-customizer');
+  if (nameEl) nameEl.textContent = days[idx];
+  if (topicEl) topicEl.value = spWeekTopics[idx];
+  if (custEl) custEl.style.display = 'block';
+}
+window.spSelectDay = spSelectDay;
+
+function spUpdateWeekDay() {
+  if (spActiveDayIdx === null) return;
+  spWeekTopics[spActiveDayIdx] = document.getElementById('sp-custom-topic').value;
+  var wtEl = document.getElementById('sp-wt'+spActiveDayIdx);
+  if (wtEl) wtEl.textContent = spTopicMap[spWeekTopics[spActiveDayIdx]].label;
+}
+window.spUpdateWeekDay = spUpdateWeekDay;
+
+function spMakePostCard(text, dayLabel, topicLabel) {
+  var div = document.createElement('div');
+  div.className = 'card';
+  div.style.cssText = 'position:relative;padding:16px;margin-bottom:8px;border-left:3px solid var(--green);';
+  var safe = escapeHtml(text);
+  div.innerHTML = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">'
+    + (dayLabel ? '<span style="font-size:11px;font-weight:600;text-transform:uppercase;background:var(--green-lt);color:var(--green-dk);padding:3px 8px;border-radius:10px;">' + escapeHtml(dayLabel) + '</span>' : '')
+    + '<span style="font-size:11px;color:var(--text3);">' + escapeHtml(topicLabel) + '</span>'
+    + '</div>'
+    + '<div style="font-size:13px;line-height:1.75;white-space:pre-wrap;color:var(--text);">' + safe + '</div>'
+    + '<div style="margin-top:10px;">'
+    + '<button onclick="navigator.clipboard.writeText(this.closest('.card').querySelector('[data-copy]').textContent).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy post',2000)})" style="padding:6px 14px;font-size:12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;background:var(--surface2);font-family:inherit;">Copy post</button>'
+    + '</div>'
+    + '<div data-copy style="display:none;">' + text + '</div>';
+  return div;
+}
+
+async function spGenerateSingle() {
+  var neighborhood = document.getElementById('sp-neighborhood').value;
+  var tone = document.getElementById('sp-tone').value;
+  var cta = document.getElementById('sp-cta').value;
+  var qty = document.getElementById('sp-qty').value;
+  var extra = document.getElementById('sp-extra').value.trim();
+  var topic = spTopicMap[spSelectedTopic];
+  var agent = currentAgent();
+  var agentName = agent ? agent.name : 'your local agent';
+  var outputEl = document.getElementById('sp-single-output');
+  var btn = document.getElementById('sp-btn');
+
+  btn.disabled = true; btn.textContent = '✦ Writing...';
+  outputEl.innerHTML = '<div class="notice">✦ Claude is writing your post...</div>';
+
+  var prompt = 'You are writing Facebook posts for ' + agentName + ', a real estate agent in Northeast Ohio.
+
+'
+    + 'Write ' + qty + ' distinct Facebook post' + (qty>1?'s':'') + ' with these settings:
+'
+    + '- Topic: ' + topic.desc + '
+'
+    + '- Location: ' + neighborhood + '
+'
+    + '- Tone: ' + tone + '
+'
+    + '- CTA: ' + cta + '
+'
+    + (extra ? '- Extra details: ' + extra + '
+' : '')
+    + '
+RULES:
+'
+    + '- Sound like a real local person, never AI
+'
+    + '- Never use: "In today's market", "I'm excited to share", "navigate", "journey", "seamless", "leverage", "dream home"
+'
+    + '- Each post: 130-210 words
+'
+    + '- Include exactly 1 question to spark comments
+'
+    + '- Use 2-4 emojis naturally
+'
+    + '- End with the CTA
+'
+    + '- First line must stop the scroll
+'
+    + (qty>1 ? '- Label them POST 1: and POST 2: etc.
+' : '- Output only the post
+');
+
+  try {
+    var response = await claudeAPI(prompt, 1200);
+    outputEl.innerHTML = '';
+    if (qty == 1) {
+      outputEl.appendChild(spMakePostCard(response.trim(), '', topic.label));
+    } else {
+      var parts = response.split(/
+POST \d+:/i).filter(function(p){return p.trim();});
+      parts.forEach(function(p,i){ outputEl.appendChild(spMakePostCard(p.trim(), 'Version '+(i+1), topic.label)); });
+      if (!parts.length) outputEl.appendChild(spMakePostCard(response.trim(), '', topic.label));
+    }
+  } catch(e) {
+    outputEl.innerHTML = '<div class="notice" style="color:#E24B4A;">Failed to generate. Try again.</div>';
+  }
+  btn.disabled = false; btn.textContent = '✦ Generate Post';
+}
+window.spGenerateSingle = spGenerateSingle;
+
+async function spGenerateWeek() {
+  var cta = document.getElementById('sp-cta') ? document.getElementById('sp-cta').value : 'link in bio';
+  var btn = document.getElementById('sp-week-btn');
+  var outputEl = document.getElementById('sp-week-output');
+  var agent = currentAgent();
+  var agentName = agent ? agent.name : 'your local agent';
+  var days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+
+  btn.disabled = true; btn.textContent = '✦ Writing full week...';
+  outputEl.innerHTML = '<div class="notice">✦ Writing 5 posts — hang tight...</div>';
+
+  var dayLines = days.map(function(d,i){ return '- ' + d + ': ' + spTopicMap[spWeekTopics[i]].desc; }).join('
+');
+
+  var prompt = 'You are writing a full week of Facebook posts for ' + agentName + ', a real estate agent in Northeast Ohio.
+
+'
+    + 'Write one post per day:
+' + dayLines + '
+
+CTA: ' + cta + '
+
+'
+    + 'RULES:
+- Sound like a real local person, never AI
+- Each post 130-210 words
+- Different structure/hook per day
+'
+    + '- 1 question per post, 2-4 emojis
+- Label: MONDAY:, TUESDAY:, WEDNESDAY:, THURSDAY:, FRIDAY:';
+
+  try {
+    var response = await claudeAPI(prompt, 2500);
+    outputEl.innerHTML = '<div style="font-size:14px;font-weight:500;margin-bottom:8px;">Your Week — Ready to Schedule</div>';
+    var dayNames = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY'];
+    var dayClasses = ['monday','tuesday','wednesday','thursday','friday'];
+    dayNames.forEach(function(day, i) {
+      var parts = response.split(new RegExp(day+':', 'i'));
+      var text = '';
+      if (parts[1]) {
+        var nextDay = dayNames[i+1];
+        text = nextDay ? parts[1].split(new RegExp(nextDay+':', 'i'))[0].trim() : parts[1].trim();
+      }
+      if (text) outputEl.appendChild(spMakePostCard(text, day, spTopicMap[spWeekTopics[i]].label));
+    });
+  } catch(e) {
+    outputEl.innerHTML = '<div class="notice" style="color:#E24B4A;">Failed. Try again.</div>';
+  }
+  btn.disabled = false; btn.textContent = '✦ Generate Full Week';
+}
+window.spGenerateWeek = spGenerateWeek;
+
+window.generateListingDesc = generateListingDesc;
+
+// ─── PROPERTY TAX LOOKUP ───
+async function lookupPropertyTax() {
+  var address = document.getElementById('tl-address').value.trim();
+  var county = document.getElementById('tl-county').value;
+  var resultEl = document.getElementById('tl-result');
+
+  if (!address) { alert('Please enter a property address.'); return; }
+
+  resultEl.style.display = 'block';
+  resultEl.innerHTML = '<div class="notice">Looking up property records...</div>';
+
+  // County auditor portal URLs
+  var countyUrls = {
+    cuyahoga: 'https://fiscalstewardship.cuyahogacounty.gov/PropertySearch',
+    lorain: 'https://auditor.loraincounty.com/property-search',
+    medina: 'https://county.medina-oh.gov/auditor/property-search'
+  };
+
+  var countyNames = { cuyahoga: 'Cuyahoga', lorain: 'Lorain', medina: 'Medina' };
+
+  // Use Claude to provide guidance since county APIs require direct access
+  var prompt = 'A real estate agent needs property tax information for: ' + address + ' in ' + countyNames[county] + ' County, Ohio.\n\n'
+    + 'Provide:\n'
+    + '1. How to quickly look this up on the ' + countyNames[county] + ' County Auditor website\n'
+    + '2. What typical property taxes look like in that area (based on your knowledge)\n'
+    + '3. The direct URL to search: ' + countyUrls[county] + '\n\n'
+    + 'Keep it brief and actionable. Format clearly.';
+
+  try {
+    var response = await claudeAPI(prompt, 500);
+    resultEl.innerHTML = '<div class="card" style="font-size:13px;line-height:1.7;">'
+      + '<div style="font-size:12px;font-weight:500;color:var(--text3);margin-bottom:8px;">Property Tax Info for ' + escapeHtml(address) + '</div>'
+      + '<div style="white-space:pre-wrap;">' + escapeHtml(response) + '</div>'
+      + '</div>'
+      + '<a href="' + countyUrls[county] + '" target="_blank" class="btn btn-g" style="margin-top:8px;">Open ' + countyNames[county] + ' County Auditor →</a>';
+  } catch(e) {
+    // Fallback — just show the auditor link
+    resultEl.innerHTML = '<div class="card" style="font-size:13px;">'
+      + '<p>Look up <strong>' + escapeHtml(address) + '</strong> on the ' + countyNames[county] + ' County Auditor site:</p>'
+      + '</div>'
+      + '<a href="' + countyUrls[county] + '" target="_blank" class="btn btn-g">Open ' + countyNames[county] + ' County Auditor →</a>';
+  }
+}
+window.lookupPropertyTax = lookupPropertyTax;
 
 function calcMort() {
   const price = parseFloat(document.getElementById('mort-price').value) || 0;
