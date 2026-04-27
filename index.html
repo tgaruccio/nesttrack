@@ -839,7 +839,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-g" onclick="openTourAdd()">+ Start New Tour</button>
   </div>
   <div id="tour-list" style="display:flex;flex-direction:column;gap:12px;"></div>
-  <div id="tour-empty" style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">No tours yet. Tap <strong>Start New Tour</strong> when you're at a property.</div>
+  <div id="tour-empty" style="text-align:center;padding:40px;color:var(--text3);font-size:13px;">No tours yet. Tap <strong>Start New Tour</strong> when you are at a property.</div>
 </div>
 
 <!-- SAVED -->
@@ -1455,7 +1455,7 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Inspector CTA -->
   <div class="card" style="background:var(--amber-lt);border-color:#FAC775;">
     <div style="font-weight:500;font-size:13.5px;color:var(--amber-dk);margin-bottom:5px;">⚠️ Always get a professional inspection</div>
-    <div style="font-size:12.5px;color:var(--amber-dk);line-height:1.6;">This tool helps you spot potential issues during a showing — not replace a licensed inspector. If you see red flags, flag them for {agentFirst} and make sure they're on the inspection checklist.</div>
+    <div style="font-size:12.5px;color:var(--amber-dk);line-height:1.6;">This tool helps you spot potential issues during a showing — not replace a licensed inspector. If you see red flags, flag them for {agentFirst} and make sure they are on the inspection checklist.</div>
     <button class="btn btn-sm" style="margin-top:10px;" onclick="go('chat',document.querySelector('[data-pg=chat]'))">Message {agentFirst} →</button>
   </div>
 </div>
@@ -1493,7 +1493,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <div class="card" style="background:var(--blue-lt);border-color:#B5D4F4;">
-    <div style="font-size:12.5px;color:var(--blue-dk);line-height:1.6;">💡 School district boundaries don't always match city lines. Always verify at <a href="https://www.greatschools.org" target="_blank" style="color:var(--blue-dk);font-weight:500;">GreatSchools.org</a> and the district's website before making a decision.</div>
+    <div style="font-size:12.5px;color:var(--blue-dk);line-height:1.6;">💡 School district boundaries do not always match city lines. Always verify at <a href="https://www.greatschools.org" target="_blank" style="color:var(--blue-dk);font-weight:500;">GreatSchools.org</a> and the district's website before making a decision.</div>
   </div>
 </div>
 
@@ -1504,7 +1504,7 @@ textarea{resize:vertical;min-height:68px;}
 
   <div class="card" style="display:flex;flex-direction:column;gap:13px;">
     <div>
-      <label class="flabel">Home Address (listing you're considering)</label>
+      <label class="flabel">Home Address (listing you are considering)</label>
       <select id="cm-prop-sel" onchange="fillCommuteAddr()">
         <option value="">Choose a saved property or type below</option>
       </select>
@@ -1701,7 +1701,7 @@ textarea{resize:vertical;min-height:68px;}
     <!-- Open text questions -->
     <div class="card" style="display:flex;flex-direction:column;gap:10px;">
       <div style="font-size:13px;font-weight:500;">What cities or neighborhoods are you targeting? <span style="font-weight:400;color:var(--text3);">(type your own)</span></div>
-      <input type="text" id="q-cities" placeholder="e.g. Naperville, Evanston, Oak Park — or just the area you're searching"/>
+      <input type="text" id="q-cities" placeholder="e.g. Naperville, Evanston, Oak Park — or just the area you are searching"/>
     </div>
 
     <div class="card" style="display:flex;flex-direction:column;gap:10px;">
@@ -3432,8 +3432,7 @@ async function fetchMortgageRates() {
     var resp = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US&vintage_date=' + new Date().toISOString().split('T')[0], {mode:'cors'});
     if (!resp.ok) throw new Error('FRED fetch failed');
     var text = await resp.text();
-    var lines = text.trim().split('
-');
+    var lines = text.trim().split('\n');
     var lastLine = lines[lines.length-1].split(',');
     var rate30 = parseFloat(lastLine[1]);
     var dateStr = lastLine[0];
@@ -3446,8 +3445,7 @@ async function fetchMortgageRates() {
     var resp15 = await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE15US', {mode:'cors'});
     if (resp15.ok) {
       var text15 = await resp15.text();
-      var lines15 = text15.trim().split('
-');
+      var lines15 = text15.trim().split('\n');
       var last15 = lines15[lines15.length-1].split(',');
       var rate15 = parseFloat(last15[1]);
       if (!isNaN(rate15)) currentRates.rate15 = rate15;
@@ -3533,15 +3531,15 @@ var spActiveDayIdx = null;
 var spTopicMap = {
   home_value: { label:'Home Values', desc:'Free home valuation offer targeting local homeowners curious what their home is worth. Mention Zestimates are inaccurate and you provide real comps based on actual sales data in Northeast Ohio.' },
   market_stats: { label:'Market Stats', desc:'Local Northeast Ohio market data including median prices, days on market, and active listings. Use real numbers to educate homeowners and attract sellers.' },
-  seller_tips: { label:'Seller Tips', desc:'Actionable tips for homeowners thinking about selling in Northeast Ohio. Address fears about timing, where they'll go next, and give them confidence to take action.' },
+  seller_tips: { label:'Seller Tips', desc:'Actionable tips for homeowners thinking about selling in Northeast Ohio. Address fears about timing, where they will go next, and give them confidence to take action.' },
   buyer_tips: { label:'Buyer Tips', desc:'Practical advice for buyers navigating the Northeast Ohio market. Down payment myths, pre-approval importance, and what to expect in a competitive market.' },
-  myth_bust: { label:'Myth Buster', desc:'Correct a common misconception about buying or selling in Northeast Ohio — Zestimates are wrong, homes sell year-round not just spring, you don't need to fix everything before listing.' },
+  myth_bust: { label:'Myth Buster', desc:'Correct a common misconception about buying or selling in Northeast Ohio — Zestimates are wrong, homes sell year-round not just spring, no need to fix everything before listing.' },
   local_pride: { label:'Local Pride', desc:'Celebrate life in Northeast Ohio — Cleveland suburbs, the community feel, lifestyle, Lake Erie, Metro Parks, and everything that makes the area special.' },
   testimonial: { label:'Client Story', desc:'A personal story about helping a local homeowner successfully sell or find their home in Northeast Ohio. Make it feel real, specific, and emotional.' },
   neighborhood: { label:'Neighborhood', desc:'Highlight a specific suburb or neighborhood in Northeast Ohio — Avon Lake, Westlake, Bay Village, Rocky River — and why people love living there.' },
   military: { label:'Military / VA', desc:'Helping veterans and active duty military in Northeast Ohio buy or sell homes. Highlight VA loan benefits and commitment to serving those who served.' },
   investment: { label:'Investment', desc:'Northeast Ohio as a smart investment market — affordable prices, rental income potential, growing tech sector, and long-term appreciation.' },
-  mortgage_tips: { label:'Mortgage Tips', desc:'Mortgage education for buyers — current rates, down payment options, pre-approval process, and how to get the best rate in today's market.' },
+  mortgage_tips: { label:'Mortgage Tips', desc:'Mortgage education for buyers — current rates, down payment options, pre-approval process, and how to get the best rate in todays market.' },
   educational: { label:'Educational', desc:'Real estate education post — explain a term, process, or concept in simple language that helps buyers and sellers feel more confident and informed.' }
 };
 
@@ -3646,7 +3644,7 @@ RULES:
 '
     + '- Sound like a real local person, never AI
 '
-    + '- Never use: "In today's market", "I'm excited to share", "navigate", "journey", "seamless", "leverage", "dream home"
+    + '- Never use: "In todays market", "I'm excited to share", "navigate", "journey", "seamless", "leverage", "dream home"
 '
     + '- Each post: 130-210 words
 '
@@ -4833,31 +4831,6 @@ function openAgentChat(buyerUid) {
 }
 window.openAgentChat = openAgentChat;
 
-function setupChatHead() {
-  var a = currentAgent();
-  var initials = (a.name||'Agent').split(' ').map(function(x){return x[0]||'';}).join('').substring(0,2).toUpperCase();
-  var avatarEl = document.getElementById('chat-avatar');
-  var withEl = document.getElementById('chat-with');
-  var roleEl = document.getElementById('chat-role');
-
-  if (isAgent) {
-    if (avatarEl) avatarEl.textContent = '👔';
-    if (withEl) withEl.textContent = 'Buyer Messages';
-    if (roleEl) roleEl.textContent = 'Select a buyer below';
-    var panel = document.getElementById('agent-chat-panel');
-    if (panel) { panel.style.display = 'block'; renderAgentChatList(); }
-    var inputArea = document.querySelector('.chat-input');
-    if (inputArea) inputArea.style.display = 'none';
-    var qr = document.getElementById('chat-quick-replies');
-    if (qr) qr.style.display = 'none';
-  } else {
-    if (avatarEl) avatarEl.textContent = initials;
-    if (withEl) withEl.textContent = a.name || 'Your Agent';
-    if (roleEl) roleEl.textContent = (a.role||'REALTOR\u00ae');
-    var chatRoomId = getChatRoomId(null);
-    currentChatRoom = chatRoomId;
-    watchChat(null);
-  }
 }
 
 
@@ -5035,7 +5008,7 @@ async function genReport() {
   const out = document.getElementById('report-out'); think(out);
   const summary = props.length ? props.map(p => `${p.address} (${p.price}, ${p.rating}/5): Pros: ${(p.pros||[]).join(', ')||'none'}. Cons: ${(p.cons||[]).join(', ')||'none'}.`).join('\n') : 'No properties saved.';
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:`Write a 3-4 paragraph buyer feedback report for the real estate agent based on these saved properties:\n\n${summary}\n\nCover: overall impressions, top candidates, deal-breakers, and what they're looking for next. Professional but warm.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
+    const d = await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:`Write a 3-4 paragraph buyer feedback report for the real estate agent based on these saved properties:\n\n${summary}\n\nCover: overall impressions, top candidates, deal-breakers, and what they are looking for next. Professional but warm.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
   } catch(e) { out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed.</div>`; out.style.display = 'block'; }
 }
 window.savePref = savePref;
@@ -6604,7 +6577,7 @@ Specific items to add to your inspector's checklist based on what you see
 🗣️ QUESTIONS TO ASK THE SELLER
 2-3 specific questions this photo raises
 
-Be direct and practical. If this looks fine, say so clearly. If it's a dealbreaker, say that too.`}
+Be direct and practical. If this looks fine, say so clearly. If it is a dealbreaker, say that too.`}
     ]}]});
     const txt = d.content[0].text;
     out.innerHTML = `<div class="ai-resp">${txt}</div>`;
@@ -6897,7 +6870,7 @@ KEY SECTIONS:
   * Account for all money received
 - CONTEMPORANEOUS OFFERS: {agentFirst} can represent multiple buyers at same time. If two of {agentPossessive} buyers want same property, {agentFirst} must notify both in writing - buyer can request referral to another agent
 - DUAL AGENCY: If buyer wants to purchase a Real Brokerage listing, dual agency situation exists - {agentFirst} would represent both buyer and seller in neutral capacity. Buyer consents or does not consent
-- DUTIES OF BUYER: Use {agentFirst} exclusively, cooperate, provide requested information, don't record video/photos without seller's written consent
+- DUTIES OF BUYER: Use {agentFirst} exclusively, cooperate, provide requested information, do not record video/photos without seller's written consent
 - COMPENSATION: Broker fees not set by law - fully negotiable. Can be paid by seller, buyer, or third party. Buyer pays brokerage per agreed terms; offset by any compensation received from seller's side. Brokerage cannot retain more than buyer's obligation
 - DISPUTE RESOLUTION: Disputes go to binding arbitration (American Arbitration Association) - parties give up right to jury trial
 - WIRE FRAUD: Never send funds or personal info by email - always verify by phone`,
@@ -7519,14 +7492,7 @@ function dismissIOSTip() {
 window.dismissIOSTip = dismissIOSTip;
 
 // Show browser notifications permission
-function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'default') {
-    Notification.requestPermission().then(function(p) {
-      console.log('Notification permission:', p);
-    });
-  }
-}
+
 
 // Send browser notification
 function showBrowserNotification(title, body) {
