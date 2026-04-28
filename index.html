@@ -553,7 +553,6 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);padding:10px 12px 4px;">Agent Tools</div>
     <button class="nb" data-pg="agent" onclick="go('agent',this)" id="agent-nav">👔 Agent Backend <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
-    <button class="nb" data-pg="tax-lookup" onclick="go('tax-lookup',this)">🏛️ Tax Lookup</button>
   </div>
 </div>
 
@@ -579,6 +578,18 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:12px;color:#E24B4A;">Tap to open chat</div>
     </div>
     <span style="font-size:20px;color:#E24B4A;">›</span>
+  </div>
+
+  <!-- Transaction Timeline (shown when under contract) -->
+  <div id="txn-timeline-card" style="display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
+    <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">Your Transaction</div>
+        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-property-line">Under Contract</div>
+      </div>
+      <button onclick="downloadICS()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Add to Calendar</button>
+    </div>
+    <div id="txn-dates-list" style="background:var(--surface);display:flex;flex-direction:column;"></div>
   </div>
 
   <!-- Journey progress cards (filled by JS) -->
@@ -964,6 +975,46 @@ textarea{resize:vertical;min-height:68px;}
       <a href="mailto:Tom@GaruccioGroup.com" class="btn" style="justify-content:center;font-size:13px;">Email Tom</a>
       <a href="https://1660690.my1003app.com/2784866/register" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
     </div>
+  </div>
+</div>
+
+
+<!-- LISTING DESCRIPTION GENERATOR -->
+<div class="page" id="page-listing-desc">
+  <div class="ph"><div class="pt">Listing Description Generator</div><span class="pill pill-p">✦ Claude AI</span></div>
+  <div class="notice" style="background:#FEF3C7;color:#92400E;">Upload photos and enter property details — Claude writes a compelling MLS description, social post, and email subject line.</div>
+  <div class="card" style="display:flex;flex-direction:column;gap:13px;">
+
+    <!-- Photos first — Claude reads them -->
+    <div>
+      <label class="flabel">Property Photos (upload up to 5 — Claude will describe what it sees)</label>
+      <input type="file" id="ld-photos" accept="image/*" multiple style="font-size:13px;" onchange="ldHandlePhotos(event)"/>
+      <div id="ld-photo-previews" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+    </div>
+
+    <div class="fg2">
+      <div><label class="flabel">Property Address</label><input type="text" id="ld-address" placeholder="123 Main St, City, OH"/></div>
+      <div><label class="flabel">List Price</label><input type="number" id="ld-price" placeholder="450000"/></div>
+    </div>
+    <div class="fg2">
+      <div><label class="flabel">Bedrooms</label><input type="number" id="ld-beds" placeholder="4"/></div>
+      <div><label class="flabel">Bathrooms</label><input type="number" id="ld-baths" placeholder="2.5" step="0.5"/></div>
+      <div><label class="flabel">Square Footage</label><input type="number" id="ld-sqft" placeholder="2400"/></div>
+      <div><label class="flabel">Year Built</label><input type="number" id="ld-year" placeholder="1998"/></div>
+    </div>
+    <div><label class="flabel">Key Features &amp; Updates (one per line)</label><textarea id="ld-features" rows="5" placeholder="Updated kitchen with quartz countertops&#10;New roof 2022&#10;Finished basement with bar&#10;3-car garage&#10;Backs to wooded lot"></textarea></div>
+    <div><label class="flabel">Neighborhood / Area Highlights</label><input type="text" id="ld-area" placeholder="e.g. Westlake schools, walk to Crocker Park, quiet cul-de-sac"/></div>
+    <div>
+      <label class="flabel">Tone / Style</label>
+      <select id="ld-tone">
+        <option value="professional and polished">Professional &amp; Polished</option>
+        <option value="warm and inviting">Warm &amp; Inviting</option>
+        <option value="luxury and elevated">Luxury &amp; Elevated</option>
+        <option value="concise and punchy">Concise &amp; Punchy</option>
+      </select>
+    </div>
+    <button class="btn btn-g" onclick="generateListingDesc()" id="ld-btn">✦ Generate Listing Copy</button>
+    <div id="ld-result" style="display:none;"></div>
   </div>
 </div>
 
@@ -1773,6 +1824,24 @@ textarea{resize:vertical;min-height:68px;}
 
 </div><!-- /main -->
 </div><!-- /app -->
+
+
+<!-- CONTRACT DATES MODAL -->
+<div class="mo" id="contract-dates-modal" style="display:none;">
+  <div class="mbox" style="max-width:480px;">
+    <div class="mhdr">
+      <div class="mtitle" id="cdm-title">📋 Enter Contract Dates</div>
+      <button class="xbtn" onclick="closeM('contract-dates-modal')">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;" id="cdm-sub">These dates will appear on the client's live transaction timeline.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;" id="cdm-fields"></div>
+    <div style="display:flex;gap:8px;margin-top:18px;">
+      <button class="btn" style="flex:1;" onclick="closeM('contract-dates-modal')">Cancel</button>
+      <button class="btn btn-g" style="flex:2;" onclick="saveContractDates()">Save Dates & Update Timeline</button>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:var(--text3);text-align:center;">Client will see these dates immediately when they log in.</div>
+  </div>
+</div>
 
 <!-- TIMELINE STEP MODAL -->
 <div class="mo" id="step-modal" style="display:none;">
@@ -2765,6 +2834,7 @@ function go(page, el) {
   if (page === 'dash') renderDash();
   if (page === 'home') renderHome();
   if (page === 'education') renderEducation();
+  if (page === 'home') renderTxnTimeline();
   if (page === 'mortgage') fetchMortgageRates();
   if (page === 'chat') { clearChatBadge(); var msgs=document.getElementById('chat-messages'); if(msgs){msgs.innerHTML='';msgs.removeAttribute('data-last-date');} var emp=document.getElementById('chat-empty'); if(emp) emp.style.display='block'; if(currentChatRoom) watchChat(isAgent?null:null); else setupChatHead(); }
   if (page === 'photochecklist') renderPhotoChecklist();
@@ -3136,6 +3206,94 @@ async function fetchMortgageRates(){
 }
 function applyRateToCalc(){var ri=document.getElementById('mort-rate');if(ri&&currentRates.rate30){ri.value=currentRates.rate30.toFixed(3);calcMort();}}
 window.applyRateToCalc=applyRateToCalc;
+
+var ldPhotoData = []; // [{b64, mime}]
+
+function ldHandlePhotos(event) {
+  ldPhotoData = [];
+  var previews = document.getElementById('ld-photo-previews');
+  if (previews) previews.innerHTML = '';
+  var files = Array.from(event.target.files || []).slice(0, 5);
+  files.forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var dataUrl = e.target.result;
+      var b64 = dataUrl.split(',')[1];
+      var mm = dataUrl.match(/^data:([^;]+);/);
+      var mime = mm ? mm[1] : 'image/jpeg';
+      if (!['image/jpeg','image/png','image/gif','image/webp'].includes(mime)) mime = 'image/jpeg';
+      ldPhotoData.push({b64: b64, mime: mime});
+      if (previews) {
+        var img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
+        previews.appendChild(img);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+window.ldHandlePhotos = ldHandlePhotos;
+
+async function generateListingDesc(){
+  var addr=(document.getElementById('ld-address')||{}).value||'';
+  var price=(document.getElementById('ld-price')||{}).value||'';
+  var beds=(document.getElementById('ld-beds')||{}).value||'';
+  var baths=(document.getElementById('ld-baths')||{}).value||'';
+  var sqft=(document.getElementById('ld-sqft')||{}).value||'';
+  var year=(document.getElementById('ld-year')||{}).value||'';
+  var features=(document.getElementById('ld-features')||{}).value||'';
+  var area=(document.getElementById('ld-area')||{}).value||'';
+  var tone=(document.getElementById('ld-tone')||{}).value||'professional and polished';
+  var resultEl=document.getElementById('ld-result');
+  var btn=document.getElementById('ld-btn');
+
+  if(!addr&&!beds&&!features){alert('Enter at least an address or some property details.');return;}
+
+  resultEl.style.display='block';
+  resultEl.innerHTML='<div class="notice">Writing listing copy...</div>';
+  if(btn){btn.disabled=true;btn.textContent='Writing...';}
+
+  var details='';
+  if(addr)details+='Address: '+addr+'. ';
+  if(price)details+='List Price: $'+parseInt(price).toLocaleString()+'. ';
+  if(beds)details+='Bedrooms: '+beds+'. ';
+  if(baths)details+='Bathrooms: '+baths+'. ';
+  if(sqft)details+='Square Footage: '+parseInt(sqft).toLocaleString()+' sq ft. ';
+  if(year)details+='Year Built: '+year+'. ';
+  if(features)details+='Key Features: '+features+'. ';
+  if(area)details+='Area: '+area+'. ';
+
+  var systemPrompt = 'You are an expert real estate listing copywriter. Write compelling, authentic listing copy that sells the lifestyle, not just the specs. Never use cliches like "dream home", "nestled", "boasting", or "stunning". Sound like a top local agent.';
+
+  var userText = 'Write listing copy in a '+tone+' tone for this property:\n\n'+details+'\n\nGenerate exactly three sections with these headers:\n\nMLS DESCRIPTION:\n(Max 500 characters, no emojis, factual and compelling, focus on the strongest selling points)\n\nSOCIAL MEDIA POST:\n(Facebook/Instagram post, 150-250 characters, include 3-4 relevant emojis naturally, end with a call to action)\n\nEMAIL SUBJECT LINE:\n(Max 60 characters, attention-grabbing)';
+
+  try{
+    var messages;
+    if(ldPhotoData.length > 0){
+      // Include photos in message
+      var content = ldPhotoData.map(function(p){
+        return {type:'image',source:{type:'base64',media_type:p.mime,data:p.b64}};
+      });
+      content.push({type:'text',text:'These are photos of the property. Use what you see to enhance the description — mention specific visible features like finishes, layout, light, space, or standout details.\n\n'+userText});
+      messages = [{role:'user',content:content}];
+    } else {
+      messages = [{role:'user',content:userText}];
+    }
+    var d=await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1200,system:systemPrompt,messages:messages});
+    var txt=d.content[0].text;
+    resultEl.innerHTML='<div class="ai-resp" id="ld-output">'+escapeHtml(txt)+'</div>'
+      +'<button class="btn btn-sm" style="margin-top:8px;" onclick="copyLDOutput()">Copy All</button>';
+  }catch(e){
+    resultEl.innerHTML='<div class="notice" style="color:#E24B4A;">Failed. Try again.</div>';
+  }
+  if(btn){btn.disabled=false;btn.textContent='Generate Listing Copy';}
+}
+function copyLDOutput(){var el=document.getElementById('ld-output');if(el)navigator.clipboard.writeText(el.textContent);}
+window.generateListingDesc=generateListingDesc;
+window.copyLDOutput=copyLDOutput;
+
+
 function calcMort() {
   const price = parseFloat(document.getElementById('mort-price').value) || 0;
   const downPct = parseFloat(document.getElementById('mort-down').value) || 20;
@@ -4831,7 +4989,18 @@ async function openBuyerDetail(uid) {
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
-  try { await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() }); alert('Step updated!'); await loadBuyersForAgent(); renderBuyers(); } catch(e) { alert('Failed: '+e.message); }
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() });
+    await loadBuyersForAgent();
+    renderBuyers();
+    var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+    var existingDates = (buyer && buyer.contractDates) || {};
+    var type = (buyer && buyer.role === 'seller') ? 'seller' : 'buyer';
+    if (newStep === 5) {
+      closeM('buyer-modal');
+      setTimeout(function(){ openContractDatesModal(uid, type, existingDates); }, 200);
+    }
+  } catch(e) { alert('Failed: '+e.message); }
 }
 async function setBuyerAgent(uid) {
   if (!isTeamLeader()) { alert('Only the team leader can reassign buyers.'); return; }
@@ -4989,9 +5158,183 @@ window.removeAgent = removeAgent;
 async function agentSetStepForBuyer(stepId) {
   if (!isAgent || !window._currentBuyer) { alert('Open a buyer from Agent Backend first'); return; }
   const uid = window._currentBuyer.uid;
-  try { await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: stepId }); alert('Step updated!'); closeM('step-modal'); await loadBuyersForAgent(); renderBuyers(); } catch(e) { alert('Failed: '+e.message); }
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: stepId });
+    closeM('step-modal');
+    await loadBuyersForAgent();
+    renderBuyers();
+    var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+    var existingDates = (buyer && buyer.contractDates) || {};
+    var type = (buyer && buyer.role === 'seller') ? 'seller' : 'buyer';
+    if (stepId === 5) {
+      setTimeout(function(){ openContractDatesModal(uid, type, existingDates); }, 200);
+    }
+  } catch(e) { alert('Failed: '+e.message); }
 }
 window.agentSetStepForBuyer = agentSetStepForBuyer;
+
+// ─── CONTRACT DATES & TRANSACTION TIMELINE ───
+
+var BUYER_CONTRACT_FIELDS = [
+  {key:'acceptanceDate',    label:'Acceptance Date',          icon:'✍️'},
+  {key:'earnestMoneyDue',   label:'Earnest Money Due',         icon:'💰'},
+  {key:'inspectionDeadline',label:'Inspection Deadline',       icon:'🔍'},
+  {key:'appraisalDeadline', label:'Appraisal Deadline',        icon:'🏦'},
+  {key:'financingDeadline', label:'Financing / Loan Commitment Deadline', icon:'📄'},
+  {key:'closingDate',       label:'Closing Date',              icon:'🔑'},
+];
+
+var SELLER_CONTRACT_FIELDS = [
+  {key:'acceptanceDate',    label:'Acceptance Date',           icon:'✍️'},
+  {key:'earnestMoneyDue',   label:'Earnest Money Due',         icon:'💰'},
+  {key:'inspectionDeadline',label:'Inspection Deadline',       icon:'🔍'},
+  {key:'appraisalDeadline', label:'Appraisal Deadline',        icon:'🏦'},
+  {key:'financingDeadline', label:'Buyer Financing Deadline',  icon:'📄'},
+  {key:'closingDate',       label:'Closing Date',              icon:'🔑'},
+];
+
+var _cdmBuyerUid = null;
+var _cdmType = 'buyer'; // 'buyer' or 'seller'
+var _cdmCurrentDates = {};
+
+function openContractDatesModal(buyerUid, type, existingDates) {
+  _cdmBuyerUid = buyerUid;
+  _cdmType = type || 'buyer';
+  _cdmCurrentDates = existingDates || {};
+  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var title = document.getElementById('cdm-title');
+  var sub = document.getElementById('cdm-sub');
+  var container = document.getElementById('cdm-fields');
+  if (title) title.textContent = (_cdmType === 'seller' ? '🏡 Seller' : '🏠 Buyer') + ' Contract Dates';
+  if (sub) sub.textContent = 'Enter the key dates — they will appear on the client\'s live timeline immediately.';
+  if (container) {
+    container.innerHTML = fields.map(function(f) {
+      var val = _cdmCurrentDates[f.key] || '';
+      return '<div style="display:flex;flex-direction:column;gap:4px;">'
+        + '<label class="flabel">' + f.icon + ' ' + f.label + '</label>'
+        + '<input type="date" id="cdm-' + f.key + '" value="' + val + '" style="font-size:14px;padding:9px 12px;"/>'
+        + '</div>';
+    }).join('');
+  }
+  document.getElementById('contract-dates-modal').style.display = 'flex';
+}
+window.openContractDatesModal = openContractDatesModal;
+
+async function saveContractDates() {
+  if (!_cdmBuyerUid) return;
+  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var dates = {contractType: _cdmType};
+  fields.forEach(function(f) {
+    var el = document.getElementById('cdm-' + f.key);
+    if (el && el.value) dates[f.key] = el.value;
+  });
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', _cdmBuyerUid), {
+      contractDates: dates,
+      lastStepUpdate: fb.serverTimestamp()
+    });
+    closeM('contract-dates-modal');
+    await loadBuyersForAgent();
+    renderBuyers();
+  } catch(e) {
+    alert('Failed to save dates: ' + e.message);
+  }
+}
+window.saveContractDates = saveContractDates;
+
+// Render transaction timeline on client home screen
+function renderTxnTimeline() {
+  var card = document.getElementById('txn-timeline-card');
+  var list = document.getElementById('txn-dates-list');
+  if (!card || !list) return;
+
+  var step = (userProfile && userProfile.currentStep) || 1;
+  var dates = (userProfile && userProfile.contractDates) || null;
+
+  // Show once under contract (step 5+) and dates exist
+  if (step < 5 || !dates) { card.style.display = 'none'; return; }
+
+  var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var closingDate = dates.closingDate ? new Date(dates.closingDate + 'T12:00:00') : null;
+
+  card.style.display = 'flex';
+
+  // Property line
+  var propLine = document.getElementById('txn-property-line');
+  if (propLine && closingDate) {
+    var daysToClose = Math.ceil((closingDate - today) / 86400000);
+    propLine.textContent = daysToClose > 0 ? daysToClose + ' days to closing' : daysToClose === 0 ? 'Closing Today! 🎉' : 'Closed!';
+  }
+
+  list.innerHTML = fields.map(function(f, i) {
+    if (!dates[f.key]) return '';
+    var d = new Date(dates[f.key] + 'T12:00:00');
+    var diff = Math.ceil((d - today) / 86400000);
+    var isPast = diff < 0;
+    var isToday = diff === 0;
+    var isNext = false;
+
+    // Find the next upcoming date
+    var allUpcoming = fields.filter(function(ff){ return dates[ff.key] && new Date(dates[ff.key]+'T12:00:00') >= today; });
+    if (allUpcoming.length && allUpcoming[0].key === f.key) isNext = true;
+
+    var statusColor = isPast ? 'var(--text3)' : isToday ? '#92400E' : isNext ? 'var(--green-dk)' : 'var(--text2)';
+    var statusBg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : isNext ? 'var(--green-lt)' : 'var(--surface)';
+    var statusBorder = isNext ? '2px solid var(--green-md)' : isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
+
+    var dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    var tag = isPast ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">✓ Done</span>'
+            : isToday ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
+            : isNext ? '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;">Up Next · '+diff+'d</span>'
+            : '<span style="font-size:10px;color:var(--text3);">'+diff+' days</span>';
+
+    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:'+statusBg+';border-bottom:0.5px solid var(--border);border-left:'+statusBorder+';">'
+      + '<div style="font-size:18px;flex-shrink:0;">'+f.icon+'</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12.5px;font-weight:'+(isNext?'600':'400')+';color:'+statusColor+';">'+f.label+'</div>'
+      + '<div style="font-size:12px;color:var(--text3);">'+dateStr+'</div>'
+      + '</div>'
+      + tag
+      + '</div>';
+  }).join('');
+}
+window.renderTxnTimeline = renderTxnTimeline;
+
+// ICS calendar export
+function downloadICS() {
+  var dates = (userProfile && userProfile.contractDates) || {};
+  var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var name = ((userProfile&&userProfile.firstName)||'Your') + ' Transaction';
+  var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//Transaction//EN','CALSCALE:GREGORIAN'];
+
+  fields.forEach(function(f) {
+    if (!dates[f.key]) return;
+    var d = dates[f.key].replace(/-/g,'');
+    var uid = f.key + '-' + Date.now() + '@nesttrack';
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:' + uid);
+    lines.push('DTSTART;VALUE=DATE:' + d);
+    lines.push('DTEND;VALUE=DATE:' + d);
+    lines.push('SUMMARY:' + f.label + ' — ' + name);
+    lines.push('DESCRIPTION:Nest Track transaction milestone');
+    lines.push('BEGIN:VALARM');
+    lines.push('TRIGGER:-P1D');
+    lines.push('ACTION:DISPLAY');
+    lines.push('DESCRIPTION:Reminder: ' + f.label + ' tomorrow');
+    lines.push('END:VALARM');
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+
+  var blob = new Blob([lines.join('\r\n')], {type:'text/calendar'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'transaction-dates.ics';
+  a.click();
+}
+window.downloadICS = downloadICS;
+
 
 // Pre-fill invite code from URL
 window.addEventListener('load', () => {
