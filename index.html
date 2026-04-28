@@ -5468,10 +5468,19 @@ function todoToggleUrgent() {
   _todoUrgent = !_todoUrgent;
   var btn = document.getElementById('todo-urgent-btn');
   if (btn) {
-    btn.style.background = _todoUrgent ? '#FEF2F2' : 'var(--surface)';
-    btn.style.borderColor = _todoUrgent ? '#E24B4A' : 'var(--border)';
-    btn.style.color = _todoUrgent ? '#E24B4A' : 'var(--text)';
-    btn.style.fontWeight = _todoUrgent ? '600' : 'normal';
+    if (_todoUrgent) {
+      btn.style.background = '#E24B4A';
+      btn.style.borderColor = '#E24B4A';
+      btn.style.color = '#fff';
+      btn.style.fontWeight = '600';
+      btn.textContent = '🚨 URGENT ON';
+    } else {
+      btn.style.background = 'var(--surface)';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.color = 'var(--text)';
+      btn.style.fontWeight = 'normal';
+      btn.textContent = '🚨 Urgent';
+    }
   }
 }
 window.todoToggleUrgent = todoToggleUrgent;
@@ -5488,11 +5497,16 @@ async function todoAdd() {
     date: dateEl ? dateEl.value : '',
     time: timeEl ? timeEl.value : '',
     done: false,
+    urgent: _todoUrgent,
     createdAt: Date.now()
   });
   if (input) input.value = '';
   if (dateEl) dateEl.value = '';
   if (timeEl) timeEl.value = '';
+  // Reset urgent button
+  _todoUrgent = false;
+  var urgBtn = document.getElementById('todo-urgent-btn');
+  if (urgBtn) { urgBtn.style.background='var(--surface)'; urgBtn.style.borderColor='var(--border)'; urgBtn.style.color='var(--text)'; urgBtn.style.fontWeight='normal'; urgBtn.textContent='🚨 Urgent'; }
   await todoSave();
   todoRender();
 }
@@ -5580,21 +5594,24 @@ function todoItemHTML(t, today) {
     if (t.time) dateStr += ' at ' + t.time;
   }
   var isOverdue = !t.done && t.date && new Date(t.date+'T12:00:00') < today;
-  var bg = t.done ? 'var(--surface2)' : isOverdue ? '#FEF2F2' : 'var(--surface)';
-  var borderLeft = t.done ? '3px solid var(--border)' : isOverdue ? '3px solid #E24B4A' : '3px solid var(--green-md)';
+  var bg = t.done ? 'var(--surface2)' : isOverdue ? '#FEF2F2' : t.urgent ? '#FFF7ED' : 'var(--surface)';
+  var borderLeft = t.done ? '3px solid var(--border)' : isOverdue ? '3px solid #E24B4A' : (t.urgent && !t.done) ? '3px solid #F59E0B' : '3px solid var(--green-md)';
   var safeId = t.id.replace(/[^a-zA-Z0-9_]/g, '_');
   var q = '&quot;';
+  var urgentTag = (t.urgent && !t.done) ? '<span style="font-size:10px;background:#E24B4A;color:#fff;border-radius:8px;padding:1px 7px;font-weight:700;margin-right:6px;">&#128680; URGENT</span>' : '';
+  var textStyle = t.done ? 'text-decoration:line-through;color:var(--text3);' : '';
   return '<div style="background:'+bg+';border:1px solid var(--border);border-left:'+borderLeft+';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
     + '<div onclick="todoToggle('+q+safeId+q+')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+(t.done?'var(--green)':'var(--border)')+';background:'+(t.done?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">'+(t.done?'&#10003;':'')+'</div>'
     + '<div style="flex:1;min-width:0;">'
-    + '<div style="font-size:13.5px;line-height:1.4;'+(t.done?'text-decoration:line-through;color:var(--text3);':'')+'">'+t.text+'</div>'
-    + (dateStr ? '<div style="font-size:11.5px;color:'+(isOverdue?'#E24B4A':'var(--text3)')+';margin-top:3px;">'+(isOverdue?'&#9888;&#65039; Overdue &middot; ':'')+dateStr+'</div>' : '')
+    + '<div style="font-size:13.5px;line-height:1.4;'+textStyle+'">'+urgentTag+t.text+'</div>'
+    + (dateStr ? '<div style="font-size:11.5px;color:'+(isOverdue?'#E24B4A':'var(--text3)')+';margin-top:3px;">'+(isOverdue?'&#9888; Overdue &middot; ':'')+dateStr+'</div>' : '')
     + '</div>'
     + '<div style="display:flex;gap:4px;flex-shrink:0;">'
     + (t.date && !t.done ? '<button onclick="todoDownloadICS('+q+safeId+q+')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;" title="Add to calendar">&#128197;</button>' : '')
     + '<button onclick="todoDelete('+q+safeId+q+')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>'
     + '</div>'
     + '</div>';
+}
 }
 
 
