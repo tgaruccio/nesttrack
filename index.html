@@ -556,6 +556,7 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);padding:10px 12px 4px;">Agent Tools</div>
     <button class="nb" data-pg="agent" onclick="go('agent',this)" id="agent-nav">👔 Agent Backend <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
+    <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
   </div>
 </div>
 
@@ -929,6 +930,57 @@ textarea{resize:vertical;min-height:68px;}
       <div id="ns-email-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;"></div>
     </div>
     <a href="tel:4407547449" class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;font-size:14px;padding:13px;">📞 Get a Precise Net Sheet from Tom</a>
+  </div>
+</div>
+
+
+<!-- AGENT TO-DO LIST -->
+<div class="page" id="page-agent-todo">
+  <div class="ph"><div class="pt">To-Do List</div></div>
+
+  <!-- Quick add chips -->
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+    <button class="todo-chip" onclick="todoQuickAdd('📞 Call client — ')">📞 Call client</button>
+    <button class="todo-chip" onclick="todoQuickAdd('💬 Follow up with ')">💬 Follow up with</button>
+    <button class="todo-chip" onclick="todoQuickAdd('↩️ Respond to ')">↩️ Respond to</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📅 Schedule showing for ')">📅 Schedule showing</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📣 Send update to ')">📣 Send update to</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📝 Submit offer for ')">📝 Submit offer</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📋 Order inspection for ')">📋 Order inspection</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🏦 Check loan status for ')">🏦 Check loan status</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📄 Request documents from ')">📄 Request documents</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🔑 Confirm closing date for ')">🔑 Confirm closing</button>
+    <button class="todo-chip" onclick="todoQuickAdd('✉️ Send email to ')">✉️ Send email</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🏠 Prepare listing for ')">🏠 Prepare listing</button>
+    <button class="todo-chip" onclick="todoQuickAdd('💰 Review net sheet for ')">💰 Review net sheet</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🔍 Research comps for ')">🔍 Research comps</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📊 Prepare CMA for ')">📊 Prepare CMA</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🤝 Negotiate offer for ')">🤝 Negotiate offer</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🗓️ Set up appointment with ')">🗓️ Set up appointment</button>
+    <button class="todo-chip" onclick="todoQuickAdd('🏡 Schedule walk-through for ')">🏡 Schedule walk-through</button>
+    <button class="todo-chip" onclick="todoQuickAdd('⚠️ Urgent — ')">⚠️ Urgent</button>
+    <button class="todo-chip" onclick="todoQuickAdd('📌 Reminder — ')">📌 Reminder</button>
+  </div>
+
+  <!-- Custom add input -->
+  <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <textarea id="todo-input" rows="2" placeholder="Type a task..." style="flex:1;font-size:14px;resize:none;box-sizing:border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();todoAdd();}"></textarea>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <input type="date" id="todo-date" style="font-size:12px;padding:6px 8px;"/>
+        <input type="time" id="todo-time" style="font-size:12px;padding:6px 8px;"/>
+      </div>
+    </div>
+    <button class="btn btn-g" onclick="todoAdd()">Add Task</button>
+  </div>
+
+  <!-- Task list -->
+  <div id="todo-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+
+  <div id="todo-empty" style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;display:none;">
+    <div style="font-size:32px;margin-bottom:8px;">✅</div>
+    <div style="font-weight:500;color:var(--text);margin-bottom:4px;">All clear!</div>
+    <div>No tasks — add one above.</div>
   </div>
 </div>
 
@@ -2937,6 +2989,7 @@ function go(page, el) {
   if (page === 'dash') renderDash();
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
   if (page === 'education') renderEducation();
+  if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
@@ -5367,6 +5420,172 @@ function sendAgentChatMessage() {
   .catch(function(e){ console.log('Agent send failed:',e.message); });
 }
 window.sendAgentChatMessage = sendAgentChatMessage;
+
+// ─── AGENT TO-DO LIST ───
+var _todos = []; // [{id, text, date, time, done}]
+
+async function todoLoad() {
+  if (!currentUser) return;
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid));
+    if (snap.exists()) {
+      _todos = snap.data().items || [];
+    } else {
+      _todos = [];
+    }
+    todoRender();
+  } catch(e) { console.log('todoLoad:', e.message); }
+}
+window.todoLoad = todoLoad;
+
+async function todoSave() {
+  if (!currentUser) return;
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid), { items: _todos, updatedAt: Date.now() });
+    todoUpdateBadge();
+  } catch(e) { console.log('todoSave:', e.message); }
+}
+
+function todoUpdateBadge() {
+  var active = _todos.filter(function(t){ return !t.done; }).length;
+  var badge = document.getElementById('todo-count-badge');
+  if (badge) {
+    if (active > 0) { badge.textContent = active; badge.style.display = 'inline'; }
+    else { badge.style.display = 'none'; }
+  }
+}
+
+function todoQuickAdd(prefill) {
+  var input = document.getElementById('todo-input');
+  if (input) {
+    input.value = prefill;
+    input.focus();
+    input.setSelectionRange(prefill.length, prefill.length);
+    // scroll to input
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+window.todoQuickAdd = todoQuickAdd;
+
+async function todoAdd() {
+  var input = document.getElementById('todo-input');
+  var dateEl = document.getElementById('todo-date');
+  var timeEl = document.getElementById('todo-time');
+  var text = input ? input.value.trim() : '';
+  if (!text) return;
+  var todo = {
+    id: Date.now() + '_' + Math.random().toString(36).substring(2,6),
+    text: text,
+    date: dateEl ? dateEl.value : '',
+    time: timeEl ? timeEl.value : '',
+    done: false,
+    createdAt: Date.now()
+  };
+  _todos.unshift(todo);
+  if (input) input.value = '';
+  if (dateEl) dateEl.value = '';
+  if (timeEl) timeEl.value = '';
+  await todoSave();
+  todoRender();
+}
+window.todoAdd = todoAdd;
+
+async function todoToggle(id) {
+  var todo = _todos.find(function(t){ return t.id === id; });
+  if (!todo) return;
+  todo.done = !todo.done;
+  if (todo.done) todo.doneAt = Date.now();
+  // Move completed to bottom
+  _todos.sort(function(a,b){ return (a.done===b.done)?0:a.done?1:-1; });
+  await todoSave();
+  todoRender();
+}
+window.todoToggle = todoToggle;
+
+async function todoDelete(id) {
+  _todos = _todos.filter(function(t){ return t.id !== id; });
+  await todoSave();
+  todoRender();
+}
+window.todoDelete = todoDelete;
+
+function todoDownloadICS(todo) {
+  if (!todo.date) return;
+  var d = todo.date.replace(/-/g,'');
+  var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//Todo//EN'];
+  lines.push('BEGIN:VEVENT');
+  lines.push('UID:todo-'+todo.id+'@nesttrack');
+  if (todo.time) {
+    var dt = todo.date + 'T' + todo.time.replace(':','') + '00';
+    lines.push('DTSTART:' + dt);
+    lines.push('DTEND:' + dt);
+  } else {
+    lines.push('DTSTART;VALUE=DATE:' + d);
+    lines.push('DTEND;VALUE=DATE:' + d);
+  }
+  lines.push('SUMMARY:' + todo.text);
+  lines.push('END:VEVENT');
+  lines.push('END:VCALENDAR');
+  var blob = new Blob([lines.join('
+')], {type:'text/calendar'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'task.ics';
+  a.click();
+}
+window.todoDownloadICS = todoDownloadICS;
+
+function todoRender() {
+  var container = document.getElementById('todo-list');
+  var empty = document.getElementById('todo-empty');
+  if (!container) return;
+  if (!_todos.length) {
+    container.innerHTML = '';
+    if (empty) empty.style.display = 'block';
+    todoUpdateBadge();
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  var active = _todos.filter(function(t){ return !t.done; });
+  var done = _todos.filter(function(t){ return t.done; });
+  var html = '';
+  if (active.length) {
+    html += active.map(function(t){ return todoItemHTML(t); }).join('');
+  }
+  if (done.length) {
+    html += '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;padding:12px 0 6px;font-weight:600;">Completed</div>';
+    html += done.map(function(t){ return todoItemHTML(t); }).join('');
+  }
+  container.innerHTML = html;
+  todoUpdateBadge();
+}
+
+function todoItemHTML(t) {
+  var dateStr = '';
+  if (t.date) {
+    var d = new Date(t.date + 'T12:00:00');
+    dateStr = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    if (t.time) dateStr += ' at ' + t.time;
+  }
+  var today = new Date(); today.setHours(0,0,0,0);
+  var isOverdue = !t.done && t.date && new Date(t.date+'T12:00:00') < today;
+  var bg = t.done ? 'var(--surface2)' : isOverdue ? '#FEF2F2' : 'var(--surface)';
+  var borderLeft = isOverdue ? '3px solid #E24B4A' : t.done ? '3px solid var(--border)' : '3px solid var(--green-md)';
+  var textStyle = t.done ? 'text-decoration:line-through;color:var(--text3);' : '';
+
+  return '<div style="background:'+bg+';border:1px solid var(--border);border-left:'+borderLeft+';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;">'
+    + '<div onclick="todoToggle(''+t.id+'')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+(t.done?'var(--green)':'var(--border)')+';background:'+(t.done?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;font-weight:700;">'+(t.done?'&#10003;':'')+'</div>'
+    + '<div style="flex:1;min-width:0;">'
+    + '<div style="font-size:13.5px;'+textStyle+'line-height:1.4;">'+t.text+'</div>'
+    + (dateStr ? '<div style="font-size:11.5px;color:'+(isOverdue?'#E24B4A':'var(--text3)')+';margin-top:3px;">'+(isOverdue?'⚠️ Overdue · ':'')+dateStr+'</div>' : '')
+    + '</div>'
+    + '<div style="display:flex;gap:4px;flex-shrink:0;">'
+    + (t.date && !t.done ? '<button onclick="todoDownloadICS('+JSON.stringify(t).replace(/"/g,'&quot;')+')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px;" title="Add to calendar">📅</button>' : '')
+    + '<button onclick="todoDelete(''+t.id+'')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px;color:var(--text3);">✕</button>'
+    + '</div>'
+    + '</div>';
+}
+
 
 function setAgentChatInput(text) {
   var input=document.getElementById('agent-chat-input');
