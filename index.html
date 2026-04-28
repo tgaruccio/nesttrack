@@ -2872,14 +2872,14 @@ function go(page, el) {
   if (page === 'home') renderHome();
   if (page === 'education') renderEducation();
   if (page === 'home') {
-    // Refresh userProfile from Firestore so contractDates and steps are current
+    renderTxnTimeline();
     if (currentUser) {
       fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid)).then(function(snap) {
-        if (snap.exists()) { userProfile = snap.data(); }
-        renderTxnTimeline();
-      }).catch(function(){ renderTxnTimeline(); });
-    } else {
-      renderTxnTimeline();
+        if (snap.exists()) {
+          userProfile = snap.data();
+          renderTxnTimeline();
+        }
+      }).catch(function(){});
     }
   }
   if (page === 'mortgage') fetchMortgageRates();
@@ -4962,7 +4962,15 @@ function agentCallBuyer() {
 window.agentCallBuyer = agentCallBuyer;
 
 async function openBuyerDetail(uid) {
-  const b = allBuyers.find(x => x.uid === uid); if (!b) return;
+  const b = allBuyers.find(x => x.uid === uid);
+  if (!b) {
+    // Try loading directly from Firestore (e.g. pending record)
+    try {
+      const snap = await fb.getDoc(fb.doc(fb.db, 'users', uid));
+      if (snap.exists()) { allBuyers.push({uid: snap.id, ...snap.data()}); return openBuyerDetail(uid); }
+    } catch(e) {}
+    return;
+  }
   if (!canAccessBuyer(b)) { alert('You do not have access to this buyer.'); return; }
   const teamLeader = isTeamLeader();
   // Load their properties + tours
@@ -5495,6 +5503,7 @@ function renderTxnTimeline() {
   if (buyerCard) {
     if (buyerHasDates) {
       buyerCard.style.display = 'flex';
+      buyerCard.style.flexDirection = 'column';
       var closing = buyerDates.closingDate ? new Date(buyerDates.closingDate+'T12:00:00') : null;
       var headline = document.getElementById('txn-buyer-headline');
       if (headline && closing) {
@@ -5516,6 +5525,7 @@ function renderTxnTimeline() {
   if (sellerCard) {
     if (sellerHasDates) {
       sellerCard.style.display = 'flex';
+      sellerCard.style.flexDirection = 'column';
       var sClosing = sellerDates.closingDate ? new Date(sellerDates.closingDate+'T12:00:00') : null;
       var sHeadline = document.getElementById('txn-seller-headline');
       if (sHeadline && sClosing) {
