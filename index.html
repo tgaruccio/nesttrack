@@ -5114,7 +5114,9 @@ function renderAgentTimelinePreview(b) {
   var sellerHas = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
   if (!buyerHas && !sellerHas) { container.innerHTML = ''; return; }
   var today = new Date(); today.setHours(0,0,0,0);
-  function buildPreviewCard(dates, fields, headerBg, headerLabel) {
+  var uid = b.uid;
+
+  function buildPreviewCard(dates, completedKeys, fields, headerBg, headerLabel, completedField) {
     var closing = dates.closingDate ? new Date(dates.closingDate+'T12:00:00') : null;
     var daysToClose = closing ? Math.ceil((closing-today)/86400000) : null;
     var headline = daysToClose !== null ? (daysToClose > 0 ? daysToClose+' days to closing' : daysToClose === 0 ? 'Closing Today!' : 'Closed') : 'Under Contract';
@@ -5123,16 +5125,22 @@ function renderAgentTimelinePreview(b) {
       var d = new Date(dates[f.key]+'T12:00:00');
       var diff = Math.ceil((d-today)/86400000);
       var isPast = diff < 0, isToday = diff === 0;
+      var manualDone = completedKeys.indexOf(f.key) > -1;
+      var isDone = manualDone || isPast;
       var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      var tag = isPast ? '<span style="font-size:10px;color:var(--text3);">&#10003;</span>'
-        : isToday ? '<span style="font-size:10px;color:#92400E;font-weight:600;">Today</span>'
-        : '<span style="font-size:10px;color:var(--text3);">'+diff+'d</span>';
-      var bg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+      var bg = isDone ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+      var labelStyle = isDone ? 'font-size:12px;color:var(--text3);text-decoration:line-through;' : 'font-size:12px;color:var(--text);';
+      var cbBg = isDone ? 'var(--green)' : 'var(--surface)';
+      var cbBorder = isDone ? 'var(--green)' : 'var(--border)';
+      var cbCheck = isDone ? '&#10003;' : '';
+      var cbColor = isDone ? '#fff' : 'transparent';
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+bg+';border-bottom:0.5px solid var(--border);">'
+        +'<div onclick="toggleTimelineComplete(''+uid+'',''+completedField+'',''+f.key+'','+JSON.stringify(completedKeys)+')" '
+        +'style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+cbBorder+';background:'+cbBg+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:'+cbColor+';font-size:12px;font-weight:700;">'+cbCheck+'</div>'
         +'<div style="font-size:15px;">'+f.icon+'</div>'
-        +'<div style="flex:1;font-size:12px;color:var(--text);">'+f.label+'</div>'
-        +'<div style="font-size:12px;color:var(--text3);margin-right:8px;">'+dateStr+'</div>'
-        +tag+'</div>';
+        +'<div style="flex:1;min-width:0;"><div style="'+labelStyle+'">'+f.label+'</div></div>'
+        +'<div style="font-size:11px;color:var(--text3);">'+dateStr+'</div>'
+        +'</div>';
     }).join('');
     return '<div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:8px;">'
       +'<div style="background:'+headerBg+';color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">'
@@ -5140,12 +5148,35 @@ function renderAgentTimelinePreview(b) {
       +'<div style="font-size:14px;font-weight:300;">'+headline+'</div>'
       +'</div>'+rows+'</div>';
   }
+
   var html = '';
-  if (buyerHas) html += buildPreviewCard(buyerDates, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '&#127968; Buying Timeline');
-  if (sellerHas) html += buildPreviewCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline');
+  if (buyerHas) {
+    var bCompleted = b.buyerCompletedDates || [];
+    html += buildPreviewCard(buyerDates, bCompleted, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '&#127968; Buying Timeline', 'buyerCompletedDates');
+  }
+  if (sellerHas) {
+    var sCompleted = b.sellerCompletedDates || [];
+    html += buildPreviewCard(sellerDates, sCompleted, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline', 'sellerCompletedDates');
+  }
   container.innerHTML = html;
 }
 window.renderAgentTimelinePreview = renderAgentTimelinePreview;
+
+async function toggleTimelineComplete(uid, completedField, key, currentKeys) {
+  var keys = currentKeys ? currentKeys.slice() : [];
+  var idx = keys.indexOf(key);
+  if (idx > -1) { keys.splice(idx, 1); } else { keys.push(key); }
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { [completedField]: keys });
+    // Update local buyer record and re-render
+    var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; });
+    if (buyer) {
+      buyer[completedField] = keys;
+      renderAgentTimelinePreview(buyer);
+    }
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.toggleTimelineComplete = toggleTimelineComplete;
 
 window.setBuyerStep = setBuyerStep;
 window.setBuyerAgent = setBuyerAgent;
@@ -5428,14 +5459,18 @@ function renderDateRow(f, dates, today, stepType) {
   var d = new Date(dates[f.key] + 'T12:00:00');
   var diff = Math.ceil((d - today) / 86400000);
   var isPast = diff < 0, isToday = diff === 0;
+  var completedField = stepType === 'seller' ? 'sellerCompletedDates' : 'buyerCompletedDates';
+  var completedKeys = (userProfile && userProfile[completedField]) || [];
+  var manualDone = completedKeys.indexOf(f.key) > -1;
+  var isDone = manualDone || isPast;
   var dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-  var tag = isPast
-    ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">&#10003; Done</span>'
+  var tag = isDone
+    ? '<span style="font-size:10px;background:#ECFDF5;color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;">&#10003; Done</span>'
     : isToday
     ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
     : '<span style="font-size:10px;color:var(--text3);">'+diff+'d away</span>';
-  var bg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
-  var border = isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
+  var bg = isDone ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+  var border = isDone ? '1px solid var(--border)' : isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
   var stepMap = stepType === 'seller' ? SELLER_FIELD_STEP_MAP : BUYER_FIELD_STEP_MAP;
   var stepIdx = stepMap[f.key];
   var clickFn = stepIdx ? (stepType === 'seller' ? 'showSellerStepEdu('+stepIdx+')' : 'openStep('+stepIdx+')') : '';
