@@ -580,16 +580,28 @@ textarea{resize:vertical;min-height:68px;}
     <span style="font-size:20px;color:#E24B4A;">›</span>
   </div>
 
-  <!-- Transaction Timeline (shown when under contract) -->
-  <div id="txn-timeline-card" style="display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
+  <!-- Buyer Transaction Timeline -->
+  <div id="txn-buyer-card" style="display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div>
-        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">Your Transaction</div>
-        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-property-line">Under Contract</div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏠 Buying — Under Contract</div>
+        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-buyer-headline">Under Contract</div>
       </div>
-      <button onclick="downloadICS()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Add to Calendar</button>
+      <button onclick="downloadICS('buyer')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
     </div>
-    <div id="txn-dates-list" style="background:var(--surface);display:flex;flex-direction:column;"></div>
+    <div id="txn-buyer-list" style="background:var(--surface);display:flex;flex-direction:column;"></div>
+  </div>
+
+  <!-- Seller Transaction Timeline -->
+  <div id="txn-seller-card" style="display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid #F59E0B;">
+    <div style="background:linear-gradient(135deg,#92400E,#D97706);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏡 Selling — Under Contract</div>
+        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-seller-headline">Under Contract</div>
+      </div>
+      <button onclick="downloadICS('seller')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
+    </div>
+    <div id="txn-seller-list" style="background:var(--surface);display:flex;flex-direction:column;"></div>
   </div>
 
   <!-- Journey progress cards (filled by JS) -->
@@ -4952,7 +4964,7 @@ async function openBuyerDetail(uid) {
           <div style="display:flex;gap:6px;align-items:center;">
             <select id="bd-step" style="flex:1;max-width:220px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
           </div>
         </div>
         <div>
@@ -4960,7 +4972,7 @@ async function openBuyerDetail(uid) {
           <div style="display:flex;gap:6px;align-items:center;">
             <select id="bd-seller-step" style="flex:1;max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">📋 Dates</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
           </div>
         </div>
       </div>
@@ -5014,11 +5026,10 @@ async function setBuyerStep(uid) {
     await loadBuyersForAgent();
     renderBuyers();
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
-    var existingDates = (buyer && buyer.contractDates) || {};
-    var type = (buyer && buyer.role === 'seller') ? 'seller' : 'buyer';
+    var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
       closeM('buyer-modal');
-      setTimeout(function(){ openContractDatesModal(uid, type, existingDates); }, 200);
+      setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
   } catch(e) { alert('Failed: '+e.message); }
 }
@@ -5084,7 +5095,7 @@ async function setSellerStep(uid) {
     renderBuyers();
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
-      var existingDates = (buyer && buyer.contractDates) || {};
+      var existingDates = (buyer && buyer.sellerContractDates) || {};
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
@@ -5236,7 +5247,8 @@ var _cdmCurrentDates = {};
 function openContractDatesForBuyer(uid, type) {
   var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; })
            || (myBuyers||[]).find(function(b){ return b.uid === uid; });
-  var existing = (buyer && buyer.contractDates) || {};
+  var field = type === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
+  var existing = (buyer && buyer[field]) || {};
   closeM('buyer-modal');
   setTimeout(function(){ openContractDatesModal(uid, type, existing); }, 200);
 }
@@ -5268,14 +5280,15 @@ window.openContractDatesModal = openContractDatesModal;
 async function saveContractDates() {
   if (!_cdmBuyerUid) return;
   var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
-  var dates = {contractType: _cdmType};
+  var dates = {};
   fields.forEach(function(f) {
     var el = document.getElementById('cdm-' + f.key);
-    if (el && el.value) dates[f.key] = el.value;
+    dates[f.key] = (el && el.value) ? el.value : null;
   });
+  var updateField = _cdmType === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', _cdmBuyerUid), {
-      contractDates: dates,
+      [updateField]: dates,
       lastStepUpdate: fb.serverTimestamp()
     });
     closeM('contract-dates-modal');
@@ -5287,73 +5300,91 @@ async function saveContractDates() {
 }
 window.saveContractDates = saveContractDates;
 
-// Render transaction timeline on client home screen
+async function clearContractDates(uid, type) {
+  if (!confirm('Remove ' + type + ' transaction timeline for this client?')) return;
+  var updateField = type === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { [updateField]: null });
+    await loadBuyersForAgent(); renderBuyers();
+    alert('Timeline cleared.');
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.clearContractDates = clearContractDates;
+
+
+// ─── RENDER TRANSACTION TIMELINES ───
+function renderDateRow(f, dates, today) {
+  if (!dates[f.key]) return '';
+  var d = new Date(dates[f.key] + 'T12:00:00');
+  var diff = Math.ceil((d - today) / 86400000);
+  var isPast = diff < 0, isToday = diff === 0;
+  var dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+  var tag = isPast
+    ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">✓ Done</span>'
+    : isToday
+    ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
+    : '<span style="font-size:10px;color:var(--text3);">'+diff+'d away</span>';
+  var bg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+  var border = isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
+  return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:'+bg+';border-bottom:0.5px solid var(--border);border-left:'+border+';">'
+    + '<div style="font-size:18px;flex-shrink:0;">'+f.icon+'</div>'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--text);">'+f.label+'</div>'
+    + '<div style="font-size:12px;color:var(--text3);">'+dateStr+'</div></div>'
+    + tag + '</div>';
+}
+
 function renderTxnTimeline() {
-  var card = document.getElementById('txn-timeline-card');
-  var list = document.getElementById('txn-dates-list');
-  if (!card || !list) return;
-
-  var step = (userProfile && userProfile.currentStep) || 1;
-  var sellerStep = (userProfile && userProfile.currentSellerStep) || 0;
-  var dates = (userProfile && userProfile.contractDates) || null;
-  var isSeller = dates && dates.contractType === 'seller';
-
-  // Show if contractDates exist and have at least one date entered
-  var hasAnyDate = dates && Object.keys(dates).some(function(k){ return k !== 'contractType' && dates[k]; });
-  if (!hasAnyDate) { card.style.display = 'none'; return; }
-
-  var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var today = new Date(); today.setHours(0,0,0,0);
-  var closingDate = dates.closingDate ? new Date(dates.closingDate + 'T12:00:00') : null;
 
-  card.style.display = 'flex';
-
-  // Property line
-  var propLine = document.getElementById('txn-property-line');
-  if (propLine && closingDate) {
-    var daysToClose = Math.ceil((closingDate - today) / 86400000);
-    propLine.textContent = daysToClose > 0 ? daysToClose + ' days to closing' : daysToClose === 0 ? 'Closing Today! 🎉' : 'Closed!';
+  // ── BUYER timeline ──
+  var buyerCard = document.getElementById('txn-buyer-card');
+  var buyerList = document.getElementById('txn-buyer-list');
+  var buyerDates = userProfile && userProfile.buyerContractDates;
+  var buyerHasDates = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
+  if (buyerCard) {
+    if (buyerHasDates) {
+      buyerCard.style.display = 'flex';
+      var closing = buyerDates.closingDate ? new Date(buyerDates.closingDate+'T12:00:00') : null;
+      var headline = document.getElementById('txn-buyer-headline');
+      if (headline && closing) {
+        var dc = Math.ceil((closing-today)/86400000);
+        headline.textContent = dc > 0 ? dc+' days to closing' : dc===0 ? 'Closing Today! 🎉' : 'Closed!';
+      }
+      if (buyerList) buyerList.innerHTML = BUYER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, buyerDates, today); }).join('');
+    } else {
+      buyerCard.style.display = 'none';
+    }
   }
 
-  list.innerHTML = fields.map(function(f, i) {
-    if (!dates[f.key]) return '';
-    var d = new Date(dates[f.key] + 'T12:00:00');
-    var diff = Math.ceil((d - today) / 86400000);
-    var isPast = diff < 0;
-    var isToday = diff === 0;
-    var isNext = false;
-
-    // Find the next upcoming date
-    var allUpcoming = fields.filter(function(ff){ return dates[ff.key] && new Date(dates[ff.key]+'T12:00:00') >= today; });
-    if (allUpcoming.length && allUpcoming[0].key === f.key) isNext = true;
-
-    var statusColor = isPast ? 'var(--text3)' : isToday ? '#92400E' : isNext ? 'var(--green-dk)' : 'var(--text2)';
-    var statusBg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : isNext ? 'var(--green-lt)' : 'var(--surface)';
-    var statusBorder = isNext ? '2px solid var(--green-md)' : isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
-
-    var dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-    var tag = isPast ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">✓ Done</span>'
-            : isToday ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
-            : isNext ? '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;">Up Next · '+diff+'d</span>'
-            : '<span style="font-size:10px;color:var(--text3);">'+diff+' days</span>';
-
-    return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:'+statusBg+';border-bottom:0.5px solid var(--border);border-left:'+statusBorder+';">'
-      + '<div style="font-size:18px;flex-shrink:0;">'+f.icon+'</div>'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:12.5px;font-weight:'+(isNext?'600':'400')+';color:'+statusColor+';">'+f.label+'</div>'
-      + '<div style="font-size:12px;color:var(--text3);">'+dateStr+'</div>'
-      + '</div>'
-      + tag
-      + '</div>';
-  }).join('');
+  // ── SELLER timeline ──
+  var sellerCard = document.getElementById('txn-seller-card');
+  var sellerList = document.getElementById('txn-seller-list');
+  var sellerDates = userProfile && userProfile.sellerContractDates;
+  var sellerHasDates = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
+  if (sellerCard) {
+    if (sellerHasDates) {
+      sellerCard.style.display = 'flex';
+      var sClosing = sellerDates.closingDate ? new Date(sellerDates.closingDate+'T12:00:00') : null;
+      var sHeadline = document.getElementById('txn-seller-headline');
+      if (sHeadline && sClosing) {
+        var sdc = Math.ceil((sClosing-today)/86400000);
+        sHeadline.textContent = sdc > 0 ? sdc+' days to closing' : sdc===0 ? 'Closing Today! 🎉' : 'Closed!';
+      }
+      if (sellerList) sellerList.innerHTML = SELLER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, sellerDates, today); }).join('');
+    } else {
+      sellerCard.style.display = 'none';
+    }
+  }
 }
 window.renderTxnTimeline = renderTxnTimeline;
 
 // ICS calendar export
-function downloadICS() {
-  var dates = (userProfile && userProfile.contractDates) || {};
-  var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
-  var name = ((userProfile&&userProfile.firstName)||'Your') + ' Transaction';
+function downloadICS(type) {
+  var dates = type === 'seller'
+    ? ((userProfile && userProfile.sellerContractDates) || {})
+    : ((userProfile && userProfile.buyerContractDates) || {});
+  var fields = type === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var name = ((userProfile&&userProfile.firstName)||'Your') + (type==='seller'?' Sale':' Purchase');
   var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//Transaction//EN','CALSCALE:GREGORIAN'];
 
   fields.forEach(function(f) {
