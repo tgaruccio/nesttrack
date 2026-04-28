@@ -4987,9 +4987,10 @@ async function sendUpdMessage(msgText) {
   if (!msgText || !msgText.trim()) { alert('No message to send.'); return; }
 
   var buyer = (myBuyers||[]).find(function(b){ return b.uid === buyerUid; });
-  var buyerName = buyer ? ((buyer.firstName||'') + ' ' + (buyer.lastName||'')).trim() : 'Buyer';
   var agentName = (userProfile && userProfile.firstName) || 'Your agent';
-  var room = 'chat_' + agentShortId + '_' + buyerUid;
+  var agentEntry = (typeof DEFAULT_AGENTS !== 'undefined') ? DEFAULT_AGENTS.find(function(a){ return a.email === (currentUser&&currentUser.email); }) : null;
+  var resolvedAgentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
+  var room = 'chat_' + resolvedAgentShortId + '_' + buyerUid;
   var chatRef = fb.ref(fb.rtdb, 'chats/' + room + '/messages');
 
   try {
