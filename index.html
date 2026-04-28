@@ -963,11 +963,20 @@ textarea{resize:vertical;min-height:68px;}
     <div style="display:flex;gap:8px;align-items:flex-start;">
       <textarea id="todo-input" rows="2" placeholder="Type a task..." style="flex:1;font-size:14px;resize:none;box-sizing:border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();todoAdd();}"></textarea>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        <input type="date" id="todo-date" style="font-size:12px;padding:6px 8px;"/>
-        <input type="time" id="todo-time" style="font-size:12px;padding:6px 8px;"/>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Date</label>
+          <input type="date" id="todo-date" style="font-size:12px;padding:6px 8px;"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Time</label>
+          <input type="time" id="todo-time" style="font-size:12px;padding:6px 8px;"/>
+        </div>
       </div>
     </div>
-    <button class="btn btn-g" onclick="todoAdd()">Add Task</button>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn btn-g" style="flex:1;" onclick="todoAdd()">Add Task</button>
+      <button id="todo-urgent-btn" onclick="todoToggleUrgent()" style="padding:8px 14px;border-radius:var(--r-sm);border:1.5px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;font-family:inherit;transition:all 0.12s;" title="Mark as urgent">🚨 Urgent</button>
+    </div>
   </div>
   <div id="todo-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;"></div>
   <div id="todo-empty" style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;display:none;">
@@ -5453,6 +5462,20 @@ function todoQuickAdd(prefill) {
 }
 window.todoQuickAdd = todoQuickAdd;
 
+var _todoUrgent = false;
+
+function todoToggleUrgent() {
+  _todoUrgent = !_todoUrgent;
+  var btn = document.getElementById('todo-urgent-btn');
+  if (btn) {
+    btn.style.background = _todoUrgent ? '#FEF2F2' : 'var(--surface)';
+    btn.style.borderColor = _todoUrgent ? '#E24B4A' : 'var(--border)';
+    btn.style.color = _todoUrgent ? '#E24B4A' : 'var(--text)';
+    btn.style.fontWeight = _todoUrgent ? '600' : 'normal';
+  }
+}
+window.todoToggleUrgent = todoToggleUrgent;
+
 async function todoAdd() {
   var input = document.getElementById('todo-input');
   var dateEl = document.getElementById('todo-date');
@@ -5480,6 +5503,13 @@ async function todoToggle(id) {
   if (!t) return;
   t.done = !t.done;
   if (t.done) t.doneAt = Date.now();
+  // Keep only last 10 completed — oldest drops off
+  var completed = _todos.filter(function(x){ return x.done; });
+  if (completed.length > 10) {
+    completed.sort(function(a,b){ return (a.doneAt||0)-(b.doneAt||0); });
+    var oldest = completed.slice(0, completed.length - 10);
+    oldest.forEach(function(x){ _todos = _todos.filter(function(y){ return y.id !== x.id; }); });
+  }
   _todos.sort(function(a,b){ return a.done === b.done ? 0 : a.done ? 1 : -1; });
   await todoSave();
   todoRender();
