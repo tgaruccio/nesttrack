@@ -1847,7 +1847,17 @@ textarea{resize:vertical;min-height:68px;}
       <div class="mtitle" id="cdm-title">📋 Enter Contract Dates</div>
       <button class="xbtn" onclick="closeM('contract-dates-modal')">✕</button>
     </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:16px;" id="cdm-sub">These dates will appear on the client's live transaction timeline.</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;" id="cdm-sub">These dates will appear on the client's live transaction timeline.</div>
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:7px;">Quick Fill</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-sm" onclick="cdmFill(30)">30 Day Close</button>
+        <button class="btn btn-sm" onclick="cdmFill(45)">45 Day Close</button>
+        <button class="btn btn-sm" onclick="cdmFill(60)">60 Day Close</button>
+        <button class="btn btn-sm" style="color:var(--text3);" onclick="cdmClear()">Clear All</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px;">Dates auto-fill from today — adjust any field as needed before saving.</div>
+    </div>
     <div style="display:flex;flex-direction:column;gap:12px;" id="cdm-fields"></div>
     <div style="display:flex;gap:8px;margin-top:18px;">
       <button class="btn" style="flex:1;" onclick="closeM('contract-dates-modal')">Cancel</button>
@@ -5262,6 +5272,40 @@ function openContractDatesForBuyer(uid, type) {
 }
 window.openContractDatesForBuyer = openContractDatesForBuyer;
 
+
+// ─── CONTRACT DATE QUICK FILL ───
+function cdmAddDays(base, days) {
+  var d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function cdmFill(closingDays) {
+  var today = new Date().toISOString().split('T')[0];
+  var plan = {
+    acceptanceDate:     today,
+    earnestMoneyDue:    cdmAddDays(today, 3),
+    inspectionDeadline: cdmAddDays(today, 7),
+    appraisalDeadline:  cdmAddDays(today, closingDays === 30 ? 21 : closingDays === 45 ? 30 : 45),
+    financingDeadline:  cdmAddDays(today, closingDays - 5),
+    closingDate:        cdmAddDays(today, closingDays)
+  };
+  Object.keys(plan).forEach(function(key) {
+    var el = document.getElementById('cdm-' + key);
+    if (el) el.value = plan[key];
+  });
+}
+window.cdmFill = cdmFill;
+
+function cdmClear() {
+  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  fields.forEach(function(f) {
+    var el = document.getElementById('cdm-' + f.key);
+    if (el) el.value = '';
+  });
+}
+window.cdmClear = cdmClear;
+
 function openContractDatesModal(buyerUid, type, existingDates) {
   _cdmBuyerUid = buyerUid;
   _cdmType = type || 'buyer';
@@ -5324,23 +5368,38 @@ window.clearContractDates = clearContractDates;
 
 
 // ─── RENDER TRANSACTION TIMELINES ───
-function renderDateRow(f, dates, today) {
+// Map contract field keys to buyer step IDs and seller step indices
+var BUYER_FIELD_STEP_MAP = {
+  acceptanceDate:5, earnestMoneyDue:5, inspectionDeadline:7,
+  appraisalDeadline:8, financingDeadline:6, closingDate:11
+};
+var SELLER_FIELD_STEP_MAP = {
+  acceptanceDate:8, earnestMoneyDue:8, inspectionDeadline:9,
+  appraisalDeadline:10, financingDeadline:11, closingDate:12
+};
+
+function renderDateRow(f, dates, today, stepType) {
   if (!dates[f.key]) return '';
   var d = new Date(dates[f.key] + 'T12:00:00');
   var diff = Math.ceil((d - today) / 86400000);
   var isPast = diff < 0, isToday = diff === 0;
   var dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
   var tag = isPast
-    ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">✓ Done</span>'
+    ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">&#10003; Done</span>'
     : isToday
     ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
     : '<span style="font-size:10px;color:var(--text3);">'+diff+'d away</span>';
   var bg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
   var border = isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
-  return '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:'+bg+';border-bottom:0.5px solid var(--border);border-left:'+border+';">'
+  var stepMap = stepType === 'seller' ? SELLER_FIELD_STEP_MAP : BUYER_FIELD_STEP_MAP;
+  var stepIdx = stepMap[f.key];
+  var clickFn = stepIdx ? (stepType === 'seller' ? 'openSellerStep('+stepIdx+')' : 'openStep('+stepIdx+')') : '';
+  var hint = stepIdx ? '<div style="font-size:10.5px;color:var(--text3);margin-top:1px;">Tap to learn more ›</div>' : '';
+  return '<div onclick="'+clickFn+'" style="'+(clickFn?'cursor:pointer;':'')+'display:flex;align-items:center;gap:12px;padding:11px 14px;background:'+bg+';border-bottom:0.5px solid var(--border);border-left:'+border+';">'
     + '<div style="font-size:18px;flex-shrink:0;">'+f.icon+'</div>'
-    + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--text);">'+f.label+'</div>'
-    + '<div style="font-size:12px;color:var(--text3);">'+dateStr+'</div></div>'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12.5px;color:var(--text);font-weight:500;">'+f.label+'</div>'
+    + '<div style="font-size:12px;color:var(--text3);">'+dateStr+'</div>'
+    + hint + '</div>'
     + tag + '</div>';
 }
 
@@ -5362,7 +5421,7 @@ function renderTxnTimeline() {
         var dc = Math.ceil((closing-today)/86400000);
         headline.textContent = dc > 0 ? dc+' days to closing' : dc===0 ? 'Closing Today! 🎉' : 'Closed!';
       }
-      if (buyerList) buyerList.innerHTML = BUYER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, buyerDates, today); }).join('');
+      if (buyerList) buyerList.innerHTML = BUYER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, buyerDates, today, 'buyer'); }).join('');
     } else {
       buyerCard.style.display = 'none';
     }
@@ -5383,7 +5442,7 @@ function renderTxnTimeline() {
         var sdc = Math.ceil((sClosing-today)/86400000);
         sHeadline.textContent = sdc > 0 ? sdc+' days to closing' : sdc===0 ? 'Closing Today! 🎉' : 'Closed!';
       }
-      if (sellerList) sellerList.innerHTML = SELLER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, sellerDates, today); }).join('');
+      if (sellerList) sellerList.innerHTML = SELLER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, sellerDates, today, 'seller'); }).join('');
     } else {
       sellerCard.style.display = 'none';
     }
