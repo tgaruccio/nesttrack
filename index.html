@@ -4937,12 +4937,16 @@ async function openBuyerDetail(uid) {
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
       <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">${step?step.name:''} <span style="font-size:13px;color:var(--text2);">— Step ${b.currentStep||1} of 11</span></div>
       <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
-        <select id="bd-step" style="max-width:240px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
-        <div style="font-size:11px;color:var(--text3);margin:6px 0 2px;">Journey Type</div>
-        <select id="bd-journey-type" style="max-width:240px;margin-bottom:6px;"><option value="both">Buyer &amp; Seller</option><option value="buyer-only">Buyer Only</option><option value="seller-only">Seller Only</option></select>
-        <div style="font-size:11px;color:var(--text3);margin:6px 0 2px;">Seller Step</div>
-        <select id="bd-seller-step" style="max-width:240px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
-        <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Update Step</button>
+        <div style="font-size:11px;color:var(--text3);margin:4px 0 2px;">🏠 Buyer Step</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+          <select id="bd-step" style="max-width:220px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
+          <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin:4px 0 2px;">🏡 Seller Step</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+          <select id="bd-seller-step" style="max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
+          <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
+        </div>
       </div>
     </div>
 
@@ -5055,6 +5059,22 @@ async function aiBuyerSummary(uid) {
 window.openBuyerDetail = openBuyerDetail;
 window.setBuyerStep = setBuyerStep;
 window.setBuyerAgent = setBuyerAgent;
+
+async function setSellerStep(uid) {
+  const newStep = parseInt(document.getElementById('bd-seller-step').value);
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
+    await loadBuyersForAgent();
+    renderBuyers();
+    if (newStep === 5) {
+      var buyer = (myBuyers||[]).find(function(b){ return b.uid === uid; });
+      var existingDates = (buyer && buyer.contractDates) || {};
+      closeM('buyer-modal');
+      setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
+    }
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.setSellerStep = setSellerStep;
 window.setBuyerDocs = setBuyerDocs;
 window.deleteBuyer = deleteBuyer;
 window.agentChatWith = agentChatWith;
@@ -5249,10 +5269,13 @@ function renderTxnTimeline() {
   if (!card || !list) return;
 
   var step = (userProfile && userProfile.currentStep) || 1;
+  var sellerStep = (userProfile && userProfile.currentSellerStep) || 0;
   var dates = (userProfile && userProfile.contractDates) || null;
+  var isSeller = dates && dates.contractType === 'seller';
+  var activeStep = isSeller ? sellerStep : step;
 
   // Show once under contract (step 5+) and dates exist
-  if (step < 5 || !dates) { card.style.display = 'none'; return; }
+  if (activeStep < 5 || !dates) { card.style.display = 'none'; return; }
 
   var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var today = new Date(); today.setHours(0,0,0,0);
