@@ -584,7 +584,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- Buyer Transaction Timeline -->
-  <div id="txn-buyer-card" style="display:none;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
+  <div id="txn-buyer-card" style="display:none;border-radius:var(--r);border:1.5px solid var(--green-md);">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏠 Buying — Under Contract</div>
@@ -596,7 +596,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- Seller Transaction Timeline -->
-  <div id="txn-seller-card" style="display:none;border-radius:var(--r);overflow:hidden;border:1.5px solid #F59E0B;">
+  <div id="txn-seller-card" style="display:none;border-radius:var(--r);border:1.5px solid #F59E0B;">
     <div style="background:linear-gradient(135deg,#92400E,#D97706);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏡 Selling — Under Contract</div>
@@ -2890,7 +2890,7 @@ function go(page, el) {
   if (page === 'partners') renderPartners(currentPartnerCat);
   if (page === 'youragent') renderYourAgent();
   if (page === 'dash') renderDash();
-  if (page === 'home') renderHome();
+  if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
   if (page === 'education') renderEducation();
   if (page === 'home') {
     renderTxnTimeline();
@@ -4166,7 +4166,7 @@ function watchChat(buyerIdOverride) {
       var chatPage = document.getElementById('page-chat');
       var chatIsActive = chatPage && chatPage.classList.contains('active');
       // Only show alert and notification if chat is not currently open
-      if (!chatIsActive) {
+      if (!chatIsActive && !isMine) {
         showBrowserNotification('New message from ' + agName, msg.text ? msg.text.substring(0,80) : 'New message');
         var homeAlert = document.getElementById('home-unread-alert');
         var homeAlertText = document.getElementById('home-unread-text');
@@ -5567,6 +5567,7 @@ function renderTxnTimeline() {
   if (buyerCard) {
     if (buyerHasDates) {
       buyerCard.style.display = 'block';
+      buyerCard.style.width = '100%';
       var closing = buyerDates.closingDate ? new Date(buyerDates.closingDate+'T12:00:00') : null;
       var headline = document.getElementById('txn-buyer-headline');
       if (headline && closing) {
@@ -5588,6 +5589,7 @@ function renderTxnTimeline() {
   if (sellerCard) {
     if (sellerHasDates) {
       sellerCard.style.display = 'block';
+      sellerCard.style.width = '100%';
       var sClosing = sellerDates.closingDate ? new Date(sellerDates.closingDate+'T12:00:00') : null;
       var sHeadline = document.getElementById('txn-seller-headline');
       if (sHeadline && sClosing) {
