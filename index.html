@@ -1961,19 +1961,28 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- INVITE MODAL -->
 <div class="mo" id="invite-modal" style="display:none;">
-  <div class="mbox">
-    <div class="mhdr"><div class="mtitle">Invite Buyer</div><button class="xbtn" onclick="closeM('invite-modal')">✕</button></div>
-    <div class="notice">Send buyers a unique invite code. They'll enter it on signup to be auto-assigned to their agent.</div>
+  <div class="mbox" style="max-width:460px;">
+    <div class="mhdr"><div class="mtitle">Invite Client</div><button class="xbtn" onclick="closeM('invite-modal')">✕</button></div>
+    <div class="notice">Client appears in your list immediately. They get an email with a signup link — no code needed.</div>
     <div class="fg2">
       <div><label class="flabel">First Name</label><input type="text" id="inv-first" placeholder="Sarah"/></div>
       <div><label class="flabel">Last Name</label><input type="text" id="inv-last" placeholder="Mitchell"/></div>
     </div>
     <div><label class="flabel">Email</label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
+    <div><label class="flabel">Phone (optional)</label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
+    <div>
+      <label class="flabel">Journey Type</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button id="inv-jt-buyer" onclick="invSetJourney('buyer')" class="btn btn-sm" style="flex:1;background:var(--green);color:#fff;border-color:var(--green);">🏠 Buying</button>
+        <button id="inv-jt-seller" onclick="invSetJourney('seller')" class="btn btn-sm" style="flex:1;">🏡 Selling</button>
+        <button id="inv-jt-both" onclick="invSetJourney('both')" class="btn btn-sm" style="flex:1;">🏠🏡 Both</button>
+      </div>
+    </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div id="invite-result" style="display:none;"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
       <button class="btn" onclick="closeM('invite-modal')">Cancel</button>
-      <button class="btn btn-g" onclick="createInvite()">Generate Invite</button>
+      <button class="btn btn-g" onclick="createInvite()">Invite Client</button>
     </div>
   </div>
 </div>
@@ -2373,16 +2382,23 @@ async function signUp() {
         if (invDoc.exists()) { inviteData = invDoc.data(); agentId = inviteData.agentId || selectedAgent; }
       } catch (x) { console.log('Invite lookup failed', x); }
     }
+    var journeyType = (inviteData && inviteData.journeyType) || 'buyer';
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), {
       email, firstName: first, lastName: last, phone,
       role: 'buyer', agentId,
-      currentStep: 1,
+      journeyType: journeyType,
+      currentStep: 1, currentSellerStep: 0,
       stepHistory: [{step:1, at: new Date().toISOString()}],
       createdAt: fb.serverTimestamp(),
       lastActive: fb.serverTimestamp(),
     });
     if (invite && inviteData) {
-      try { await fb.updateDoc(fb.doc(fb.db, 'invites', invite), { used: true, usedBy: cred.user.uid, usedAt: fb.serverTimestamp() }); } catch (x) {}
+      try {
+        await fb.updateDoc(fb.doc(fb.db, 'invites', invite), { used: true, usedBy: cred.user.uid, usedAt: fb.serverTimestamp() });
+        // Remove pending record now that real account exists
+        var pendingUid = 'pending_' + invite;
+        await fb.deleteDoc(fb.doc(fb.db, 'users', pendingUid));
+      } catch (x) {}
     }
   } catch (e) {
     err.textContent = e.code === 'auth/email-already-in-use' ? 'An account with this email already exists' : (e.message || 'Sign-up failed');
@@ -4731,6 +4747,7 @@ async function renderBuyers() {
     const initials = ((b.firstName||'')[0]||'')+((b.lastName||'')[0]||'');
     const step = TIMELINE_STEPS[(b.currentStep||1)-1];
     const agent = DEFAULT_AGENTS.find(a => a.id === b.agentId);
+    const isPending = b.pending === true;
     const agentLine = teamLeader && agent ? `<div class="buyer-meta">Assigned to ${agent.name}</div>` : '';
     return `<div class="buyer-row" onclick="openBuyerDetail('${b.uid}')">
       <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
@@ -4741,8 +4758,7 @@ async function renderBuyers() {
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
-          <div style="font-size:11px;color:var(--text3);">Step ${b.currentStep||1} of 11</div>
-          <span class="pill pill-b">${step?step.name:''}</span>
+          ${isPending ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited · Pending</span>' : '<div style="font-size:11px;color:var(--text3);">Step ${b.currentStep||1} of 11</div><span class="pill pill-b">${step?step.name:""}</span>'}
           ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?`<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No buyer timeline set</div>`:''}
           ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?`<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No seller timeline set</div>`:''}
         </div>
@@ -5002,6 +5018,8 @@ async function openBuyerDetail(uid) {
       <div class="dstat"><div class="dnum">${bProps.length?(bProps.reduce((s,p)=>s+(p.rating||0),0)/bProps.length).toFixed(1):'—'}</div><div class="dlbl">Avg Rating</div></div>
     </div>
 
+    <div id="bd-timeline-preview"></div>
+
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Assigned Agent</div>
       ${teamLeader ? `
@@ -5034,8 +5052,8 @@ async function openBuyerDetail(uid) {
         </div>`).join('')}</div>
     </div>`:''}`;
   document.getElementById('buyer-modal').style.display = 'flex';
-  // Save current buyer for use elsewhere
   window._currentBuyer = b;
+  setTimeout(function(){ renderAgentTimelinePreview(b); }, 50);
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
@@ -5102,6 +5120,80 @@ async function aiBuyerSummary(uid) {
   } catch(e) { out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed.</div>`; out.style.display = 'block'; }
 }
 window.openBuyerDetail = openBuyerDetail;
+
+function renderAgentTimelinePreview(b) {
+  var container = document.getElementById('bd-timeline-preview');
+  if (!container) return;
+  var buyerDates = b.buyerContractDates || (b.contractDates && b.contractDates.contractType !== 'seller' ? b.contractDates : null);
+  var sellerDates = b.sellerContractDates || (b.contractDates && b.contractDates.contractType === 'seller' ? b.contractDates : null);
+  var buyerHas = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
+  var sellerHas = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
+  if (!buyerHas && !sellerHas) { container.innerHTML = ''; return; }
+  var today = new Date(); today.setHours(0,0,0,0);
+  var uid = b.uid;
+
+  function buildPreviewCard(dates, completedKeys, fields, headerBg, headerLabel, completedField) {
+    var closing = dates.closingDate ? new Date(dates.closingDate+'T12:00:00') : null;
+    var daysToClose = closing ? Math.ceil((closing-today)/86400000) : null;
+    var headline = daysToClose !== null ? (daysToClose > 0 ? daysToClose+' days to closing' : daysToClose === 0 ? 'Closing Today!' : 'Closed') : 'Under Contract';
+    var rows = fields.map(function(f) {
+      if (!dates[f.key]) return '';
+      var d = new Date(dates[f.key]+'T12:00:00');
+      var diff = Math.ceil((d-today)/86400000);
+      var isPast = diff < 0, isToday = diff === 0;
+      var manualDone = completedKeys.indexOf(f.key) > -1;
+      var isDone = manualDone || isPast;
+      var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var bg = isDone ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+      var labelStyle = isDone ? 'font-size:12px;color:var(--text3);text-decoration:line-through;' : 'font-size:12px;color:var(--text);';
+      var cbBg = isDone ? 'var(--green)' : 'var(--surface)';
+      var cbBorder = isDone ? 'var(--green)' : 'var(--border)';
+      var cbCheck = isDone ? '&#10003;' : '';
+      var cbColor = isDone ? '#fff' : 'transparent';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+bg+';border-bottom:0.5px solid var(--border);">'
+        +'<div onclick="toggleTimelineComplete(''+uid+'',''+completedField+'',''+f.key+'','+JSON.stringify(completedKeys)+')" '
+        +'style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+cbBorder+';background:'+cbBg+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:'+cbColor+';font-size:12px;font-weight:700;">'+cbCheck+'</div>'
+        +'<div style="font-size:15px;">'+f.icon+'</div>'
+        +'<div style="flex:1;min-width:0;"><div style="'+labelStyle+'">'+f.label+'</div></div>'
+        +'<div style="font-size:11px;color:var(--text3);">'+dateStr+'</div>'
+        +'</div>';
+    }).join('');
+    return '<div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:8px;">'
+      +'<div style="background:'+headerBg+';color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">'
+      +'<div style="font-size:11px;font-weight:600;opacity:0.85;">'+headerLabel+'</div>'
+      +'<div style="font-size:14px;font-weight:300;">'+headline+'</div>'
+      +'</div>'+rows+'</div>';
+  }
+
+  var html = '';
+  if (buyerHas) {
+    var bCompleted = b.buyerCompletedDates || [];
+    html += buildPreviewCard(buyerDates, bCompleted, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '&#127968; Buying Timeline', 'buyerCompletedDates');
+  }
+  if (sellerHas) {
+    var sCompleted = b.sellerCompletedDates || [];
+    html += buildPreviewCard(sellerDates, sCompleted, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline', 'sellerCompletedDates');
+  }
+  container.innerHTML = html;
+}
+window.renderAgentTimelinePreview = renderAgentTimelinePreview;
+
+async function toggleTimelineComplete(uid, completedField, key, currentKeys) {
+  var keys = currentKeys ? currentKeys.slice() : [];
+  var idx = keys.indexOf(key);
+  if (idx > -1) { keys.splice(idx, 1); } else { keys.push(key); }
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { [completedField]: keys });
+    // Update local buyer record and re-render
+    var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; });
+    if (buyer) {
+      buyer[completedField] = keys;
+      renderAgentTimelinePreview(buyer);
+    }
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.toggleTimelineComplete = toggleTimelineComplete;
+
 window.setBuyerStep = setBuyerStep;
 window.setBuyerAgent = setBuyerAgent;
 
@@ -5130,33 +5222,112 @@ function openInviteModal() {
   document.getElementById('inv-first').value = '';
   document.getElementById('inv-last').value = '';
   document.getElementById('inv-email').value = '';
+  var phoneEl = document.getElementById('inv-phone'); if (phoneEl) phoneEl.value = '';
   const inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(a => a.id === userProfile.agentId);
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(a => `<option value="${a.id}" ${a.id===userProfile.agentId?'selected':''}>${a.name}</option>`).join('');
   document.getElementById('invite-result').style.display = 'none';
+  _invJourneyType = 'buyer';
+  setTimeout(function(){ invSetJourney('buyer'); }, 50);
   document.getElementById('invite-modal').style.display = 'flex';
 }
+var _invJourneyType = 'buyer';
+
+function invSetJourney(type) {
+  _invJourneyType = type;
+  ['buyer','seller','both'].forEach(function(t) {
+    var btn = document.getElementById('inv-jt-'+t);
+    if (!btn) return;
+    var active = t === type;
+    var color = t === 'seller' ? '#D97706' : 'var(--green)';
+    btn.style.background = active ? color : 'var(--surface)';
+    btn.style.color = active ? '#fff' : 'var(--text2)';
+    btn.style.borderColor = active ? color : 'var(--border)';
+  });
+}
+window.invSetJourney = invSetJourney;
+
 async function createInvite() {
-  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-  const data = {
-    firstName: document.getElementById('inv-first').value.trim(),
-    lastName: document.getElementById('inv-last').value.trim(),
-    email: document.getElementById('inv-email').value.trim(),
-    agentId: document.getElementById('inv-agent').value,
+  const first = document.getElementById('inv-first').value.trim();
+  const last = document.getElementById('inv-last').value.trim();
+  const email = document.getElementById('inv-email').value.trim();
+  const phone = (document.getElementById('inv-phone')||{}).value||'';
+  const agentId = document.getElementById('inv-agent').value;
+  const resultEl = document.getElementById('invite-result');
+
+  if (!first || !email) { alert('First name and email are required.'); return; }
+
+  const code = Math.random().toString(36).substring(2,8).toUpperCase();
+  const link = location.origin + location.pathname + '#invite=' + code;
+  const agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === agentId; });
+  const agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+
+  // Invite record
+  const inviteData = {
+    firstName: first, lastName: last, email: email,
+    phone: phone, agentId: agentId,
+    journeyType: _invJourneyType,
     invitedBy: currentUser.uid,
     invitedAt: fb.serverTimestamp(),
-    used: false,
+    used: false, pending: true,
   };
+
+  // Pending client record — shows in agent list immediately
+  const pendingUid = 'pending_' + code;
+  const clientData = {
+    firstName: first, lastName: last, email: email,
+    phone: phone, agentId: agentId,
+    role: 'buyer',
+    journeyType: _invJourneyType,
+    currentStep: 1, currentSellerStep: 0,
+    pending: true, inviteCode: code,
+    createdAt: fb.serverTimestamp(),
+  };
+
   try {
-    await fb.setDoc(fb.doc(fb.db, 'invites', code), data);
-    const link = `${location.origin}${location.pathname}#invite=${code}`;
-    document.getElementById('invite-result').style.display = 'block';
-    document.getElementById('invite-result').innerHTML = `<div class="card" style="background:var(--green-lt);border-color:var(--green-md);color:var(--green-dk);">
-      <div style="font-weight:500;margin-bottom:6px;">✓ Invite created</div>
-      <div style="font-size:12.5px;margin-bottom:8px;">Send this code to <strong>${data.email||'your buyer'}</strong>:</div>
-      <div style="background:var(--surface);padding:10px 12px;border-radius:6px;font-family:monospace;font-size:18px;text-align:center;letter-spacing:2px;color:var(--text);">${code}</div>
-      <div style="margin-top:10px;font-size:12px;">Or share this link:</div>
-      <div style="background:var(--surface);padding:8px 10px;border-radius:6px;font-size:11px;word-break:break-all;color:var(--text);">${link}</div>
-    </div>`;
+    await fb.setDoc(fb.doc(fb.db, 'invites', code), inviteData);
+    await fb.setDoc(fb.doc(fb.db, 'users', pendingUid), clientData);
+
+    // Send invite email via Cloudflare Worker
+    const journeyLabel = _invJourneyType === 'both' ? 'buying and selling' : _invJourneyType === 'seller' ? 'selling your home' : 'buying a home';
+    const emailHtml = `
+      <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;">
+        <div style="background:#1D9E75;padding:28px 32px;border-radius:10px 10px 0 0;">
+          <div style="font-size:26px;font-weight:300;color:#fff;letter-spacing:-0.5px;">Nest Track</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Your personal real estate command center</div>
+        </div>
+        <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">
+          <p style="font-size:17px;margin:0 0 16px;">Hi ${first},</p>
+          <p style="font-size:15px;color:#444;line-height:1.7;margin:0 0 16px;">${agentName} has set up a personal Nest Track account for you to guide you through ${journeyLabel}. You'll have a live transaction timeline, direct chat, educational resources, and more — all in one place.</p>
+          <div style="text-align:center;margin:28px 0;">
+            <a href="${link}" style="background:#1D9E75;color:#fff;padding:14px 32px;border-radius:25px;font-size:16px;text-decoration:none;font-family:Georgia,serif;display:inline-block;">Set Up My Account →</a>
+          </div>
+          <p style="font-size:13px;color:#888;text-align:center;margin:0;">Or paste this link: <span style="color:#1D9E75;">${link}</span></p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
+          <p style="font-size:13px;color:#888;margin:0;">Questions? Reply to this email or contact ${agentName} directly.</p>
+        </div>
+      </div>`;
+
+    try {
+      await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+        body: JSON.stringify({
+          to: email,
+          subject: agentName + ' invited you to Nest Track',
+          html: emailHtml
+        })
+      });
+    } catch(emailErr) { console.log('Email send failed:', emailErr); }
+
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div class="card" style="background:var(--green-lt);border-color:var(--green-md);color:var(--green-dk);">'
+      +'<div style="font-weight:600;font-size:14px;margin-bottom:6px;">&#10003; ' + first + ' has been invited!</div>'
+      +'<div style="font-size:12.5px;color:var(--text2);">An email was sent to <strong>'+email+'</strong> with their signup link. They now appear in your client list as Pending.</div>'
+      +'</div>';
+
+    await loadBuyersForAgent();
+    renderBuyers();
+
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.openInviteModal = openInviteModal;
@@ -5383,14 +5554,18 @@ function renderDateRow(f, dates, today, stepType) {
   var d = new Date(dates[f.key] + 'T12:00:00');
   var diff = Math.ceil((d - today) / 86400000);
   var isPast = diff < 0, isToday = diff === 0;
+  var completedField = stepType === 'seller' ? 'sellerCompletedDates' : 'buyerCompletedDates';
+  var completedKeys = (userProfile && userProfile[completedField]) || [];
+  var manualDone = completedKeys.indexOf(f.key) > -1;
+  var isDone = manualDone || isPast;
   var dateStr = d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-  var tag = isPast
-    ? '<span style="font-size:10px;background:#F1F5F9;color:var(--text3);border-radius:10px;padding:2px 7px;">&#10003; Done</span>'
+  var tag = isDone
+    ? '<span style="font-size:10px;background:#ECFDF5;color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;">&#10003; Done</span>'
     : isToday
     ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
     : '<span style="font-size:10px;color:var(--text3);">'+diff+'d away</span>';
-  var bg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
-  var border = isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
+  var bg = isDone ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+  var border = isDone ? '1px solid var(--border)' : isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
   var stepMap = stepType === 'seller' ? SELLER_FIELD_STEP_MAP : BUYER_FIELD_STEP_MAP;
   var stepIdx = stepMap[f.key];
   var clickFn = stepIdx ? (stepType === 'seller' ? 'showSellerStepEdu('+stepIdx+')' : 'openStep('+stepIdx+')') : '';
