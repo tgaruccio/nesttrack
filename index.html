@@ -3645,6 +3645,293 @@ function calcNetSheet() {
 }
 window.calcNetSheet = calcNetSheet;
 
+// ─── CLIENT NOTIFICATION EMAILS ───
+var PREAPPROVAL_LINK = 'https://1660690.my1003app.com/2784866/register';
+var APP_LINK = 'https://garucciogroup.netlify.app';
+
+function nsEmailWrap(agentName, subject, bodyHtml) {
+  return '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    + '<div style="background:#1D9E75;padding:24px 28px;border-radius:10px 10px 0 0;">'
+    + '<div style="font-size:22px;font-weight:300;color:#fff;letter-spacing:-0.5px;">Nest Track</div>'
+    + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:3px;">Your personal real estate command center</div>'
+    + '</div>'
+    + '<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    + bodyHtml
+    + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
+    + '<p style="font-size:12px;color:#888;margin:0;">Questions? Contact ' + agentName + ' directly or reply to this email.</p>'
+    + '</div></div>';
+}
+
+function nsEmailBtn(label, url, color) {
+  color = color || '#1D9E75';
+  return '<div style="text-align:center;margin:20px 0;">'
+    + '<a href="' + url + '" style="background:' + color + ';color:#fff;padding:12px 28px;border-radius:25px;font-size:15px;text-decoration:none;display:inline-block;">' + label + '</a>'
+    + '</div>';
+}
+
+async function sendClientEmail(uid, subject, bodyHtml) {
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db, 'users', uid));
+    if (!snap.exists()) return;
+    var client = snap.data();
+    var email = client.email;
+    if (!email) return;
+    await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+      body: JSON.stringify({ to: email, subject: subject, html: bodyHtml })
+    });
+  } catch(e) { console.log('Client email failed:', e.message); }
+}
+window.sendClientEmail = sendClientEmail;
+
+var BUYER_STEP_EMAILS = {
+  1: {
+    subject: 'Welcome to Your Home Buying Journey \uD83C\uDFE0',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' has opened your personal Nest Track account and started your home buying file. Everything you need for your journey is right in the app \u2014 education, tools, chat, and more.</p>'
+        + nsEmailBtn('Open My App', APP_LINK)
+        + '<p style="font-size:13px;color:#888;">If you have questions before your first meeting, just reply to this email or reach out to ' + agentName + ' directly.</p>';
+    }
+  },
+  2: {
+    subject: 'Time to Get Pre-Approved \uD83D\uDCB0',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your next step is getting pre-approved for your mortgage. Pre-approval tells you exactly what you can afford, makes your offers stronger, and removes surprises down the road.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Tom Garuccio is your licensed mortgage professional and is ready to help. The process is quick, free, and doesn\u2019t obligate you to anything.</p>'
+        + nsEmailBtn('Get Pre-Approved Now \u2192', PREAPPROVAL_LINK, '#1D9E75')
+        + nsEmailBtn('Open My App', APP_LINK, '#888');
+    }
+  },
+  3: {
+    subject: 'Time to Start Touring Homes \uD83D\uDD11',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">You\u2019re officially in search mode! ' + agentName + ' is curating listings that match your criteria. Use the app to save homes, rate them, and take notes during showings.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  4: {
+    subject: 'Ready to Make an Offer \uD83D\uDCDD',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">You\u2019ve found something worth pursuing! ' + agentName + ' is working on your offer strategy \u2014 pricing, terms, and contingencies \u2014 to give you the best chance of winning without overpaying.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Check the app for your offer strategy guide and reach out with any questions.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  5: {
+    subject: 'Your Offer Was Accepted! \uD83C\uDF89',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;"><strong>Congratulations \u2014 you\u2019re under contract!</strong> Your offer was accepted and the clock is ticking. There are several important deadlines ahead \u2014 ' + agentName + ' is tracking every single one for you.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Open the app to see your live transaction timeline with all your key dates.</p>'
+        + nsEmailBtn('View My Transaction Timeline', APP_LINK, '#1D9E75');
+    }
+  },
+  6: {
+    subject: 'Time to Apply for Your Mortgage \uD83C\uDFE6',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Now that you\u2019re under contract, it\u2019s time to submit your official mortgage application. Your lender needs updated financials and will send you a Loan Estimate within 3 business days.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;"><strong>Important:</strong> Avoid any major purchases or new credit accounts until after closing.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  7: {
+    subject: 'Home Inspection Coming Up \uD83D\uDD0D',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your home inspection is scheduled! Plan on about 2\u20133 hours. ' + agentName + ' will be there with you. The inspector will cover structure, roof, HVAC, plumbing, electrical, and more.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Check the app for what to expect and how to prepare.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  8: {
+    subject: 'Appraisal Has Been Ordered \uD83D\uDCCA',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your lender has ordered the appraisal to confirm the home is worth what you\u2019re paying. This typically takes 1\u20132 weeks. ' + agentName + ' will update you the moment results come in.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  9: {
+    subject: 'Final Walk-Through Time \uD83D\uDEB6',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">You\u2019re almost there! Your final walk-through is coming up \u2014 this is your last chance to verify the home is in the condition agreed upon and that any negotiated repairs were completed.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Check the app for exactly what to look for during the walk-through.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  10: {
+    subject: 'Review Your Closing Disclosure \uD83D\uDCC4',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your Closing Disclosure has been issued \u2014 this is the final breakdown of every dollar in your transaction. ' + agentName + ' is reviewing every line and will walk you through it before you sit at the table.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;"><strong>Remember:</strong> Never wire funds based on email instructions alone. Always verify by phone first.</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  },
+  11: {
+    subject: "IT'S CLOSING DAY! \uD83C\uDF89\uD83D\uDD11",
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<div style="background:#ECFDF5;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;">'
+        + '<div style="font-size:32px;margin-bottom:6px;">\uD83C\uDF89</div>'
+        + '<div style="font-size:20px;font-weight:600;color:#065F46;">Congratulations!</div>'
+        + '<div style="font-size:14px;color:#047857;margin-top:6px;">You are officially a homeowner.</div>'
+        + '</div>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Today you sign, fund, and get the keys. ' + agentName + ' will be with you every step of the way. Bring your photo ID and certified funds.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">It has been an absolute pleasure working with you. Enjoy every moment in your new home \u2014 you deserve it!</p>'
+        + nsEmailBtn('Open My App', APP_LINK);
+    }
+  }
+};
+
+var SELLER_STEP_EMAILS = {
+  1: { subject: 'Welcome to Your Home Selling Journey \uD83C\uDFE1', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' has started your seller file in Nest Track. Your personalized selling guide, tools, and direct chat are all ready in the app.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  2: { subject: 'Home Prep & Strategy \uD83D\uDEE0\uFE0F', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' is putting together your home prep and listing strategy. Small improvements and smart staging can make a big difference in what you walk away with.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  3: { subject: 'Pricing Strategy Is Ready \uD83D\uDCCA', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' has completed your comparative market analysis and is ready to walk you through the pricing strategy. Getting the price right from day one is critical.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  4: { subject: 'Media Day Is Coming Up \uD83D\uDCF8', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Professional photos make a massive difference in how quickly your home sells and for how much. ' + agentName + ' has scheduled media day \u2014 check the app for how to prepare your home.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  5: { subject: 'Your Listing Is Being Created \uD83D\uDCDD', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' is finalizing your MLS listing. You\u2019ll have a chance to review and approve everything before it goes live.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  6: { subject: "You're Live on the Market! \uD83D\uDE80", body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;"><strong>Your home is officially on the market!</strong> ' + agentName + ' has activated the full marketing push. The first few days are the most critical \u2014 we want strong early momentum.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  7: { subject: 'Marketing Is In Full Swing \uD83D\uDCE3', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' is actively marketing your home. Showings are being scheduled and feedback is being collected. You\u2019ll hear from Tom regularly with updates.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  8: { subject: 'Showings Are Happening \uD83D\uDC40', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Buyers are touring your home! ' + agentName + ' is collecting feedback after every showing and keeping a close eye on market activity. Stay patient \u2014 the right buyer is out there.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  9: { subject: "You Have an Offer! Let's Negotiate \uD83D\uDCB0", body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;"><strong>You have an offer!</strong> ' + agentName + ' is reviewing the details and will walk you through everything \u2014 price, terms, contingencies, and your best response strategy.</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Check the app for your live transaction timeline with all key dates.</p>'
+      + nsEmailBtn('View My Transaction Timeline', APP_LINK, '#1D9E75');
+  }},
+  10: { subject: 'Inspection Phase \uD83D\uDD0D', body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">The buyer\u2019s inspection is underway. ' + agentName + ' will review any findings and work with you on the best response to repair requests or credits.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  11: { subject: "Appraisal Ordered \uD83C\uDFE6", body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">The buyer\u2019s lender has ordered an appraisal. ' + agentName + ' has prepared comparable sales to support your value. Results typically come in within 1\u20132 weeks.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  12: { subject: "Reviewing Final Numbers \uD83D\uDCC4", body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + agentName + ' is reviewing the final settlement statement with you. Every dollar is accounted for \u2014 this is your last chance to catch any discrepancies before closing.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }},
+  13: { subject: "CLOSING DAY! \uD83C\uDF89\uD83D\uDD11", body: function(first, agentName) {
+    return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<div style="background:#FEF3C7;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;">'
+      + '<div style="font-size:32px;margin-bottom:6px;">\uD83C\uDF89</div>'
+      + '<div style="font-size:20px;font-weight:600;color:#92400E;">You Did It!</div>'
+      + '<div style="font-size:14px;color:#B45309;margin-top:6px;">Your home is officially sold.</div>'
+      + '</div>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Congratulations! ' + agentName + ' is so proud to have been part of this journey. Today you sign the final documents and hand over the keys.</p>'
+      + nsEmailBtn('Open My App', APP_LINK);
+  }}
+};
+
+async function sendStepEmail(uid, stepNum, type) {
+  type = type || 'buyer';
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db, 'users', uid));
+    if (!snap.exists()) return;
+    var client = snap.data();
+    if (!client.email) return;
+    var first = client.firstName || 'there';
+    var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
+    var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+    var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : BUYER_STEP_EMAILS;
+    var tmpl = emailMap[stepNum];
+    if (!tmpl) return;
+    var subject = tmpl.subject;
+    var bodyHtml = tmpl.body(first, agentName);
+    var html = nsEmailWrap(agentName, subject, bodyHtml);
+    await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+      body: JSON.stringify({ to: client.email, subject: subject, html: html })
+    });
+    console.log('Step email sent:', type, stepNum, client.email);
+  } catch(e) { console.log('Step email failed:', e.message); }
+}
+window.sendStepEmail = sendStepEmail;
+
+async function sendContractDatesEmail(uid, type, dates) {
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db, 'users', uid));
+    if (!snap.exists()) return;
+    var client = snap.data();
+    if (!client.email) return;
+    var first = client.firstName || 'there';
+    var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
+    var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+    var isSeller = type === 'seller';
+    var fields = isSeller ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+    var subject = isSeller ? 'Your Selling Timeline Has Been Updated \uD83D\uDCC5' : 'Your Transaction Timeline Is Live \uD83D\uDCC5';
+
+    var dateRows = fields.map(function(f) {
+      if (!dates[f.key]) return '';
+      var d = new Date(dates[f.key] + 'T12:00:00');
+      var dateStr = d.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'});
+      return '<tr>'
+        + '<td style="padding:8px 14px;font-size:13px;color:#444;border-bottom:1px solid #f0f0f0;">' + f.icon + ' ' + f.label + '</td>'
+        + '<td style="padding:8px 14px;font-size:13px;font-weight:600;text-align:right;border-bottom:1px solid #f0f0f0;">' + dateStr + '</td>'
+        + '</tr>';
+    }).join('');
+
+    var bodyHtml = '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;">' + agentName + ' has set up your ' + (isSeller ? 'selling' : 'transaction') + ' timeline. Here are your key dates:</p>'
+      + '<table style="width:100%;border-collapse:collapse;margin-bottom:18px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">' + dateRows + '</table>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Open the app to see your live interactive timeline \u2014 each milestone is clickable with detailed information about what to expect.</p>'
+      + nsEmailBtn('View My Timeline \u2192', APP_LINK, '#1D9E75');
+
+    var html = nsEmailWrap(agentName, subject, bodyHtml);
+    await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+      body: JSON.stringify({ to: client.email, subject: subject, html: html })
+    });
+    console.log('Contract dates email sent:', type, client.email);
+  } catch(e) { console.log('Contract dates email failed:', e.message); }
+}
+window.sendContractDatesEmail = sendContractDatesEmail;
+
+
 async function emailNetSheet() {
   var email = (document.getElementById('ns-email')||{}).value||'';
   var status = document.getElementById('ns-email-status');
@@ -5162,6 +5449,7 @@ async function setBuyerStep(uid) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
+    sendStepEmail(uid, newStep, 'buyer');
   } catch(e) { alert('Failed: '+e.message); }
 }
 async function setBuyerAgent(uid) {
@@ -5278,6 +5566,7 @@ async function setSellerStep(uid) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
+    sendStepEmail(uid, newStep, 'seller');
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.setSellerStep = setSellerStep;
@@ -5459,6 +5748,7 @@ async function agentSetStepForBuyer(stepId) {
     if (stepId === 5) {
       setTimeout(function(){ openContractDatesModal(uid, type, existingDates); }, 200);
     }
+    sendStepEmail(uid, stepId, 'buyer');
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.agentSetStepForBuyer = agentSetStepForBuyer;
@@ -5554,6 +5844,7 @@ async function saveContractDates() {
     closeM('contract-dates-modal');
     await loadBuyersForAgent();
     renderBuyers();
+    sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
   } catch(e) {
     alert('Failed to save dates: ' + e.message);
   }
