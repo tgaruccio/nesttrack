@@ -5339,7 +5339,8 @@ function renderTxnTimeline() {
   // ── BUYER timeline ──
   var buyerCard = document.getElementById('txn-buyer-card');
   var buyerList = document.getElementById('txn-buyer-list');
-  var buyerDates = userProfile && userProfile.buyerContractDates;
+  var buyerDates = (userProfile && userProfile.buyerContractDates)
+    || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType !== 'seller' ? userProfile.contractDates : null);
   var buyerHasDates = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
   if (buyerCard) {
     if (buyerHasDates) {
@@ -5359,7 +5360,8 @@ function renderTxnTimeline() {
   // ── SELLER timeline ──
   var sellerCard = document.getElementById('txn-seller-card');
   var sellerList = document.getElementById('txn-seller-list');
-  var sellerDates = userProfile && userProfile.sellerContractDates;
+  var sellerDates = (userProfile && userProfile.sellerContractDates)
+    || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType === 'seller' ? userProfile.contractDates : null);
   var sellerHasDates = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
   if (sellerCard) {
     if (sellerHasDates) {
