@@ -224,6 +224,8 @@ textarea{resize:vertical;min-height:68px;}
 
 /* CHIPS */
 .chips{display:flex;gap:6px;flex-wrap:wrap;}
+#partner-filter{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px;scrollbar-width:none;}
+#partner-filter::-webkit-scrollbar{display:none;}
 .chip{padding:4px 11px;border-radius:20px;border:0.5px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text2);transition:all 0.12s;}
 .chip.sel{background:var(--green);color:#fff;border-color:var(--green);}
 .chip.active{background:var(--green-lt);color:var(--green-dk);border-color:var(--green-md);font-weight:500;}
@@ -2858,7 +2860,7 @@ function go(page, el) {
     }
   }
   if (page === 'mortgage') fetchMortgageRates();
-  if (page === 'chat') { clearChatBadge(); var msgs=document.getElementById('chat-messages'); if(msgs){msgs.innerHTML='';msgs.removeAttribute('data-last-date');} var emp=document.getElementById('chat-empty'); if(emp) emp.style.display='block'; if(currentChatRoom) watchChat(isAgent?null:null); else setupChatHead(); }
+  if (page === 'chat') { clearChatBadge(); try{localStorage.setItem('chatLastOpened_'+(currentUser&&currentUser.uid), String(Date.now()));}catch(e){} var msgs=document.getElementById('chat-messages'); if(msgs){msgs.innerHTML='';msgs.removeAttribute('data-last-date');} var emp=document.getElementById('chat-empty'); if(emp) emp.style.display='block'; if(currentChatRoom) watchChat(isAgent?null:null); else setupChatHead(); }
   if (page === 'photochecklist') renderPhotoChecklist();
   if (page === 'mortgage') buildMortgageDropdown();
   if (page === 'agent' && isAgent) { renderAgentProfileEditor(); renderBuyers(); }
@@ -4108,16 +4110,19 @@ function watchChat(buyerIdOverride) {
 
     // Update unread badge on nav if message is not mine and chat not open
     if (!isMine && !firstLoad) {
-      // Trigger browser notification
       var agName = (currentAgent()&&currentAgent().firstName) || 'Your agent';
-      showBrowserNotification('New message from ' + agName, msg.text ? msg.text.substring(0,80) : 'New message');
-      // Show home screen alert
-      var homeAlert = document.getElementById('home-unread-alert');
-      var homeAlertText = document.getElementById('home-unread-text');
-      if (homeAlert) homeAlert.style.display = 'flex';
-      if (homeAlertText) homeAlertText.textContent = 'New message from ' + agName;
       var chatPage = document.getElementById('page-chat');
-      if (!chatPage || !chatPage.classList.contains('active')) {
+      var chatIsActive = chatPage && chatPage.classList.contains('active');
+      // Only show alert and notification if chat is not currently open
+      if (!chatIsActive) {
+        showBrowserNotification('New message from ' + agName, msg.text ? msg.text.substring(0,80) : 'New message');
+        var homeAlert = document.getElementById('home-unread-alert');
+        var homeAlertText = document.getElementById('home-unread-text');
+        if (homeAlert) homeAlert.style.display = 'flex';
+        if (homeAlertText) homeAlertText.textContent = 'New message from ' + agName;
+      }
+      // Nav badge
+      if (!chatIsActive) {
         var badge = document.getElementById('chat-unread-badge');
         if (!badge) {
           var chatNav = document.querySelector('[data-pg="chat"]');
