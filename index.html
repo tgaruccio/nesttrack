@@ -214,6 +214,8 @@ textarea{resize:vertical;min-height:68px;}
 
 /* TIMELINE STEP MODAL */
 .step-modal{max-width:720px;}
+.upd-cat-btn{padding:6px 12px;font-size:12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:inherit;transition:all 0.12s;}
+.upd-cat-btn.active{background:var(--green);color:#fff;border-color:var(--green);}
 .step-num{font-family:'Fraunces',serif;font-size:48px;font-weight:300;color:var(--green);line-height:1;letter-spacing:-1px;}
 .step-summary{background:var(--surface2);border-radius:var(--r);padding:14px 16px;font-size:13px;line-height:1.7;color:var(--text2);}
 .step-bullets{padding-left:18px;display:flex;flex-direction:column;gap:6px;}
@@ -1745,6 +1747,7 @@ textarea{resize:vertical;min-height:68px;}
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
     <button id="agent-tab-buyers" onclick="switchAgentTab('buyers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Clients</button>
     <button id="agent-tab-chat" onclick="switchAgentTab('chat')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Messages <span id="agent-chat-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;">!</span></button>
+    <button id="agent-tab-updates" onclick="switchAgentTab('updates')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📣 Updates</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -4738,6 +4741,12 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
+  var updPanel = document.getElementById('agent-panel-updates');
+  var updBtn = document.getElementById('agent-tab-updates');
+  if (updPanel) updPanel.style.display = (tab==='updates') ? 'flex' : 'none';
+  if (updBtn) updBtn.style.background = (tab==='updates') ? 'var(--green)' : 'var(--surface2)';
+  if (updBtn) updBtn.style.color = (tab==='updates') ? '#fff' : 'var(--text2)';
+  if (tab==='updates') { if(!myBuyers||!myBuyers.length) loadBuyersForAgent().then(updPopulateBuyers); else updPopulateBuyers(); renderUpdTemplates(); }
   var bb = document.getElementById('agent-tab-buyers');
   var cb = document.getElementById('agent-tab-chat');
   var bp = document.getElementById('agent-buyers-panel');
@@ -4863,6 +4872,127 @@ function sendAgentChatMessage() {
   .catch(function(e){ console.log('Agent send failed:',e.message); });
 }
 window.sendAgentChatMessage = sendAgentChatMessage;
+
+// ─── BUYER UPDATE TEMPLATES ───
+var UPD_TEMPLATES = {
+  search: [
+    {icon:'🗓️', title:'Showing Scheduled', msg:'Just scheduled showings for you — check your email for the times and addresses. Exciting ones on the list!'},
+    {icon:'🏘️', title:'New Listings Alert', msg:'Some great new listings just hit the market that match your criteria. I\'ll send the details — let me know what catches your eye.'},
+    {icon:'💡', title:'Search Update', msg:'I\'ve updated your search criteria based on our conversation. You should start seeing more relevant matches coming through.'},
+    {icon:'📍', title:'After Showing Notes', msg:'Thanks for coming out to the showings today! I\'d love to hear your thoughts — what stood out, what didn\'t? That helps me narrow the search.'},
+  ],
+  offer: [
+    {icon:'📝', title:'Offer Submitted', msg:'Your offer is officially submitted! The listing agent is reviewing it now. I\'ll reach out the moment I hear anything — usually within a few hours.'},
+    {icon:'🤝', title:'Counteroffer Received', msg:'We received a counteroffer from the seller. I\'m reviewing the details and will walk you through everything shortly — don\'t worry, this is normal and a good sign.'},
+    {icon:'🎉', title:'Offer Accepted!', msg:'Great news — your offer was accepted! 🎉 Congratulations! Next up: earnest money, inspections, and appraisal. I\'ll walk you through each step.'},
+    {icon:'😔', title:'Offer Not Accepted', msg:'Unfortunately the seller went another direction this time. It happens — but we\'ll find the right one. I have some other great options to look at. Don\'t get discouraged!'},
+    {icon:'💰', title:'Earnest Money Due', msg:'Friendly reminder: earnest money is due soon. I\'ll send you the exact amount and wiring instructions. Let me know if you have any questions.'},
+  ],
+  contract: [
+    {icon:'🔍', title:'Inspection Scheduled', msg:'Home inspection is scheduled! I\'ll be there with you the whole time. Plan on about 2-3 hours. We\'ll know a lot more about the home by the end of it.'},
+    {icon:'📋', title:'Inspection Complete', msg:'Inspection is done! I\'m reviewing the full report now and will walk you through any findings that matter. Most things are normal — I\'ll put it all in perspective for you.'},
+    {icon:'🏦', title:'Appraisal Ordered', msg:'The appraisal has been ordered by your lender. This typically takes 1-2 weeks. I\'ll update you as soon as results come in.'},
+    {icon:'✅', title:'Appraisal Came In', msg:'Great news — the appraisal came in and we\'re in good shape. Your lender is moving to final underwriting. Almost there!'},
+    {icon:'📁', title:'Underwriting Update', msg:'Your file is in underwriting. The lender may request a few additional documents — just respond quickly if they do and we\'ll keep things moving.'},
+    {icon:'📄', title:'Clear to Close!', msg:'You\'re CLEAR TO CLOSE! 🏡 The lender has fully approved your loan. We\'re scheduling your closing — I\'ll send the date, time, and what to bring.'},
+  ],
+  closing: [
+    {icon:'🗺️', title:'Closing Scheduled', msg:'Closing is officially scheduled! I\'ll send you the date, time, location, and everything you\'ll need to bring. You\'re almost a homeowner!'},
+    {icon:'🚶', title:'Final Walk-Through', msg:'Final walk-through is set for just before closing. This is your last chance to check everything looks good before you sign. I\'ll meet you there.'},
+    {icon:'🔑', title:'Keys in Hand!', msg:'CONGRATULATIONS — you\'re officially a homeowner! 🎉🔑 It\'s been a pleasure working with you. Enjoy every moment in your new home. You deserve it!'},
+    {icon:'📬', title:'Post-Close Reminder', msg:'Just a reminder to update your mailing address with USPS, your bank, and any subscriptions. Also a great time to review your homeowner\'s insurance coverage.'},
+  ],
+  general: [
+    {icon:'📞', title:'Checking In', msg:'Just checking in to see how you\'re feeling about everything. Don\'t hesitate to reach out with any questions — big or small, I\'m here.'},
+    {icon:'📄', title:'Document Needed', msg:'Hey! I need one document from you to keep things moving. I\'ll follow up with the specifics — please respond as quickly as you can so we don\'t lose momentum.'},
+    {icon:'⏰', title:'Time-Sensitive Item', msg:'There\'s something time-sensitive I need to go over with you. Please give me a call or text back as soon as you get this. Thanks!'},
+    {icon:'🏡', title:'Market Update', msg:'Quick market update: things are moving fast in your target area right now. I want to make sure we\'re positioned to move quickly when the right home comes up.'},
+  ]
+};
+
+var updCurrentCat = 'search';
+
+function updSetCat(cat, btn) {
+  updCurrentCat = cat;
+  document.querySelectorAll('.upd-cat-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  renderUpdTemplates();
+}
+window.updSetCat = updSetCat;
+
+function renderUpdTemplates() {
+  var container = document.getElementById('upd-templates');
+  if (!container) return;
+  var templates = UPD_TEMPLATES[updCurrentCat] || [];
+  container.innerHTML = templates.map(function(t, i) {
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">'
+      + '<div style="font-size:20px;flex-shrink:0;margin-top:1px;">' + t.icon + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-weight:600;font-size:13px;margin-bottom:4px;">' + t.title + '</div>'
+      + '<div style="font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:10px;">' + t.msg + '</div>'
+      + '<button class="btn btn-sm btn-g" onclick="sendUpdTemplate(' + i + ')">Send to Buyer</button>'
+      + '</div></div>';
+  }).join('');
+}
+window.renderUpdTemplates = renderUpdTemplates;
+
+function updPopulateBuyers() {
+  var sel = document.getElementById('upd-buyer-sel');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Choose a buyer —</option>';
+  (myBuyers||[]).forEach(function(b) {
+    var name = (b.firstName||'') + ' ' + (b.lastName||'');
+    var opt = document.createElement('option');
+    opt.value = b.uid;
+    opt.textContent = name.trim() || b.email || b.uid;
+    sel.appendChild(opt);
+  });
+}
+window.updPopulateBuyers = updPopulateBuyers;
+
+async function sendUpdMessage(msgText) {
+  var sel = document.getElementById('upd-buyer-sel');
+  var buyerUid = sel ? sel.value : '';
+  if (!buyerUid) { alert('Please select a buyer first.'); return; }
+  if (!msgText || !msgText.trim()) { alert('No message to send.'); return; }
+
+  var buyer = (myBuyers||[]).find(function(b){ return b.uid === buyerUid; });
+  var buyerName = buyer ? ((buyer.firstName||'') + ' ' + (buyer.lastName||'')).trim() : 'Buyer';
+  var agentName = (userProfile && userProfile.firstName) || 'Your agent';
+  var room = 'chat_' + agentShortId + '_' + buyerUid;
+  var chatRef = fb.ref(fb.rtdb, 'chats/' + room + '/messages');
+
+  try {
+    await fb.push(chatRef, {
+      text: msgText.trim(),
+      senderId: currentUser.uid,
+      senderName: agentName,
+      ts: Date.now(),
+      role: 'agent',
+      isUpdate: true
+    });
+    sendPushToUser(buyerUid, '📣 Update from ' + agentName, msgText.trim().substring(0, 80));
+    var conf = document.getElementById('upd-confirm');
+    if (conf) { conf.style.display='block'; setTimeout(function(){ conf.style.display='none'; }, 3000); }
+  } catch(e) {
+    alert('Failed to send: ' + e.message);
+  }
+}
+window.sendUpdMessage = sendUpdMessage;
+
+function sendUpdTemplate(idx) {
+  var t = (UPD_TEMPLATES[updCurrentCat]||[])[idx];
+  if (t) sendUpdMessage(t.msg);
+}
+window.sendUpdTemplate = sendUpdTemplate;
+
+function sendCustomUpdate() {
+  var ta = document.getElementById('upd-custom');
+  if (!ta || !ta.value.trim()) { alert('Write a message first.'); return; }
+  sendUpdMessage(ta.value).then(function(){ if(ta) ta.value=''; });
+}
+window.sendCustomUpdate = sendCustomUpdate;
+
 
 function setAgentChatInput(text) {
   var input=document.getElementById('agent-chat-input');
