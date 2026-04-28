@@ -5569,9 +5569,9 @@ function renderTxnTimeline() {
   var dbg = document.getElementById('tl-debug');
   if (dbg) {
     var bd = userProfile && userProfile.buyerContractDates;
-    var sd = userProfile && userProfile.sellerContractDates;
-    var up = userProfile ? 'loaded' : 'null';
-    dbg.textContent = 'UP:'+up+' BD:'+(bd?JSON.stringify(bd).substring(0,80):'null')+' SD:'+(sd?'yes':'null');
+    var hasAny = bd && Object.keys(bd).some(function(k){ return bd[k]; });
+    var rows = bd ? BUYER_CONTRACT_FIELDS.map(function(f){ return f.key+':'+(bd[f.key]||'null'); }).join(' | ') : 'no bd';
+    dbg.textContent = 'hasAny:'+hasAny+' | '+rows;
     dbg.style.display = 'block';
   }
 
