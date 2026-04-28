@@ -5072,11 +5072,7 @@ async function setSellerStep(uid) {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
     renderBuyers();
-    if (newStep === 5) {
-      var buyer = (myBuyers||[]).find(function(b){ return b.uid === uid; });
-      var existingDates = (buyer && buyer.contractDates) || {};
-      closeM('buyer-modal');
-      setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
+    if (newStep === 9) {
     }
   } catch(e) { alert('Failed: ' + e.message); }
 }
@@ -5290,7 +5286,8 @@ function renderTxnTimeline() {
   var hasAnyDate = dates && Object.keys(dates).some(function(k){ return k !== 'contractType' && dates[k]; });
   // Also check step threshold as fallback
   var activeStep = isSeller ? sellerStep : step;
-  if (!hasAnyDate && activeStep < 5) { card.style.display = 'none'; return; }
+  var stepThreshold = isSeller ? 9 : 5;
+  if (!hasAnyDate && activeStep < stepThreshold) { card.style.display = 'none'; return; }
   if (!dates) { card.style.display = 'none'; return; }
 
   var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
