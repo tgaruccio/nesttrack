@@ -129,7 +129,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   img,iframe{max-width:100%;display:block;}
   .pt{font-size:18px;}
   .mo{padding:8px;}
-  .mbox{padding:16px;max-height:95vh;}
+  .mbox{padding:16px;max-height:88vh;}
+  .mo{align-items:flex-start;padding-top:8px;}
   .login-card{padding:24px 18px;}
   .tb-r{gap:6px;}
 input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select,textarea{font-size:16px;} /* prevent iOS zoom/keyboard issues */
@@ -583,7 +584,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- Buyer Transaction Timeline -->
-  <div id="txn-buyer-card" style="display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
+  <div id="txn-buyer-card" style="display:none;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏠 Buying — Under Contract</div>
@@ -591,11 +592,11 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <button onclick="downloadICS('buyer')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
     </div>
-    <div id="txn-buyer-list" style="background:var(--surface);display:flex;flex-direction:column;"></div>
+    <div id="txn-buyer-list" style="background:var(--surface);display:block;"></div>
   </div>
 
   <!-- Seller Transaction Timeline -->
-  <div id="txn-seller-card" style="display:none;flex-direction:column;gap:0;border-radius:var(--r);overflow:hidden;border:1.5px solid #F59E0B;">
+  <div id="txn-seller-card" style="display:none;border-radius:var(--r);overflow:hidden;border:1.5px solid #F59E0B;">
     <div style="background:linear-gradient(135deg,#92400E,#D97706);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div>
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏡 Selling — Under Contract</div>
@@ -603,7 +604,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <button onclick="downloadICS('seller')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
     </div>
-    <div id="txn-seller-list" style="background:var(--surface);display:flex;flex-direction:column;"></div>
+    <div id="txn-seller-list" style="background:var(--surface);display:block;"></div>
   </div>
 
   <!-- Journey progress cards (filled by JS) -->
@@ -5026,6 +5027,8 @@ async function openBuyerDetail(uid) {
       <div class="dstat"><div class="dnum">${bProps.length?(bProps.reduce((s,p)=>s+(p.rating||0),0)/bProps.length).toFixed(1):'—'}</div><div class="dlbl">Avg Rating</div></div>
     </div>
 
+    <div id="bd-timeline-preview"></div>
+
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Assigned Agent</div>
       ${teamLeader ? `
@@ -5058,8 +5061,8 @@ async function openBuyerDetail(uid) {
         </div>`).join('')}</div>
     </div>`:''}`;
   document.getElementById('buyer-modal').style.display = 'flex';
-  // Save current buyer for use elsewhere
   window._currentBuyer = b;
+  setTimeout(function(){ renderAgentTimelinePreview(b); }, 80);
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
@@ -5126,6 +5129,54 @@ async function aiBuyerSummary(uid) {
   } catch(e) { out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed.</div>`; out.style.display = 'block'; }
 }
 window.openBuyerDetail = openBuyerDetail;
+
+function renderAgentTimelinePreview(b) {
+  var container = document.getElementById('bd-timeline-preview');
+  if (!container) return;
+  var buyerDates = b.buyerContractDates
+    || (b.contractDates && b.contractDates.contractType !== 'seller' ? b.contractDates : null);
+  var sellerDates = b.sellerContractDates
+    || (b.contractDates && b.contractDates.contractType === 'seller' ? b.contractDates : null);
+  var buyerHas = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
+  var sellerHas = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
+  if (!buyerHas && !sellerHas) { container.innerHTML = ''; return; }
+  var today = new Date(); today.setHours(0,0,0,0);
+
+  function buildCard(dates, fields, bg, label) {
+    var closing = dates.closingDate ? new Date(dates.closingDate+'T12:00:00') : null;
+    var dc = closing ? Math.ceil((closing-today)/86400000) : null;
+    var headline = dc !== null ? (dc > 0 ? dc+' days to closing' : dc === 0 ? 'Closing Today!' : 'Closed') : 'Under Contract';
+    var rows = fields.map(function(f) {
+      if (!dates[f.key]) return '';
+      var d = new Date(dates[f.key]+'T12:00:00');
+      var diff = Math.ceil((d-today)/86400000);
+      var isPast = diff < 0, isToday = diff === 0;
+      var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var tagTxt = isPast ? '&#10003;' : isToday ? 'Today' : diff+'d';
+      var tagColor = isPast ? 'var(--text3)' : isToday ? '#92400E' : 'var(--text3)';
+      var rowBg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
+      var labelDec = isPast ? 'line-through' : 'none';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+rowBg+';border-bottom:0.5px solid var(--border);">'
+        +'<div style="font-size:15px;flex-shrink:0;">'+f.icon+'</div>'
+        +'<div style="flex:1;font-size:12px;color:var(--text);text-decoration:'+labelDec+';">'+f.label+'</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-right:6px;">'+dateStr+'</div>'
+        +'<div style="font-size:11px;color:'+tagColor+';font-weight:600;">'+tagTxt+'</div>'
+        +'</div>';
+    }).join('');
+    return '<div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:8px;">'
+      +'<div style="background:'+bg+';color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">'
+      +'<div style="font-size:11px;font-weight:600;opacity:0.85;">'+label+'</div>'
+      +'<div style="font-size:13px;font-weight:300;">'+headline+'</div>'
+      +'</div>'+rows+'</div>';
+  }
+
+  var html = '';
+  if (buyerHas) html += buildCard(buyerDates, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '&#127968; Buying Timeline');
+  if (sellerHas) html += buildCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline');
+  container.innerHTML = html;
+}
+window.renderAgentTimelinePreview = renderAgentTimelinePreview;
+
 window.setBuyerStep = setBuyerStep;
 window.setBuyerAgent = setBuyerAgent;
 
@@ -5502,8 +5553,7 @@ function renderTxnTimeline() {
   var buyerHasDates = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
   if (buyerCard) {
     if (buyerHasDates) {
-      buyerCard.style.display = 'flex';
-      buyerCard.style.flexDirection = 'column';
+      buyerCard.style.display = 'block';
       var closing = buyerDates.closingDate ? new Date(buyerDates.closingDate+'T12:00:00') : null;
       var headline = document.getElementById('txn-buyer-headline');
       if (headline && closing) {
@@ -5524,8 +5574,7 @@ function renderTxnTimeline() {
   var sellerHasDates = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
   if (sellerCard) {
     if (sellerHasDates) {
-      sellerCard.style.display = 'flex';
-      sellerCard.style.flexDirection = 'column';
+      sellerCard.style.display = 'block';
       var sClosing = sellerDates.closingDate ? new Date(sellerDates.closingDate+'T12:00:00') : null;
       var sHeadline = document.getElementById('txn-seller-headline');
       if (sHeadline && sClosing) {
