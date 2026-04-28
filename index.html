@@ -4733,6 +4733,8 @@ async function renderBuyers() {
         <div>
           <div style="font-size:11px;color:var(--text3);">Step ${b.currentStep||1} of 11</div>
           <span class="pill pill-b">${step?step.name:''}</span>
+          ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">📋 No timeline set</div>':''}
+          ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">📋 No seller timeline</div>':''}
         </div>
         <button class="btn btn-sm" onclick="event.stopPropagation(); deleteBuyer('${b.uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
       </div>
@@ -4971,6 +4973,7 @@ async function openBuyerDetail(uid) {
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
           </div>
+          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?'<div style="font-size:11px;color:#D97706;margin-top:5px;">📋 Tap Dates to set up the client's live transaction timeline</div>':''}
         </div>
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
