@@ -5037,7 +5037,7 @@ async function openBuyerDetail(uid) {
     </div>`:''}`;
   document.getElementById('buyer-modal').style.display = 'flex';
   window._currentBuyer = b;
-  renderAgentTimelinePreview(b);
+  setTimeout(function(){ renderAgentTimelinePreview(b); }, 50);
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
@@ -5105,38 +5105,27 @@ async function aiBuyerSummary(uid) {
 }
 window.openBuyerDetail = openBuyerDetail;
 
-// ─── AGENT TIMELINE PREVIEW IN BUYER MODAL ───
 function renderAgentTimelinePreview(b) {
   var container = document.getElementById('bd-timeline-preview');
   if (!container) return;
-
   var buyerDates = b.buyerContractDates || (b.contractDates && b.contractDates.contractType !== 'seller' ? b.contractDates : null);
   var sellerDates = b.sellerContractDates || (b.contractDates && b.contractDates.contractType === 'seller' ? b.contractDates : null);
-
   var buyerHas = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
   var sellerHas = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
-
   if (!buyerHas && !sellerHas) { container.innerHTML = ''; return; }
-
   var today = new Date(); today.setHours(0,0,0,0);
-
-  function buildCard(dates, fields, headerBg, headerLabel, closingColor) {
+  function buildPreviewCard(dates, fields, headerBg, headerLabel) {
     var closing = dates.closingDate ? new Date(dates.closingDate+'T12:00:00') : null;
     var daysToClose = closing ? Math.ceil((closing-today)/86400000) : null;
-    var headline = daysToClose !== null
-      ? (daysToClose > 0 ? daysToClose+' days to closing' : daysToClose === 0 ? 'Closing Today!' : 'Closed')
-      : 'Under Contract';
-
+    var headline = daysToClose !== null ? (daysToClose > 0 ? daysToClose+' days to closing' : daysToClose === 0 ? 'Closing Today!' : 'Closed') : 'Under Contract';
     var rows = fields.map(function(f) {
       if (!dates[f.key]) return '';
       var d = new Date(dates[f.key]+'T12:00:00');
       var diff = Math.ceil((d-today)/86400000);
       var isPast = diff < 0, isToday = diff === 0;
       var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      var tag = isPast
-        ? '<span style="font-size:10px;color:var(--text3);">&#10003;</span>'
-        : isToday
-        ? '<span style="font-size:10px;color:#92400E;font-weight:600;">Today</span>'
+      var tag = isPast ? '<span style="font-size:10px;color:var(--text3);">&#10003;</span>'
+        : isToday ? '<span style="font-size:10px;color:#92400E;font-weight:600;">Today</span>'
         : '<span style="font-size:10px;color:var(--text3);">'+diff+'d</span>';
       var bg = isPast ? 'var(--surface2)' : isToday ? '#FEF3C7' : 'var(--surface)';
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+bg+';border-bottom:0.5px solid var(--border);">'
@@ -5145,21 +5134,15 @@ function renderAgentTimelinePreview(b) {
         +'<div style="font-size:12px;color:var(--text3);margin-right:8px;">'+dateStr+'</div>'
         +tag+'</div>';
     }).join('');
-
-    return '<div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);">'
-      +'<div style="background:'+headerBg+';color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;">'
+    return '<div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:8px;">'
+      +'<div style="background:'+headerBg+';color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">'
       +'<div style="font-size:11px;font-weight:600;opacity:0.85;">'+headerLabel+'</div>'
-      +'<div style="font-family:'Fraunces',serif;font-size:15px;font-weight:300;">'+headline+'</div>'
-      +'</div>'
-      +rows
-      +'</div>';
+      +'<div style="font-size:14px;font-weight:300;">'+headline+'</div>'
+      +'</div>'+rows+'</div>';
   }
-
-  var html = '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:4px;">';
-  if (buyerHas) html += buildCard(buyerDates, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '🏠 Buying');
-  if (sellerHas) html += buildCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '🏡 Selling');
-  html += '</div>';
-
+  var html = '';
+  if (buyerHas) html += buildPreviewCard(buyerDates, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '&#127968; Buying Timeline');
+  if (sellerHas) html += buildPreviewCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline');
   container.innerHTML = html;
 }
 window.renderAgentTimelinePreview = renderAgentTimelinePreview;
