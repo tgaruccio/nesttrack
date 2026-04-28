@@ -5162,6 +5162,7 @@ async function renderBuyers() {
     const step = TIMELINE_STEPS[(b.currentStep||1)-1];
     const agent = DEFAULT_AGENTS.find(a => a.id === b.agentId);
     const agentLine = teamLeader && agent ? `<div class="buyer-meta">Assigned to ${agent.name}</div>` : '';
+    const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
     const stepInfo = isPending
       ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>'
@@ -5461,6 +5462,16 @@ async function openBuyerDetail(uid) {
       <button class="btn btn-sm btn-g" onclick="setBuyerDocs('${uid}')">Save Folder Link</button>
     </div>
 
+    <div class="card" style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);">🔒 Private Notes</div>
+        ${b.notesUpdatedAt ? '<div style="font-size:10.5px;color:var(--text3);">Last updated '+new Date(b.notesUpdatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'</div>' : ''}
+      </div>
+      <textarea id="bd-notes-ta" rows="4" placeholder="Add private notes about this client — never visible to them..." style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.6;resize:vertical;">${b.agentNotes||''}</textarea>
+      <button class="btn btn-sm btn-g" onclick="saveAgentNotes('${uid}')">Save Notes</button>
+      <div id="bd-notes-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
+    </div>
+
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">💬 Chat with Buyer</button>
       <button class="btn" onclick="aiBuyerSummary('${uid}')">✦ AI Summary</button>
@@ -5622,6 +5633,29 @@ window.setBuyerDocs = setBuyerDocs;
 window.deleteBuyer = deleteBuyer;
 window.agentChatWith = agentChatWith;
 window.aiBuyerSummary = aiBuyerSummary;
+
+async function saveAgentNotes(uid) {
+  var ta = document.getElementById('bd-notes-ta');
+  var status = document.getElementById('bd-notes-status');
+  if (!ta) return;
+  var notes = ta.value;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), {
+      agentNotes: notes,
+      notesUpdatedAt: Date.now()
+    });
+    // Update local record
+    var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; });
+    if (buyer) { buyer.agentNotes = notes; buyer.notesUpdatedAt = Date.now(); }
+    if (status) {
+      status.textContent = '✓ Notes saved';
+      status.style.display = 'block';
+      setTimeout(function(){ status.style.display = 'none'; }, 2500);
+    }
+  } catch(e) { alert('Failed to save: ' + e.message); }
+}
+window.saveAgentNotes = saveAgentNotes;
+
 
 // INVITE
 function openInviteModal() {
