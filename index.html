@@ -1813,6 +1813,31 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+<!-- UPDATES PANEL -->
+<div id="agent-panel-updates" style="display:none;flex-direction:column;gap:14px;padding:16px;">
+  <div style="font-size:13px;color:var(--text2);line-height:1.5;">Send a pre-written update to a buyer. It posts directly into their chat feed and notifies them.</div>
+  <div>
+    <label class="flabel">Select Buyer</label>
+    <select id="upd-buyer-sel" style="font-size:14px;padding:10px 12px;width:100%;box-sizing:border-box;">
+      <option value="">— Choose a buyer —</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;" id="upd-cat-tabs">
+    <button class="upd-cat-btn active" onclick="updSetCat('search',this)">🔍 Search</button>
+    <button class="upd-cat-btn" onclick="updSetCat('offer',this)">📝 Offer</button>
+    <button class="upd-cat-btn" onclick="updSetCat('contract',this)">📋 Contract</button>
+    <button class="upd-cat-btn" onclick="updSetCat('closing',this)">🏠 Closing</button>
+    <button class="upd-cat-btn" onclick="updSetCat('general',this)">💬 General</button>
+  </div>
+  <div id="upd-templates" style="display:flex;flex-direction:column;gap:8px;"></div>
+  <div style="border-top:1px solid var(--border);padding-top:14px;">
+    <label class="flabel">Or write a custom update</label>
+    <textarea id="upd-custom" rows="3" placeholder="Type a custom update message..." style="width:100%;box-sizing:border-box;"></textarea>
+    <button class="btn btn-g" style="margin-top:8px;width:100%;" onclick="sendCustomUpdate()">Send Custom Update</button>
+  </div>
+  <div id="upd-confirm" style="display:none;background:#ECFDF5;border:1px solid var(--green);border-radius:var(--r);padding:12px 14px;font-size:13px;color:#065F46;font-weight:500;">✓ Update sent!</div>
+</div>
+
 </div><!-- /main -->
 </div><!-- /app -->
 
@@ -4756,7 +4781,6 @@ function switchAgentTab(tab) {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (bp) bp.style.display='none';
     if (ci) { ci.style.display='flex'; }
-    // Load buyers if not loaded yet then render inbox
     if (!myBuyers || !myBuyers.length) {
       loadBuyersForAgent().then(function(){ renderAgentInbox(); });
     } else {
@@ -4764,7 +4788,13 @@ function switchAgentTab(tab) {
     }
     var badge = document.getElementById('agent-chat-badge');
     if (badge) badge.style.display='none';
+  } else if (tab === 'updates') {
+    if (bb) { bb.style.background='var(--surface2)'; bb.style.color='var(--text2)'; }
+    if (cb) { cb.style.background='var(--surface2)'; cb.style.color='var(--text2)'; }
+    if (bp) bp.style.display='none';
+    if (ci) ci.style.display='none';
   } else {
+    // buyers tab
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (cb) { cb.style.background='var(--surface2)'; cb.style.color='var(--text2)'; }
     if (bp) bp.style.display='flex';
