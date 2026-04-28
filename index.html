@@ -4745,6 +4745,10 @@ async function renderBuyers() {
     const step = TIMELINE_STEPS[(b.currentStep||1)-1];
     const agent = DEFAULT_AGENTS.find(a => a.id === b.agentId);
     const agentLine = teamLeader && agent ? `<div class="buyer-meta">Assigned to ${agent.name}</div>` : '';
+    const isPending = b.pending === true;
+    const stepInfo = isPending
+      ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>'
+      : '<div style="font-size:11px;color:var(--text3);">Step '+(b.currentStep||1)+' of 11</div><span class="pill pill-b">'+(step?step.name:'')+'</span>';
     return `<div class="buyer-row" onclick="openBuyerDetail('${b.uid}')">
       <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
       <div style="flex:1;min-width:0;">
@@ -4754,9 +4758,9 @@ async function renderBuyers() {
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
-          ${isPending ? pendingBadge : stepBadge}
-          ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?`<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No buyer timeline set</div>`:''}
-          ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?`<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No seller timeline set</div>`:''}
+          ${stepInfo}
+          ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No buyer timeline set</div>':''}
+          ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No seller timeline set</div>':''}
         </div>
         <button class="btn btn-sm" onclick="event.stopPropagation(); deleteBuyer('${b.uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
       </div>
