@@ -5073,6 +5073,10 @@ async function setSellerStep(uid) {
     await loadBuyersForAgent();
     renderBuyers();
     if (newStep === 9) {
+      var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+      var existingDates = (buyer && buyer.contractDates) || {};
+      closeM('buyer-modal');
+      setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
   } catch(e) { alert('Failed: ' + e.message); }
 }
@@ -5220,7 +5224,8 @@ var _cdmType = 'buyer'; // 'buyer' or 'seller'
 var _cdmCurrentDates = {};
 
 function openContractDatesForBuyer(uid, type) {
-  var buyer = (myBuyers||[]).find(function(b){ return b.uid === uid; });
+  var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; })
+           || (myBuyers||[]).find(function(b){ return b.uid === uid; });
   var existing = (buyer && buyer.contractDates) || {};
   openContractDatesModal(uid, type, existing);
 }
