@@ -2426,11 +2426,40 @@ async function signUp() {
       createdAt: fb.serverTimestamp(),
       lastActive: fb.serverTimestamp(),
     });
+    // Clean up any pending records with same email (even without invite code)
+    try {
+      var pendingQuery = fb.query(
+        fb.collection(fb.db, 'users'),
+        fb.where('email', '==', email),
+        fb.where('pending', '==', true)
+      );
+      var pendingSnaps = await fb.getDocs(pendingQuery);
+      pendingSnaps.forEach(async function(d) {
+        await fb.deleteDoc(fb.doc(fb.db, 'users', d.id));
+      });
+    } catch(x) { console.log('Pending email cleanup:', x); }
+
     if (invite && inviteData) {
       try {
         await fb.updateDoc(fb.doc(fb.db, 'invites', invite), { used: true, usedBy: cred.user.uid, usedAt: fb.serverTimestamp() });
-        await fb.deleteDoc(fb.doc(fb.db, 'users', 'pending_' + invite));
-      } catch (x) {}
+        // Copy any data from pending record (contract dates, steps set by agent) to real account
+        var pendingUid = 'pending_' + invite;
+        var pendingSnap = await fb.getDoc(fb.doc(fb.db, 'users', pendingUid));
+        if (pendingSnap.exists()) {
+          var pendingData = pendingSnap.data();
+          var copyFields = {};
+          if (pendingData.buyerContractDates) copyFields.buyerContractDates = pendingData.buyerContractDates;
+          if (pendingData.sellerContractDates) copyFields.sellerContractDates = pendingData.sellerContractDates;
+          if (pendingData.buyerIsCash) copyFields.buyerIsCash = pendingData.buyerIsCash;
+          if (pendingData.sellerIsCash) copyFields.sellerIsCash = pendingData.sellerIsCash;
+          if (pendingData.currentStep > 1) copyFields.currentStep = pendingData.currentStep;
+          if (pendingData.currentSellerStep > 0) copyFields.currentSellerStep = pendingData.currentSellerStep;
+          if (Object.keys(copyFields).length) {
+            await fb.updateDoc(fb.doc(fb.db, 'users', cred.user.uid), copyFields);
+          }
+          await fb.deleteDoc(fb.doc(fb.db, 'users', pendingUid));
+        }
+      } catch (x) { console.log('Pending cleanup:', x); }
     }
   } catch (e) {
     err.textContent = e.code === 'auth/email-already-in-use' ? 'An account with this email already exists' : (e.message || 'Sign-up failed');
