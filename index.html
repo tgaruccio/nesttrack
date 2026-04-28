@@ -4942,6 +4942,7 @@ async function openBuyerDetail(uid) {
           <div style="display:flex;gap:6px;align-items:center;">
             <select id="bd-step" style="flex:1;max-width:220px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button>
           </div>
         </div>
         <div>
@@ -4949,6 +4950,7 @@ async function openBuyerDetail(uid) {
           <div style="display:flex;gap:6px;align-items:center;">
             <select id="bd-seller-step" style="flex:1;max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">📋 Dates</button>
           </div>
         </div>
       </div>
@@ -5220,6 +5222,13 @@ var SELLER_CONTRACT_FIELDS = [
 var _cdmBuyerUid = null;
 var _cdmType = 'buyer'; // 'buyer' or 'seller'
 var _cdmCurrentDates = {};
+
+function openContractDatesForBuyer(uid, type) {
+  var buyer = (myBuyers||[]).find(function(b){ return b.uid === uid; });
+  var existing = (buyer && buyer.contractDates) || {};
+  openContractDatesModal(uid, type, existing);
+}
+window.openContractDatesForBuyer = openContractDatesForBuyer;
 
 function openContractDatesModal(buyerUid, type, existingDates) {
   _cdmBuyerUid = buyerUid;
@@ -7079,15 +7088,7 @@ function dismissIOSTip() {
 }
 window.dismissIOSTip = dismissIOSTip;
 
-// Show browser notifications permission
-function requestNotificationPermission() {
-  if (!('Notification' in window)) return;
-  if (Notification.permission === 'default') {
-    Notification.requestPermission().then(function(p) {
-      console.log('Notification permission:', p);
-    });
-  }
-}
+// requestNotificationPermission defined above
 
 // Send browser notification
 function showBrowserNotification(title, body) {
