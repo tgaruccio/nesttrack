@@ -584,6 +584,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- Buyer Transaction Timeline -->
+  <div id="tl-debug" style="display:none;background:#FEF3C7;border:1px solid #F59E0B;border-radius:6px;padding:10px;font-size:11px;color:#92400E;word-break:break-all;"></div>
   <div id="txn-buyer-card" style="display:none;border-radius:var(--r);overflow:hidden;border:1.5px solid var(--green-md);">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div>
@@ -2880,7 +2881,6 @@ function go(page, el) {
       fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid)).then(function(snap) {
         if (snap.exists()) {
           var data = snap.data();
-          // Ensure map fields are plain objects (mobile Safari safety)
           if (data.buyerContractDates && typeof data.buyerContractDates === 'object') {
             data.buyerContractDates = Object.assign({}, data.buyerContractDates);
           }
@@ -2889,8 +2889,18 @@ function go(page, el) {
           }
           userProfile = data;
           renderTxnTimeline();
+          // TEMP DEBUG
+          var dbg = document.getElementById('tl-debug');
+          if (dbg) {
+            var bd = userProfile.buyerContractDates;
+            dbg.textContent = 'BD: ' + (bd ? JSON.stringify(bd).substring(0,120) : 'null');
+            dbg.style.display = 'block';
+          }
         }
-      }).catch(function(){});
+      }).catch(function(e){
+        var dbg = document.getElementById('tl-debug');
+        if (dbg) { dbg.textContent = 'Firestore error: ' + e.message; dbg.style.display = 'block'; }
+      });
     }
   }
   if (page === 'mortgage') fetchMortgageRates();
