@@ -923,7 +923,6 @@ textarea{resize:vertical;min-height:68px;}
 <!-- MORTGAGE CALC -->
 <div class="page" id="page-mortgage">
   <div class="ph"><div class="pt">Mortgage Calculator</div></div>
-
   <div class="card" style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:18px 20px;">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:8px;">📊 Current Mortgage Rates</div>
     <div style="display:flex;gap:20px;align-items:flex-end;">
@@ -933,7 +932,6 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <button onclick="applyRateToCalc()" style="margin-top:10px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;">Use current rate ↓</button>
   </div>
-
   <div class="card" style="display:flex;flex-direction:column;gap:14px;">
     <div>
       <label class="flabel">Calculate For</label>
@@ -997,7 +995,7 @@ textarea{resize:vertical;min-height:68px;}
     <div><label class="flabel">Tone</label>
       <select id="ld-tone">
         <option value="professional">Professional</option>
-        <option value="warm">Warm & inviting</option>
+        <option value="warm">Warm &amp; inviting</option>
         <option value="luxury">Luxury</option>
         <option value="concise">Concise</option>
       </select>
@@ -2619,7 +2617,7 @@ async function showApp() {
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
   // Show agent backend nav if agent
-  var _ats = document.getElementById('agent-tools-section'); if (_ats) _ats.style.display = isAgent ? 'flex' : 'none'; var _anav = document.getElementById('agent-nav'); if (_anav) _anav.style.display = '';
+  var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=isAgent?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   const mtb = document.getElementById('manage-team-btn');
   if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
   updateAgentRefs();
@@ -3180,7 +3178,7 @@ window.buildMortgageDropdown = buildMortgageDropdown;
 window.renderSaved = renderSaved;
 
 
-// Rate fetch
+// ─── MORTGAGE RATES ───
 var currentRates = {rate30:6.75,rate15:6.0,date:''};
 async function fetchMortgageRates(){
   try{
@@ -3197,7 +3195,7 @@ async function fetchMortgageRates(){
 function applyRateToCalc(){var ri=document.getElementById('mort-rate');if(ri&&currentRates.rate30){ri.value=currentRates.rate30.toFixed(3);calcMort();}}
 window.applyRateToCalc=applyRateToCalc;
 
-// Listing desc generator
+// ─── LISTING DESCRIPTION GENERATOR ───
 async function generateListingDesc(){
   var addr=(document.getElementById('ld-address')||{}).value||'';
   var price=(document.getElementById('ld-price')||{}).value||'';
@@ -3227,14 +3225,15 @@ async function generateListingDesc(){
   if(area)details+='Area: '+area+'. ';
   var prompt='Write real estate listing copy in '+tone+' tone for: '+details+'Generate: 1) MLS DESCRIPTION (max 500 chars, no emojis) 2) SOCIAL MEDIA POST (engaging, with emojis, max 300 chars) 3) EMAIL SUBJECT LINE (max 60 chars). Use those exact labels.';
   try{
-    var response=await claudeAPI(prompt,1200);
-    resultEl.innerHTML='<div class="card" style="white-space:pre-wrap;font-size:13px;line-height:1.7;">'+escapeHtml(response)+'</div>'
-      +'<button onclick="navigator.clipboard.writeText(document.querySelector('#ld-result .card').textContent)" class="btn btn-sm" style="margin-top:8px;">Copy All</button>';
+    var d=await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1200,messages:[{role:'user',content:prompt}]});
+    var text=d.content[0].text;
+    resultEl.innerHTML='<div class="card" style="white-space:pre-wrap;font-size:13px;line-height:1.7;" id="ld-copy-text">'+escapeHtml(text)+'</div>'
+      +'<button onclick="navigator.clipboard.writeText(document.getElementById('ld-copy-text').textContent)" class="btn btn-sm" style="margin-top:8px;">Copy All</button>';
   }catch(e){resultEl.innerHTML='<div class="notice" style="color:#E24B4A;">Failed. Try again.</div>';}
 }
 window.generateListingDesc=generateListingDesc;
 
-// Tax lookup
+// ─── TAX LOOKUP ───
 async function lookupPropertyTax(){
   var address=(document.getElementById('tl-address')||{}).value||'';
   var county=(document.getElementById('tl-county')||{}).value||'cuyahoga';
@@ -3246,8 +3245,9 @@ async function lookupPropertyTax(){
   var names={cuyahoga:'Cuyahoga',lorain:'Lorain',medina:'Medina'};
   var prompt='A real estate agent needs property tax info for: '+address+' in '+names[county]+' County, Ohio. Briefly explain how to look it up at '+urls[county]+' and what typical taxes are in that area. Be concise.';
   try{
-    var response=await claudeAPI(prompt,400);
-    resultEl.innerHTML='<div class="card" style="font-size:13px;line-height:1.7;white-space:pre-wrap;">'+escapeHtml(response)+'</div>'
+    var d=await claudeAPI({model:'claude-sonnet-4-5',max_tokens:400,messages:[{role:'user',content:prompt}]});
+    var text=d.content[0].text;
+    resultEl.innerHTML='<div class="card" style="font-size:13px;line-height:1.7;white-space:pre-wrap;">'+escapeHtml(text)+'</div>'
       +'<a href="'+urls[county]+'" target="_blank" class="btn btn-g" style="margin-top:8px;">Open '+names[county]+' County Auditor</a>';
   }catch(e){
     resultEl.innerHTML='<a href="'+urls[county]+'" target="_blank" class="btn btn-g">Open '+names[county]+' County Auditor</a>';
