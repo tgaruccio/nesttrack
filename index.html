@@ -5553,15 +5553,16 @@ function todoItemHTML(t, today) {
   var bg = t.done ? 'var(--surface2)' : isOverdue ? '#FEF2F2' : 'var(--surface)';
   var borderLeft = t.done ? '3px solid var(--border)' : isOverdue ? '3px solid #E24B4A' : '3px solid var(--green-md)';
   var safeId = t.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  var q = '&quot;';
   return '<div style="background:'+bg+';border:1px solid var(--border);border-left:'+borderLeft+';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
-    + '<div onclick="todoToggle(''+safeId+'')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+(t.done?'var(--green)':'var(--border)')+';background:'+(t.done?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">'+(t.done?'&#10003;':'')+'</div>'
+    + '<div onclick="todoToggle('+q+safeId+q+')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+(t.done?'var(--green)':'var(--border)')+';background:'+(t.done?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">'+(t.done?'&#10003;':'')+'</div>'
     + '<div style="flex:1;min-width:0;">'
     + '<div style="font-size:13.5px;line-height:1.4;'+(t.done?'text-decoration:line-through;color:var(--text3);':'')+'">'+t.text+'</div>'
     + (dateStr ? '<div style="font-size:11.5px;color:'+(isOverdue?'#E24B4A':'var(--text3)')+';margin-top:3px;">'+(isOverdue?'&#9888;&#65039; Overdue &middot; ':'')+dateStr+'</div>' : '')
     + '</div>'
     + '<div style="display:flex;gap:4px;flex-shrink:0;">'
-    + (t.date && !t.done ? '<button onclick="todoDownloadICS(''+safeId+'')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;" title="Add to calendar">&#128197;</button>' : '')
-    + '<button onclick="todoDelete(''+safeId+'')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>'
+    + (t.date && !t.done ? '<button onclick="todoDownloadICS('+q+safeId+q+')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;" title="Add to calendar">&#128197;</button>' : '')
+    + '<button onclick="todoDelete('+q+safeId+q+')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>'
     + '</div>'
     + '</div>';
 }
