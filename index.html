@@ -1842,7 +1842,7 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- CONTRACT DATES MODAL -->
 <div class="mo" id="contract-dates-modal" style="display:none;">
-  <div class="mbox" style="max-width:480px;">
+  <div class="mbox" style="max-width:480px;max-height:90vh;overflow-y:auto;">
     <div class="mhdr">
       <div class="mtitle" id="cdm-title">📋 Enter Contract Dates</div>
       <button class="xbtn" onclick="closeM('contract-dates-modal')">✕</button>
@@ -5375,7 +5375,7 @@ var BUYER_FIELD_STEP_MAP = {
 };
 var SELLER_FIELD_STEP_MAP = {
   acceptanceDate:8, earnestMoneyDue:8, inspectionDeadline:9,
-  appraisalDeadline:10, financingDeadline:11, closingDate:12
+  appraisalDeadline:10, financingDeadline:8, closingDate:12
 };
 
 function renderDateRow(f, dates, today, stepType) {
@@ -5393,7 +5393,7 @@ function renderDateRow(f, dates, today, stepType) {
   var border = isToday ? '2px solid #F59E0B' : '1px solid var(--border)';
   var stepMap = stepType === 'seller' ? SELLER_FIELD_STEP_MAP : BUYER_FIELD_STEP_MAP;
   var stepIdx = stepMap[f.key];
-  var clickFn = stepIdx ? (stepType === 'seller' ? 'openSellerStep('+stepIdx+')' : 'openStep('+stepIdx+')') : '';
+  var clickFn = stepIdx ? (stepType === 'seller' ? 'showSellerStepEdu('+stepIdx+')' : 'openStep('+stepIdx+')') : '';
   var hint = stepIdx ? '<div style="font-size:10.5px;color:var(--text3);margin-top:1px;">Tap to learn more ›</div>' : '';
   return '<div onclick="'+clickFn+'" style="'+(clickFn?'cursor:pointer;':'')+'display:flex;align-items:center;gap:12px;padding:11px 14px;background:'+bg+';border-bottom:0.5px solid var(--border);border-left:'+border+';">'
     + '<div style="font-size:18px;flex-shrink:0;">'+f.icon+'</div>'
