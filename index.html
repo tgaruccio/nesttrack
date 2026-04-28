@@ -553,7 +553,6 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);padding:10px 12px 4px;">Agent Tools</div>
     <button class="nb" data-pg="agent" onclick="go('agent',this)" id="agent-nav">👔 Agent Backend <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
-    <button class="nb" data-pg="tax-lookup" onclick="go('tax-lookup',this)">🏛️ Tax Lookup</button>
   </div>
 </div>
 
@@ -970,56 +969,40 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- LISTING DESCRIPTION GENERATOR -->
 <div class="page" id="page-listing-desc">
-  <div class="ph"><div class="pt">Listing Description Generator</div><span class="pill pill-p">AI</span></div>
+  <div class="ph"><div class="pt">Listing Description Generator</div><span class="pill pill-p">✦ Claude AI</span></div>
+  <div class="notice" style="background:#FEF3C7;color:#92400E;">Upload photos and enter property details — Claude writes a compelling MLS description, social post, and email subject line.</div>
   <div class="card" style="display:flex;flex-direction:column;gap:13px;">
+
+    <!-- Photos first — Claude reads them -->
+    <div>
+      <label class="flabel">Property Photos (upload up to 5 — Claude will describe what it sees)</label>
+      <input type="file" id="ld-photos" accept="image/*" multiple style="font-size:13px;" onchange="ldHandlePhotos(event)"/>
+      <div id="ld-photo-previews" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+    </div>
+
     <div class="fg2">
-      <div><label class="flabel">Address</label><input type="text" id="ld-address" placeholder="123 Main St"/></div>
+      <div><label class="flabel">Property Address</label><input type="text" id="ld-address" placeholder="123 Main St, City, OH"/></div>
       <div><label class="flabel">List Price</label><input type="number" id="ld-price" placeholder="450000"/></div>
     </div>
     <div class="fg2">
-      <div><label class="flabel">Beds</label><input type="number" id="ld-beds" placeholder="4"/></div>
-      <div><label class="flabel">Baths</label><input type="number" id="ld-baths" placeholder="2.5" step="0.5"/></div>
-      <div><label class="flabel">Sq Ft</label><input type="number" id="ld-sqft" placeholder="2400"/></div>
+      <div><label class="flabel">Bedrooms</label><input type="number" id="ld-beds" placeholder="4"/></div>
+      <div><label class="flabel">Bathrooms</label><input type="number" id="ld-baths" placeholder="2.5" step="0.5"/></div>
+      <div><label class="flabel">Square Footage</label><input type="number" id="ld-sqft" placeholder="2400"/></div>
       <div><label class="flabel">Year Built</label><input type="number" id="ld-year" placeholder="1998"/></div>
     </div>
-    <div><label class="flabel">Key Features (one per line)</label><textarea id="ld-features" rows="4" placeholder="Updated kitchen&#10;New roof 2022&#10;Finished basement"></textarea></div>
-    <div><label class="flabel">Area Highlights</label><input type="text" id="ld-area" placeholder="Top schools, quiet street..."/></div>
-    <div><label class="flabel">Photos (optional)</label><input type="file" id="ld-photos" accept="image/*" multiple style="font-size:13px;"/></div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px;">
-      <div style="font-size:12px;font-weight:500;margin-bottom:8px;">Import Tax Info (optional)</div>
-      <div class="fg2">
-        <div><label class="flabel">Annual Taxes</label><input type="number" id="ld-taxes" placeholder="6500"/></div>
-        <div><label class="flabel">Assessed Value</label><input type="number" id="ld-assessed" placeholder="220000"/></div>
-      </div>
-    </div>
-    <div><label class="flabel">Tone</label>
+    <div><label class="flabel">Key Features &amp; Updates (one per line)</label><textarea id="ld-features" rows="5" placeholder="Updated kitchen with quartz countertops&#10;New roof 2022&#10;Finished basement with bar&#10;3-car garage&#10;Backs to wooded lot"></textarea></div>
+    <div><label class="flabel">Neighborhood / Area Highlights</label><input type="text" id="ld-area" placeholder="e.g. Westlake schools, walk to Crocker Park, quiet cul-de-sac"/></div>
+    <div>
+      <label class="flabel">Tone / Style</label>
       <select id="ld-tone">
-        <option value="professional">Professional</option>
-        <option value="warm">Warm and inviting</option>
-        <option value="luxury">Luxury</option>
-        <option value="concise">Concise</option>
+        <option value="professional and polished">Professional &amp; Polished</option>
+        <option value="warm and inviting">Warm &amp; Inviting</option>
+        <option value="luxury and elevated">Luxury &amp; Elevated</option>
+        <option value="concise and punchy">Concise &amp; Punchy</option>
       </select>
     </div>
-    <button class="btn btn-g" onclick="generateListingDesc()">Generate with Claude</button>
+    <button class="btn btn-g" onclick="generateListingDesc()" id="ld-btn">✦ Generate Listing Copy</button>
     <div id="ld-result" style="display:none;"></div>
-  </div>
-</div>
-
-<!-- TAX LOOKUP -->
-<div class="page" id="page-tax-lookup">
-  <div class="ph"><div class="pt">Property Tax Lookup</div></div>
-  <div class="notice">Look up property tax info for any address in Cuyahoga, Lorain, or Medina county.</div>
-  <div class="card" style="display:flex;flex-direction:column;gap:12px;">
-    <div><label class="flabel">Property Address</label><input type="text" id="tl-address" placeholder="123 Main St, City, OH"/></div>
-    <div><label class="flabel">County</label>
-      <select id="tl-county">
-        <option value="cuyahoga">Cuyahoga County</option>
-        <option value="lorain">Lorain County</option>
-        <option value="medina">Medina County</option>
-      </select>
-    </div>
-    <button class="btn btn-g" onclick="lookupPropertyTax()">Look Up Property</button>
-    <div id="tl-result" style="display:none;"></div>
   </div>
 </div>
 
@@ -3193,6 +3176,34 @@ async function fetchMortgageRates(){
 function applyRateToCalc(){var ri=document.getElementById('mort-rate');if(ri&&currentRates.rate30){ri.value=currentRates.rate30.toFixed(3);calcMort();}}
 window.applyRateToCalc=applyRateToCalc;
 
+var ldPhotoData = []; // [{b64, mime}]
+
+function ldHandlePhotos(event) {
+  ldPhotoData = [];
+  var previews = document.getElementById('ld-photo-previews');
+  if (previews) previews.innerHTML = '';
+  var files = Array.from(event.target.files || []).slice(0, 5);
+  files.forEach(function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var dataUrl = e.target.result;
+      var b64 = dataUrl.split(',')[1];
+      var mm = dataUrl.match(/^data:([^;]+);/);
+      var mime = mm ? mm[1] : 'image/jpeg';
+      if (!['image/jpeg','image/png','image/gif','image/webp'].includes(mime)) mime = 'image/jpeg';
+      ldPhotoData.push({b64: b64, mime: mime});
+      if (previews) {
+        var img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
+        previews.appendChild(img);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+window.ldHandlePhotos = ldHandlePhotos;
+
 async function generateListingDesc(){
   var addr=(document.getElementById('ld-address')||{}).value||'';
   var price=(document.getElementById('ld-price')||{}).value||'';
@@ -3202,56 +3213,56 @@ async function generateListingDesc(){
   var year=(document.getElementById('ld-year')||{}).value||'';
   var features=(document.getElementById('ld-features')||{}).value||'';
   var area=(document.getElementById('ld-area')||{}).value||'';
-  var tone=(document.getElementById('ld-tone')||{}).value||'professional';
-  var taxes=(document.getElementById('ld-taxes')||{}).value||'';
-  var assessed=(document.getElementById('ld-assessed')||{}).value||'';
+  var tone=(document.getElementById('ld-tone')||{}).value||'professional and polished';
   var resultEl=document.getElementById('ld-result');
-  if(!addr&&!beds){alert('Enter at least an address or property details.');return;}
+  var btn=document.getElementById('ld-btn');
+
+  if(!addr&&!beds&&!features){alert('Enter at least an address or some property details.');return;}
+
   resultEl.style.display='block';
   resultEl.innerHTML='<div class="notice">Writing listing copy...</div>';
+  if(btn){btn.disabled=true;btn.textContent='Writing...';}
+
   var details='';
   if(addr)details+='Address: '+addr+'. ';
-  if(price)details+='Price: $'+parseInt(price).toLocaleString()+'. ';
-  if(beds)details+='Beds: '+beds+'. ';
-  if(baths)details+='Baths: '+baths+'. ';
-  if(sqft)details+='Sqft: '+parseInt(sqft).toLocaleString()+'. ';
-  if(year)details+='Year built: '+year+'. ';
-  if(taxes)details+='Annual taxes: $'+parseInt(taxes).toLocaleString()+'. ';
-  if(assessed)details+='Assessed: $'+parseInt(assessed).toLocaleString()+'. ';
-  if(features)details+='Features: '+features+'. ';
+  if(price)details+='List Price: $'+parseInt(price).toLocaleString()+'. ';
+  if(beds)details+='Bedrooms: '+beds+'. ';
+  if(baths)details+='Bathrooms: '+baths+'. ';
+  if(sqft)details+='Square Footage: '+parseInt(sqft).toLocaleString()+' sq ft. ';
+  if(year)details+='Year Built: '+year+'. ';
+  if(features)details+='Key Features: '+features+'. ';
   if(area)details+='Area: '+area+'. ';
-  var prompt='Write real estate listing copy in '+tone+' tone for: '+details+'Generate: 1) MLS DESCRIPTION (max 500 chars, no emojis) 2) SOCIAL MEDIA POST (engaging, with emojis, max 300 chars) 3) EMAIL SUBJECT LINE (max 60 chars). Use those exact labels.';
+
+  var systemPrompt = 'You are an expert real estate listing copywriter. Write compelling, authentic listing copy that sells the lifestyle, not just the specs. Never use cliches like "dream home", "nestled", "boasting", or "stunning". Sound like a top local agent.';
+
+  var userText = 'Write listing copy in a '+tone+' tone for this property:\n\n'+details+'\n\nGenerate exactly three sections with these headers:\n\nMLS DESCRIPTION:\n(Max 500 characters, no emojis, factual and compelling, focus on the strongest selling points)\n\nSOCIAL MEDIA POST:\n(Facebook/Instagram post, 150-250 characters, include 3-4 relevant emojis naturally, end with a call to action)\n\nEMAIL SUBJECT LINE:\n(Max 60 characters, attention-grabbing)';
+
   try{
-    var d=await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1200,messages:[{role:'user',content:prompt}]});
+    var messages;
+    if(ldPhotoData.length > 0){
+      // Include photos in message
+      var content = ldPhotoData.map(function(p){
+        return {type:'image',source:{type:'base64',media_type:p.mime,data:p.b64}};
+      });
+      content.push({type:'text',text:'These are photos of the property. Use what you see to enhance the description — mention specific visible features like finishes, layout, light, space, or standout details.\n\n'+userText});
+      messages = [{role:'user',content:content}];
+    } else {
+      messages = [{role:'user',content:userText}];
+    }
+    var d=await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1200,system:systemPrompt,messages:messages});
     var txt=d.content[0].text;
     resultEl.innerHTML='<div class="ai-resp" id="ld-output">'+escapeHtml(txt)+'</div>'
       +'<button class="btn btn-sm" style="margin-top:8px;" onclick="copyLDOutput()">Copy All</button>';
-  }catch(e){resultEl.innerHTML='<div class="notice" style="color:#E24B4A;">Failed. Try again.</div>';}
+  }catch(e){
+    resultEl.innerHTML='<div class="notice" style="color:#E24B4A;">Failed. Try again.</div>';
+  }
+  if(btn){btn.disabled=false;btn.textContent='Generate Listing Copy';}
 }
 function copyLDOutput(){var el=document.getElementById('ld-output');if(el)navigator.clipboard.writeText(el.textContent);}
 window.generateListingDesc=generateListingDesc;
 window.copyLDOutput=copyLDOutput;
 
-async function lookupPropertyTax(){
-  var address=(document.getElementById('tl-address')||{}).value||'';
-  var county=(document.getElementById('tl-county')||{}).value||'cuyahoga';
-  var resultEl=document.getElementById('tl-result');
-  if(!address){alert('Enter a property address.');return;}
-  resultEl.style.display='block';
-  resultEl.innerHTML='<div class="notice">Looking up...</div>';
-  var urls={cuyahoga:'https://fiscalstewardship.cuyahogacounty.gov/PropertySearch',lorain:'https://auditor.loraincounty.com/property-search',medina:'https://county.medina-oh.gov/auditor/property-search'};
-  var names={cuyahoga:'Cuyahoga',lorain:'Lorain',medina:'Medina'};
-  var prompt='Real estate agent needs property tax info for: '+address+' in '+names[county]+' County Ohio. Briefly explain how to look it up and what typical taxes are in that area.';
-  try{
-    var d=await claudeAPI({model:'claude-sonnet-4-5',max_tokens:400,messages:[{role:'user',content:prompt}]});
-    var txt=d.content[0].text;
-    resultEl.innerHTML='<div class="ai-resp">'+escapeHtml(txt)+'</div>'
-      +'<a href="'+urls[county]+'" target="_blank" class="btn btn-g" style="margin-top:8px;">Open '+names[county]+' County Auditor</a>';
-  }catch(e){
-    resultEl.innerHTML='<a href="'+urls[county]+'" target="_blank" class="btn btn-g">Open '+names[county]+' County Auditor</a>';
-  }
-}
-window.lookupPropertyTax=lookupPropertyTax;
+
 function calcMort() {
   const price = parseFloat(document.getElementById('mort-price').value) || 0;
   const downPct = parseFloat(document.getElementById('mort-down').value) || 20;
