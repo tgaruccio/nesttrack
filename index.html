@@ -2467,6 +2467,8 @@ async function loadUserProfile() {
     const snap = await fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid));
     if (snap.exists()) {
       userProfile = snap.data();
+      if (userProfile.buyerContractDates) userProfile.buyerContractDates = Object.assign({}, userProfile.buyerContractDates);
+      if (userProfile.sellerContractDates) userProfile.sellerContractDates = Object.assign({}, userProfile.sellerContractDates);
       // Check if this email is one of the team agents
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
       if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; }
@@ -2877,7 +2879,15 @@ function go(page, el) {
     if (currentUser) {
       fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid)).then(function(snap) {
         if (snap.exists()) {
-          userProfile = snap.data();
+          var data = snap.data();
+          // Ensure map fields are plain objects (mobile Safari safety)
+          if (data.buyerContractDates && typeof data.buyerContractDates === 'object') {
+            data.buyerContractDates = Object.assign({}, data.buyerContractDates);
+          }
+          if (data.sellerContractDates && typeof data.sellerContractDates === 'object') {
+            data.sellerContractDates = Object.assign({}, data.sellerContractDates);
+          }
+          userProfile = data;
           renderTxnTimeline();
         }
       }).catch(function(){});
