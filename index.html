@@ -5374,6 +5374,16 @@ async function openBuyerDetail(uid) {
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
       <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">${step?step.name:''} <span style="font-size:13px;color:var(--text2);">— Step ${b.currentStep||1} of 11</span></div>
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);margin-bottom:4px;">
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:500;">Cash Buyer</div>
+            <div style="font-size:11.5px;color:var(--text2);">Removes financing & appraisal from timeline and emails</div>
+          </div>
+          <div onclick="toggleCashBuyer('${uid}', ${b.cashBuyer ? 'false' : 'true'})"
+            style="width:44px;height:24px;border-radius:12px;background:${b.cashBuyer ? 'var(--green)' : 'var(--border)'};cursor:pointer;position:relative;transition:background 0.2s;flex-shrink:0;">
+            <div style="width:20px;height:20px;border-radius:50%;background:#fff;position:absolute;top:2px;${b.cashBuyer ? 'right:2px' : 'left:2px'};transition:all 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+          </div>
+        </div>
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏠 Buyer Step</div>
           <div style="display:flex;gap:6px;align-items:center;">
@@ -5449,7 +5459,9 @@ async function setBuyerStep(uid) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
-    sendStepEmail(uid, newStep, 'buyer');
+    var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
+    var skipForCash = buyerForEmail && buyerForEmail.cashBuyer && (newStep === 6 || newStep === 8);
+    if (!skipForCash) sendStepEmail(uid, newStep, 'buyer');
   } catch(e) { alert('Failed: '+e.message); }
 }
 async function setBuyerAgent(uid) {
@@ -5504,6 +5516,17 @@ async function aiBuyerSummary(uid) {
 }
 window.openBuyerDetail = openBuyerDetail;
 
+async function toggleCashBuyer(uid, isCash) {
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { cashBuyer: isCash });
+    await loadBuyersForAgent();
+    renderBuyers();
+    openBuyerDetail(uid);
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.toggleCashBuyer = toggleCashBuyer;
+
+
 function renderAgentTimelinePreview(b) {
   var container = document.getElementById('bd-timeline-preview');
   if (!container) return;
@@ -5545,7 +5568,9 @@ function renderAgentTimelinePreview(b) {
   }
 
   var html = '';
-  if (buyerHas) html += buildCard(buyerDates, BUYER_CONTRACT_FIELDS, 'var(--green-dk)', '&#127968; Buying Timeline');
+  var isCash = b.cashBuyer === true;
+  var previewBuyerFields = isCash ? BUYER_CONTRACT_FIELDS.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : BUYER_CONTRACT_FIELDS;
+  if (buyerHas) html += buildCard(buyerDates, previewBuyerFields, 'var(--green-dk)', '&#127968; Buying' + (isCash ? ' (Cash)' : '') + ' Timeline');
   if (sellerHas) html += buildCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline');
   container.innerHTML = html;
 }
@@ -5748,7 +5773,9 @@ async function agentSetStepForBuyer(stepId) {
     if (stepId === 5) {
       setTimeout(function(){ openContractDatesModal(uid, type, existingDates); }, 200);
     }
-    sendStepEmail(uid, stepId, 'buyer');
+    var bForEmail = allBuyers.find(function(b){ return b.uid === uid; });
+    var skipCash = bForEmail && bForEmail.cashBuyer && (stepId === 6 || stepId === 8);
+    if (!skipCash) sendStepEmail(uid, stepId, 'buyer');
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.agentSetStepForBuyer = agentSetStepForBuyer;
@@ -5814,8 +5841,10 @@ function openContractDatesModal(buyerUid, type, existingDates) {
   var container = document.getElementById('cdm-fields');
   if (title) title.textContent = (_cdmType === 'seller' ? '🏡 Seller' : '🏠 Buyer') + ' Contract Dates';
   if (sub) sub.textContent = 'Enter the key dates — they will appear on the client\'s live timeline immediately.';
+  var isCashModal = _cdmType === 'buyer' && (function(){ var b = (allBuyers||[]).find(function(x){ return x.uid === _cdmBuyerUid; }); return b && b.cashBuyer; })();
+  var modalFields = isCashModal ? fields.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : fields;
   if (container) {
-    container.innerHTML = fields.map(function(f) {
+    container.innerHTML = modalFields.map(function(f) {
       var val = _cdmCurrentDates[f.key] || '';
       return '<div style="display:flex;flex-direction:column;gap:4px;">'
         + '<label class="flabel">' + f.icon + ' ' + f.label + '</label>'
@@ -5829,7 +5858,9 @@ window.openContractDatesModal = openContractDatesModal;
 
 async function saveContractDates() {
   if (!_cdmBuyerUid) return;
-  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var isCashSave = _cdmType === 'buyer' && (function(){ var b = allBuyers.find(function(x){ return x.uid === _cdmBuyerUid; }); return b && b.cashBuyer; })();
+  var rawFields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var fields = isCashSave ? rawFields.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : rawFields;
   var dates = {};
   fields.forEach(function(f) {
     var el = document.getElementById('cdm-' + f.key);
