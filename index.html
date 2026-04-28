@@ -5300,11 +5300,7 @@ function renderTxnTimeline() {
 
   // Show if contractDates exist and have at least one date entered
   var hasAnyDate = dates && Object.keys(dates).some(function(k){ return k !== 'contractType' && dates[k]; });
-  // Also check step threshold as fallback
-  var activeStep = isSeller ? sellerStep : step;
-  var stepThreshold = isSeller ? 9 : 5;
-  if (!hasAnyDate && activeStep < stepThreshold) { card.style.display = 'none'; return; }
-  if (!dates) { card.style.display = 'none'; return; }
+  if (!hasAnyDate) { card.style.display = 'none'; return; }
 
   var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var today = new Date(); today.setHours(0,0,0,0);
