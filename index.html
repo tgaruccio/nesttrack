@@ -5304,7 +5304,10 @@ async function clearContractDates(uid, type) {
   if (!confirm('Remove ' + type + ' transaction timeline for this client?')) return;
   var updateField = type === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
   try {
-    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { [updateField]: null });
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), {
+      [updateField]: null,
+      contractDates: null
+    });
     await loadBuyersForAgent(); renderBuyers();
     alert('Timeline cleared.');
   } catch(e) { alert('Failed: ' + e.message); }
