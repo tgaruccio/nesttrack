@@ -4936,16 +4936,20 @@ async function openBuyerDetail(uid) {
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
       <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">${step?step.name:''} <span style="font-size:13px;color:var(--text2);">— Step ${b.currentStep||1} of 11</span></div>
-      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
-        <div style="font-size:11px;color:var(--text3);margin:4px 0 2px;">🏠 Buyer Step</div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
-          <select id="bd-step" style="max-width:220px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
-          <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏠 Buyer Step</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select id="bd-step" style="flex:1;max-width:220px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
+            <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
+          </div>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin:4px 0 2px;">🏡 Seller Step</div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-          <select id="bd-seller-step" style="max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
-          <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select id="bd-seller-step" style="flex:1;max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
+            <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
+          </div>
         </div>
       </div>
     </div>
@@ -5272,10 +5276,13 @@ function renderTxnTimeline() {
   var sellerStep = (userProfile && userProfile.currentSellerStep) || 0;
   var dates = (userProfile && userProfile.contractDates) || null;
   var isSeller = dates && dates.contractType === 'seller';
-  var activeStep = isSeller ? sellerStep : step;
 
-  // Show once under contract (step 5+) and dates exist
-  if (activeStep < 5 || !dates) { card.style.display = 'none'; return; }
+  // Show if contractDates exist and have at least one date entered
+  var hasAnyDate = dates && Object.keys(dates).some(function(k){ return k !== 'contractType' && dates[k]; });
+  // Also check step threshold as fallback
+  var activeStep = isSeller ? sellerStep : step;
+  if (!hasAnyDate && activeStep < 5) { card.style.display = 'none'; return; }
+  if (!dates) { card.style.display = 'none'; return; }
 
   var fields = dates.contractType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var today = new Date(); today.setHours(0,0,0,0);
