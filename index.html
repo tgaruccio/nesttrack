@@ -1882,8 +1882,14 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px;">See what clients have said, or leave a review after your experience.</div>
     <div class="review-grid" id="your-agent-reviews"></div>
   </div>
-  <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:4px;">Your Lender</div>
-  <div class="card" id="your-lender-card"></div>
+  <div id="your-lender-section">
+    <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:4px;">Your Lender</div>
+    <div class="card" id="your-lender-card"></div>
+  </div>
+  <div id="your-titleco-section" style="display:none;">
+    <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:4px;">Title Company</div>
+    <div class="card" id="your-titleco-card"></div>
+  </div>
 </div>
 
 <!-- PARTNERS -->
@@ -2925,7 +2931,7 @@ async function saveAgentProfile() {
     userProfile = { ...userProfile, ...data };
     await loadAssignedAgentProfile();
     updateAgentRefs();
-    renderYourAgent(); renderYourLender();
+    renderYourAgent(); renderYourLender(); renderYourTitleCo();
     if (status) { status.textContent = 'Saved!'; status.style.color = 'var(--green-dk)'; status.style.display = 'block'; }
   } catch(e) {
     if (status) { status.textContent = 'Save failed: ' + e.message; status.style.color = 'var(--red-dk)'; status.style.display = 'block'; }
@@ -2974,7 +2980,15 @@ function renderYourAgent() {
 window.renderYourAgent = renderYourAgent;
 function renderYourLender() {
   var card = document.getElementById('your-lender-card');
+  var section = document.getElementById('your-lender-section');
   if (!card) return;
+  // Hide entire section if no lender assigned
+  var lenderId = (userProfile && userProfile.lenderId) || 'tom';
+  if (lenderId === 'none') {
+    if (section) section.style.display = 'none';
+    return;
+  }
+  if (section) section.style.display = 'block';
   var l = assignedLender || DEFAULT_LENDERS[0];
   if (!l) { card.innerHTML = '<div style="color:var(--text3);font-size:13px;">No lender assigned yet.</div>'; return; }
   var initials = (l.name||'TG').split(' ').map(function(x){return x[0]||'';}).join('').substring(0,2).toUpperCase();
@@ -2999,6 +3013,30 @@ function renderYourLender() {
     + '</div></div>';
 }
 window.renderYourLender = renderYourLender;
+
+function renderYourTitleCo() {
+  var section = document.getElementById('your-titleco-section');
+  var card = document.getElementById('your-titleco-card');
+  if (!section || !card) return;
+  var tc = userProfile && userProfile.titleCo;
+  if (!tc || !tc.name) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  var phone = (tc.phone||'').replace(/[^0-9]/g,'');
+  card.innerHTML =
+    '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">'
+    + '<div style="width:52px;height:52px;border-radius:50%;background:var(--blue-lt);color:var(--blue-dk);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🏛️</div>'
+    + '<div style="flex:1;min-width:180px;">'
+    + '<div style="font-family:Fraunces,serif;font-size:20px;font-weight:300;letter-spacing:-.3px;">' + tc.name + '</div>'
+    + (tc.contact ? '<div style="font-size:12px;color:var(--text2);margin-top:2px;">' + tc.contact + ' · Title &amp; Escrow</div>' : '')
+    + (tc.address ? '<div style="font-size:12px;color:var(--text3);margin-top:4px;">📍 ' + tc.address + '</div>' : '')
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
+    + (phone ? '<a class="btn btn-sm" href="tel:'+phone+'">📞 Call</a>' : '')
+    + (phone ? '<a class="btn btn-sm" href="sms:'+phone+'">💬 Text</a>' : '')
+    + (tc.email ? '<a class="btn btn-sm" href="mailto:'+tc.email+'">✉️ Email</a>' : '')
+    + '</div>'
+    + '</div></div>';
+}
+window.renderYourTitleCo = renderYourTitleCo;
 
 
 async function showApp() {
@@ -3214,7 +3252,7 @@ function go(page, el) {
   if (page === 'compare') renderCompare();
   if (page === 'tour') renderTours();
   if (page === 'partners') renderPartners(currentPartnerCat);
-  if (page === 'youragent') { renderYourAgent(); renderYourLender(); }
+  if (page === 'youragent') { renderYourAgent(); renderYourLender(); renderYourTitleCo(); }
   if (page === 'dash') renderDash();
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
   if (page === 'education') renderEducation();
@@ -3237,6 +3275,7 @@ function go(page, el) {
           }
           userProfile = data;
           renderTxnTimeline();
+          if (typeof renderYourTitleCo === 'function') renderYourTitleCo();
 
         }
       }).catch(function(){});
@@ -6066,9 +6105,22 @@ async function openBuyerDetail(uid) {
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Assigned Lender</div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <select id="bd-lender" style="max-width:220px;">${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' — '+l.role:''}</option>`).join('')}</select>
+        <select id="bd-lender" style="max-width:220px;"><option value="none" ${(b.lenderId||'tom')==='none'?'selected':''}>— No Lender —</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' — '+l.role:''}</option>`).join('')}</select>
         <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
       </div>
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;">Title Company</div>
+      <div class="fg2">
+        <div><label class="flabel">Company Name</label><input type="text" id="bd-title-name" placeholder="e.g. Erieview Title Agency" value="${b.titleCo&&b.titleCo.name||''}"/></div>
+        <div><label class="flabel">Contact Name</label><input type="text" id="bd-title-contact" placeholder="e.g. Sarah Johnson" value="${b.titleCo&&b.titleCo.contact||''}"/></div>
+        <div><label class="flabel">Phone</label><input type="tel" id="bd-title-phone" placeholder="440-555-0100" value="${b.titleCo&&b.titleCo.phone||''}"/></div>
+        <div><label class="flabel">Email</label><input type="email" id="bd-title-email" placeholder="sarah@erieviewtitle.com" value="${b.titleCo&&b.titleCo.email||''}"/></div>
+      </div>
+      <input type="text" id="bd-title-address" placeholder="Office address (optional)" value="${b.titleCo&&b.titleCo.address||''}" style="font-size:13px;"/>
+      <button class="btn btn-sm btn-g" onclick="saveTitleCo('${uid}')">Save Title Company</button>
+      <div id="bd-title-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;"></div>
     </div>
 
     <div class="card">
@@ -6117,7 +6169,15 @@ async function setBuyerStep(uid) {
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
       closeM('buyer-modal');
-      setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
+      setTimeout(function(){
+        openContractDatesModal(uid, 'buyer', existingDates);
+        var b2 = allBuyers.find(function(x){ return x.uid === uid; });
+        if (!b2 || !b2.titleCo || !b2.titleCo.name) {
+          setTimeout(function(){
+            if (confirm('Add title company info for this client? It will show on their Your Team page.')) { openBuyerDetail(uid); }
+          }, 500);
+        }
+      }, 200);
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
@@ -6248,6 +6308,23 @@ async function setBuyerLender(uid) {
 }
 window.setBuyerLender = setBuyerLender;
 
+async function saveTitleCo(uid) {
+  var name = (document.getElementById('bd-title-name')||{}).value||'';
+  var contact = (document.getElementById('bd-title-contact')||{}).value||'';
+  var phone = (document.getElementById('bd-title-phone')||{}).value||'';
+  var email = (document.getElementById('bd-title-email')||{}).value||'';
+  var address = (document.getElementById('bd-title-address')||{}).value||'';
+  var status = document.getElementById('bd-title-status');
+  var titleCo = name ? { name, contact, phone, email, address } : null;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { titleCo: titleCo });
+    var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+    if (buyer) buyer.titleCo = titleCo;
+    if (status) { status.textContent = titleCo ? '✓ Title company saved' : '✓ Title company cleared'; status.style.display='block'; setTimeout(function(){ status.style.display='none'; },2500); }
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.saveTitleCo = saveTitleCo;
+
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   try {
@@ -6258,7 +6335,14 @@ async function setSellerStep(uid) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = (buyer && buyer.sellerContractDates) || {};
       closeM('buyer-modal');
-      setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
+      setTimeout(function(){
+        openContractDatesModal(uid, 'seller', existingDates);
+        if (!buyer || !buyer.titleCo || !buyer.titleCo.name) {
+          setTimeout(function(){
+            if (confirm('Add title company info for this client? It will show on their Your Team page.')) { openBuyerDetail(uid); }
+          }, 500);
+        }
+      }, 200);
     }
     sendStepEmail(uid, newStep, 'seller');
   } catch(e) { alert('Failed: ' + e.message); }
@@ -6317,7 +6401,7 @@ function openInviteModal() {
   var inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){ return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>'; }).join('');
   var invLenderSel = document.getElementById('inv-lender');
-  if (invLenderSel) invLenderSel.innerHTML = DEFAULT_LENDERS.map(function(l){ return '<option value="'+l.id+'" selected>'+l.name+(l.role?' — '+l.role:'')+'</option>'; }).join('');
+  if (invLenderSel) invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){ return '<option value="'+l.id+'" selected>'+l.name+(l.role?' — '+l.role:'')+'</option>'; }).join('');
   document.getElementById('invite-result').style.display = 'none';
   _invJourneyType = 'buyer';
   setTimeout(function(){ invSetJourney('buyer'); }, 50);
