@@ -130,7 +130,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   .pt{font-size:18px;}
   .mo{padding:8px;}
   .mbox{padding:16px;max-height:88vh;}
-  .mo{align-items:flex-start;padding-top:8px;}
+  .mo{align-items:flex-start;padding-top:max(env(safe-area-inset-top,0px),12px);}
   .login-card{padding:24px 18px;}
   .tb-r{gap:6px;}
 input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select,textarea{font-size:16px;} /* prevent iOS zoom/keyboard issues */
@@ -208,7 +208,7 @@ textarea{resize:vertical;min-height:68px;}
 
 /* MODAL */
 .mo{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;}
-.mbox{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:22px;display:flex;flex-direction:column;gap:14px;overflow-wrap:anywhere;word-break:break-word;}
+.mbox{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:0;display:flex;flex-direction:column;overflow-wrap:anywhere;word-break:break-word;}.mhdr{position:sticky;top:0;background:var(--surface);z-index:2;padding:16px 22px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}.mbox>*:not(.mhdr){padding:0 22px;}.mbox>*:not(.mhdr):first-of-type{padding-top:16px;}.mbox>*:not(.mhdr):last-child{padding-bottom:22px;}.mbody{padding:16px 22px 22px;display:flex;flex-direction:column;gap:14px;}
 .mhdr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
 .mtitle{font-family:'Fraunces',serif;font-size:20px;font-weight:300;letter-spacing:-0.4px;}
 .xbtn{background:none;border:none;cursor:pointer;font-size:18px;color:var(--text3);padding:2px;line-height:1;flex-shrink:0;}
@@ -1230,12 +1230,13 @@ textarea{resize:vertical;min-height:68px;}
 <!-- PHOTO ANALYZER -->
 <div class="page" id="page-photo">
   <div class="ph"><div class="pt">Property Photo Analyzer</div><span class="pill pill-p">✦ Claude Vision</span></div>
-  <div style="display:flex;gap:0;border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">
-    <button id="pmode-general-btn" onclick="setPhotoMode('general')" style="flex:1;padding:9px;font-size:13px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">📸 General Review</button>
-    <button id="pmode-redflag-btn" onclick="setPhotoMode('redflag')" style="flex:1;padding:9px;font-size:13px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">🚩 Red Flag Scan</button>
-  </div>
   <div id="pmode-desc" class="notice">Upload a photo of any home component — roof, furnace, water heater, electrical panel, windows, foundation. Claude will estimate age, condition, and rough repair/replacement costs.</div>
   <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+    <!-- Mode toggle stays inside card so it never scrolls out of view -->
+    <div style="display:flex;gap:0;border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
+      <button id="pmode-general-btn" onclick="setPhotoMode('general')" style="flex:1;padding:9px;font-size:13px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">📸 General Review</button>
+      <button id="pmode-redflag-btn" onclick="setPhotoMode('redflag')" style="flex:1;padding:9px;font-size:13px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">🚩 Red Flag Scan</button>
+    </div>
     <input type="file" id="photo-input" accept="image/*" style="display:none;" onchange="handlePhoto(event)"/>
     <div class="upload-area" id="photo-drop" onclick="document.getElementById('photo-input').click()">
       <div id="photo-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
