@@ -2084,6 +2084,7 @@ textarea{resize:vertical;min-height:68px;}
       <button class="btn btn-g" style="flex:2;" onclick="saveContractDates()">Save Dates & Update Timeline</button>
     </div>
     <div style="margin-top:10px;font-size:12px;color:var(--text3);text-align:center;">Client will see these dates immediately when they log in.</div>
+    <div id="cdm-titleco-reminder" style="display:none;margin-top:8px;padding:8px 12px;background:var(--green-lt);border-radius:var(--r);font-size:12px;color:var(--green-dk);text-align:center;">💡 Don't forget to add title company info in the client's profile.</div>
   </div>
 </div>
 
@@ -6017,7 +6018,7 @@ function agentCallBuyer() {
 }
 window.agentCallBuyer = agentCallBuyer;
 
-async function openBuyerDetail(uid) {
+async function openBuyerDetail(uid, scrollTo) {
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) {
     // Try loading directly from Firestore (e.g. pending record)
@@ -6157,7 +6158,18 @@ async function openBuyerDetail(uid) {
     </div>`:''}`;
   document.getElementById('buyer-modal').style.display = 'flex';
   window._currentBuyer = b;
-  setTimeout(function(){ renderAgentTimelinePreview(b); }, 80);
+  setTimeout(function(){
+    renderAgentTimelinePreview(b);
+    if (scrollTo === 'titleco') {
+      var titleEl = document.getElementById('bd-title-name');
+      if (titleEl) {
+        titleEl.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        titleEl.closest('.card').style.outline = '2px solid var(--green)';
+        setTimeout(function(){ titleEl.closest('.card').style.outline = ''; }, 2500);
+        titleEl.focus();
+      }
+    }
+  }, 80);
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
@@ -6169,15 +6181,7 @@ async function setBuyerStep(uid) {
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
       closeM('buyer-modal');
-      setTimeout(function(){
-        openContractDatesModal(uid, 'buyer', existingDates);
-        var b2 = allBuyers.find(function(x){ return x.uid === uid; });
-        if (!b2 || !b2.titleCo || !b2.titleCo.name) {
-          setTimeout(function(){
-            if (confirm('Add title company info for this client? It will show on their Your Team page.')) { openBuyerDetail(uid); }
-          }, 500);
-        }
-      }, 200);
+      setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
@@ -6335,14 +6339,7 @@ async function setSellerStep(uid) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = (buyer && buyer.sellerContractDates) || {};
       closeM('buyer-modal');
-      setTimeout(function(){
-        openContractDatesModal(uid, 'seller', existingDates);
-        if (!buyer || !buyer.titleCo || !buyer.titleCo.name) {
-          setTimeout(function(){
-            if (confirm('Add title company info for this client? It will show on their Your Team page.')) { openBuyerDetail(uid); }
-          }, 500);
-        }
-      }, 200);
+      setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
     sendStepEmail(uid, newStep, 'seller');
   } catch(e) { alert('Failed: ' + e.message); }
@@ -6668,6 +6665,10 @@ function openContractDatesModal(buyerUid, type, existingDates) {
   if (toggle) toggle.style.background = _cdmIsCash ? 'var(--green)' : 'var(--border)';
   if (knob) knob.style.left = _cdmIsCash ? '' : '2px', knob.style.right = _cdmIsCash ? '2px' : '';
   document.getElementById('contract-dates-modal').style.display = 'flex';
+  // Show title co reminder if not yet set
+  var _cdmB = (allBuyers||[]).find(function(b){ return b.uid === uid; });
+  var _titleRemind = document.getElementById('cdm-titleco-reminder');
+  if (_titleRemind) _titleRemind.style.display = (_cdmB && !_cdmB.titleCo) ? 'block' : 'none';
 }
 window.openContractDatesModal = openContractDatesModal;
 
@@ -6717,6 +6718,13 @@ async function saveContractDates() {
     await loadBuyersForAgent();
     renderBuyers();
     sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
+    // After saving dates, prompt to add title co if not set
+    var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
+    if (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) {
+      setTimeout(function(){
+        openBuyerDetail(_cdmBuyerUid, 'titleco');
+      }, 300);
+    }
   } catch(e) {
     alert('Failed to save dates: ' + e.message);
   }
