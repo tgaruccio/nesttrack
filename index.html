@@ -413,6 +413,15 @@ textarea{resize:vertical;min-height:68px;}
   #td-actions .btn, #mjd-action .btn{flex:1 1 auto;justify-content:center;min-width:120px;}
 }
 
+/* COLLAPSIBLE SIDEBAR */
+.ns{cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;-webkit-user-select:none;}
+.ns-arrow{font-size:9px;color:var(--text3);transition:transform 0.2s;display:inline-block;margin-left:auto;flex-shrink:0;}
+.ns.collapsed .ns-arrow{transform:rotate(-90deg);}
+.ns-body{display:flex;flex-direction:column;gap:2px;overflow:hidden;transition:max-height 0.22s ease;}
+.ns-body.collapsed{max-height:0 !important;}
+.todo-chip{padding:5px 11px;font-size:12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap;}
+.todo-chip:active{background:var(--green-lt);border-color:var(--green-md);}
+
 </style>
 </head>
 <body>
@@ -509,63 +518,85 @@ textarea{resize:vertical;min-height:68px;}
 <div class="sidebar" id="sidebar">
   <!-- AGENT TOOLS — shown only for agents, at top -->
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
-    <div class="ns" style="padding-top:6px;">Agent Tools</div>
-    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <!-- Agent Tools — always expanded -->
+    <div class="ns" style="padding-top:6px;cursor:default;">Agent Tools</div>
+    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">👥 Clients</button>
-    <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
     <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet</button>
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
     <button class="nb" data-pg="idx" onclick="go('idx',this)">🔍 Home Search</button>
-    <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
-    <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
-    <div class="ns">Client View</div>
+    <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Pre-Approval</button>
+    <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Partners</button>
+    <!-- Client View — collapsible -->
+    <div class="ns collapsed" style="margin-top:4px;" onclick="toggleSidebarSection('sec-client-view',this)">Client View <span class="ns-arrow">▾</span></div>
+    <div class="ns-body collapsed" id="sec-client-view" style="max-height:0;">
   </div>
-  <div class="ns" id="sidebar-start-label">Start Here</div>
-  <button class="nb" data-pg="home" onclick="go('home',this)">🏠 Home</button>
-  <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ The Home Buyers Trail</button>
-  <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this)">🏦 The Mortgage Trail</button>
-  <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 The Home Sellers Trail</button>
+  <!-- START HERE — expanded by default -->
+  <div class="ns" id="sidebar-start-label" onclick="toggleSidebarSection('sec-start',this)">Start Here <span class="ns-arrow">▾</span></div>
+  <div class="ns-body" id="sec-start">
+    <button class="nb" data-pg="home" onclick="go('home',this)">🏠 Home</button>
+    <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ Home Buyers Trail</button>
+    <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this)">🏦 Mortgage Trail</button>
+    <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 Home Sellers Trail</button>
+    <button class="nb active" data-pg="idx" onclick="go('idx',this)">🔍 Search Homes <span class="nb-badge pill-g" style="background:var(--green-lt);color:var(--green-dk);">Live</span></button>
+  </div>
 
-  <div class="ns">Discover</div>
-  <button class="nb active" data-pg="idx" onclick="go('idx',this)">🔍 Search Homes <span class="nb-badge pill-g" style="background:var(--green-lt);color:var(--green-dk);">Live</span></button>
+  <!-- HOME SEARCH — collapsed -->
+  <div class="ns collapsed" onclick="toggleSidebarSection('sec-search',this)">Home Search <span class="ns-arrow">▾</span></div>
+  <div class="ns-body collapsed" id="sec-search" style="max-height:0;">
+    <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
+    <button class="nb" data-pg="saved" onclick="go('saved',this)">🏠 Saved Homes <span class="nb-badge" id="sc-saved">0</span></button>
+    <button class="nb" data-pg="compare" onclick="go('compare',this)">⚖️ Compare</button>
+  </div>
 
-  <div class="ns">Home Search</div>
-  <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
-  <button class="nb" data-pg="saved" onclick="go('saved',this)">🏠 Saved Homes <span class="nb-badge" id="sc-saved">0</span></button>
-  <button class="nb" data-pg="compare" onclick="go('compare',this)">⚖️ Compare</button>
+  <!-- BUYER TOOLS — collapsed -->
+  <div class="ns collapsed" onclick="toggleSidebarSection('sec-buyer-tools',this)">Buyer Tools <span class="ns-arrow">▾</span></div>
+  <div class="ns-body collapsed" id="sec-buyer-tools" style="max-height:0;">
+    <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
+    <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Photo Analyzer</button>
+    <button class="nb" data-pg="redflag" onclick="go('redflag',this)">🚩 Red Flag Analyzer</button>
+    <button class="nb" data-pg="school" onclick="go('school',this)">🏫 School Districts</button>
+    <button class="nb" data-pg="commute" onclick="go('commute',this)">🚗 Commute Calculator</button>
+    <button class="nb" data-pg="valuation" onclick="go('valuation',this)">📈 Home Valuation</button>
+    <button class="nb" data-pg="offer" onclick="go('offer',this)">💡 Offer Strategy</button>
+    <button class="nb" data-pg="neighborhood" onclick="go('neighborhood',this)">🏘️ Neighborhood Intel</button>
+    <button class="nb" data-pg="movinglist" onclick="go('movinglist',this)">📦 Moving Checklist</button>
+    <button class="nb" data-pg="recs" onclick="go('recs',this)">✨ Recommendations</button>
+  </div>
 
-  <div class="ns">Buyer Tools</div>
-  <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
-  <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Photo Analyzer</button>
-  <button class="nb" data-pg="redflag" onclick="go('redflag',this)">🚩 Red Flag Analyzer</button>
-  <button class="nb" data-pg="school" onclick="go('school',this)">🏫 School Districts</button>
-  <button class="nb" data-pg="commute" onclick="go('commute',this)">🚗 Commute Calculator</button>
-  <button class="nb" data-pg="valuation" onclick="go('valuation',this)">📈 Home Valuation</button>
-  <button class="nb" data-pg="offer" onclick="go('offer',this)">💡 Offer Strategy</button>
-  <button class="nb" data-pg="neighborhood" onclick="go('neighborhood',this)">🏘️ Neighborhood Intel</button>
-  <button class="nb" data-pg="movinglist" onclick="go('movinglist',this)">📦 Moving Checklist</button>
-  <button class="nb" data-pg="recs" onclick="go('recs',this)">✨ Recommendations</button>
+  <!-- SELLER TOOLS — collapsed -->
+  <div class="ns collapsed" onclick="toggleSidebarSection('sec-seller-tools',this)">Seller Tools <span class="ns-arrow">▾</span></div>
+  <div class="ns-body collapsed" id="sec-seller-tools" style="max-height:0;">
+    <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet Calculator</button>
+    <button class="nb" data-pg="valuation" onclick="go('valuation',this)">📈 Home Valuation</button>
+    <button class="nb" data-pg="homeprep" onclick="go('homeprep',this)">🏡 Home Prep Analyzer</button>
+    <button class="nb" data-pg="photochecklist" onclick="go('photochecklist',this)">📋 Photos Checklist</button>
+  </div>
 
-  <div class="ns">Seller Tools</div>
-  <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet Calculator</button>
-  <button class="nb" data-pg="valuation" onclick="go('valuation',this)">📈 Home Valuation</button>
-  <button class="nb" data-pg="homeprep" onclick="go('homeprep',this)">🏡 Home Prep Analyzer</button>
-  <button class="nb" data-pg="photochecklist" onclick="go('photochecklist',this)">📋 Listing Photos Checklist</button>
+  <!-- COMMUNICATE — expanded by default -->
+  <div class="ns" onclick="toggleSidebarSection('sec-communicate',this)">Communicate <span class="ns-arrow">▾</span></div>
+  <div class="ns-body" id="sec-communicate">
+    <button class="nb" data-pg="chat" onclick="go('chat',this)">💬 Chat with Agent</button>
+    <button class="nb" data-pg="docs" onclick="go('docs',this)">📁 Documents</button>
+  </div>
 
-  <div class="ns">Communicate</div>
-  <button class="nb" data-pg="chat" onclick="go('chat',this)">💬 Chat with Agent</button>
-  <button class="nb" data-pg="docs" onclick="go('docs',this)">📁 Documents</button>
+  <!-- RESOURCES — collapsed -->
+  <div class="ns collapsed" onclick="toggleSidebarSection('sec-resources',this)">Resources <span class="ns-arrow">▾</span></div>
+  <div class="ns-body collapsed" id="sec-resources" style="max-height:0;">
+    <button class="nb" data-pg="docs-explainer" onclick="go('docs-explainer',this)">📄 Document Explainer</button>
+    <button class="nb" data-pg="education" onclick="go('education',this)">📚 Education</button>
+    <button class="nb" data-pg="blog" onclick="go('blog',this)">📰 Blog</button>
+    <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Agent</button>
+    <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
+  </div>
 
-  <div class="ns">Resources</div>
-  <button class="nb" data-pg="docs-explainer" onclick="go('docs-explainer',this)">📄 Document Explainer</button>
-  <button class="nb" data-pg="education" onclick="go('education',this)">📚 Education</button>
-  <button class="nb" data-pg="blog" onclick="go('blog',this)">📰 Blog</button>
-  <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Agent</button>
-  <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
-
-  <div class="ns">Account</div>
-  <button class="nb" data-pg="dash" onclick="go('dash',this)">📊 My Dashboard</button>
+  <!-- ACCOUNT — collapsed -->
+  <div class="ns collapsed" onclick="toggleSidebarSection('sec-account',this)">Account <span class="ns-arrow">▾</span></div>
+  <div class="ns-body collapsed" id="sec-account" style="max-height:0;">
+    <button class="nb" data-pg="dash" onclick="go('dash',this)">📊 My Dashboard</button>
+  </div>
 </div>
 
 <!-- MAIN -->
@@ -3111,6 +3142,7 @@ function go(page, el) {
   document.querySelectorAll('.nb').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   if (el) el.classList.add('active');
+  sidebarExpandForPage(page);
   closeSidebar(); // always close drawer on mobile after nav
   // Show floating save button only on IDX search page
   const floatBtn = document.getElementById('float-save-btn');
@@ -3189,6 +3221,44 @@ function closeSidebar() {
 }
 window.go = go;
 window.toggleSidebar = toggleSidebar;
+
+// ─── COLLAPSIBLE SIDEBAR SECTIONS ───
+function toggleSidebarSection(id, headerEl) {
+  var body = document.getElementById(id);
+  if (!body) return;
+  var isCollapsed = body.classList.contains('collapsed');
+  if (isCollapsed) {
+    // Expand
+    body.classList.remove('collapsed');
+    body.style.maxHeight = body.scrollHeight + 'px';
+    if (headerEl) headerEl.classList.remove('collapsed');
+    // After transition, set to none so content can grow freely
+    setTimeout(function(){ if (!body.classList.contains('collapsed')) body.style.maxHeight = 'none'; }, 240);
+  } else {
+    // Collapse — first set explicit height, then animate to 0
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.offsetHeight; // force reflow
+    body.classList.add('collapsed');
+    body.style.maxHeight = '0';
+    if (headerEl) headerEl.classList.add('collapsed');
+  }
+}
+window.toggleSidebarSection = toggleSidebarSection;
+
+// Expand a sidebar section containing a given page button (called from go())
+function sidebarExpandForPage(page) {
+  var btn = document.querySelector('.nb[data-pg="' + page + '"]');
+  if (!btn) return;
+  var body = btn.closest('.ns-body');
+  if (!body || !body.classList.contains('collapsed')) return;
+  var id = body.id;
+  // Find the header (previous sibling div.ns)
+  var header = body.previousElementSibling;
+  while (header && !header.classList.contains('ns')) header = header.previousElementSibling;
+  toggleSidebarSection(id, header);
+}
+window.sidebarExpandForPage = sidebarExpandForPage;
+
 window.closeSidebar = closeSidebar;
 
 function tl(t) { return {mustsee:'Must-See',overpriced:'Overpriced',potential:'Potential',topschool:'Top School',needswork:'Needs Work'}[t] || t; }
