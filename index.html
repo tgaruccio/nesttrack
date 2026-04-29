@@ -534,12 +534,11 @@ textarea{resize:vertical;min-height:68px;}
   <div class="ns">Home Search</div>
   <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
   <button class="nb" data-pg="saved" onclick="go('saved',this)">🏠 Saved Homes <span class="nb-badge" id="sc-saved">0</span></button>
-  <button class="nb" data-pg="compare" onclick="go('compare',this)">⚖️ Compare</button>
+
 
   <div class="ns">Buyer Tools</div>
   <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
-  <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Photo Analyzer</button>
-  <button class="nb" data-pg="redflag" onclick="go('redflag',this)">🚩 Red Flag Analyzer</button>
+  <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Property Photo Analyzer</button>
   <button class="nb" data-pg="school" onclick="go('school',this)">🏫 School Districts</button>
   <button class="nb" data-pg="commute" onclick="go('commute',this)">🚗 Commute Calculator</button>
   <button class="nb" data-pg="valuation" onclick="go('valuation',this)">📈 Home Valuation</button>
@@ -890,7 +889,10 @@ textarea{resize:vertical;min-height:68px;}
 <div class="page" id="page-saved">
   <div class="ph">
     <div class="pt">Saved Properties</div>
-    <button class="btn btn-g" onclick="openSaveModal()">+ Save a Listing</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-sm" id="saved-compare-btn" onclick="toggleSavedCompare()">⚖️ Compare</button>
+      <button class="btn btn-g btn-sm" onclick="openSaveModal()">+ Save</button>
+    </div>
   </div>
   <div class="chips" id="saved-filters">
     <span class="chip active" onclick="filt('all',this)">All</span>
@@ -1016,10 +1018,7 @@ textarea{resize:vertical;min-height:68px;}
 </div>
 
 <!-- COMPARE -->
-<div class="page" id="page-compare">
-  <div class="ph"><div class="pt">Side-by-Side Compare</div><span style="font-size:12px;color:var(--text2);">Your top-rated saved properties</span></div>
-  <div class="cmp-grid" id="cmp-grid"></div>
-</div>
+<div id="saved-compare-view" style="display:none;"><div class="cmp-grid" id="cmp-grid-inline"></div></div>
 
 <!-- MORTGAGE CALC -->
 <div class="page" id="page-mortgage">
@@ -1230,8 +1229,12 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- PHOTO ANALYZER -->
 <div class="page" id="page-photo">
-  <div class="ph"><div class="pt">AI Photo Analyzer</div><span class="pill pill-p">✦ Claude Vision</span></div>
-  <div class="notice">Upload a photo of any home component — roof, furnace, water heater, electrical panel, windows, foundation. Claude will estimate age, condition, and rough repair/replacement costs.</div>
+  <div class="ph"><div class="pt">Property Photo Analyzer</div><span class="pill pill-p">✦ Claude Vision</span></div>
+  <div style="display:flex;gap:0;border:1.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">
+    <button id="pmode-general-btn" onclick="setPhotoMode('general')" style="flex:1;padding:9px;font-size:13px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">📸 General Review</button>
+    <button id="pmode-redflag-btn" onclick="setPhotoMode('redflag')" style="flex:1;padding:9px;font-size:13px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">🚩 Red Flag Scan</button>
+  </div>
+  <div id="pmode-desc" class="notice">Upload a photo of any home component — roof, furnace, water heater, electrical panel, windows, foundation. Claude will estimate age, condition, and rough repair/replacement costs.</div>
   <div class="card" style="display:flex;flex-direction:column;gap:12px;">
     <input type="file" id="photo-input" accept="image/*" style="display:none;" onchange="handlePhoto(event)"/>
     <div class="upload-area" id="photo-drop" onclick="document.getElementById('photo-input').click()">
@@ -1243,13 +1246,23 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <img id="photo-preview-img" class="photo-preview" style="display:none;" src="" alt="preview"/>
     </div>
-    <div><label class="flabel">What do you want to know? (optional)</label><input type="text" id="photo-question" placeholder="e.g. How old is this furnace? Is this roof safe for another 5 years?"/></div>
-    <button class="btn btn-g" onclick="analyzePhoto()" id="analyze-btn" disabled>Analyze with Claude ✦</button>
+    <div id="pmode-general-fields"><label class="flabel">What do you want to know? (optional)</label><input type="text" id="photo-question" placeholder="e.g. How old is this furnace? Is this roof safe for another 5 years?"/></div>
+    <div id="pmode-redflag-fields" style="display:none;flex-direction:column;gap:10px;">
+      <div><label class="flabel">What area of the home is this?</label>
+        <select id="rf-area"><option value="">Let Claude figure it out</option><option>Basement / Foundation</option><option>Roof / Attic</option><option>Electrical Panel</option><option>HVAC / Furnace / Water Heater</option><option>Plumbing / Water Damage</option><option>Windows / Doors</option><option>Walls / Ceilings / Floors</option><option>Exterior / Siding</option><option>Garage</option><option>Other</option></select></div>
+      <div><label class="flabel">What caught your eye? (optional)</label><input type="text" id="rf-note" placeholder="e.g. crack in wall, stain on ceiling, rust on panel..."/></div>
+    </div>
+    <button class="btn btn-g" onclick="analyzePhotoUnified()" id="analyze-btn" disabled>Analyze with Claude ✦</button>
     <div id="photo-result" style="display:none;"></div>
   </div>
   <div class="card" id="photo-partners-suggest" style="display:none;">
     <div style="font-weight:500;font-size:14px;margin-bottom:8px;">🤝 Recommended Preferred Partners</div>
     <div id="photo-partners-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+  <div class="card" id="photo-inspector-cta" style="display:none;background:var(--amber-lt);border-color:#FAC775;">
+    <div style="font-weight:500;font-size:13.5px;color:var(--amber-dk);margin-bottom:5px;">⚠️ Always get a professional inspection</div>
+    <div style="font-size:12.5px;color:var(--amber-dk);line-height:1.6;">This tool helps you spot potential issues — not replace a licensed inspector. Flag anything for {agentFirst} and include it on the inspection checklist.</div>
+    <button class="btn btn-sm" style="margin-top:10px;" onclick="go('chat',document.querySelector('[data-pg=chat]'))">Message {agentFirst} →</button>
   </div>
 </div>
 
@@ -1369,65 +1382,6 @@ textarea{resize:vertical;min-height:68px;}
     <div><label class="flabel">Anything else we should know?</label><textarea id="mv-notes" placeholder="e.g. Kids starting new school, working from home, have large furniture items..."></textarea></div>
     <button class="btn btn-g" onclick="runMovingList()">Generate My Checklist ✦</button>
     <div id="mv-result" style="display:none;"></div>
-  </div>
-</div>
-
-<!-- RED FLAG ANALYZER -->
-<div class="page" id="page-redflag">
-  <div class="ph"><div class="pt">Red Flag Analyzer</div><span class="pill pill-p">✦ Claude Vision</span></div>
-  <div class="notice">At a showing? Upload a photo of anything that looks off — foundation, roof, electrical panel, water stains, HVAC, windows. Claude identifies red flags, estimates severity, and suggests what to ask the inspector.</div>
-
-  <div class="card" style="display:flex;flex-direction:column;gap:12px;">
-    <div>
-      <input type="file" id="rf-input" accept="image/*" style="display:none;" onchange="handleRedFlag(event)"/>
-      <div class="upload-area" onclick="document.getElementById('rf-input').click()" id="rf-drop">
-        <div id="rf-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
-          <span style="font-size:40px;">🚩</span>
-          <span style="font-weight:500;font-size:14px;">Upload a photo from your showing</span>
-          <span style="font-size:12px;color:var(--text3);">Foundation · Water damage · Electrical · Roof · HVAC · Mold · Windows</span>
-          <span style="font-size:11px;color:var(--green-dk);">Works with camera or photo library</span>
-        </div>
-        <img id="rf-preview" class="photo-preview" style="display:none;" src="" alt="preview"/>
-      </div>
-    </div>
-
-    <div>
-      <label class="flabel">What area of the home is this?</label>
-      <select id="rf-area">
-        <option value="">Let Claude figure it out</option>
-        <option>Basement / Foundation</option>
-        <option>Roof / Attic</option>
-        <option>Electrical Panel</option>
-        <option>HVAC / Furnace / Water Heater</option>
-        <option>Plumbing / Water Damage</option>
-        <option>Windows / Doors</option>
-        <option>Walls / Ceilings / Floors</option>
-        <option>Exterior / Siding</option>
-        <option>Garage</option>
-        <option>Other</option>
-      </select>
-    </div>
-
-    <div>
-      <label class="flabel">What caught your eye? (optional)</label>
-      <input type="text" id="rf-note" placeholder="e.g. crack in wall, stain on ceiling, rust on panel..."/>
-    </div>
-
-    <button class="btn btn-g" onclick="analyzeRedFlag()" id="rf-btn" disabled>Analyze for Red Flags ✦</button>
-    <div id="rf-result" style="display:none;"></div>
-  </div>
-
-  <!-- Suggested partners -->
-  <div class="card" id="rf-partners" style="display:none;">
-    <div style="font-weight:500;font-size:14px;margin-bottom:8px;">🤝 Suggested Preferred Partners</div>
-    <div id="rf-partners-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-  </div>
-
-  <!-- Inspector CTA -->
-  <div class="card" style="background:var(--amber-lt);border-color:#FAC775;">
-    <div style="font-weight:500;font-size:13.5px;color:var(--amber-dk);margin-bottom:5px;">⚠️ Always get a professional inspection</div>
-    <div style="font-size:12.5px;color:var(--amber-dk);line-height:1.6;">This tool helps you spot potential issues during a showing — not replace a licensed inspector. If you see red flags, flag them for {agentFirst} and make sure they're on the inspection checklist.</div>
-    <button class="btn btn-sm" style="margin-top:10px;" onclick="go('chat',document.querySelector('[data-pg=chat]'))">Message {agentFirst} →</button>
   </div>
 </div>
 
@@ -3109,8 +3063,9 @@ function filt(f, el) {
   renderSaved();
 }
 function renderCompare() {
+  var gridId = document.getElementById('cmp-grid-inline') ? 'cmp-grid-inline' : 'cmp-grid';
   const top = [...props].sort((a,b) => (b.rating||0)-(a.rating||0)).slice(0,4);
-  const grid = document.getElementById('cmp-grid');
+  const grid = document.getElementById(gridId);
   if (!grid) return;
   if (!top.length) { grid.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;">Save and rate properties to compare them.</div>'; return; }
   const tl = t => ({mustsee:'Must-See',overpriced:'Overpriced',potential:'Potential',topschool:'Top School',needswork:'Needs Work'}[t]||t);
@@ -3128,6 +3083,28 @@ function renderCompare() {
 }
 window.filt = filt;
 window.renderCompare = renderCompare;
+
+var _savedCompareOpen = false;
+function toggleSavedCompare() {
+  _savedCompareOpen = !_savedCompareOpen;
+  var view = document.getElementById('saved-compare-view');
+  var pgrid = document.getElementById('pgrid');
+  var filters = document.getElementById('saved-filters');
+  var btn = document.getElementById('saved-compare-btn');
+  if (_savedCompareOpen) {
+    if (view) view.style.display='block';
+    if (pgrid) pgrid.style.display='none';
+    if (filters) filters.style.display='none';
+    if (btn) { btn.textContent='✕ Close Compare'; btn.style.background='var(--surface2)'; }
+    renderCompare();
+  } else {
+    if (view) view.style.display='none';
+    if (pgrid) pgrid.style.display='grid';
+    if (filters) filters.style.display='flex';
+    if (btn) { btn.textContent='⚖️ Compare'; btn.style.background=''; }
+  }
+}
+window.toggleSavedCompare = toggleSavedCompare;
 window.renderTours = renderTours;
 window.renderDash = renderDash;
 window.populateAgentDropdown = populateAgentDropdown;
@@ -3250,7 +3227,8 @@ function go(page, el) {
   if (floatBtn) floatBtn.style.display = page === 'idx' ? 'block' : 'none';
   if (page === 'saved') renderSaved();
   if (page === 'dash' && !isAgent) { populateBuyerStepSelector(); }
-  if (page === 'compare') renderCompare();
+  if (page === 'compare') { go('saved', document.querySelector('[data-pg=saved]')); return; }
+  if (page === 'redflag') { go('photo', document.querySelector('[data-pg=photo]')); setTimeout(function(){ setPhotoMode('redflag'); },100); return; }
   if (page === 'tour') renderTours();
   if (page === 'partners') renderPartners(currentPartnerCat);
   if (page === 'youragent') { renderYourAgent(); renderYourLender(); renderYourTitleCo(); }
@@ -7546,6 +7524,41 @@ window.renderMortgageJourney = renderMortgageJourney;
 
 // ─── PHOTO ANALYZER ───
 var photoMime = 'image/jpeg';
+
+var _photoMode = 'general';
+function setPhotoMode(mode) {
+  _photoMode = mode;
+  var gBtn = document.getElementById('pmode-general-btn');
+  var rBtn = document.getElementById('pmode-redflag-btn');
+  var gFields = document.getElementById('pmode-general-fields');
+  var rFields = document.getElementById('pmode-redflag-fields');
+  var desc = document.getElementById('pmode-desc');
+  var analyzeBtn = document.getElementById('analyze-btn');
+  var inspCta = document.getElementById('photo-inspector-cta');
+  if (mode === 'redflag') {
+    if (gBtn) { gBtn.style.background='var(--surface2)'; gBtn.style.color='var(--text2)'; }
+    if (rBtn) { rBtn.style.background='#E24B4A'; rBtn.style.color='#fff'; }
+    if (gFields) gFields.style.display='none';
+    if (rFields) rFields.style.display='flex';
+    if (desc) desc.textContent='At a showing? Upload a photo of anything that looks off. Claude identifies red flags, estimates severity, and suggests what to ask the inspector.';
+    if (analyzeBtn) analyzeBtn.textContent='Scan for Red Flags ✶';
+    if (inspCta) inspCta.style.display='block';
+  } else {
+    if (gBtn) { gBtn.style.background='var(--green)'; gBtn.style.color='#fff'; }
+    if (rBtn) { rBtn.style.background='var(--surface2)'; rBtn.style.color='var(--text2)'; }
+    if (gFields) gFields.style.display='block';
+    if (rFields) rFields.style.display='none';
+    if (desc) desc.textContent='Upload a photo of any home component. Claude will estimate age, condition, and rough repair/replacement costs.';
+    if (analyzeBtn) analyzeBtn.textContent='Analyze with Claude ✶';
+    if (inspCta) inspCta.style.display='none';
+  }
+}
+window.setPhotoMode = setPhotoMode;
+
+async function analyzePhotoUnified() {
+  if (_photoMode === 'redflag') { await analyzeRedFlag(); } else { await analyzePhoto(); }
+}
+window.analyzePhotoUnified = analyzePhotoUnified;
 
 function handlePhoto(ev) {
   var f = ev.target.files[0]; if (!f) return;
