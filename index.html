@@ -6133,9 +6133,11 @@ function renderAgentTimelinePreview(b) {
     || (b.contractDates && b.contractDates.contractType !== 'seller' ? b.contractDates : null);
   var sellerDates = b.sellerContractDates
     || (b.contractDates && b.contractDates.contractType === 'seller' ? b.contractDates : null);
+  var mortgageDates = b.mortgageContractDates;
   var buyerHas = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
   var sellerHas = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
-  if (!buyerHas && !sellerHas) { container.innerHTML = ''; return; }
+  var mortgageHas = mortgageDates && Object.keys(mortgageDates).some(function(k){ return mortgageDates[k]; });
+  if (!buyerHas && !sellerHas && !mortgageHas) { container.innerHTML = ''; return; }
   var today = new Date(); today.setHours(0,0,0,0);
 
   function buildCard(dates, fields, bg, label) {
@@ -6171,6 +6173,7 @@ function renderAgentTimelinePreview(b) {
   var previewBuyerFields = isCash ? BUYER_CONTRACT_FIELDS.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : BUYER_CONTRACT_FIELDS;
   if (buyerHas) html += buildCard(buyerDates, previewBuyerFields, 'var(--green-dk)', '&#127968; Buying' + (isCash ? ' (Cash)' : '') + ' Timeline');
   if (sellerHas) html += buildCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline');
+  if (mortgageHas) html += buildCard(mortgageDates, MORTGAGE_CONTRACT_FIELDS, '#185FA5', '🏦 Mortgage Timeline');
   container.innerHTML = html;
 }
 window.renderAgentTimelinePreview = renderAgentTimelinePreview;
