@@ -129,7 +129,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   img,iframe{max-width:100%;display:block;}
   .pt{font-size:18px;}
   .mo{padding:8px;}
-  .mbox{padding:16px;max-height:88vh;}
+  .mbox{padding:0;max-height:88vh;}
   .mo{align-items:flex-start;padding-top:max(env(safe-area-inset-top,0px),12px);}
   .login-card{padding:24px 18px;}
   .tb-r{gap:6px;}
@@ -1849,26 +1849,13 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- PARTNERS -->
 <div class="page" id="page-partners">
-  <div class="ph"><div class="pt">Preferred Partners</div><span style="font-size:12px;color:var(--text2);">Curated by Tom Garuccio</span></div>
-  <div class="notice">These are the professionals Tom personally knows, trusts, and recommends. <strong>Let them know Tom Garuccio sent you.</strong></div>
+  <div class="ph"><div class="pt">Preferred Partners</div><span id="partners-agent-label" style="font-size:12px;color:var(--text2);">Curated by your agent</span></div>
+  <div class="notice">These are professionals your agent personally knows and recommends. <strong>Let them know your agent sent you.</strong></div>
   <div class="chips" id="partner-filter" style="margin-bottom:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:4px;">
     <span class="chip active" onclick="filterPartners('all',this)">All</span>
-    <span class="chip" onclick="filterPartners('Lender',this)">Lenders</span>
-    <span class="chip" onclick="filterPartners('Inspector',this)">Inspectors</span>
-    <span class="chip" onclick="filterPartners('HVAC',this)">HVAC</span>
-    <span class="chip" onclick="filterPartners('Plumber',this)">Plumbing</span>
-    <span class="chip" onclick="filterPartners('Electrician',this)">Electric</span>
-    <span class="chip" onclick="filterPartners('Handyman',this)">Handyman</span>
-    <span class="chip" onclick="filterPartners('Contractor',this)">Contractors</span>
-    <span class="chip" onclick="filterPartners('Painter',this)">Painters</span>
-    <span class="chip" onclick="filterPartners('Cleaning',this)">Cleaning</span>
-    <span class="chip" onclick="filterPartners('Insurance',this)">Insurance</span>
-    <span class="chip" onclick="filterPartners('Title',this)">Title</span>
-    <span class="chip" onclick="filterPartners('Concrete',this)">Concrete</span>
   </div>
   <div class="partner-grid" id="partner-grid"></div>
 </div>
-
 <!-- DASHBOARD -->
 <div class="page" id="page-dash">
   <div class="ph"><div class="pt">My Dashboard</div></div>
@@ -1931,6 +1918,7 @@ textarea{resize:vertical;min-height:68px;}
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
     <button id="agent-tab-buyers" onclick="switchAgentTab('buyers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Clients</button>
     <button id="agent-tab-chat" onclick="switchAgentTab('chat')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Messages <span id="agent-chat-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;">!</span></button>
+    <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Partners</button>
     <button id="agent-tab-profile" onclick="switchAgentTab('profile')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">My Profile</button>
   </div>
 
@@ -1938,12 +1926,18 @@ textarea{resize:vertical;min-height:68px;}
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
     <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Buyer</button>
+    <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
   </div>
   <div class="dstats" id="agent-stats"></div>
   <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div><!-- /agent-buyers-panel -->
+
+  <!-- PARTNERS TAB -->
+  <div id="agent-partners-panel" style="display:none;flex-direction:column;gap:12px;">
+    <div id="agent-partners-editor"></div>
+  </div>
 
   <!-- PROFILE TAB -->
   <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:12px;">
@@ -2040,6 +2034,38 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <div style="margin-top:10px;font-size:12px;color:var(--text3);text-align:center;">Client will see these dates immediately when they log in.</div>
     <div id="cdm-titleco-reminder" style="display:none;margin-top:8px;padding:8px 12px;background:var(--green-lt);border-radius:var(--r);font-size:12px;color:var(--green-dk);text-align:center;">💡 Don't forget to add title company info in the client's profile.</div>
+  </div>
+</div>
+
+<!-- REFERRAL RECOMMENDATIONS MODAL -->
+<div class="mo" id="referral-modal" style="display:none;">
+  <div class="mbox" style="max-width:640px;">
+    <div class="mhdr">
+      <div class="mtitle">Send Referral Recommendations</div>
+      <button class="xbtn" onclick="closeM('referral-modal')">&#x2715;</button>
+    </div>
+    <div style="padding:16px 22px 22px;display:flex;flex-direction:column;gap:16px;">
+      <div id="ref-step1">
+        <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Step 1 &mdash; Select Partners to Send</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+          <button class="btn btn-sm btn-g" onclick="refSelectAllCats()" style="font-size:11px;">&#x2713; Select All</button>
+          <button class="btn btn-sm" onclick="refClearAllCats()" style="font-size:11px;">&#x2715; Clear All</button>
+        </div>
+        <div id="ref-cat-list" style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto;padding-right:4px;"></div>
+      </div>
+      <div id="ref-step2" style="display:none;">
+        <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Step 2 &mdash; Select Client</div>
+        <select id="ref-client-select" style="width:100%;margin-bottom:12px;"></select>
+        <div style="font-size:12px;color:var(--text3);padding:10px 12px;background:var(--surface2);border-radius:var(--r);line-height:1.6;">
+          <strong>Disclaimer:</strong> These professionals are recommended as a courtesy. Clients are not obligated to use any of them and may choose whoever they are most comfortable with. No guarantees are made regarding pricing or outcomes.
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn" id="ref-back-btn" style="display:none;" onclick="refGoBack()">&#8592; Back</button>
+        <button class="btn btn-g" id="ref-next-btn" onclick="refNextStep()">Next: Select Client &#8594;</button>
+      </div>
+      <div id="ref-status" style="display:none;font-size:13px;color:var(--green-dk);font-weight:500;text-align:center;padding:8px;"></div>
+    </div>
   </div>
 </div>
 
@@ -2435,39 +2461,64 @@ const TIMELINE_STEPS = [
 ];
 
 // ─── PARTNERS ───
-const partners = [
-  {cat:'Lender',name:'Tom Garuccio',co:'Mortgage Financing',phone:'440-754-7449',topPick:true,note:'Pre-approval and financing guidance handled directly with Tom.', applyLink:'https://1660690.my1003app.com/2784866/register?time=1775863969580'},
-  {cat:'Inspector',name:'Robert Garuccio',co:'Beyond Today Inspections',phone:'440-429-5445',email:'Robg@beyondtodayinspections.com',topPick:true,note:'Detailed, honest — preferred pricing for Tom\'s clients.'},
-  {cat:'Inspector',name:'Dustin Kinn',co:'Kinn Inspections',phone:'216-630-5606',email:'dustin@kinninspections.com',note:'Home inspection + radon, sewer scopes, mold.'},
-  {cat:'Inspector',name:'Sean',co:'Frontline Home Inspections',phone:'330-437-8420'},
-  {cat:'Inspector',name:'Paul Ferguson',co:'Pillar To Post',phone:'888-850-6620'},
-  {cat:'Inspector',name:'Mike Baraona',co:'Structural Engineer',phone:'440-522-1739'},
-  {cat:'Inspector',name:'Brandon Roby',co:'Buckeye Advanced Remediation',phone:'440-658-9658',note:'Mold testing & remediation.'},
+const DEFAULT_PARTNERS = [
+  {cat:'Lender',name:'Tom Garuccio',co:'Ask Local Mortgage',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',topPick:true,note:"Pre-approval and financing handled in-house."},
+  {cat:'Lender',name:'Brad Binder',co:'Ask Local Mortgage',phone:'440-822-7506',web:'asklocal.com',topPick:true,note:"Best rates, lowest fees, and incredible service."},
+  {cat:'Lender',name:'Theresa Owca',co:'CrossCountry Mortgage',phone:'440-799-3752'},
+  {cat:'General Inspector',name:'Robert Garuccio',co:'Beyond Today Inspections',phone:'440-429-5445',email:'Robg@beyondtodayinspections.com',web:'beyondtodayinspections.com',topPick:true,note:"Detailed, honest - preferred pricing for clients."},
+  {cat:'General Inspector',name:'Dustin Kinn',co:'Kinn Inspections',phone:'216-630-5606',email:'dustin@kinninspections.com',web:'kinninspections.com',note:"Home inspection + radon, sewer scopes, mold."},
+  {cat:'General Inspector',name:'Sean',co:'Frontline Home Inspections',phone:'330-437-8420'},
+  {cat:'General Inspector',name:'Paul Ferguson',co:'Pillar To Post',phone:'888-850-6620',web:'pferguson.pillartopost.com'},
+  {cat:'Mold / Remediation',name:'Brandon Roby',co:'Buckeye Advanced Remediation',phone:'440-658-9658',web:'buckeyeadvancedremediationllc.com',note:"Mold testing & remediation."},
+  {cat:'Well / Drilling',name:'Depew Well',co:'Well Drilling, Inspections & Repairs',phone:'330-723-7051'},
+  {cat:'Structural Engineer',name:'Mike Baraona',co:'Structural Engineer',phone:'440-522-1739'},
   {cat:'HVAC',name:'Dan',co:'DD&T Multi-Purpose LLC',phone:'216-324-8010',topPick:true},
   {cat:'HVAC',name:'Blueline Heating and Cooling',co:'HVAC',phone:'440-907-9354'},
-  {cat:'Plumber',name:'Joe Pavlovich',co:'Licensed Plumber & GC',phone:'440-724-6063',note:'Licensed plumber + full general contracting.'},
+  {cat:'Plumber',name:'Joe Pavlovich',co:'Licensed Plumber & GC',phone:'440-724-6063',note:"Licensed plumber + full general contracting."},
   {cat:'Electrician',name:'Lewis Heath',co:'Licensed Electrician',phone:'216-456-1239',topPick:true},
-  {cat:'Handyman',name:'Robert Garuccio',co:'Handyman / Inspector',phone:'440-429-5445',topPick:true,note:'Small repairs, inspection punch lists.'},
+  {cat:'Handyman',name:'Robert Garuccio',co:'Handyman / Inspector',phone:'440-429-5445',topPick:true,note:"Small repairs, inspection punch lists."},
   {cat:'Handyman',name:'Jeff Helmink',co:'Hook and Ladder Home Solutions',phone:'216-375-9582'},
   {cat:'Handyman',name:'Kevin Somerville',co:'Westside Only',phone:'216-409-0510'},
   {cat:'Handyman',name:'David Memmer',co:'Handyman',phone:'440-521-0438'},
-  {cat:'Contractor',name:'Drew Pastir',co:'Grays Construction Management',phone:'330-840-8886',email:'Graysconstructionmanagement@gmail.com',web:'grayscm.com',topPick:true,note:'Small projects to large-scale renovations.'},
+  {cat:'Contractor',name:'Drew Pastir',co:'Grays Construction Management',phone:'330-840-8886',email:'Graysconstructionmanagement@gmail.com',web:'grayscm.com',topPick:true,note:"Small projects to large-scale renovations."},
   {cat:'Contractor',name:'Londi Viccarone',co:'General Contractor',phone:'440-334-6445'},
   {cat:'Contractor',name:'Guardian City Renovations',co:'Renovations',phone:'216-741-7777'},
-  {cat:'Contractor',name:'Bill Robson',co:'Robson Family Builders',phone:'440-381-6778'},
+  {cat:'Contractor',name:'Bill Robson',co:'Robson Family Builders',phone:'440-381-6778',web:'facebook.com/robsonfamilybuilders'},
   {cat:'Contractor',name:'S&K Berry Enterprises',co:'General Contractor',phone:'440-412-1906'},
   {cat:'Painter',name:'Josh Barr',co:'Painting & Drywall',phone:'216-318-0125'},
   {cat:'Painter',name:'Eric Viccarone',co:'ESV Handicraft',phone:'440-503-5751',email:'EViccarone@esvhandicraft.com'},
+  {cat:'Painter',name:'Clean and Coat',co:'Coatings & Finish Work',phone:'440-662-1565',web:'cleanandcoat.net'},
+  {cat:'Roofing',name:'Exterior Armor Roofing',co:'Roofing Contractor',phone:'216-633-3388'},
+  {cat:'Roofing',name:'AA Roofers and Gutters',co:'Roofing & Gutters',phone:'216-412-1347'},
+  {cat:'Concrete',name:'Mike Burns',co:'CLE Concrete Repair',phone:'216-965-4924',email:'CLEConcreteRepair@outlook.com',web:'cleconcreterepairllc.com'},
+  {cat:'Concrete',name:'Kingdom Concrete',co:'Concrete Services',phone:'216-551-8835',web:'concreteservicescleveland.com'},
+  {cat:'Flooring',name:'Expert Flooring - Joshua Matthew',co:'Hardwood Flooring & Installation',phone:'614-735-5152',web:'xflooringsales.com',topPick:true},
+  {cat:'Flooring',name:'SandMaster Flooring',co:'Hardwood Restoration',phone:'216-854-5002'},
+  {cat:'Flooring',name:'Cleveland Hardwood Restoration',co:'Flooring Restoration',phone:'216-780-5316',web:'clevelandhardwoodrestoration.com'},
+  {cat:'Landscaping',name:'CLE Outdoors',co:'Landscaping',phone:'440-235-3074',email:'info@cleoutdoors.com',web:'cleoutdoors.com'},
+  {cat:'Landscaping',name:'Heavens Landscaping',co:'Landscaping',phone:'440-420-0599'},
   {cat:'Cleaning',name:'Nikki Straniak',co:'Residential Cleaning',phone:'216-882-8316'},
-  {cat:'Cleaning',name:'Rite Services',co:'Carpet & Upholstery',phone:'216-956-7073'},
+  {cat:'Cleaning',name:'Rite Services',co:'Carpet & Upholstery Cleaning',phone:'216-956-7073',email:'Riteservices@att.net'},
+  {cat:'Cleaning',name:'Advanced Air Duct Solutions',co:'Air Duct Cleaning',phone:'440-808-9496',web:'ductwhip.com'},
   {cat:'Insurance',name:'Greg Moosally',co:'Goosehead Insurance',phone:'704-386-6414',email:'greg.moosally@goosehead.com',topPick:true},
   {cat:'Insurance',name:'Phil Snyder',co:'Goosehead Insurance',phone:'440-463-8668'},
   {cat:'Insurance',name:'Dave Stadtler',co:'Comparion Insurance',phone:'216-386-2400'},
-  {cat:'Title',name:'Erieview Title Agency',co:'Title & Escrow — All Ohio',phone:'440-835-4505',web:'erieviewtitle.com'},
-  {cat:'Title',name:'Infinity Title Agency',co:'Title & Escrow — Northeast Ohio',phone:'216-270-5005',web:'infinitytitleagency.com'},
-  {cat:'Concrete',name:'Mike Burns',co:'CLE Concrete Repair',phone:'216-965-4924'},
-  {cat:'Concrete',name:'Kingdom Concrete',co:'Concrete Services',phone:'216-551-8835'},
+  {cat:'Title',name:'Erieview Title Agency',co:'Title & Escrow - All Ohio',phone:'440-835-4505',web:'erieviewtitle.com'},
+  {cat:'Title',name:'Infinity Title Agency',co:'Title & Escrow - Northeast Ohio',phone:'216-270-5005',web:'infinitytitleagency.com'},
+  {cat:'Movers',name:'Anytime Moving and Delivery',co:'Local Moving',phone:'440-253-9665'},
+  {cat:'Movers',name:'Harrington Movers',co:'Local Movers',phone:'216-403-6649'},
+  {cat:'Property Management',name:'B2B Realty',co:'Property Management & Real Estate',phone:'216-465-4011',email:'info@b2brealty.com',web:'b2brealty.com'},
 ];
+
+const ALL_PARTNER_CATS = [
+  'Lender','General Inspector','Mold / Remediation','Well / Drilling',
+  'Structural Engineer','Radon','Sewer Scope','HVAC','Plumber','Electrician',
+  'Handyman','Contractor','Painter','Roofing','Concrete','Flooring',
+  'Landscaping','Cleaning','Insurance','Title','Movers','Property Management'
+];
+
+var agentPartners = [];
+
 
 // ─── DEFAULT TEAM ───
 const DEFAULT_AGENTS = [
@@ -3027,7 +3078,8 @@ async function showApp() {
   renderPartners('all');
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent) { await loadBuyersForAgent(); syncHardcodedAgentsToFirestore(); await todoLoad(); }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();} }
+  await loadAgentPartners(userProfile.agentId||'tom');
   setupChatHead();
   watchChat();
   if (isAgent) loadAgentDocs();
@@ -3231,7 +3283,7 @@ function go(page, el) {
   if (page === 'compare') { go('saved', document.querySelector('[data-pg=saved]')); return; }
   if (page === 'redflag') { go('photo', document.querySelector('[data-pg=photo]')); setTimeout(function(){ setPhotoMode('redflag'); },100); return; }
   if (page === 'tour') renderTours();
-  if (page === 'partners') renderPartners(currentPartnerCat);
+  if (page==='partners'){loadAgentPartners(userProfile.agentId||'tom').then(function(){renderPartners('all');});}
   if (page === 'youragent') { renderYourAgent(); renderYourLender(); renderYourTitleCo(); }
   if (page === 'dash') renderDash();
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
@@ -4703,26 +4755,319 @@ function partnerCard(p) {
     ${partnerActionButtons(p)}
   </div>`;
 }
+// ===================================================
+// DYNAMIC PARTNER SYSTEM
+// ===================================================
+
+async function loadAgentPartners(agentId) {
+  agentId = agentId || (userProfile && userProfile.agentId) || 'tom';
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db, 'agent_partners', agentId));
+    if (snap.exists() && snap.data().partners && snap.data().partners.length) {
+      agentPartners = snap.data().partners;
+    } else {
+      agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
+      if (isAgent && (userProfile.agentId === agentId || agentId === 'tom')) {
+        try { await fb.setDoc(fb.doc(fb.db,'agent_partners',agentId),{partners:agentPartners}); } catch(e){}
+      }
+    }
+  } catch(e) {
+    agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
+  }
+}
+window.loadAgentPartners = loadAgentPartners;
+
+async function saveAgentPartners() {
+  var agentId = (userProfile && userProfile.agentId) || 'tom';
+  await fb.setDoc(fb.doc(fb.db,'agent_partners',agentId),{partners:agentPartners});
+}
+window.saveAgentPartners = saveAgentPartners;
+
 function filterPartners(cat, el) {
-  currentPartnerCat = cat;
-  document.querySelectorAll('#partner-filter .chip').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#partner-filter .chip').forEach(function(c){ c.classList.remove('active'); });
   if (el) el.classList.add('active');
   renderPartners(cat);
 }
-function renderPartners(cat = 'all') {
-  const grid = document.getElementById('partner-grid');
+window.filterPartners = filterPartners;
+
+async function renderPartners(cat) {
+  cat = cat || 'all';
+  var grid = document.getElementById('partner-grid');
   if (!grid) return;
-  const list = cat === 'all' ? partners : partners.filter(p => p.cat === cat);
-  if (!list.length) { grid.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;">No partners found in this category.</div>'; return; }
-  if (cat === 'all') {
-    const cats = [...new Set(list.map(p => p.cat))];
-    grid.innerHTML = cats.map(c => `<div class="partner-section-title">${partnerEsc(c)}</div>${list.filter(p => p.cat === c).map(partnerCard).join('')}`).join('');
+  if (!agentPartners.length) await loadAgentPartners((userProfile&&userProfile.agentId)||'tom');
+  var lbl = document.getElementById('partners-agent-label');
+  if (lbl && assignedAgent && assignedAgent.name) lbl.textContent = 'Curated by ' + assignedAgent.name;
+  var filter = document.getElementById('partner-filter');
+  if (filter) {
+    var presentCats = [];
+    agentPartners.forEach(function(p){ if (presentCats.indexOf(p.cat)===-1) presentCats.push(p.cat); });
+    var allActive = cat==='all' ? ' active' : '';
+    filter.innerHTML = '<span class="chip' + allActive + '" onclick="filterPartners(\'all\',this)">All</span>'
+      + presentCats.map(function(ct){
+          var isActive = ct===cat ? ' active' : '';
+          var enc = ct.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          return '<span class="chip'+isActive+'" onclick="filterPartners(\''+enc+'\',this)">'+partnerEsc(ct)+'</span>';
+        }).join('');
+  }
+  var list = cat==='all' ? agentPartners : agentPartners.filter(function(p){ return p.cat===cat; });
+  if (!list.length) { grid.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;">No partners in this category yet.</div>'; return; }
+  if (cat==='all') {
+    var cats = [];
+    list.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+    grid.innerHTML = cats.map(function(ct){
+      var cps = list.filter(function(p){ return p.cat===ct; });
+      return '<div style="grid-column:1/-1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);padding:8px 0 4px;">'+partnerEsc(ct)+'</div>'+cps.map(partnerCard).join('');
+    }).join('');
   } else {
     grid.innerHTML = list.map(partnerCard).join('');
   }
 }
-window.filterPartners = filterPartners;
 window.renderPartners = renderPartners;
+
+// ── Agent backend partner editor ──
+function renderAgentPartnersEditor() {
+  var el = document.getElementById('agent-partners-editor');
+  if (!el) return;
+  var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'
+    + '<div style="font-size:14px;font-weight:500;flex:1;">My Partner List</div>'
+    + '<button class="btn btn-sm btn-g" onclick="openAddPartnerModal()">+ Add Partner</button>'
+    + '<button class="btn btn-sm" onclick="resetPartnersToDefault()" style="font-size:11px;">Reset to Default</button>'
+    + '</div>';
+  var cats = [];
+  agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+  cats.forEach(function(cat) {
+    var cps = agentPartners.filter(function(p){ return p.cat===cat; });
+    html += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:6px;">'+partnerEsc(cat)+'</div>'
+      + cps.map(function(p){
+          return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:6px;">'
+            +'<div style="flex:1;min-width:0;">'
+            +'<div style="font-size:13px;font-weight:500;">'+partnerEsc(p.name)+(p.topPick?' <span style="font-size:10px;color:var(--green-dk);">&#9733;</span>':'')+'</div>'
+            +'<div style="font-size:12px;color:var(--text2);">'+partnerEsc(p.co||'')+(p.phone?' &middot; '+partnerEsc(p.phone):'')+'</div>'
+            +'</div>'
+            +'<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
+            +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>'
+            +'</div>';
+        }).join('')+'</div>';
+  });
+  if (!agentPartners.length) html += '<div style="color:var(--text3);font-size:13px;">No partners yet. Add one above.</div>';
+  el.innerHTML = html;
+}
+window.renderAgentPartnersEditor = renderAgentPartnersEditor;
+
+var _editingPartnerId = null;
+function openAddPartnerModal(id) {
+  _editingPartnerId = id || null;
+  var p = id ? agentPartners.find(function(x){ return x.id===id; }) : null;
+  var catOpts = ALL_PARTNER_CATS.map(function(ct){
+    return '<option value="'+ct+'"'+(p&&p.cat===ct?' selected':'')+'>'+ct+'</option>';
+  }).join('');
+  var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;" id="add-partner-overlay">'
+    +'<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">'
+    +'<div style="font-weight:600;font-size:15px;">'+(p?'Edit':'Add')+' Partner</div>'
+    +'<button onclick="document.getElementById(\'add-partner-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);">&#x2715;</button>'
+    +'</div>'
+    +'<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;">'
+    +'<div><label class="flabel">Category</label><select id="ap-cat"><option value="">Select category</option>'+catOpts+'</select></div>'
+    +'<div class="fg2">'
+    +'<div><label class="flabel">Name</label><input type="text" id="ap-name" value="'+partnerEsc(p?p.name||'':'')+'"/></div>'
+    +'<div><label class="flabel">Company</label><input type="text" id="ap-co" value="'+partnerEsc(p?p.co||'':'')+'"/></div>'
+    +'<div><label class="flabel">Phone</label><input type="tel" id="ap-phone" value="'+partnerEsc(p?p.phone||'':'')+'"/></div>'
+    +'<div><label class="flabel">Email</label><input type="email" id="ap-email" value="'+partnerEsc(p?p.email||'':'')+'"/></div>'
+    +'<div><label class="flabel">Website</label><input type="text" id="ap-web" placeholder="example.com" value="'+partnerEsc(p?p.web||'':'')+'"/></div>'
+    +'</div>'
+    +'<div><label class="flabel">Notes (optional)</label><input type="text" id="ap-note" value="'+partnerEsc(p?p.note||'':'')+'"/></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">'
+    +'<input type="checkbox" id="ap-toppick"'+(p&&p.topPick?' checked':'')+'/> Mark as Top Pick</label>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">'
+    +'<button class="btn" onclick="document.getElementById(\'add-partner-overlay\').remove()">Cancel</button>'
+    +'<button class="btn btn-g" onclick="savePartnerEdit()">Save Partner</button>'
+    +'</div></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+window.openAddPartnerModal = openAddPartnerModal;
+
+async function savePartnerEdit() {
+  var cat = document.getElementById('ap-cat').value;
+  var name = document.getElementById('ap-name').value.trim();
+  if (!cat || !name) { alert('Category and name are required.'); return; }
+  var p = {
+    id: _editingPartnerId || ('p'+Date.now()),
+    cat:cat, name:name,
+    co: document.getElementById('ap-co').value.trim(),
+    phone: document.getElementById('ap-phone').value.trim(),
+    email: document.getElementById('ap-email').value.trim(),
+    web: document.getElementById('ap-web').value.trim(),
+    note: document.getElementById('ap-note').value.trim(),
+    topPick: document.getElementById('ap-toppick').checked,
+  };
+  if (_editingPartnerId) {
+    var idx = agentPartners.findIndex(function(x){ return x.id===_editingPartnerId; });
+    if (idx !== -1) agentPartners[idx] = p; else agentPartners.push(p);
+  } else { agentPartners.push(p); }
+  await saveAgentPartners();
+  var ov = document.getElementById('add-partner-overlay');
+  if (ov) ov.remove();
+  renderAgentPartnersEditor();
+}
+window.savePartnerEdit = savePartnerEdit;
+
+async function deletePartner(id) {
+  if (!confirm('Remove this partner from your list?')) return;
+  agentPartners = agentPartners.filter(function(p){ return p.id!==id; });
+  await saveAgentPartners();
+  renderAgentPartnersEditor();
+}
+window.deletePartner = deletePartner;
+
+async function resetPartnersToDefault() {
+  if (!confirm('Reset your partner list to the default? This will overwrite your changes.')) return;
+  agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
+  await saveAgentPartners();
+  renderAgentPartnersEditor();
+}
+window.resetPartnersToDefault = resetPartnersToDefault;
+
+// ===================================================
+// REFERRAL RECOMMENDATIONS
+// ===================================================
+var _refStep = 1;
+var _refChecked = {};
+
+function openReferralModal() {
+  _refStep = 1; _refChecked = {};
+  agentPartners.forEach(function(p){ _refChecked[p.id] = true; });
+  document.getElementById('ref-step1').style.display = 'block';
+  document.getElementById('ref-step2').style.display = 'none';
+  document.getElementById('ref-back-btn').style.display = 'none';
+  document.getElementById('ref-next-btn').textContent = 'Next: Select Client';
+  document.getElementById('ref-status').style.display = 'none';
+  refBuildCatList();
+  document.getElementById('referral-modal').style.display = 'flex';
+}
+window.openReferralModal = openReferralModal;
+
+function refBuildCatList() {
+  var el = document.getElementById('ref-cat-list');
+  if (!el) return;
+  var cats = [];
+  agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+  el.innerHTML = cats.map(function(cat) {
+    var cps = agentPartners.filter(function(p){ return p.cat===cat; });
+    return '<div style="margin-bottom:8px;">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:4px;">'+partnerEsc(cat)+'</div>'
+      + cps.map(function(p){
+          var chk = _refChecked[p.id]!==false;
+          return '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);cursor:pointer;margin-bottom:4px;">'
+            +'<input type="checkbox" data-pid="'+p.id+'" '+(chk?'checked':'')+' onchange="_refChecked[this.dataset.pid]=this.checked" style="flex-shrink:0;width:16px;height:16px;"/>'
+            +'<div style="flex:1;min-width:0;">'
+            +'<div style="font-size:13px;font-weight:500;">'+partnerEsc(p.name)+(p.topPick?' <span style="font-size:10px;color:var(--green-dk);">&#9733;</span>':'')+'</div>'
+            +'<div style="font-size:11px;color:var(--text2);">'+partnerEsc(p.co||'')+(p.phone?' &middot; '+partnerEsc(p.phone):'')+'</div>'
+            +'</div></label>';
+        }).join('')+'</div>';
+  }).join('');
+}
+window.refBuildCatList = refBuildCatList;
+
+function refSelectAllCats() {
+  agentPartners.forEach(function(p){ _refChecked[p.id]=true; });
+  document.querySelectorAll('#ref-cat-list input[type=checkbox]').forEach(function(cb){ cb.checked=true; });
+}
+window.refSelectAllCats = refSelectAllCats;
+
+function refClearAllCats() {
+  agentPartners.forEach(function(p){ _refChecked[p.id]=false; });
+  document.querySelectorAll('#ref-cat-list input[type=checkbox]').forEach(function(cb){ cb.checked=false; });
+}
+window.refClearAllCats = refClearAllCats;
+
+function refGoBack() {
+  _refStep=1;
+  document.getElementById('ref-step1').style.display='block';
+  document.getElementById('ref-step2').style.display='none';
+  document.getElementById('ref-back-btn').style.display='none';
+  document.getElementById('ref-next-btn').textContent='Next: Select Client';
+}
+window.refGoBack = refGoBack;
+
+async function refNextStep() {
+  if (_refStep===1) {
+    var selected = agentPartners.filter(function(p){ return _refChecked[p.id]; });
+    if (!selected.length) { alert('Select at least one partner to send.'); return; }
+    if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
+    var sel = document.getElementById('ref-client-select');
+    var buyers = myBuyers || allBuyers || [];
+    sel.innerHTML = buyers.map(function(b){
+      var n = ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email || b.uid;
+      return '<option value="'+b.uid+'">'+n+'</option>';
+    }).join('');
+    _refStep=2;
+    document.getElementById('ref-step1').style.display='none';
+    document.getElementById('ref-step2').style.display='block';
+    document.getElementById('ref-back-btn').style.display='inline-flex';
+    document.getElementById('ref-next-btn').textContent='Send Referrals';
+  } else { await sendReferrals(); }
+}
+window.refNextStep = refNextStep;
+
+async function sendReferrals() {
+  var uid = document.getElementById('ref-client-select').value;
+  var buyer = (myBuyers||allBuyers||[]).find(function(b){ return b.uid===uid; });
+  if (!buyer || !buyer.email) { alert('Client email not found.'); return; }
+  var selected = agentPartners.filter(function(p){ return _refChecked[p.id]; });
+  var agentName = (assignedAgent&&assignedAgent.name) || ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your Agent';
+  var agentFirst = agentName.split(' ')[0];
+  var clientFirst = buyer.firstName || 'there';
+  var cats = []; selected.forEach(function(p){ if(cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+  var catSections = cats.map(function(cat) {
+    var cps = selected.filter(function(p){ return p.cat===cat; });
+    var rows = cps.map(function(p) {
+      var ph = (p.phone||'').replace(/[^0-9]/g,'');
+      var wb = p.web ? (/^https?:\/\//i.test(p.web)?p.web:'https://'+p.web) : '';
+      return '<div style="padding:10px 0;border-bottom:1px solid #f4f4f4;">'
+        +(p.topPick?'<span style="font-size:10px;font-weight:700;color:#1D9E75;text-transform:uppercase;">Top Pick</span><br/>':'')
+        +'<div style="font-size:14px;font-weight:600;color:#1a1a1a;margin:2px 0;">'+partnerEsc(p.name)+'</div>'
+        +'<div style="font-size:12px;color:#666;margin-bottom:6px;">'+partnerEsc(p.co||'')+'</div>'
+        +(p.note?'<div style="font-size:12px;color:#888;font-style:italic;margin-bottom:6px;">'+partnerEsc(p.note)+'</div>':'')
+        +(p.phone?'<div style="font-size:13px;margin-bottom:2px;"><a href="tel:'+ph+'" style="color:#1D9E75;text-decoration:none;">'+partnerEsc(p.phone)+'</a></div>':'')
+        +(p.email?'<div style="font-size:13px;margin-bottom:2px;"><a href="mailto:'+partnerEsc(p.email)+'" style="color:#1D9E75;text-decoration:none;">'+partnerEsc(p.email)+'</a></div>':'')
+        +(wb?'<div style="font-size:13px;"><a href="'+wb+'" style="color:#1D9E75;text-decoration:none;">'+partnerEsc(p.web)+'</a></div>':'')
+        +'</div>';
+    }).join('');
+    return '<div style="margin-bottom:18px;">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1D9E75;padding:8px 0;border-bottom:2px solid #1D9E75;margin-bottom:8px;">'+partnerEsc(cat)+'</div>'
+      +rows+'</div>';
+  }).join('');
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:22px;font-weight:300;color:#fff;">Referral Recommendations</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">From '+agentName+' - The Garuccio Group</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+clientFirst+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 20px;">Here are some trusted professionals I personally recommend. Let them know I sent you.</p>'
+    +catSections
+    +'<div style="margin-top:20px;padding:14px;background:#f9f9f9;border-radius:8px;font-size:12px;color:#888;line-height:1.6;">'
+    +'<strong>Please note:</strong> These recommendations are provided as a courtesy. You are not obligated to use any of these professionals and are always free to choose whoever you are most comfortable with. '+agentFirst+' makes no guarantees regarding pricing or outcomes.'
+    +'</div>'
+    +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:18px 0 14px;"/>'
+    +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
+    +'<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
+    +'</div></div>';
+  var btn = document.getElementById('ref-next-btn');
+  if (btn) btn.disabled = true;
+  try {
+    var payload = {to:buyer.email, subject:agentFirst+' sent you some referral recommendations', html:emailHtml};
+    var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
+    if (ae && ae!==buyer.email) payload.cc = ae;
+    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
+    var status = document.getElementById('ref-status');
+    if (status) { status.textContent = 'Referrals sent to '+clientFirst+'!'; status.style.display='block'; }
+    setTimeout(function(){ closeM('referral-modal'); if(btn) btn.disabled=false; }, 1800);
+  } catch(e) { alert('Failed to send: '+e.message); if(btn) btn.disabled=false; }
+}
+window.sendReferrals = sendReferrals;
+
 
 // ─── RECOMMENDATIONS ───
 function qSel(q, el, val) { quizAnswers[q] = val; document.querySelectorAll(`#${q}-opts .mc-opt`).forEach(x => x.classList.remove('sel')); el.classList.add('sel'); }
@@ -5533,15 +5878,10 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
-  var bb = document.getElementById('agent-tab-buyers');
-  var cb = document.getElementById('agent-tab-chat');
-  var pb = document.getElementById('agent-tab-profile');
-  var bp = document.getElementById('agent-buyers-panel');
-  var ci = document.getElementById('agent-chat-inbox');
-  var pp = document.getElementById('agent-profile-panel');
-  // Reset all tabs
-  [bb,cb,pb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel');
+  [bb,cb,pb,ptb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -5570,8 +5910,11 @@ function switchAgentTab(tab) {
         }
       }
     }
+  } else if (tab==='partners') {
+    if (ptb) { ptb.style.background='var(--green)'; ptb.style.color='#fff'; }
+    if (ptp) ptp.style.display='flex';
+    renderAgentPartnersEditor();
   } else {
-    // buyers (default)
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (bp) bp.style.display='flex';
     var editor = document.getElementById('agent-profile-editor');
