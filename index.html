@@ -1861,12 +1861,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════ -->
-<!-- PUBLIC OFFER SUBMISSION PAGE                       -->
-<!-- ═══════════════════════════════════════════════════ -->
-<div class="page" id="page-offer-submit" style="display:none;padding:0;">
-  <div id="offer-submit-inner" style="max-width:640px;margin:0 auto;padding:0 0 40px;"></div>
-</div>
+<!-- offer-submit moved outside app -->
 
 <!-- PARTNERS -->
 <div class="page" id="page-partners">
@@ -2281,8 +2276,6 @@ window.dispatchEvent(new Event('firebase-ready'));
   if (hash && /^#offer=[A-Z0-9]+$/i.test(hash)) {
     var loginEl = document.getElementById('login-screen');
     var appEl   = document.getElementById('app');
-    if (loginEl) loginEl.style.display = 'none';
-    if (appEl)   appEl.style.display   = 'none';
     var offerEl = document.getElementById('page-offer-submit');
     if (offerEl) {
       offerEl.style.display = 'block';
@@ -9802,11 +9795,7 @@ async function loadPublicOfferPage(code) {
   var inner = document.getElementById('offer-submit-inner');
   if (!page || !inner) return;
 
-  // Show the page, hide everything else
-  var appEl = document.getElementById('app');
-  var loginEl = document.getElementById('login-screen');
-  if (appEl) appEl.style.display = 'none';
-  if (loginEl) loginEl.style.display = 'none';
+  // Show offer page full-screen over everything (fixed position, z-index:999)
   page.style.display = 'block';
   inner.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#888;">Loading offer page...</div>';
 
@@ -9987,5 +9976,11 @@ function checkOfferHash() {
 window.checkOfferHash = checkOfferHash;
 
 </script>
+
+<!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
+<div id="page-offer-submit" style="display:none;position:fixed;inset:0;background:#f5f5f3;overflow-y:auto;z-index:999;">
+  <div id="offer-submit-inner" style="max-width:640px;margin:0 auto;padding:0 0 40px;"></div>
+</div>
+
 </body>
 </html>
