@@ -2193,6 +2193,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
     </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
+    <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
     <div id="invite-result" style="display:none;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
       <button class="btn" onclick="closeM('invite-modal')">Cancel</button>
@@ -2787,6 +2788,17 @@ async function loadAssignedAgentProfile() {
     if (isAgent) {
       const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
       assignedAgent = normalizeAgent({ ...base, ...userProfile, id: userProfile.agentId || base.id });
+      // If this user is also a lender, their agent profile feeds the lender card too
+      if (isLender) {
+        var lenderBase = DEFAULT_LENDERS.find(function(l){ return l.id === userProfile.lenderId; }) || DEFAULT_LENDERS[0];
+        assignedLender = Object.assign({}, lenderBase, {
+          photoUrl: userProfile.photoUrl || lenderBase.photoUrl || '',
+          bio: userProfile.bio || lenderBase.bio || '',
+          calendly: userProfile.calendly || lenderBase.calendly || '',
+          phone: userProfile.phone || lenderBase.phone || '',
+          email: userProfile.email || lenderBase.email || '',
+        });
+      }
       return;
     }
     const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
@@ -2797,6 +2809,25 @@ async function loadAssignedAgentProfile() {
       fb.where('agentId', '==', assignedAgent.id)
     ));
     qs.forEach(d => { assignedAgent = normalizeAgent({ ...assignedAgent, ...d.data(), uid: d.id }); });
+    // Also load lender profile — find lender by lenderId or default to tom
+    var buyerLenderId = userProfile.lenderId || 'tom';
+    var lenderBase = DEFAULT_LENDERS.find(function(l){ return l.id === buyerLenderId; }) || DEFAULT_LENDERS[0];
+    assignedLender = Object.assign({}, lenderBase);
+    try {
+      var lqs = await fb.getDocs(fb.query(
+        fb.collection(fb.db, 'users'),
+        fb.where('role', '==', 'agent'),
+        fb.where('agentId', '==', buyerLenderId)
+      ));
+      lqs.forEach(function(d) {
+        var ldata = d.data();
+        assignedLender = Object.assign({}, assignedLender, {
+          photoUrl: ldata.photoUrl || assignedLender.photoUrl || '',
+          bio: ldata.bio || assignedLender.bio || '',
+          calendly: ldata.calendly || assignedLender.calendly || '',
+        });
+      });
+    } catch(e) { console.log('lender profile load:', e.message); }
   } catch(e) { console.warn('Could not load assigned agent profile', e); }
 }
 
@@ -5512,6 +5543,18 @@ function switchAgentTab(tab) {
         pp.appendChild(editor);
       }
       if (editor) { editor.style.display='flex'; renderAgentProfileEditor(); }
+    // If dual agent+lender, show note that profile feeds lender card too
+    if (isLender) {
+      var lenderNote = document.getElementById('lender-profile-note');
+      if (!lenderNote) {
+        lenderNote = document.createElement('div');
+        lenderNote.id = 'lender-profile-note';
+        lenderNote.className = 'notice';
+        lenderNote.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);font-size:12px;';
+        lenderNote.textContent = '🏦 You are assigned as both agent and lender. This profile photo and bio will appear on both the Your Agent and Your Lender cards for your clients.';
+        if (pp) pp.insertBefore(lenderNote, pp.firstChild);
+      }
+    }
     }
   } else {
     // buyers (default)
@@ -6021,6 +6064,14 @@ async function openBuyerDetail(uid) {
     </div>
 
     <div class="card">
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Assigned Lender</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <select id="bd-lender" style="max-width:220px;">${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' — '+l.role:''}</option>`).join('')}</select>
+        <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
+      </div>
+    </div>
+
+    <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Document Folder (Google Drive)</div>
       <input type="text" id="bd-docs" placeholder="Paste Google Drive folder share URL..." value="${b.docFolderUrl||''}" style="margin-bottom:6px;"/>
       <input type="text" id="bd-docs-name" placeholder="Folder display name (optional)" value="${b.docFolderName||''}" style="margin-bottom:8px;"/>
@@ -6181,6 +6232,22 @@ window.renderAgentTimelinePreview = renderAgentTimelinePreview;
 window.setBuyerStep = setBuyerStep;
 window.setBuyerAgent = setBuyerAgent;
 
+async function setBuyerLender(uid) {
+  var sel = document.getElementById('bd-lender');
+  if (!sel) return;
+  var newLid = sel.value;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { lenderId: newLid });
+    var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+    if (buyer) buyer.lenderId = newLid;
+    var lender = DEFAULT_LENDERS.find(function(l){ return l.id === newLid; });
+    alert('Lender reassigned to ' + (lender ? lender.name : newLid) + '!');
+    await loadBuyersForAgent();
+    renderBuyers();
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.setBuyerLender = setBuyerLender;
+
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   try {
@@ -6249,6 +6316,8 @@ function openInviteModal() {
   var ph = document.getElementById('inv-phone'); if (ph) ph.value = '';
   var inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){ return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>'; }).join('');
+  var invLenderSel = document.getElementById('inv-lender');
+  if (invLenderSel) invLenderSel.innerHTML = DEFAULT_LENDERS.map(function(l){ return '<option value="'+l.id+'" selected>'+l.name+(l.role?' — '+l.role:'')+'</option>'; }).join('');
   document.getElementById('invite-result').style.display = 'none';
   _invJourneyType = 'buyer';
   setTimeout(function(){ invSetJourney('buyer'); }, 50);
@@ -6278,6 +6347,8 @@ async function createInvite() {
   var email = document.getElementById('inv-email').value.trim();
   var phone = (document.getElementById('inv-phone')||{}).value||'';
   var agentId = document.getElementById('inv-agent').value;
+  var invLenderEl = document.getElementById('inv-lender');
+  var invLenderId = invLenderEl ? invLenderEl.value : 'tom';
   var resultEl = document.getElementById('invite-result');
   if (!first || !email) { alert('First name and email are required.'); return; }
 
@@ -6295,7 +6366,7 @@ async function createInvite() {
   var pendingUid = 'pending_' + code;
   var clientData = {
     firstName: first, lastName: last, email: email, phone: phone,
-    agentId: agentId, role: 'buyer',
+    agentId: agentId, lenderId: invLenderId, role: 'buyer',
     journeyType: _invJourneyType,
     currentStep: 1, currentSellerStep: 0,
     pending: true, inviteCode: code,
