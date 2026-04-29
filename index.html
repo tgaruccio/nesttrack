@@ -2273,6 +2273,24 @@ window.dispatchEvent(new Event('firebase-ready'));
 <script>
 // ─── API PROXY ───
 // Set your Cloudflare Worker URL here after deploying it
+
+// ── Early hash check — runs before Firebase loads ──
+// If this is a public offer link, hide login screen immediately
+(function() {
+  var hash = window.location.hash;
+  if (hash && /^#offer=[A-Z0-9]+$/i.test(hash)) {
+    var loginEl = document.getElementById('login-screen');
+    var appEl   = document.getElementById('app');
+    if (loginEl) loginEl.style.display = 'none';
+    if (appEl)   appEl.style.display   = 'none';
+    var offerEl = document.getElementById('page-offer-submit');
+    if (offerEl) {
+      offerEl.style.display = 'block';
+      var inner = document.getElementById('offer-submit-inner');
+      if (inner) inner.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#888;font-family:Georgia,serif;">Loading offer page...</div>';
+    }
+  }
+})();
 const PROXY_URL = 'https://app.tom-b52.workers.dev';
 const VAPID_PUBLIC_KEY = 'BJTQOfGIrF82EPPDKZtqpSThXhxubKuNn90euj7F5iqTBQFn_EBIqSkXMQytYc7O2MePh0cJnZzY8r5UrdeJAGU';
 const GOOGLE_PLACES_KEY = ''; // Optional: add your Google Places API key for address autocomplete
@@ -9239,7 +9257,7 @@ function openListingModal(l) {
     + '</div>'
     + '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px;">'
     + '<div><label class="flabel">Property Address</label><input type="text" id="lm-address" placeholder="123 Maple St, Avon Lake, OH 44012" value="'+partnerEsc(l?l.address||'':'')+'"/></div>'
-    + '<div><label class="flabel">Property Photo URL (optional)</label><input type="url" id="lm-photo" placeholder="https://..." value="'+partnerEsc(l?l.photoUrl||'':'')+'"/></div>'
+    + '<div><label class="flabel">Property Photo</label>' + (l && l.photoUrl ? '<img src="'+partnerEsc(l.photoUrl)+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:6px;"/>' : '') + '<input type="file" id="lm-photo-file" accept="image/*" style="width:100%;margin-bottom:4px;font-size:13px;"/>' + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Upload a photo, or paste a URL below</div>' + '<input type="url" id="lm-photo" placeholder="https://... (optional)" value="'+partnerEsc(l?l.photoUrl||'':'')+'"/>' + '</div>'
     + '<div><label class="flabel">Listing Price (optional)</label><input type="text" id="lm-price" placeholder="$450,000" value="'+partnerEsc(l?l.listPrice||'':'')+'"/></div>'
     + '<div><label class="flabel">Link to Seller Client</label>'
     + '<select id="lm-client"><option value="">— Select seller client —</option>'+buyerOpts+'</select></div>'
@@ -9293,8 +9311,21 @@ window.removeListingField = removeListingField;
 
 async function saveListing(existingId) {
   var address = document.getElementById('lm-address').value.trim();
-  var photoUrl = document.getElementById('lm-photo').value.trim();
   var listPrice = document.getElementById('lm-price').value.trim();
+  // Handle photo — file upload takes priority over URL
+  var photoUrl = document.getElementById('lm-photo').value.trim();
+  var photoFileInput = document.getElementById('lm-photo-file');
+  if (photoFileInput && photoFileInput.files && photoFileInput.files[0]) {
+    try {
+      var photoFile = photoFileInput.files[0];
+      var agentId = userProfile.agentId || 'tom';
+      var photoPath = 'listings/' + agentId + '/' + Date.now() + '_' + photoFile.name.replace(/[^a-zA-Z0-9.]/g,'_');
+      var sRef = fb.storageRef(fb.storage, photoPath);
+      var { uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js');
+      var snapshot = await uploadBytes(sRef, photoFile);
+      photoUrl = await getDownloadURL(snapshot.ref);
+    } catch(photoErr) { console.log('Photo upload failed:', photoErr.message); }
+  }
   var clientUid = document.getElementById('lm-client').value;
   var deadline = document.getElementById('lm-deadline').value;
   if (!address) { alert('Property address is required.'); return; }
@@ -9771,8 +9802,11 @@ async function loadPublicOfferPage(code) {
   var inner = document.getElementById('offer-submit-inner');
   if (!page || !inner) return;
 
-  // Show the page, hide main app
-  document.getElementById('app').style.display = 'none';
+  // Show the page, hide everything else
+  var appEl = document.getElementById('app');
+  var loginEl = document.getElementById('login-screen');
+  if (appEl) appEl.style.display = 'none';
+  if (loginEl) loginEl.style.display = 'none';
   page.style.display = 'block';
   inner.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#888;">Loading offer page...</div>';
 
@@ -9815,9 +9849,9 @@ async function loadPublicOfferPage(code) {
     }).join('');
 
     var pdfSection = '<div style="margin-bottom:14px;">'
-      + '<label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Upload Offer PDF</label>'
-      + '<input type="file" id="of-pdf" accept=".pdf" style="width:100%;padding:8px;border:1.5px dashed #e5e7eb;border-radius:8px;font-size:13px;box-sizing:border-box;"/>'
-      + '<div style="font-size:11px;color:#aaa;margin-top:4px;">PDF upload requires Firebase Storage — enable in console to activate.</div>'
+      + '<label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Upload Offer PDF <span style="color:#aaa;font-weight:400;">(optional)</span></label>'
+      + '<input type="file" id="of-pdf" accept=".pdf" style="width:100%;padding:8px;border:1.5px dashed #D1FAE5;border-radius:8px;font-size:13px;box-sizing:border-box;background:#F0FDF4;"/>'
+      + '<div style="font-size:11px;color:#aaa;margin-top:4px;">PDF will be stored securely and shared with the listing agent.</div>'
       + '</div>';
 
     var formBody = '<div style="padding:24px;">'
@@ -9898,6 +9932,19 @@ async function submitPublicOffer(listingId) {
   if (statusEl) { statusEl.style.display='none'; }
 
   try {
+    // Upload PDF if provided
+    var pdfInput = document.getElementById('of-pdf');
+    if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+      try {
+        var pdfFile = pdfInput.files[0];
+        var pdfPath = 'offers/' + listingId + '/' + Date.now() + '_' + pdfFile.name.replace(/[^a-zA-Z0-9.]/g,'_');
+        var pdfSRef = fb.storageRef(fb.storage, pdfPath);
+        var { uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js');
+        var snap = await uploadBytes(pdfSRef, pdfFile);
+        data.pdfPath = pdfPath;
+        data.pdfUrl  = await getDownloadURL(snap.ref);
+      } catch(pdfErr) { console.log('PDF upload failed:', pdfErr.message); }
+    }
     await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
