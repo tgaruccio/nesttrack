@@ -561,7 +561,7 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="docs-explainer" onclick="go('docs-explainer',this)">📄 Document Explainer</button>
   <button class="nb" data-pg="education" onclick="go('education',this)">📚 Education</button>
   <button class="nb" data-pg="blog" onclick="go('blog',this)">📰 Blog</button>
-  <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Agent</button>
+  <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
   <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
 
   <div class="ns">Account</div>
@@ -602,6 +602,17 @@ textarea{resize:vertical;min-height:68px;}
       <button onclick="downloadICS('buyer')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
     </div>
     <div id="txn-buyer-list" style="background:var(--surface);display:block;"></div>
+  </div>
+
+  <!-- Mortgage Timeline -->
+  <div id="txn-mortgage-card" style="display:none;border-radius:var(--r);border:1.5px solid #93C5FD;">
+    <div style="background:linear-gradient(135deg,#185FA5,#378ADD);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏦 Mortgage Timeline</div>
+        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-mortgage-headline">In Progress</div>
+      </div>
+    </div>
+    <div id="txn-mortgage-list" style="background:var(--surface);display:block;"></div>
   </div>
 
   <!-- Seller Transaction Timeline -->
@@ -1863,13 +1874,16 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- YOUR AGENT -->
 <div class="page" id="page-youragent">
-  <div class="ph"><div class="pt">Your Agent</div><span class="pill pill-g" id="ya-pill">Assigned REALTOR®</span></div>
+  <div class="ph"><div class="pt">Your Team</div><span class="pill pill-g">Your People</span></div>
+  <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Your Agent</div>
   <div class="card" id="your-agent-card"></div>
   <div class="card">
     <div style="font-weight:500;font-size:14px;margin-bottom:6px;">Reviews</div>
     <div style="font-size:12.5px;color:var(--text2);margin-bottom:10px;">See what clients have said, or leave a review after your experience.</div>
     <div class="review-grid" id="your-agent-reviews"></div>
   </div>
+  <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:4px;">Your Lender</div>
+  <div class="card" id="your-lender-card"></div>
 </div>
 
 <!-- PARTNERS -->
@@ -2291,6 +2305,15 @@ async function claudeAPI(body) {
 }
 
 // ─── STATE ───
+var MORTGAGE_CONTRACT_FIELDS = [
+  {key:'preApprovalIssued',   label:'Pre-Approval Issued',          icon:'✅'},
+  {key:'loanAppSubmitted',    label:'Loan Application Submitted',    icon:'📄'},
+  {key:'appraisalOrdered',    label:'Appraisal Ordered',             icon:'📋'},
+  {key:'appraisalReceived',   label:'Appraisal Received',            icon:'📊'},
+  {key:'clearToClose',        label:'Clear to Close',                icon:'🎉'},
+  {key:'closingDate',         label:'Closing Date',                  icon:'🔑'},
+];
+
 var BUYER_CONTRACT_FIELDS = [
   {key:'acceptanceDate',    label:'Acceptance Date',          icon:'✍️'},
   {key:'earnestMoneyDue',   label:'Earnest Money Due',         icon:'💰'},
@@ -2312,6 +2335,8 @@ var SELLER_CONTRACT_FIELDS = [
 let currentUser = null;
 let userProfile = null;
 let isAgent = false;
+let isLender = false;
+let assignedLender = null;
 let props = [], tours = [], quizAnswers = {}, mRating = 0, mTags = [], activeFilt = 'all', currentPartnerCat = 'all';
 let photoB64 = '';
 let assignedAgent = null;
@@ -2490,6 +2515,10 @@ const DEFAULT_AGENTS = [
   {id:'brittney',name:'Brittney Dirskell',role:'REALTOR®',phone:'216-394-7087',email:''},
 ];
 
+const DEFAULT_LENDERS = [
+  {id:'tom',name:'Tom Garuccio',role:'Licensed Mortgage Professional',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',applyLink:'https://1660690.my1003app.com/2784866/register',isDefault:true},
+];
+
 const ROOMS = ['Kitchen','Living Room','Master Bedroom','Bedrooms','Master Bath','Bathrooms','Basement','Garage','Yard / Exterior','Laundry'];
 const SYSTEMS = ['Roof','HVAC / Furnace','Plumbing','Electrical Panel','Foundation','Windows','Insulation','Overall'];
 const ROOM_QS = {
@@ -2603,7 +2632,7 @@ async function signUp() {
     var journeyType = (inviteData && inviteData.journeyType) || 'buyer';
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), {
       email, firstName: first, lastName: last, phone,
-      role: 'buyer', agentId, journeyType: journeyType,
+      role: 'buyer', agentId, lenderId: 'tom', journeyType: journeyType,
       currentStep: 1, currentSellerStep: 0,
       stepHistory: [{step:1, at: new Date().toISOString()}],
       createdAt: fb.serverTimestamp(),
@@ -2719,8 +2748,14 @@ async function loadUserProfile() {
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
       if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; }
       else { isAgent = userProfile.role === 'agent'; }
+      // Check lender role (can overlap with agent)
+      const lg = DEFAULT_LENDERS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
+      if (lg) { isLender = true; userProfile.lenderId = lg.id; }
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
+      // Find assigned lender
+      var lenderId = userProfile.lenderId || 'tom';
+      assignedLender = DEFAULT_LENDERS.find(a => a.id === lenderId) || DEFAULT_LENDERS[0];
       // Update last active
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { lastActive: fb.serverTimestamp() }); } catch(x){}
     } else {
@@ -2859,7 +2894,7 @@ async function saveAgentProfile() {
     userProfile = { ...userProfile, ...data };
     await loadAssignedAgentProfile();
     updateAgentRefs();
-    renderYourAgent();
+    renderYourAgent(); renderYourLender();
     if (status) { status.textContent = 'Saved!'; status.style.color = 'var(--green-dk)'; status.style.display = 'block'; }
   } catch(e) {
     if (status) { status.textContent = 'Save failed: ' + e.message; status.style.color = 'var(--red-dk)'; status.style.display = 'block'; }
@@ -2906,6 +2941,34 @@ function renderYourAgent() {
   }
 }
 window.renderYourAgent = renderYourAgent;
+function renderYourLender() {
+  var card = document.getElementById('your-lender-card');
+  if (!card) return;
+  var l = assignedLender || DEFAULT_LENDERS[0];
+  if (!l) { card.innerHTML = '<div style="color:var(--text3);font-size:13px;">No lender assigned yet.</div>'; return; }
+  var initials = (l.name||'TG').split(' ').map(function(x){return x[0]||'';}).join('').substring(0,2).toUpperCase();
+  var photo = l.photoUrl
+    ? '<img class="agent-photo" src="'+l.photoUrl+'" alt="'+l.name+'"/>'
+    : '<div class="agent-photo-placeholder">'+initials+'</div>';
+  var scheduleBtn = l.calendly ? '<a class="btn btn-sm" href="'+l.calendly+'" target="_blank">Schedule</a>' : '';
+  card.innerHTML =
+    '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">'
+    + photo
+    + '<div style="flex:1;min-width:220px;">'
+    + '<div style="font-family:Fraunces,serif;font-size:22px;font-weight:300;letter-spacing:-.4px;">'+(l.name||'Tom Garuccio')+'</div>'
+    + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+(l.role||'Licensed Mortgage Professional')+'</div>'
+    + '<div style="font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px;">'+(l.bio||'Your lender works alongside your agent to guide you through the financing side — pre-approval, loan application, rate lock, and clear to close.')+'</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
+    + (l.phone ? '<a class="btn btn-sm btn-g" href="tel:'+l.phone.replace(/[^0-9]/g,'')+'">Call</a>' : '')
+    + (l.phone ? '<a class="btn btn-sm" href="sms:'+l.phone.replace(/[^0-9]/g,'')+'">Text</a>' : '')
+    + (l.email ? '<a class="btn btn-sm" href="mailto:'+l.email+'">Email</a>' : '')
+    + scheduleBtn
+    + (l.applyLink ? '<a class="btn btn-sm btn-g" href="'+l.applyLink+'" target="_blank">Apply Now →</a>' : '')
+    + '</div>'
+    + '</div></div>';
+}
+window.renderYourLender = renderYourLender;
+
 
 async function showApp() {
   document.getElementById('login-screen').style.display = 'none';
@@ -2916,7 +2979,7 @@ async function showApp() {
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
   // Show agent backend nav if agent
-  var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=isAgent?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
+  var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   const mtb = document.getElementById('manage-team-btn');
   if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
   updateAgentRefs();
@@ -3120,7 +3183,7 @@ function go(page, el) {
   if (page === 'compare') renderCompare();
   if (page === 'tour') renderTours();
   if (page === 'partners') renderPartners(currentPartnerCat);
-  if (page === 'youragent') renderYourAgent();
+  if (page === 'youragent') { renderYourAgent(); renderYourLender(); }
   if (page === 'dash') renderDash();
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
   if (page === 'education') renderEducation();
@@ -4131,8 +4194,9 @@ async function sendContractDatesEmail(uid, type, dates) {
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
     var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
     var isSeller = type === 'seller';
-    var fields = isSeller ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
-    var subject = isSeller ? 'Your Selling Timeline Has Been Updated \uD83D\uDCC5' : 'Your Transaction Timeline Is Live \uD83D\uDCC5';
+    var fields = isSeller ? SELLER_CONTRACT_FIELDS : isMortgage ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+    var isMortgage = type === 'mortgage';
+    var subject = isSeller ? 'Your Selling Timeline Has Been Updated \uD83D\uDCC5' : isMortgage ? 'Your Mortgage Timeline Has Been Updated 🏦' : 'Your Transaction Timeline Is Live \uD83D\uDCC5';
 
     var dateRows = fields.map(function(f) {
       if (!dates[f.key]) return '';
@@ -5265,8 +5329,14 @@ function isTeamLeader() {
 }
 
 function canAccessBuyer(buyer) {
-  if (!isAgent || !buyer) return false;
-  return isTeamLeader() || buyer.agentId === userProfile.agentId;
+  if (!buyer) return false;
+  if (!isAgent && !isLender) return false;
+  if (isTeamLeader()) return true;
+  // Agent access: buyer assigned to this agent
+  if (isAgent && buyer.agentId === userProfile.agentId) return true;
+  // Lender access: buyer assigned to this lender
+  if (isLender && (buyer.lenderId === userProfile.lenderId || (!buyer.lenderId && userProfile.lenderId === 'tom'))) return true;
+  return false;
 }
 
 async function deleteKnownBuyerSubcollections(uid) {
@@ -5286,6 +5356,10 @@ async function loadBuyersForAgent() {
     let q;
     if (isTeamLeader()) {
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'));
+    } else if (isLender && !isAgent) {
+      // Pure lender — see only their assigned clients
+      var lid = userProfile.lenderId || 'tom';
+      q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'), fb.where('lenderId', '==', lid));
     } else {
       q = fb.query(
         fb.collection(fb.db, 'users'),
@@ -5914,6 +5988,12 @@ async function openBuyerDetail(uid) {
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
           </div>
         </div>
+        <div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏦 Mortgage Timeline</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-sm btn-g" onclick="openContractDatesForBuyer('${uid}','mortgage')">📋 Set Mortgage Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -6326,7 +6406,7 @@ var _cdmCurrentDates = {};
 function openContractDatesForBuyer(uid, type) {
   var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; })
            || (myBuyers||[]).find(function(b){ return b.uid === uid; });
-  var field = type === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
+  var field = type === 'seller' ? 'sellerContractDates' : type === 'mortgage' ? 'mortgageContractDates' : 'buyerContractDates';
   var existing = (buyer && buyer[field]) || {};
   closeM('buyer-modal');
   setTimeout(function(){ openContractDatesModal(uid, type, existing); }, 200);
@@ -6371,11 +6451,11 @@ function openContractDatesModal(buyerUid, type, existingDates) {
   _cdmBuyerUid = buyerUid;
   _cdmType = type || 'buyer';
   _cdmCurrentDates = existingDates || {};
-  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : _cdmType === 'mortgage' ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var title = document.getElementById('cdm-title');
   var sub = document.getElementById('cdm-sub');
   var container = document.getElementById('cdm-fields');
-  if (title) title.textContent = (_cdmType === 'seller' ? '🏡 Seller' : '🏠 Buyer') + ' Contract Dates';
+  if (title) title.textContent = (_cdmType === 'seller' ? '🏡 Seller' : _cdmType === 'mortgage' ? '🏦 Mortgage' : '🏠 Buyer') + ' Contract Dates';
   if (sub) sub.textContent = 'Enter the key dates — they will appear on the client\'s live timeline immediately.';
   var modalFields = _cdmIsCash ? fields.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : fields;
   if (container) {
@@ -6426,14 +6506,14 @@ window.toggleCdmCash = toggleCdmCash;
 
 async function saveContractDates() {
   if (!_cdmBuyerUid) return;
-  var rawFields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
-  var fields = _cdmIsCash ? rawFields.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : rawFields;
+  var rawFields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : _cdmType === 'mortgage' ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var fields = (_cdmIsCash && _cdmType !== 'mortgage') ? rawFields.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : rawFields;
   var dates = {};
   fields.forEach(function(f) {
     var el = document.getElementById('cdm-' + f.key);
     dates[f.key] = (el && el.value) ? el.value : null;
   });
-  var updateField = _cdmType === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
+  var updateField = _cdmType === 'seller' ? 'sellerContractDates' : _cdmType === 'mortgage' ? 'mortgageContractDates' : 'buyerContractDates';
   var cashField = _cdmType === 'seller' ? 'sellerIsCash' : 'buyerIsCash';
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', _cdmBuyerUid), {
@@ -6453,7 +6533,7 @@ window.saveContractDates = saveContractDates;
 
 async function clearContractDates(uid, type) {
   if (!confirm('Remove ' + type + ' transaction timeline for this client?')) return;
-  var updateField = type === 'seller' ? 'sellerContractDates' : 'buyerContractDates';
+  var updateField = type === 'seller' ? 'sellerContractDates' : type === 'mortgage' ? 'mortgageContractDates' : 'buyerContractDates';
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), {
       [updateField]: null,
@@ -6526,6 +6606,26 @@ function renderTxnTimeline() {
       if (buyerList) buyerList.innerHTML = BUYER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, buyerDates, today, 'buyer'); }).join('');
     } else {
       buyerCard.style.display = 'none';
+    }
+  }
+
+  // ── MORTGAGE timeline ──
+  var mortCard = document.getElementById('txn-mortgage-card');
+  var mortList = document.getElementById('txn-mortgage-list');
+  var mortDates = userProfile && userProfile.mortgageContractDates;
+  var mortHasDates = mortDates && Object.keys(mortDates).some(function(k){ return mortDates[k]; });
+  if (mortCard) {
+    if (mortHasDates) {
+      mortCard.style.display = 'block';
+      var mClosing = mortDates.closingDate ? new Date(mortDates.closingDate+'T12:00:00') : null;
+      var mHeadline = document.getElementById('txn-mortgage-headline');
+      if (mHeadline && mClosing) {
+        var mdc = Math.ceil((mClosing-today)/86400000);
+        mHeadline.textContent = mdc > 0 ? mdc+' days to closing' : mdc===0 ? 'Closing Today! 🎉' : 'Closed!';
+      }
+      if (mortList) mortList.innerHTML = MORTGAGE_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, mortDates, today, 'mortgage'); }).join('');
+    } else {
+      mortCard.style.display = 'none';
     }
   }
 
