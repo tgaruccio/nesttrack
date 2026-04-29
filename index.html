@@ -10259,6 +10259,50 @@ async function submitPublicOffer(listingId) {
         if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
       }
     } catch(asErr){ console.log('Auto-send err:',asErr.message); }
+    // Notify listing agent that offer was received
+    try {
+      var lData = (await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId))).data();
+      if (lData && lData.agentId) {
+        // Look up agent email from DEFAULT_AGENTS
+        var agentRec = (typeof DEFAULT_AGENTS !== 'undefined' ? DEFAULT_AGENTS : [])
+          .find(function(a){ return a.id === lData.agentId; });
+        var agentEmail = agentRec && agentRec.email ? agentRec.email : null;
+        // Also try Firestore agents collection
+        if (!agentEmail) {
+          var aSnap = await fb.getDoc(fb.doc(fb.db,'agents',lData.agentId));
+          if (aSnap.exists() && aSnap.data().email) agentEmail = aSnap.data().email;
+        }
+        if (agentEmail) {
+          var alertHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
+            +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
+            +'<div style="font-size:20px;font-weight:300;color:#fff;">New Offer Received</div>'
+            +'<div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:2px;">'
+            +partnerEsc(lData.address||'')+'</div>'
+            +'</div>'
+            +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+            +'<p style="font-size:15px;color:#1a1a1a;margin:0 0 14px;">A new offer has been submitted on your listing:</p>'
+            +'<div style="background:#f0fdf4;border-radius:8px;padding:14px 16px;margin-bottom:14px;">'
+            +'<div style="font-size:24px;font-weight:700;color:#065F46;">'+(data.offerPrice||'—')+'</div>'
+            +'<div style="font-size:12px;color:#065F46;margin-top:2px;">Offered Price</div>'
+            +'</div>'
+            +'<div style="font-size:13px;color:#444;line-height:1.6;margin-bottom:14px;">'
+            +'<strong>Financing:</strong> '+(data.financingType||'—')+'<br/>'
+            +'<strong>Closing Date:</strong> '+(data.closingDate||'—')+'<br/>'
+            +'<strong>Submitted by:</strong> '+partnerEsc(data.agentName||'—')+(data.agentBrokerage?' — '+partnerEsc(data.agentBrokerage):'')+'<br/>'
+            +(data.agentPhone?'<strong>Phone:</strong> '+partnerEsc(data.agentPhone)+'<br/>':'')
+            +(data.agentEmail?'<strong>Email:</strong> '+partnerEsc(data.agentEmail)+'<br/>':'')
+            +'</div>'
+            +'<p style="font-size:13px;color:#888;margin:0;">Log in to Nest Track to review, compare, and respond to this offer.</p>'
+            +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+            +'<div style="font-size:12px;color:#aaa;">Sent via Nest Track Offer Portal</div>'
+            +'</div></div>';
+          await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+            body:JSON.stringify({to:agentEmail,
+              subject:'New Offer Received — '+partnerEsc(lData.address||''),
+              html:alertHtml})});
+        }
+      }
+    } catch(alertErr){ console.log('Agent alert err:',alertErr.message); }
     // Replace entire inner with success screen
     var inner = document.getElementById('offer-submit-inner');
     if (inner) {
