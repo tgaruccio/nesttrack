@@ -518,6 +518,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
     <button class="nb" data-pg="idx" onclick="go('idx',this)">🔍 Home Search</button>
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
+    <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('offers');closeSidebar()">📋 Offer Manager</button>
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
     <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
     <div class="ns">Client View</div>
@@ -1106,6 +1107,12 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:24px;">📧</span>
       <span style="font-size:13px;font-weight:600;color:var(--blue-dk);">Send Pre-Approval</span>
       <span style="font-size:11px;color:var(--blue-dk);opacity:0.85;">Email link to client</span>
+    </button>
+
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('offers')" style="background:#F0FDF4;border:1.5px solid #6EE7B7;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">📋</span>
+      <span style="font-size:13px;font-weight:600;color:#065F46;">Offer Manager</span>
+      <span style="font-size:11px;color:#065F46;opacity:0.85;" id="ad-offers-count">Manage offers</span>
     </button>
 
     <button onclick="openReferralModal()" style="background:#FEF3E2;border:1.5px solid #F5C97A;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
@@ -1854,6 +1861,13 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- PUBLIC OFFER SUBMISSION PAGE                       -->
+<!-- ═══════════════════════════════════════════════════ -->
+<div class="page" id="page-offer-submit" style="display:none;padding:0;">
+  <div id="offer-submit-inner" style="max-width:640px;margin:0 auto;padding:0 0 40px;"></div>
+</div>
+
 <!-- PARTNERS -->
 <div class="page" id="page-partners">
   <div class="ph"><div class="pt">Preferred Partners</div><span id="partners-agent-label" style="font-size:12px;color:var(--text2);">Curated by your agent</span></div>
@@ -1926,6 +1940,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-buyers" onclick="switchAgentTab('buyers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Clients</button>
     <button id="agent-tab-chat" onclick="switchAgentTab('chat')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Messages <span id="agent-chat-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;">!</span></button>
     <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Partners</button>
+    <button id="agent-tab-offers" onclick="switchAgentTab('offers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Offers <span id="offers-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;margin-left:2px;"></span></button>
     <button id="agent-tab-profile" onclick="switchAgentTab('profile')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">My Profile</button>
   </div>
 
@@ -1944,6 +1959,11 @@ textarea{resize:vertical;min-height:68px;}
   <!-- PARTNERS TAB -->
   <div id="agent-partners-panel" style="display:none;flex-direction:column;gap:12px;">
     <div id="agent-partners-editor"></div>
+  </div>
+
+  <!-- OFFERS TAB -->
+  <div id="agent-offers-panel" style="display:none;flex-direction:column;gap:12px;">
+    <div id="agent-offers-editor"></div>
   </div>
 
   <!-- PROFILE TAB -->
@@ -2225,6 +2245,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebas
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+import { getStorage, ref as storageRef, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY",
@@ -2241,9 +2262,10 @@ const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 const rtdb = getDatabase(fbApp);
+const storage = getStorage(fbApp);
 
 // Expose for non-module code
-window.fb = { auth, db, rtdb, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail };
+window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -2595,6 +2617,9 @@ window.addEventListener('firebase-ready', () => {
   });
 
   // Auth listener
+  // Check for public offer page hash FIRST before auth
+  if (checkOfferHash()) return;
+
   fb.onAuthStateChanged(fb.auth, async user => {
     if (user) {
       currentUser = user;
@@ -3089,6 +3114,7 @@ async function showApp() {
   buildMortgageDropdown();
   if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();} }
   await loadAgentPartners(userProfile.agentId||'tom');
+  if (isAgent) runSilentPurge();
   setupChatHead();
   watchChat();
   if (isAgent) loadAgentDocs();
@@ -5926,10 +5952,10 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel');
-  [bb,cb,pb,ptb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel');
+  [bb,cb,pb,ptb,otb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp,otp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -5958,6 +5984,10 @@ function switchAgentTab(tab) {
         }
       }
     }
+  } else if (tab==='offers') {
+    if (otb) { otb.style.background='var(--green)'; otb.style.color='#fff'; }
+    if (otp) otp.style.display='flex';
+    renderOfferManager();
   } else if (tab==='partners') {
     if (ptb) { ptb.style.background='var(--green)'; ptb.style.color='#fff'; }
     if (ptp) ptp.style.display='flex';
@@ -9074,6 +9104,840 @@ function showBrowserNotification(title, body) {
   } catch(e) {}
 }
 window.showBrowserNotification = showBrowserNotification;
+
+
+// ═══════════════════════════════════════════════════════
+// OFFER MANAGEMENT SYSTEM
+// ═══════════════════════════════════════════════════════
+
+var _listings = []; // agent's active listings with offers
+
+// ── Default offer fields ──
+var DEFAULT_OFFER_FIELDS = [
+  {key:'offerPrice',     label:'Offer Price',                    type:'currency', required:true},
+  {key:'downPayment',    label:'Down Payment',                   type:'currency', required:false},
+  {key:'financingType',  label:'Financing Type',                 type:'select',   options:['Cash','Conventional','FHA','VA','USDA','Other'], required:true},
+  {key:'inspectionCont', label:'Inspection Contingency',         type:'select',   options:['Yes','No'], required:true},
+  {key:'inspectionDays', label:'Inspection Days',                type:'number',   required:false},
+  {key:'financingCont',  label:'Financing Contingency',          type:'select',   options:['Yes','No'], required:true},
+  {key:'appraisalCont',  label:'Appraisal Contingency',          type:'select',   options:['Yes','No'], required:true},
+  {key:'closingDate',    label:'Requested Closing Date',         type:'date',     required:true},
+  {key:'escalation',     label:'Escalation Clause',              type:'select',   options:['Yes','No'], required:false},
+  {key:'escalationMax',  label:'Escalation Max Price',           type:'currency', required:false},
+  {key:'closingCosts',   label:'Closing Cost Assistance ($)',    type:'currency', required:false},
+  {key:'buyerAgentComm', label:'Buyer Agent Commission (%)',     type:'text',     required:false},
+  {key:'expiration',     label:'Offer Expiration',               type:'datetime', required:false},
+  {key:'agentName',      label:'Submitting Agent Name',          type:'text',     required:true},
+  {key:'agentBrokerage', label:'Brokerage',                      type:'text',     required:true},
+  {key:'agentPhone',     label:'Agent Phone',                    type:'tel',      required:true},
+  {key:'agentEmail',     label:'Agent Email',                    type:'email',    required:true},
+  {key:'notes',          label:'Notes / Cover Letter',           type:'textarea', required:false},
+];
+
+var OFFER_STATUSES = ['Received','Under Review','Countered','Accepted','Rejected'];
+var STATUS_COLORS  = {
+  'Received':     {bg:'#EFF6FF',color:'#1D4ED8',border:'#BFDBFE'},
+  'Under Review': {bg:'#FFFBEB',color:'#92400E',border:'#FCD34D'},
+  'Countered':    {bg:'#FEF3E2',color:'#92400E',border:'#F5C97A'},
+  'Accepted':     {bg:'#ECFDF5',color:'#065F46',border:'#6EE7B7'},
+  'Rejected':     {bg:'#FEF2F2',color:'#991B1B',border:'#FCA5A5'},
+};
+
+// ── Load listings for this agent ──
+async function loadListings() {
+  var agentId = (userProfile && userProfile.agentId) || 'tom';
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db, 'offer_listings'),
+      fb.where('agentId','==',agentId),
+      fb.where('active','==',true)
+    ));
+    _listings = [];
+    snap.forEach(function(d){ _listings.push(Object.assign({id:d.id},d.data())); });
+  } catch(e) { console.log('loadListings:',e.message); _listings = []; }
+}
+window.loadListings = loadListings;
+
+// ── Render offers tab in agent backend ──
+async function renderOfferManager() {
+  var el = document.getElementById('agent-offers-editor');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+  await loadListings();
+  var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
+    + '<div style="font-size:14px;font-weight:500;flex:1;">Offer Management</div>'
+    + '<button class="btn btn-sm btn-g" onclick="openNewListingModal()">+ New Listing</button>' + '<button class="btn btn-sm" onclick="manualPurge()" style="font-size:11px;">&#x1F5D1; Purge Old (120d)</button>'
+    + '</div>';
+  if (!_listings.length) {
+    html += '<div class="notice">No active listings yet. Create one to generate an offer submission link.</div>';
+  } else {
+    html += _listings.map(function(l) {
+      var offerCount = l.offerCount || 0;
+      var badge = offerCount > 0
+        ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;">'+offerCount+' offer'+(offerCount!==1?'s':'')+'</span>'
+        : '<span style="font-size:11px;color:var(--text3);margin-left:6px;">No offers yet</span>';
+      var link = location.origin + location.pathname + '#offer=' + l.code;
+      return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
+        + '<div style="display:flex;align-items:flex-start;gap:10px;">'
+        + (l.photoUrl ? '<img src="'+l.photoUrl+'" style="width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>' : '<div style="width:60px;height:60px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🏠</div>')
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:14px;font-weight:600;color:var(--text);">'+partnerEsc(l.address)+'</div>'
+        + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(l.clientName||'')+'</div>'
+        + '<div style="margin-top:4px;">'+badge+'</div>'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">'
+        + '<button class="btn btn-sm btn-g" onclick="viewOffers(\''+l.id+'\')">📋 View Offers</button>'
+        + '<button class="btn btn-sm" onclick="copyOfferLink(\''+encodeURIComponent(link)+'\')">🔗 Copy Link</button>'
+        + '<button class="btn btn-sm" onclick="openEditListingModal(\''+l.id+'\')">✏️ Edit</button>'
+        + '<button class="btn btn-sm" onclick="archiveListing(\''+l.id+'\')" style="color:#E24B4A;">Archive</button>'
+        + '</div></div></div></div>';
+    }).join('');
+  }
+  el.innerHTML = html;
+}
+window.renderOfferManager = renderOfferManager;
+
+function copyOfferLink(encoded) {
+  var link = decodeURIComponent(encoded);
+  navigator.clipboard.writeText(link).then(function(){ alert('Link copied to clipboard!'); }).catch(function(){ prompt('Copy this link:', link); });
+}
+window.copyOfferLink = copyOfferLink;
+
+// ── New / Edit Listing Modal ──
+function openNewListingModal() { openListingModal(null); }
+window.openNewListingModal = openNewListingModal;
+
+function openEditListingModal(id) {
+  var l = _listings.find(function(x){ return x.id===id; });
+  openListingModal(l);
+}
+window.openEditListingModal = openEditListingModal;
+
+function openListingModal(l) {
+  var isEdit = !!l;
+  var existingFields = l && l.customFields ? l.customFields : DEFAULT_OFFER_FIELDS.map(function(f){ return Object.assign({},f); });
+  var fieldRows = existingFields.map(function(f,i) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);" id="lf-row-'+i+'">'
+      + '<div style="flex:1;font-size:12px;color:var(--text);">'+partnerEsc(f.label)+'</div>'
+      + '<span style="font-size:10px;color:var(--text3);">'+f.type+'</span>'
+      + '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">'
+      + '<input type="checkbox" '+(f.required?'checked':'')+' data-fi="'+i+'" class="lf-req"/> Req</label>'
+      + '<button onclick="removeListingField('+i+')" style="background:none;border:none;color:#E24B4A;cursor:pointer;font-size:14px;padding:0 4px;">✕</button>'
+      + '</div>';
+  }).join('');
+
+  var buyers = (myBuyers||allBuyers||[]).filter(function(b){ return b.journeyType==='seller'||b.journeyType==='both'; });
+  var buyerOpts = buyers.map(function(b){
+    var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
+    return '<option value="'+b.uid+'"'+(l&&l.clientUid===b.uid?' selected':'')+'>'+partnerEsc(n)+'</option>';
+  }).join('');
+
+  var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;" id="listing-modal-overlay">'
+    + '<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">'
+    + '<div style="font-weight:600;font-size:15px;">'+(isEdit?'Edit Listing':'New Listing')+'</div>'
+    + '<button onclick="document.getElementById(\'listing-modal-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);">&#x2715;</button>'
+    + '</div>'
+    + '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px;">'
+    + '<div><label class="flabel">Property Address</label><input type="text" id="lm-address" placeholder="123 Maple St, Avon Lake, OH 44012" value="'+partnerEsc(l?l.address||'':'')+'"/></div>'
+    + '<div><label class="flabel">Property Photo URL (optional)</label><input type="url" id="lm-photo" placeholder="https://..." value="'+partnerEsc(l?l.photoUrl||'':'')+'"/></div>'
+    + '<div><label class="flabel">Listing Price (optional)</label><input type="text" id="lm-price" placeholder="$450,000" value="'+partnerEsc(l?l.listPrice||'':'')+'"/></div>'
+    + '<div><label class="flabel">Link to Seller Client</label>'
+    + '<select id="lm-client"><option value="">— Select seller client —</option>'+buyerOpts+'</select></div>'
+    + '<div><label class="flabel">Offer Deadline (optional)</label><input type="datetime-local" id="lm-deadline" value="'+partnerEsc(l?l.deadline||'':'')+'"/></div>'
+    + '<div>'
+    + '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Offer Form Fields</div>'
+    + '<div id="lm-fields">'+fieldRows+'</div>'
+    + '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">'
+    + '<select id="lm-add-field-type" style="font-size:12px;"><option value="text">Text</option><option value="currency">Currency</option><option value="number">Number</option><option value="date">Date</option><option value="select">Yes/No</option><option value="textarea">Long Text</option></select>'
+    + '<input type="text" id="lm-add-field-label" placeholder="Field label..." style="flex:1;font-size:12px;"/>'
+    + '<button class="btn btn-sm" onclick="addListingField()">+ Add Field</button>'
+    + '</div></div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">'
+    + '<button class="btn" onclick="document.getElementById(\'listing-modal-overlay\').remove()">Cancel</button>'
+    + '<button class="btn btn-g" onclick="saveListing(\''+( isEdit?l.id:'')+'\')">Save Listing</button>'
+    + '</div></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  // Store working fields
+  window._lmFields = existingFields.map(function(f){ return Object.assign({},f); });
+}
+window.openListingModal = openListingModal;
+
+function addListingField() {
+  var label = document.getElementById('lm-add-field-label').value.trim();
+  var type  = document.getElementById('lm-add-field-type').value;
+  if (!label) { alert('Enter a field label first.'); return; }
+  var key = 'custom_' + Date.now();
+  var f = {key:key, label:label, type:type, required:false};
+  window._lmFields = window._lmFields || [];
+  var i = window._lmFields.length;
+  window._lmFields.push(f);
+  var row = document.createElement('div');
+  row.id = 'lf-row-'+i;
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);';
+  row.innerHTML = '<div style="flex:1;font-size:12px;color:var(--text);">'+partnerEsc(label)+'</div>'
+    + '<span style="font-size:10px;color:var(--text3);">'+type+'</span>'
+    + '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);">'
+    + '<input type="checkbox" data-fi="'+i+'" class="lf-req"/> Req</label>'
+    + '<button onclick="removeListingField('+i+')" style="background:none;border:none;color:#E24B4A;cursor:pointer;font-size:14px;padding:0 4px;">&#x2715;</button>';
+  document.getElementById('lm-fields').appendChild(row);
+  document.getElementById('lm-add-field-label').value = '';
+}
+window.addListingField = addListingField;
+
+function removeListingField(i) {
+  var row = document.getElementById('lf-row-'+i);
+  if (row) row.remove();
+  if (window._lmFields && window._lmFields[i]) window._lmFields[i]._removed = true;
+}
+window.removeListingField = removeListingField;
+
+async function saveListing(existingId) {
+  var address = document.getElementById('lm-address').value.trim();
+  var photoUrl = document.getElementById('lm-photo').value.trim();
+  var listPrice = document.getElementById('lm-price').value.trim();
+  var clientUid = document.getElementById('lm-client').value;
+  var deadline = document.getElementById('lm-deadline').value;
+  if (!address) { alert('Property address is required.'); return; }
+
+  // Gather fields + required state
+  var fields = (window._lmFields||DEFAULT_OFFER_FIELDS.map(function(f){ return Object.assign({},f); }))
+    .filter(function(f){ return !f._removed; })
+    .map(function(f,i) {
+      var cb = document.querySelector('.lf-req[data-fi="'+i+'"]');
+      return Object.assign({},f, {required: cb ? cb.checked : f.required});
+    });
+
+  var clientName = '';
+  if (clientUid) {
+    var buyer = (myBuyers||allBuyers||[]).find(function(b){ return b.uid===clientUid; });
+    if (buyer) clientName = ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email;
+  }
+
+  var code = existingId ? (_listings.find(function(l){ return l.id===existingId; })||{}).code : Math.random().toString(36).substring(2,8).toUpperCase();
+  var data = {
+    address:address, photoUrl:photoUrl, listPrice:listPrice,
+    clientUid:clientUid, clientName:clientName, deadline:deadline,
+    agentId: userProfile.agentId||'tom', code:code||Math.random().toString(36).substring(2,8).toUpperCase(),
+    customFields:fields, active:true, createdAt:fb.serverTimestamp(),
+    offerCount:0,
+  };
+
+  try {
+    if (existingId) {
+      await fb.updateDoc(fb.doc(fb.db,'offer_listings',existingId), data);
+    } else {
+      await fb.addDoc(fb.collection(fb.db,'offer_listings'), data);
+    }
+    var ov = document.getElementById('listing-modal-overlay');
+    if (ov) ov.remove();
+    await renderOfferManager();
+  } catch(e) { alert('Failed to save listing: '+e.message); }
+}
+window.saveListing = saveListing;
+
+async function archiveListing(id) {
+  if (!confirm('Archive this listing? This will delete all offer data and cannot be undone.')) return;
+  try {
+    // Delete all offers in subcollection
+    var offersSnap = await fb.getDocs(fb.collection(fb.db,'offer_listings',id,'offers'));
+    var delPromises = [];
+    offersSnap.forEach(function(d) {
+      // Delete PDF from storage if exists
+      if (d.data().pdfPath) {
+        try { delPromises.push(fb.deleteObject(fb.storageRef(fb.storage, d.data().pdfPath))); } catch(e){}
+      }
+      delPromises.push(fb.deleteDoc(fb.doc(fb.db,'offer_listings',id,'offers',d.id)));
+    });
+    await Promise.all(delPromises);
+    // Delete listing doc itself
+    await fb.deleteDoc(fb.doc(fb.db,'offer_listings',id));
+    await renderOfferManager();
+  } catch(e) { alert('Failed to archive: '+e.message); }
+}
+window.archiveListing = archiveListing;
+
+// ── Auto-cleanup: purge listings archived/closed > 120 days ago ──
+async function purgeOldListings() {
+  var now          = new Date();
+  var cutoff120    = new Date(now); cutoff120.setDate(cutoff120.getDate() - 120);
+  var cutoff365    = new Date(now); cutoff365.setDate(cutoff365.getDate() - 365);
+  var agentId      = (userProfile && userProfile.agentId) || 'tom';
+  var fullDeleted  = 0;
+  var pdfsDeleted  = 0;
+
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db, 'offer_listings'),
+      fb.where('agentId', '==', agentId)
+    ));
+
+    for (var i = 0; i < snap.docs.length; i++) {
+      var d       = snap.docs[i];
+      var data    = d.data();
+      var lid     = d.id;
+      var created = data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null;
+      var closing = data.closingDate ? new Date(data.closingDate) : null;
+
+      // ── RULE 1: Archived listings → already deleted immediately on archive ──
+      // (archiveListing handles this — nothing to do here for active:false)
+
+      if (data.active) {
+        // ── RULE 2: Active + has offers + closing date > 120 days past ──
+        // Delete PDFs only, keep listing and offer documents
+        var offSnap = await fb.getDocs(fb.collection(fb.db, 'offer_listings', lid, 'offers'));
+        var offerCount = offSnap.size;
+
+        if (offerCount > 0 && closing && closing < cutoff120) {
+          var pdfDelPromises = [];
+          offSnap.forEach(function(od) {
+            if (od.data().pdfPath) {
+              try {
+                pdfDelPromises.push(
+                  fb.deleteObject(fb.storageRef(fb.storage, od.data().pdfPath))
+                  .catch(function(e){ console.log('PDF delete skipped:', e.message); })
+                );
+                // Clear pdfPath and pdfUrl on the offer doc
+                pdfDelPromises.push(
+                  fb.updateDoc(fb.doc(fb.db, 'offer_listings', lid, 'offers', od.id),
+                    {pdfPath:'', pdfUrl:''})
+                );
+              } catch(e){}
+            }
+          });
+          if (pdfDelPromises.length) {
+            await Promise.all(pdfDelPromises);
+            pdfsDeleted++;
+          }
+        }
+
+        // ── RULE 3: Active + no offers + created > 365 days ago ──
+        // Full delete — clearly abandoned
+        if (offerCount === 0 && created && created < cutoff365) {
+          await fb.deleteDoc(fb.doc(fb.db, 'offer_listings', lid));
+          fullDeleted++;
+        }
+      }
+    }
+
+    return { fullDeleted: fullDeleted, pdfsDeleted: pdfsDeleted };
+  } catch(e) {
+    console.log('purgeOldListings error:', e.message);
+    return { fullDeleted: 0, pdfsDeleted: 0 };
+  }
+}
+window.purgeOldListings = purgeOldListings;
+
+// Run silently on agent login — no alerts, no interruption
+async function runSilentPurge() {
+  if (!isAgent) return;
+  try {
+    var result = await purgeOldListings();
+    if (result.fullDeleted > 0 || result.pdfsDeleted > 0) {
+      console.log('Auto-purge: ' + result.fullDeleted + ' listing(s) deleted, ' + result.pdfsDeleted + ' PDF set(s) cleared.');
+    }
+  } catch(e) {}
+}
+window.runSilentPurge = runSilentPurge;
+
+async function manualPurge() {
+  if (!confirm('Run cleanup now?\n\n• Active listings with offers where closing date is 120+ days past: PDFs deleted, listing kept\n• Active listings with no offers created 365+ days ago: fully deleted\n• Archived listings are deleted immediately when archived\n\nThis cannot be undone.')) return;
+  var btn = event && event.target;
+  if (btn) btn.disabled = true;
+  var result = await purgeOldListings();
+  var msg = [];
+  if (result.fullDeleted)  msg.push(result.fullDeleted + ' abandoned listing(s) fully deleted');
+  if (result.pdfsDeleted)  msg.push(result.pdfsDeleted + ' listing(s) had PDFs cleared');
+  if (!msg.length)         msg.push('Nothing needed cleanup — all listings are within thresholds');
+  alert(msg.join('\n'));
+  if (btn) btn.disabled = false;
+  await renderOfferManager();
+}
+window.manualPurge = manualPurge;
+
+
+// ── View offers for a listing ──
+var _currentListingId = null;
+async function viewOffers(listingId) {
+  _currentListingId = listingId;
+  var listing = _listings.find(function(l){ return l.id===listingId; });
+  if (!listing) return;
+  var el = document.getElementById('agent-offers-editor');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center;">Loading offers...</div>';
+
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'offer_listings',listingId,'offers'),
+      fb.orderBy('submittedAt','desc')
+    ));
+    var offers = [];
+    snap.forEach(function(d){ offers.push(Object.assign({id:d.id},d.data())); });
+
+    var html = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">'
+      + '<button class="btn btn-sm" onclick="renderOfferManager()">&#8592; Back</button>'
+      + '<div style="flex:1;font-size:14px;font-weight:600;">'+partnerEsc(listing.address)+'</div>'
+      + (offers.length > 1 ? '<button class="btn btn-sm btn-g" onclick="showOfferComparison(\''+listingId+'\')">&#9776; Compare All</button>' : '')
+      + '</div>';
+
+    if (listing.deadline) {
+      var dl = new Date(listing.deadline);
+      var now = new Date();
+      var diff = Math.ceil((dl-now)/3600000);
+      var dlStr = dl.toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+      html += '<div style="padding:10px 14px;border-radius:var(--r);margin-bottom:12px;background:'+(diff<0?'#FEF2F2':diff<24?'#FFFBEB':'#ECFDF5')+';border:1px solid '+(diff<0?'#FCA5A5':diff<24?'#FCD34D':'#6EE7B7')+';font-size:13px;color:'+(diff<0?'#991B1B':diff<24?'#92400E':'#065F46')+';"><strong>Offer Deadline:</strong> '+dlStr+(diff<0?' — <strong>Deadline Passed</strong>':diff<24?' — <strong>'+diff+'h remaining</strong>':'')+'</div>';
+    }
+
+    if (!offers.length) {
+      html += '<div class="notice">No offers submitted yet. Share the link with buyer agents.</div>';
+      var link = location.origin + location.pathname + '#offer=' + listing.code;
+      html += '<div style="background:var(--surface2);border-radius:var(--r);padding:12px 14px;">'
+        + '<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Offer submission link:</div>'
+        + '<div style="font-size:13px;color:var(--green-dk);word-break:break-all;">'+link+'</div>'
+        + '<button class="btn btn-sm btn-g" style="margin-top:8px;" onclick="copyOfferLink(\''+encodeURIComponent(link)+'\')">Copy Link</button>'
+        + '</div>';
+    } else {
+      html += offers.map(function(o) {
+        var sc = STATUS_COLORS[o.status||'Received']||STATUS_COLORS['Received'];
+        var ts = o.submittedAt && o.submittedAt.toDate ? o.submittedAt.toDate().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : 'Just now';
+        return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
+          + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;">'
+          + '<div>'
+          + '<div style="font-size:15px;font-weight:700;color:var(--green-dk);">'+(o.offerPrice||'—')+'</div>'
+          + '<div style="font-size:12px;color:var(--text2);">'+partnerEsc(o.agentName||'')+(o.agentBrokerage?' · '+partnerEsc(o.agentBrokerage):'')+'</div>'
+          + '<div style="font-size:11px;color:var(--text3);">Submitted '+ts+'</div>'
+          + '</div>'
+          + '<select onchange="updateOfferStatus(\''+listingId+'\',\''+o.id+'\',this.value)" style="font-size:12px;padding:4px 8px;border-radius:20px;border:1.5px solid '+sc.border+';background:'+sc.bg+';color:'+sc.color+';font-weight:600;">'
+          + OFFER_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===(o.status||'Received')?' selected':'')+'>'+s+'</option>'; }).join('')
+          + '</select>'
+          + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px;margin-bottom:10px;">'
+          + offerDetailRow('Financing', o.financingType)
+          + offerDetailRow('Inspection', o.inspectionCont==='Yes' ? 'Yes — '+(o.inspectionDays||'?')+' days' : o.inspectionCont||'—')
+          + offerDetailRow('Financing Cont.', o.financingCont)
+          + offerDetailRow('Appraisal Cont.', o.appraisalCont)
+          + offerDetailRow('Closing Date', o.closingDate)
+          + offerDetailRow('Escalation', o.escalation==='Yes' ? 'Yes — max '+(o.escalationMax||'?') : o.escalation||'—')
+          + offerDetailRow('Closing Costs', o.closingCosts ? '$'+o.closingCosts : '—')
+          + offerDetailRow('Buyer Agent Comm.', o.buyerAgentComm ? o.buyerAgentComm+'%' : '—')
+          + offerDetailRow('Expires', o.expiration||'—')
+          + offerDetailRow('Agent Phone', o.agentPhone)
+          + offerDetailRow('Agent Email', o.agentEmail)
+          + '</div>'
+          + (o.notes ? '<div style="font-size:12px;color:var(--text2);background:var(--surface2);padding:8px 10px;border-radius:var(--r);margin-bottom:10px;font-style:italic;">'+partnerEsc(o.notes)+'</div>' : '')
+          + (o.pdfUrl ? '<a href="'+o.pdfUrl+'" target="_blank" class="btn btn-sm" style="margin-bottom:10px;">📄 View Offer PDF</a>' : '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">No PDF uploaded</div>')
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+          + '<button class="btn btn-sm btn-g" onclick="sendOfferToClient(\''+listingId+'\',\''+o.id+'\')">📤 Send to Client</button>'
+          + '<button class="btn btn-sm" onclick="openEditOfferModal(\''+listingId+'\',\''+o.id+'\')">✏️ Edit</button>'
+          + '</div></div>';
+      }).join('');
+    }
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<div class="notice">Error loading offers: '+e.message+'</div>'; }
+}
+window.viewOffers = viewOffers;
+
+function offerDetailRow(label, val) {
+  if (!val || val==='—') return '';
+  return '<div><span style="color:var(--text3);">'+label+':</span> <strong>'+partnerEsc(String(val))+'</strong></div>';
+}
+
+async function updateOfferStatus(listingId, offerId, status) {
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId), {status:status});
+  } catch(e) { alert('Failed to update status: '+e.message); }
+}
+window.updateOfferStatus = updateOfferStatus;
+
+// ── Offer comparison view ──
+async function showOfferComparison(listingId) {
+  var el = document.getElementById('agent-offers-editor');
+  if (!el) return;
+  var listing = _listings.find(function(l){ return l.id===listingId; });
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center;">Loading comparison...</div>';
+  try {
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('offerPriceNum','desc')));
+    var offers = [];
+    snap.forEach(function(d){ offers.push(Object.assign({id:d.id},d.data())); });
+
+    var compareFields = [
+      {key:'offerPrice',     label:'Offer Price'},
+      {key:'financingType',  label:'Financing'},
+      {key:'downPayment',    label:'Down Payment'},
+      {key:'inspectionCont', label:'Inspection'},
+      {key:'financingCont',  label:'Financing Cont.'},
+      {key:'appraisalCont',  label:'Appraisal Cont.'},
+      {key:'closingDate',    label:'Closing Date'},
+      {key:'escalation',     label:'Escalation'},
+      {key:'closingCosts',   label:'Closing Costs'},
+      {key:'buyerAgentComm', label:'Buyer Agent Comm.'},
+      {key:'expiration',     label:'Expires'},
+    ];
+
+    // Find best price for highlighting
+    var prices = offers.map(function(o){ return parseFloat((o.offerPrice||'0').replace(/[^0-9.]/g,'')); });
+    var maxPrice = Math.max.apply(null, prices);
+    var minPrice = Math.min.apply(null, prices);
+
+    var html = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">'
+      + '<button class="btn btn-sm" onclick="viewOffers(\''+listingId+'\')">&#8592; Back to Offers</button>'
+      + '<div style="flex:1;font-size:14px;font-weight:600;">Compare Offers — '+partnerEsc(listing?listing.address:'')+'</div>'
+      + '</div>'
+      + '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+      + '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+      + '<thead><tr>'
+      + '<th style="text-align:left;padding:8px;background:var(--surface2);border:0.5px solid var(--border);font-size:11px;color:var(--text3);white-space:nowrap;">Field</th>'
+      + offers.map(function(o,i){
+          var sc = STATUS_COLORS[o.status||'Received']||STATUS_COLORS['Received'];
+          return '<th style="text-align:center;padding:8px;background:var(--surface2);border:0.5px solid var(--border);min-width:130px;">'
+            + '<div style="font-size:12px;font-weight:600;">'+partnerEsc(o.agentName||'Offer '+(i+1))+'</div>'
+            + '<div style="font-size:10px;color:var(--text3);">'+partnerEsc(o.agentBrokerage||'')+'</div>'
+            + '<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:'+sc.bg+';color:'+sc.color+';border:1px solid '+sc.border+';">'+partnerEsc(o.status||'Received')+'</span>'
+            + '</th>';
+        }).join('')
+      + '</tr></thead><tbody>'
+      + compareFields.map(function(f) {
+          var vals = offers.map(function(o){ return o[f.key]||'—'; });
+          var anyVal = vals.some(function(v){ return v && v!=='—'; });
+          if (!anyVal) return '';
+          return '<tr>'
+            + '<td style="padding:7px 8px;border:0.5px solid var(--border);color:var(--text3);white-space:nowrap;background:var(--surface2);">'+f.label+'</td>'
+            + offers.map(function(o,i) {
+                var val = o[f.key]||'—';
+                var priceNum = parseFloat((o.offerPrice||'0').replace(/[^0-9.]/g,''));
+                var isTop = f.key==='offerPrice' && priceNum===maxPrice && offers.length>1;
+                var isLow = f.key==='offerPrice' && priceNum===minPrice && offers.length>1;
+                var bg = isTop ? '#ECFDF5' : isLow ? '#FEF2F2' : 'var(--surface)';
+                var fw = isTop || isLow ? '700' : '400';
+                var clr = isTop ? '#065F46' : isLow ? '#991B1B' : 'var(--text)';
+                return '<td style="padding:7px 8px;border:0.5px solid var(--border);text-align:center;background:'+bg+';color:'+clr+';font-weight:'+fw+';">'+partnerEsc(String(val))+'</td>';
+              }).join('')
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>'
+      + '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">'
+      + offers.map(function(o){
+          return '<button class="btn btn-sm btn-g" onclick="sendOfferToClient(\''+listingId+'\',\''+o.id+'\')">📤 Send '+partnerEsc(o.agentName||'Offer')+' to Client</button>';
+        }).join('')
+      + '</div>';
+
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = '<div class="notice">Error: '+e.message+'</div>'; }
+}
+window.showOfferComparison = showOfferComparison;
+
+// ── Edit offer modal ──
+async function openEditOfferModal(listingId, offerId) {
+  var snap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId));
+  if (!snap.exists()) return;
+  var o = snap.data();
+  var listing = _listings.find(function(l){ return l.id===listingId; });
+  var fields = (listing&&listing.customFields)||DEFAULT_OFFER_FIELDS;
+
+  var formFields = fields.map(function(f) {
+    var val = o[f.key]||'';
+    var input = '';
+    if (f.type==='select') {
+      var opts = (f.options||['Yes','No']).map(function(opt){ return '<option'+(opt===val?' selected':'')+'>'+opt+'</option>'; }).join('');
+      input = '<select id="eo-'+f.key+'">'+opts+'</select>';
+    } else if (f.type==='textarea') {
+      input = '<textarea id="eo-'+f.key+'">'+partnerEsc(val)+'</textarea>';
+    } else {
+      input = '<input type="'+(f.type==='currency'||f.type==='number'||f.type==='text'?'text':f.type)+'" id="eo-'+f.key+'" value="'+partnerEsc(val)+'"/>';
+    }
+    return '<div><label class="flabel">'+f.label+'</label>'+input+'</div>';
+  }).join('');
+
+  var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;" id="edit-offer-overlay">'
+    + '<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:500px;max-height:90vh;overflow-y:auto;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">'
+    + '<div style="font-weight:600;font-size:15px;">Edit Offer</div>'
+    + '<button onclick="document.getElementById(\'edit-offer-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;">&#x2715;</button>'
+    + '</div>'
+    + '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;">'
+    + formFields
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">'
+    + '<button class="btn" onclick="document.getElementById(\'edit-offer-overlay\').remove()">Cancel</button>'
+    + '<button class="btn btn-g" onclick="saveEditedOffer(\''+listingId+'\',\''+offerId+'\')">Save Changes</button>'
+    + '</div></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+window.openEditOfferModal = openEditOfferModal;
+
+async function saveEditedOffer(listingId, offerId) {
+  var listing = _listings.find(function(l){ return l.id===listingId; });
+  var fields = (listing&&listing.customFields)||DEFAULT_OFFER_FIELDS;
+  var updates = {};
+  fields.forEach(function(f) {
+    var el = document.getElementById('eo-'+f.key);
+    if (el) updates[f.key] = el.value.trim();
+  });
+  // Update price number for sorting
+  if (updates.offerPrice) updates.offerPriceNum = parseFloat(updates.offerPrice.replace(/[^0-9.]/g,''))||0;
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId), updates);
+    document.getElementById('edit-offer-overlay').remove();
+    viewOffers(listingId);
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.saveEditedOffer = saveEditedOffer;
+
+// ── Send offer summary to client ──
+async function sendOfferToClient(listingId, offerId) {
+  var listing = _listings.find(function(l){ return l.id===listingId; });
+  if (!listing || !listing.clientUid) { alert('No seller client linked to this listing.'); return; }
+
+  var snap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId));
+  if (!snap.exists()) return;
+  var o = snap.data();
+
+  var clientSnap = await fb.getDoc(fb.doc(fb.db,'users',listing.clientUid));
+  if (!clientSnap.exists()) { alert('Client not found.'); return; }
+  var client = clientSnap.data();
+  var clientEmail = client.email;
+  var clientFirst = client.firstName || 'there';
+
+  var agentName = (assignedAgent&&assignedAgent.name)||((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
+
+  var detailRows = [
+    ['Offer Price', o.offerPrice],
+    ['Financing Type', o.financingType],
+    ['Down Payment', o.downPayment],
+    ['Inspection Contingency', o.inspectionCont==='Yes' ? 'Yes — '+(o.inspectionDays||'?')+' days' : o.inspectionCont],
+    ['Financing Contingency', o.financingCont],
+    ['Appraisal Contingency', o.appraisalCont],
+    ['Requested Closing Date', o.closingDate],
+    ['Escalation Clause', o.escalation==='Yes' ? 'Yes — max '+(o.escalationMax||'?') : o.escalation],
+    ['Closing Cost Assistance', o.closingCosts ? '$'+o.closingCosts : null],
+    ['Buyer Agent Commission', o.buyerAgentComm ? o.buyerAgentComm+'%' : null],
+    ['Offer Expires', o.expiration],
+    ['Submitted By', o.agentName+(o.agentBrokerage?' — '+o.agentBrokerage:'')],
+  ].filter(function(r){ return r[1]; }).map(function(r){
+    return '<tr><td style="padding:7px 12px;border-bottom:1px solid #f4f4f4;color:#666;font-size:13px;white-space:nowrap;">'+r[0]+'</td>'
+      +'<td style="padding:7px 12px;border-bottom:1px solid #f4f4f4;font-size:13px;font-weight:600;color:#1a1a1a;">'+partnerEsc(r[1])+'</td></tr>';
+  }).join('');
+
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:22px;font-weight:300;color:#fff;">New Offer Received</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:3px;">'+partnerEsc(listing.address)+'</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+clientFirst+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">An offer has been submitted on your property. Here are the details:</p>'
+    +'<div style="background:#f9fafb;border-radius:8px;overflow:hidden;margin-bottom:20px;">'
+    +'<div style="background:#1D9E75;padding:10px 14px;"><div style="font-size:22px;font-weight:700;color:#fff;">'+(o.offerPrice||'—')+'</div><div style="font-size:11px;color:rgba(255,255,255,0.8);">Offered Price</div></div>'
+    +'<table width="100%" cellpadding="0" cellspacing="0">'+detailRows+'</table>'
+    +'</div>'
+    +(o.notes ? '<div style="padding:12px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#555;font-style:italic;margin-bottom:16px;line-height:1.6;">'+partnerEsc(o.notes)+'</div>' : '')
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 20px;">I will be in touch shortly to discuss next steps. Questions? Message me directly in your portal.</p>'
+    +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 14px;"/>'
+    +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
+    +'<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
+    +'</div></div>';
+
+  try {
+    // Email to client
+    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+      body:JSON.stringify({to:clientEmail, subject:'New Offer on '+listing.address, html:emailHtml})});
+    // Confirmation email to submitting agent
+    if (o.agentEmail) {
+      var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
+        +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
+        +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Submitted Successfully</div>'
+        +'</div>'
+        +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address)+'</strong> has been received and submitted to the seller.</p>'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">The listing agent will be in touch regarding next steps.</p>'
+        +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+        +'<div style="font-size:13px;color:#888;">'+agentName+' — The Garuccio Group</div>'
+        +'</div></div>';
+      await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+listing.address, html:confirmHtml})});
+    }
+    // Update offer status to Under Review
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
+    alert('Offer sent to '+clientFirst+'! Submitting agent also notified.');
+    viewOffers(listingId);
+  } catch(e) { alert('Failed to send: '+e.message); }
+}
+window.sendOfferToClient = sendOfferToClient;
+
+// ═══════════════════════════════════════════════════════
+// PUBLIC OFFER SUBMISSION PAGE
+// ═══════════════════════════════════════════════════════
+async function loadPublicOfferPage(code) {
+  var page = document.getElementById('page-offer-submit');
+  var inner = document.getElementById('offer-submit-inner');
+  if (!page || !inner) return;
+
+  // Show the page, hide main app
+  document.getElementById('app').style.display = 'none';
+  page.style.display = 'block';
+  inner.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#888;">Loading offer page...</div>';
+
+  try {
+    var q = fb.query(fb.collection(fb.db,'offer_listings'),fb.where('code','==',code),fb.where('active','==',true));
+    var snap = await fb.getDocs(q);
+    if (snap.empty) {
+      inner.innerHTML = offerPageShell('Offer Not Found','','','<div style="text-align:center;padding:40px 20px;color:#888;font-size:15px;">This offer link is no longer active or does not exist.<br/>Please contact the listing agent for assistance.</div>','');
+      return;
+    }
+    var listingDoc = snap.docs[0];
+    var listing = Object.assign({id:listingDoc.id}, listingDoc.data());
+    var fields = listing.customFields || DEFAULT_OFFER_FIELDS;
+
+    var deadline = '';
+    if (listing.deadline) {
+      var dl = new Date(listing.deadline);
+      var now = new Date();
+      if (dl < now) {
+        inner.innerHTML = offerPageShell(listing.address, listing.photoUrl, listing.listPrice, '<div style="text-align:center;padding:40px 20px;color:#991B1B;font-size:15px;"><strong>This offer deadline has passed.</strong><br/>Contact the listing agent for more information.</div>','');
+        return;
+      }
+      deadline = '<div style="background:#FFFBEB;border:1px solid #FCD34D;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400E;margin-bottom:16px;"><strong>&#9200; Offer Deadline:</strong> '+dl.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</div>';
+    }
+
+    var formHtml = fields.map(function(f) {
+      var req = f.required ? '<span style="color:#E24B4A;">*</span>' : '';
+      var input = '';
+      if (f.type==='select') {
+        var opts = (f.options||['Yes','No']).map(function(o){ return '<option value="'+o+'">'+o+'</option>'; });
+        input = '<select id="of-'+f.key+'" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;">'
+          + '<option value="">Select...</option>'+opts.join('')+'</select>';
+      } else if (f.type==='textarea') {
+        input = '<textarea id="of-'+f.key+'" rows="4" placeholder="Optional notes..." style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>';
+      } else {
+        var ph = f.type==='currency'?'e.g. $450,000':f.type==='date'?'':f.type==='tel'?'e.g. 440-555-0100':f.type==='email'?'agent@brokerage.com':'';
+        input = '<input type="'+(f.type==='currency'?'text':f.type)+'" id="of-'+f.key+'" placeholder="'+ph+'" style="width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;"/>';
+      }
+      return '<div style="margin-bottom:14px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">'+f.label+' '+req+'</label>'+input+'</div>';
+    }).join('');
+
+    var pdfSection = '<div style="margin-bottom:14px;">'
+      + '<label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Upload Offer PDF</label>'
+      + '<input type="file" id="of-pdf" accept=".pdf" style="width:100%;padding:8px;border:1.5px dashed #e5e7eb;border-radius:8px;font-size:13px;box-sizing:border-box;"/>'
+      + '<div style="font-size:11px;color:#aaa;margin-top:4px;">PDF upload requires Firebase Storage — enable in console to activate.</div>'
+      + '</div>';
+
+    var formBody = '<div style="padding:24px;">'
+      + '<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#1D9E75;border-bottom:2px solid #1D9E75;padding-bottom:6px;margin-bottom:16px;">Offer Details</div>'
+      + formHtml
+      + pdfSection
+      + '<button onclick="submitPublicOffer(\''+listingDoc.id+'\')" style="width:100%;background:#1D9E75;color:#fff;border:none;border-radius:30px;padding:14px;font-size:16px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:8px;">Submit Offer</button>'
+      + '<div id="of-status" style="display:none;text-align:center;padding:12px;font-size:14px;font-weight:500;margin-top:12px;border-radius:8px;"></div>'
+      + '<div style="font-size:11px;color:#aaa;text-align:center;margin-top:12px;line-height:1.6;">By submitting you confirm this is a bona fide offer. A confirmation will be sent to your email.</div>'
+      + '</div>';
+
+    inner.innerHTML = offerPageShell(listing.address, listing.photoUrl, listing.listPrice, deadline + formBody, listing.deadline);
+  } catch(e) {
+    inner.innerHTML = offerPageShell('Error','','','<div style="text-align:center;padding:40px;color:#E24B4A;">Error loading page: '+e.message+'</div>','');
+  }
+}
+window.loadPublicOfferPage = loadPublicOfferPage;
+
+function offerPageShell(address, photoUrl, listPrice, body, deadline) {
+  return '<div style="font-family:Georgia,serif;color:#1a1a1a;min-height:100vh;background:#f5f5f3;">'
+    // Header
+    + '<div style="background:#1D9E75;padding:0;">'
+    + '<div style="max-width:640px;margin:0 auto;padding:24px 20px 0;">'
+    + '<div style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Offer Submission</div>'
+    + '<div style="font-size:22px;font-weight:300;color:#fff;letter-spacing:-0.3px;">The Garuccio Group</div>'
+    + '</div>'
+    // Property photo / address card
+    + (photoUrl
+        ? '<div style="max-width:640px;margin:0 auto;padding:16px 20px 0;">'
+          + '<div style="border-radius:12px;overflow:hidden;position:relative;">'
+          + '<img src="'+photoUrl+'" style="width:100%;height:200px;object-fit:cover;display:block;"/>'
+          + '<div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:16px 16px 14px;">'
+          + '<div style="font-size:18px;font-weight:600;color:#fff;">'+partnerEsc(address)+'</div>'
+          + (listPrice ? '<div style="font-size:14px;color:rgba(255,255,255,0.85);margin-top:2px;">Listed at '+partnerEsc(listPrice)+'</div>' : '')
+          + '</div></div></div>'
+        : '<div style="max-width:640px;margin:0 auto;padding:16px 20px;">'
+          + '<div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:14px 16px;">'
+          + '<div style="font-size:18px;font-weight:600;color:#fff;">'+partnerEsc(address)+'</div>'
+          + (listPrice ? '<div style="font-size:14px;color:rgba(255,255,255,0.8);margin-top:2px;">Listed at '+partnerEsc(listPrice)+'</div>' : '')
+          + '</div></div>')
+    + '</div>'
+    // Form card
+    + '<div style="max-width:640px;margin:0 auto;padding:16px 16px 40px;">'
+    + '<div style="background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);overflow:hidden;">'
+    + body
+    + '</div>'
+    + '<div style="text-align:center;margin-top:20px;font-size:12px;color:#aaa;">Powered by Nest Track &mdash; The Garuccio Group</div>'
+    + '</div>'
+    + '</div>';
+}
+
+async function submitPublicOffer(listingId) {
+  var statusEl = document.getElementById('of-status');
+  var btn = document.querySelector('#offer-submit-inner button[onclick]');
+
+  // Gather values
+  var fields = DEFAULT_OFFER_FIELDS; // will use listing fields once loaded
+  var data = {submittedAt: fb.serverTimestamp(), status:'Received', pdfPath:'', pdfUrl:''};
+  var missing = [];
+
+  // Get all inputs
+  document.querySelectorAll('[id^="of-"]').forEach(function(el) {
+    var key = el.id.replace('of-','');
+    if (key === 'status' || key === 'pdf') return;
+    data[key] = el.value ? el.value.trim() : '';
+  });
+
+  // Validate required fields from DEFAULT
+  DEFAULT_OFFER_FIELDS.filter(function(f){ return f.required; }).forEach(function(f) {
+    if (!data[f.key]) missing.push(f.label);
+  });
+  if (missing.length) { alert('Please fill in: '+missing.join(', ')); return; }
+
+  // Add price as number for sorting
+  if (data.offerPrice) data.offerPriceNum = parseFloat(data.offerPrice.replace(/[^0-9.]/g,''))||0;
+
+  if (btn) btn.disabled = true;
+  if (statusEl) { statusEl.style.display='none'; }
+
+  try {
+    await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
+    // Increment offer count
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
+      offerCount: fb.increment(1)
+    });
+    if (statusEl) {
+      statusEl.style.display='block';
+      statusEl.style.background='#ECFDF5';
+      statusEl.style.color='#065F46';
+      statusEl.textContent='&#10003; Offer submitted successfully! A confirmation has been sent to '+data.agentEmail+'.';
+    }
+    // Clear form
+    document.querySelectorAll('[id^="of-"]').forEach(function(el){
+      if (el.tagName==='SELECT') el.selectedIndex=0;
+      else el.value='';
+    });
+    if (btn) btn.disabled = false;
+  } catch(e) {
+    if (statusEl) {
+      statusEl.style.display='block';
+      statusEl.style.background='#FEF2F2';
+      statusEl.style.color='#991B1B';
+      statusEl.textContent='Error: '+e.message;
+    }
+    if (btn) btn.disabled = false;
+  }
+}
+window.submitPublicOffer = submitPublicOffer;
+
+// Handle #offer=CODE in URL
+function checkOfferHash() {
+  var hash = window.location.hash;
+  var m = hash.match(/^#offer=([A-Z0-9]+)$/i);
+  if (m) {
+    loadPublicOfferPage(m[1]);
+    return true;
+  }
+  return false;
+}
+window.checkOfferHash = checkOfferHash;
 
 </script>
 </body>
