@@ -6455,26 +6455,71 @@ async function createInvite() {
     await fb.setDoc(fb.doc(fb.db, 'invites', code), inviteData);
     await fb.setDoc(fb.doc(fb.db, 'users', pendingUid), clientData);
 
-    var journeyLabel = _invJourneyType === 'both' ? 'buying and selling' : _invJourneyType === 'seller' ? 'selling your home' : 'buying a home';
-    var emailHtml = '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;">'
+    // ── Journey-specific content ──
+    var isBuyer  = _invJourneyType === 'buyer' || _invJourneyType === 'both';
+    var isSeller = _invJourneyType === 'seller' || _invJourneyType === 'both';
+    var subjectLine = first + (isBuyer && isSeller ? ', your real estate portal is ready 🏠🏡' : isBuyer ? ', your home buying portal is ready 🏠' : ', your home selling portal is ready 🏡');
+
+    // Feature tiles — shown based on journey
+    function fTile(icon, title, desc) {
+      return '<tr><td style="padding:10px 0;border-bottom:1px solid #f0f0f0;vertical-align:top;">'
+        + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+        + '<td width="36" style="vertical-align:top;padding-top:2px;font-size:22px;">' + icon + '</td>'
+        + '<td style="padding-left:12px;"><div style="font-size:14px;font-weight:600;color:#1a1a1a;margin-bottom:2px;">' + title + '</div>'
+        + '<div style="font-size:13px;color:#555;line-height:1.6;">' + desc + '</div></td>'
+        + '</tr></table></td></tr>';
+    }
+
+    var tiles = '';
+    if (isBuyer)  tiles += fTile('🗺️','Your Complete Home Buying Trail','Every step of the journey mapped out from first showing to closing day — each stage explained so you always know what\'s coming and what it means.');
+    if (isSeller) tiles += fTile('🏡','Your Home Selling Roadmap','From prepping your home to negotiating offers to handing over the keys — know what to expect at every stage before it happens.');
+    if (isBuyer)  tiles += fTile('🏦','The Mortgage Trail','Understand every step of the loan process in plain English — pre-approval through clear to close — so nothing catches you off guard.');
+    if (isBuyer)  tiles += fTile('🔍','Live Home Search','Search active listings directly in your portal. Save favorites, compare homes side by side, and take notes from tours.');
+    tiles += fTile('📚','Education Built In','Deep-dive explanations at every stage of your journey. What does "clear to close" mean? What\'s an appraisal contingency? It\'s all in there — ready when you need it.');
+    tiles += fTile('📁','Your Documents + Plain-English Explainer','All your transaction documents in one place, plus a built-in explainer for every doc you\'ll encounter — purchase agreements, inspection reports, title commitments — so you always know what you\'re signing.');
+    tiles += fTile('📅','Your Transaction Timeline','Once you\'re under contract, every deadline is tracked automatically — inspection, appraisal, financing, closing. Never miss a date.');
+    if (isSeller) tiles += fTile('💵','Net Sheet Calculator','See your actual estimated proceeds before you accept any offer. No surprises at closing.');
+    tiles += fTile('🤖','AI-Powered Tools','A full suite of smart tools at your fingertips — Mortgage Calculator, Offer Strategy Advisor, Red Flag Photo Analyzer, Neighborhood Intel, School District Lookup, Commute Calculator, and more.');
+    tiles += fTile('💬','Direct Chat with ' + agentName.split(' ')[0],'Message directly in the app. No texts lost in threads, no phone tag — everything in one place.');
+    tiles += fTile('👤','Your Team','Your agent, lender, and title company — all in one spot with one-tap call, text, or email.');
+
+    // Agent sign-off
+    var agentPhone = agentObj ? (agentObj.phone || '') : '440-754-7449';
+    var agentEmail = agentObj ? (agentObj.email || 'Tom@GaruccioGroup.com') : 'Tom@GaruccioGroup.com';
+    var agentFirst = agentName.split(' ')[0];
+
+    var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;">'
       + '<div style="background:#1D9E75;padding:28px 32px;border-radius:10px 10px 0 0;">'
-      + '<div style="font-size:26px;font-weight:300;color:#fff;">Nest Track</div>'
-      + '<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">Your personal real estate command center</div>'
+      + '<div style="font-size:26px;font-weight:300;color:#fff;letter-spacing:-0.5px;">Nest Track</div>'
+      + '<div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">The Garuccio Group — Your Personal Real Estate Portal</div>'
       + '</div>'
       + '<div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
-      + '<p style="font-size:17px;margin:0 0 16px;">Hi ' + first + ',</p>'
-      + '<p style="font-size:15px;color:#444;line-height:1.7;margin:0 0 16px;">' + agentName + ' has set up a personal Nest Track account for you to guide you through ' + journeyLabel + '. You will have a live transaction timeline, direct chat, educational resources, and more.</p>'
-      + '<div style="text-align:center;margin:28px 0;">'
-      + '<a href="' + link + '" style="background:#1D9E75;color:#fff;padding:14px 32px;border-radius:25px;font-size:16px;text-decoration:none;display:inline-block;">Set Up My Account</a>'
+      + '<p style="font-size:18px;font-weight:300;margin:0 0 16px;letter-spacing:-0.3px;">Hi ' + first + ',</p>'
+      + '<p style="font-size:15px;color:#444;line-height:1.75;margin:0 0 8px;">I set up a personal Nest Track portal specifically for you — everything you need in one place throughout this process. Here\'s what\'s waiting for you inside:</p>'
+      + '<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">' + tiles + '</table>'
+      + '<div style="text-align:center;margin:32px 0 24px;">'
+      + '<a href="' + link + '" style="background:#1D9E75;color:#fff;padding:16px 40px;border-radius:30px;font-size:16px;text-decoration:none;display:inline-block;letter-spacing:0.2px;">Open My Portal →</a>'
       + '</div>'
-      + '<p style="font-size:13px;color:#888;text-align:center;">Or copy this link: ' + link + '</p>'
+      + '<p style="font-size:13px;color:#aaa;text-align:center;margin:0 0 28px;">Or copy this link: <span style="color:#1D9E75;">' + link + '</span></p>'
+      + '<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 20px;"/>'
+      + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+      + '<td><div style="font-size:15px;font-weight:600;color:#1a1a1a;">' + agentName + '</div>'
+      + '<div style="font-size:12px;color:#888;margin-top:2px;">The Garuccio Group</div>'
+      + (agentPhone ? '<div style="font-size:13px;color:#555;margin-top:4px;">📞 ' + agentPhone + '</div>' : '')
+      + (agentEmail ? '<div style="font-size:13px;color:#1D9E75;margin-top:2px;">' + agentEmail + '</div>' : '')
+      + '</td></tr></table>'
       + '</div></div>';
 
+    // CC the assigned agent
+    var ccEmail = agentObj && agentObj.email ? agentObj.email : null;
+
     try {
+      var emailPayload = { to: email, subject: subjectLine, html: emailHtml };
+      if (ccEmail && ccEmail !== email) emailPayload.cc = ccEmail;
       await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-        body: JSON.stringify({ to: email, subject: agentName + ' invited you to Nest Track', html: emailHtml })
+        body: JSON.stringify(emailPayload)
       });
     } catch(emailErr) { console.log('Email failed:', emailErr); }
 
