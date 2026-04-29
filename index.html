@@ -9255,6 +9255,13 @@ function openListingModal(l) {
     + '<div><label class="flabel">Link to Seller Client</label>'
     + '<select id="lm-client"><option value="">— Select seller client —</option>'+buyerOpts+'</select></div>'
     + '<div><label class="flabel">Offer Deadline (optional)</label><input type="datetime-local" id="lm-deadline" value="'+partnerEsc(l?l.deadline||'':'')+'"/></div>'
+    + '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:8px 0 4px;">Net Sheet Defaults <span style="font-weight:400;text-transform:none;">(optional — used to auto-fill net sheet)</span></div>'
+    + '<div class="fg2">'
+    + '<div><label class="flabel">Listing Commission %</label><input type="number" id="lm-list-pct" placeholder="2.5" step="0.25" value="'+(l&&l.listPct?l.listPct:'')+'"/></div>'
+    + '<div><label class="flabel">Annual Property Taxes ($)</label><input type="number" id="lm-taxes" placeholder="6000" value="'+(l&&l.taxes?l.taxes:'')+'"/></div>'
+    + '<div><label class="flabel">County</label><select id="lm-county"><option value="cuyahoga"'+(l&&l.county==="cuyahoga"?' selected':'')+'>Cuyahoga</option><option value="lorain"'+(l&&l.county==="lorain"?' selected':'')+'>Lorain</option><option value="medina"'+(l&&l.county==="medina"?' selected':'')+'>Medina</option></select></div>'
+    + '<div><label class="flabel">Mortgage Balance ($)</label><input type="number" id="lm-mortgage" placeholder="0" value="'+(l&&l.mortgage?l.mortgage:'')+'"/></div>'
+    + '</div>'
     + '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--r);margin-top:2px;">'
     + '<input type="checkbox" id="lm-autosend" style="width:18px;height:18px;flex-shrink:0;"'+(l&&l.autoSend?' checked':'')+'/><div>'
     + '<div style="font-size:13px;font-weight:500;">Auto-send offers to seller</div>'
@@ -9344,12 +9351,16 @@ async function saveListing(existingId) {
   var code = existingId ? (_listings.find(function(l){ return l.id===existingId; })||{}).code : Math.random().toString(36).substring(2,8).toUpperCase();
   var autoSendEl = document.getElementById('lm-autosend');
   var autoSend = autoSendEl ? autoSendEl.checked : false;
+  var listPct  = document.getElementById('lm-list-pct') ? (parseFloat(document.getElementById('lm-list-pct').value)||null) : null;
+  var taxes    = document.getElementById('lm-taxes') ? (parseFloat(document.getElementById('lm-taxes').value)||null) : null;
+  var county   = document.getElementById('lm-county') ? document.getElementById('lm-county').value : null;
+  var mortgage = document.getElementById('lm-mortgage') ? (parseFloat(document.getElementById('lm-mortgage').value)||null) : null;
   var data = {
     address:address, photoUrl:photoUrl, listPrice:listPrice,
     clientUid:clientUid, clientName:clientName, deadline:deadline,
     agentId: userProfile.agentId||'tom', code:code||Math.random().toString(36).substring(2,8).toUpperCase(),
     customFields:fields, active:true, createdAt:fb.serverTimestamp(),
-    offerCount:0, autoSend:autoSend,
+    offerCount:0, autoSend:autoSend, listPct:listPct, taxes:taxes, county:county, mortgage:mortgage,
   };
 
   try {
@@ -9730,62 +9741,327 @@ window.saveEditedOffer = saveEditedOffer;
 async function sendOfferToClient(listingId, offerId) {
   var listing = _listings.find(function(l){ return l.id===listingId; });
   if (!listing || !listing.clientUid) { alert('No seller client linked to this listing.'); return; }
-
   var snap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId));
   if (!snap.exists()) return;
   var o = snap.data();
-
   var clientSnap = await fb.getDoc(fb.doc(fb.db,'users',listing.clientUid));
   if (!clientSnap.exists()) { alert('Client not found.'); return; }
   var client = clientSnap.data();
-  var clientEmail = client.email;
-  var clientFirst = client.firstName || 'there';
+  if (!client.email) { alert('Client has no email.'); return; }
 
+  // Compute net sheet
+  var nsPrice    = parseFloat((o.offerPrice||'0').replace(/[^0-9.]/g,''))||0;
+  var nsCredits  = parseFloat(String(o.closingCosts||'0').replace(/[^0-9.]/g,''))||0;
+  var nsBuyPct   = parseFloat(String(o.buyerAgentComm||'2.5').replace(/[^0-9.]/g,''))||2.5;
+  var nsListPct  = listing.listPct || 2.5;
+  var nsTaxes    = listing.taxes || 0;
+  var nsCounty   = listing.county || 'cuyahoga';
+  var nsMortgage = listing.mortgage || 0;
+
+  function computeNS(price, lp, bp, taxes, county, mort, credits) {
+    var lc = price*lp/100, bc = price*bp/100;
+    var conv = Math.round(price/1000)*4;
+    var cf = county==='cuyahoga'?0.50:0;
+    var tf = 125+55+65+400+400+10+50+40+75+75+200;
+    var tp = Math.round(taxes*0.75);
+    var total = lc+bc+conv+cf+tf+tp+credits+mort;
+    return {lc:lc,bc:bc,conv:conv,cf:cf,tf:tf,tp:tp,total:total,net:price-total};
+  }
+  var ns = computeNS(nsPrice,nsListPct,nsBuyPct,nsTaxes,nsCounty,nsMortgage,nsCredits);
+  var fmt = function(n){ return (n<0?'-':'')+'$'+Math.round(Math.abs(n)).toLocaleString(); };
+
+  // Build review modal using createElement to avoid quote conflicts
+  var overlay = document.createElement('div');
+  overlay.id = 'sor-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:var(--r);width:100%;max-width:560px;max-height:92vh;overflow-y:auto;';
+
+  // Header
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);';
+  hdr.innerHTML = '<div style="font-weight:600;font-size:15px;">Review Before Sending</div>';
+  var xBtn = document.createElement('button');
+  xBtn.style.cssText = 'background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);';
+  xBtn.innerHTML = '&#x2715;';
+  xBtn.onclick = function(){ overlay.remove(); };
+  hdr.appendChild(xBtn);
+  box.appendChild(hdr);
+
+  // Body
+  var body = document.createElement('div');
+  body.style.cssText = 'padding:16px 20px 20px;display:flex;flex-direction:column;gap:16px;';
+
+  // Offer summary
+  var offerDiv = document.createElement('div');
+  var oLabel = document.createElement('div');
+  oLabel.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--green-dk);margin-bottom:8px;';
+  oLabel.textContent = 'Offer Summary';
+  offerDiv.appendChild(oLabel);
+  var oRows = [
+    ['Offer Price', o.offerPrice],
+    ['Financing', o.financingType],
+    ['Inspection', o.inspectionCont==='Yes'?'Yes — '+(o.inspectionDays||'?')+' days':o.inspectionCont],
+    ['Financing Cont.', o.financingCont],
+    ['Appraisal Cont.', o.appraisalCont],
+    ['Closing Date', o.closingDate],
+    ['Escalation', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):o.escalation],
+    ['Closing Costs', o.closingCosts?'$'+o.closingCosts:null],
+    ['Buyer Agent Comm.', o.buyerAgentComm?o.buyerAgentComm+'%':null],
+    ['Submitted By', o.agentName+(o.agentBrokerage?' — '+o.agentBrokerage:'')],
+  ].filter(function(r){return r[1];});
+  oRows.forEach(function(r){
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f4f4f4;font-size:13px;';
+    row.innerHTML = '<span style="color:var(--text2);">'+partnerEsc(r[0])+'</span><span style="font-weight:600;">'+partnerEsc(r[1])+'</span>';
+    offerDiv.appendChild(row);
+  });
+  body.appendChild(offerDiv);
+
+  // Net sheet section
+  var nsDiv = document.createElement('div');
+
+  var nsHdr = document.createElement('div');
+  nsHdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;';
+  var nsTitle = document.createElement('div');
+  nsTitle.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--green-dk);';
+  nsTitle.textContent = 'Net Sheet Estimate';
+  nsHdr.appendChild(nsTitle);
+  var nsToggleLabel = document.createElement('label');
+  nsToggleLabel.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;';
+  var nsToggle = document.createElement('input');
+  nsToggle.type = 'checkbox';
+  nsToggle.id = 'sor-include-ns';
+  nsToggle.checked = true;
+  nsToggle.style.cssText = 'width:16px;height:16px;';
+  nsToggleLabel.appendChild(nsToggle);
+  nsToggleLabel.appendChild(document.createTextNode('Include in email'));
+  nsHdr.appendChild(nsToggleLabel);
+  nsDiv.appendChild(nsHdr);
+
+  // Editable fields
+  var editDiv = document.createElement('div');
+  editDiv.style.cssText = 'background:var(--surface2);border-radius:var(--r);padding:12px;margin-bottom:10px;';
+  var editNote = document.createElement('div');
+  editNote.style.cssText = 'font-size:11px;color:var(--text3);margin-bottom:8px;';
+  editNote.textContent = 'Adjust figures if needed:';
+  editDiv.appendChild(editNote);
+  var grid = document.createElement('div');
+  grid.className = 'fg2';
+  grid.style.gap = '8px';
+
+  function makeInput(id, label, val, type, step) {
+    var wrap = document.createElement('div');
+    var lbl = document.createElement('label');
+    lbl.className = 'flabel';
+    lbl.style.fontSize = '10px';
+    lbl.textContent = label;
+    var inp = type==='select'?document.createElement('select'):document.createElement('input');
+    inp.id = id;
+    inp.style.cssText = 'font-size:12px;padding:6px 8px;';
+    if (type==='select') {
+      ['cuyahoga|Cuyahoga','lorain|Lorain','medina|Medina'].forEach(function(o){
+        var parts=o.split('|'),opt=document.createElement('option');
+        opt.value=parts[0];opt.textContent=parts[1];
+        if (parts[0]===val) opt.selected=true;
+        inp.appendChild(opt);
+      });
+    } else {
+      inp.type=type||'number'; inp.value=val||'';
+      if (step) inp.step=step;
+    }
+    inp.oninput = function(){ updateSORNet(); };
+    inp.onchange = function(){ updateSORNet(); };
+    wrap.appendChild(lbl); wrap.appendChild(inp);
+    return wrap;
+  }
+  grid.appendChild(makeInput('sor-price','Sale Price',nsPrice,'number'));
+  grid.appendChild(makeInput('sor-list-pct','List Comm %',nsListPct,'number','0.25'));
+  grid.appendChild(makeInput('sor-buy-pct','Buy Comm %',nsBuyPct,'number','0.25'));
+  grid.appendChild(makeInput('sor-taxes','Annual Taxes',nsTaxes,'number'));
+  grid.appendChild(makeInput('sor-mortgage','Mortgage',nsMortgage,'number'));
+  grid.appendChild(makeInput('sor-credits','Closing Credits',nsCredits,'number'));
+  grid.appendChild(makeInput('sor-county','County',nsCounty,'select'));
+  editDiv.appendChild(grid);
+  nsDiv.appendChild(editDiv);
+
+  // NS rows container
+  var nsRows = document.createElement('div');
+  nsRows.id = 'sor-ns-rows';
+  nsDiv.appendChild(nsRows);
+
+  // Net total display
+  var netDisp = document.createElement('div');
+  netDisp.id = 'sor-net-display';
+  netDisp.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:var(--r);margin-top:8px;';
+  var netLabel = document.createElement('span');
+  netLabel.style.cssText = 'font-size:14px;font-weight:600;';
+  netLabel.textContent = 'Estimated Net Proceeds';
+  var netVal = document.createElement('span');
+  netVal.id = 'sor-net-val';
+  netVal.style.cssText = 'font-size:20px;font-weight:700;';
+  netDisp.appendChild(netLabel); netDisp.appendChild(netVal);
+  nsDiv.appendChild(netDisp);
+  body.appendChild(nsDiv);
+
+  // Buttons
+  var btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = function(){ overlay.remove(); };
+  var sendBtn = document.createElement('button');
+  sendBtn.className = 'btn btn-g';
+  sendBtn.id = 'sor-send-btn';
+  sendBtn.innerHTML = '&#128228; Send to Client';
+  sendBtn.onclick = function(){ confirmSendOffer(listingId, offerId); };
+  btnRow.appendChild(cancelBtn); btnRow.appendChild(sendBtn);
+  body.appendChild(btnRow);
+
+  box.appendChild(body);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  // Store context
+  window._sorCtx = { listingId:listingId, offerId:offerId, o:o, client:client,
+    listing:listing, computeNS:computeNS, fmt:fmt };
+
+  // Initial render
+  updateSORNet();
+}
+window.sendOfferToClient = sendOfferToClient;
+
+function updateSORNet() {
+  var ctx = window._sorCtx;
+  if (!ctx) return;
+  var price    = parseFloat(document.getElementById('sor-price').value)||0;
+  var listPct  = parseFloat(document.getElementById('sor-list-pct').value)||2.5;
+  var buyPct   = parseFloat(document.getElementById('sor-buy-pct').value)||2.5;
+  var taxes    = parseFloat(document.getElementById('sor-taxes').value)||0;
+  var county   = document.getElementById('sor-county').value;
+  var mortgage = parseFloat(document.getElementById('sor-mortgage').value)||0;
+  var credits  = parseFloat(document.getElementById('sor-credits').value)||0;
+  var ns = ctx.computeNS(price, listPct, buyPct, taxes, county, mortgage, credits);
+  var fmt = ctx.fmt;
+  var netColor = ns.net>=0?'#065F46':'#991B1B';
+  var netBg    = ns.net>=0?'#ECFDF5':'#FEF2F2';
+  var rowsEl = document.getElementById('sor-ns-rows');
+  if (rowsEl) {
+    var lines = [
+      {l:'Sale Price', v:fmt(price), bold:true},
+      {l:'Listing Commission ('+listPct+'%)', v:'- '+fmt(ns.lc)},
+      {l:'Buyer Agent Commission ('+buyPct+'%)', v:'- '+fmt(ns.bc)},
+      {l:'Conveyance Fee', v:'- '+fmt(ns.conv)},
+      {l:'Title & Closing Fees', v:'- '+fmt(ns.tf)},
+      {l:'Tax Proration (est.)', v:'- '+fmt(ns.tp)},
+    ];
+    if (mortgage>0) lines.push({l:'Mortgage Payoff', v:'- '+fmt(mortgage)});
+    if (credits>0)  lines.push({l:'Closing Cost Assistance', v:'- '+fmt(credits)});
+    rowsEl.innerHTML = lines.map(function(r){
+      return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f4f4f4;font-size:13px;">'
+        +'<span style="color:'+(r.bold?'var(--text)':'var(--text2)')+';">'+r.l+'</span>'
+        +'<span style="font-weight:'+(r.bold?'700':'500')+';color:'+(r.bold?'var(--text)':'#E24B4A')+';">'+r.v+'</span>'
+        +'</div>';
+    }).join('');
+  }
+  var netEl = document.getElementById('sor-net-val');
+  var netDisp = document.getElementById('sor-net-display');
+  if (netEl) { netEl.textContent = fmt(ns.net); netEl.style.color = netColor; }
+  if (netDisp) { netDisp.style.background = netBg; netDisp.querySelector('span').style.color = netColor; }
+  window._sorCtx._ns = ns;
+  window._sorCtx._inputs = {price:price,listPct:listPct,buyPct:buyPct,taxes:taxes,county:county,mortgage:mortgage,credits:credits};
+}
+window.updateSORNet = updateSORNet;
+
+async function confirmSendOffer(listingId, offerId) {
+  var ctx = window._sorCtx;
+  if (!ctx) return;
+  var includeNS = document.getElementById('sor-include-ns') && document.getElementById('sor-include-ns').checked;
+  var ns = ctx._ns;
+  var inp = ctx._inputs || {};
+  var fmt = ctx.fmt;
+  var o = ctx.o;
+  var client = ctx.client;
+  var listing = ctx.listing;
   var agentName = (assignedAgent&&assignedAgent.name)||((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
+  var clientFirst = client.firstName||'there';
 
   var detailRows = [
     ['Offer Price', o.offerPrice],
     ['Financing Type', o.financingType],
     ['Down Payment', o.downPayment],
-    ['Inspection Contingency', o.inspectionCont==='Yes' ? 'Yes — '+(o.inspectionDays||'?')+' days' : o.inspectionCont],
+    ['Inspection Contingency', o.inspectionCont==='Yes'?'Yes — '+(o.inspectionDays||'?')+' days':o.inspectionCont],
     ['Financing Contingency', o.financingCont],
     ['Appraisal Contingency', o.appraisalCont],
     ['Requested Closing Date', o.closingDate],
-    ['Escalation Clause', o.escalation==='Yes' ? 'Yes — max '+(o.escalationMax||'?') : o.escalation],
-    ['Closing Cost Assistance', o.closingCosts ? '$'+o.closingCosts : null],
-    ['Buyer Agent Commission', o.buyerAgentComm ? o.buyerAgentComm+'%' : null],
+    ['Escalation Clause', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):o.escalation],
+    ['Closing Cost Assistance', o.closingCosts?'$'+o.closingCosts:null],
+    ['Buyer Agent Commission', o.buyerAgentComm?o.buyerAgentComm+'%':null],
     ['Offer Expires', o.expiration],
     ['Submitted By', o.agentName+(o.agentBrokerage?' — '+o.agentBrokerage:'')],
-  ].filter(function(r){ return r[1]; }).map(function(r){
+  ].filter(function(r){return r[1];}).map(function(r){
     return '<tr><td style="padding:7px 12px;border-bottom:1px solid #f4f4f4;color:#666;font-size:13px;white-space:nowrap;">'+r[0]+'</td>'
       +'<td style="padding:7px 12px;border-bottom:1px solid #f4f4f4;font-size:13px;font-weight:600;color:#1a1a1a;">'+partnerEsc(r[1])+'</td></tr>';
   }).join('');
 
+  var nsSection = '';
+  if (includeNS && ns) {
+    var netColor = ns.net>=0?'#065F46':'#991B1B';
+    var netBg    = ns.net>=0?'#ECFDF5':'#FEF2F2';
+    var nsEmailRows = [
+      ['Sale Price', fmt(inp.price||0)],
+      ['Listing Commission ('+inp.listPct+'%)', '- '+fmt(ns.lc)],
+      ['Buyer Agent Commission ('+inp.buyPct+'%)', '- '+fmt(ns.bc)],
+      ['Conveyance Fee', '- '+fmt(ns.conv)],
+      ['Title & Closing Fees (est.)', '- '+fmt(ns.tf)],
+      ['Tax Proration (est.)', '- '+fmt(ns.tp)],
+    ];
+    if (inp.mortgage>0) nsEmailRows.push(['Mortgage Payoff', '- '+fmt(inp.mortgage)]);
+    if (inp.credits>0)  nsEmailRows.push(['Closing Cost Assistance', '- '+fmt(inp.credits)]);
+    nsSection = '<div style="margin:20px 0;">'
+      +'<div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#1D9E75;border-bottom:2px solid #1D9E75;padding-bottom:6px;margin-bottom:0;">Net Sheet Estimate</div>'
+      +'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
+      +nsEmailRows.map(function(r){
+        return '<tr><td style="padding:7px 12px;border-bottom:1px solid #f4f4f4;color:#666;font-size:13px;">'+r[0]+'</td>'
+          +'<td style="padding:7px 12px;border-bottom:1px solid #f4f4f4;font-size:13px;font-weight:600;text-align:right;color:#1a1a1a;">'+r[1]+'</td></tr>';
+      }).join('')
+      +'</table>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:'+netBg+';border-radius:8px;margin-top:8px;">'
+      +'<span style="font-size:14px;font-weight:600;color:'+netColor+';">Estimated Net Proceeds</span>'
+      +'<span style="font-size:20px;font-weight:700;color:'+netColor+';">'+fmt(ns.net)+'</span>'
+      +'</div>'
+      +'<div style="font-size:11px;color:#aaa;margin-top:6px;font-style:italic;">Estimated figures. Actual proceeds may vary.</div>'
+      +'</div>';
+  }
+
   var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;">'
     +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
     +'<div style="font-size:22px;font-weight:300;color:#fff;">New Offer Received</div>'
-    +'<div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:3px;">'+partnerEsc(listing.address)+'</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:3px;">'+partnerEsc(listing.address||'')+'</div>'
     +'</div>'
     +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+clientFirst+',</p>'
-    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">An offer has been submitted on your property. Here are the details:</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">An offer has been submitted on your property:</p>'
     +'<div style="background:#f9fafb;border-radius:8px;overflow:hidden;margin-bottom:20px;">'
     +'<div style="background:#1D9E75;padding:10px 14px;"><div style="font-size:22px;font-weight:700;color:#fff;">'+(o.offerPrice||'—')+'</div><div style="font-size:11px;color:rgba(255,255,255,0.8);">Offered Price</div></div>'
     +'<table width="100%" cellpadding="0" cellspacing="0">'+detailRows+'</table>'
     +'</div>'
-    +(o.notes ? '<div style="padding:12px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#555;font-style:italic;margin-bottom:16px;line-height:1.6;">'+partnerEsc(o.notes)+'</div>' : '')
-    +(o.pdfUrl ? '<div style="margin-bottom:20px;"><a href="'+o.pdfUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#1D9E75;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;">&#128196; Download Offer PDF</a></div>' : '')
-    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 20px;">I will be in touch shortly to discuss next steps. Questions? Message me directly in your portal.</p>'
+    +(o.notes?'<div style="padding:12px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#555;font-style:italic;margin-bottom:16px;line-height:1.6;">'+partnerEsc(o.notes)+'</div>':'')
+    +(o.pdfUrl?'<div style="margin-bottom:20px;"><a href="'+o.pdfUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#1D9E75;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;">&#128196; Download Offer PDF</a></div>':'')
+    +nsSection
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 20px;">I will be in touch shortly to discuss next steps.</p>'
     +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 14px;"/>'
     +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
-    +'<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
+    +'<div style="font-size:12px;color:#888;">Sent via Nest Track</div>'
     +'</div></div>';
 
+  var sendBtn = document.getElementById('sor-send-btn');
+  if (sendBtn) { sendBtn.disabled=true; sendBtn.textContent='Sending...'; }
   try {
-    // Email to client
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:clientEmail, subject:'New Offer on '+listing.address, html:emailHtml})});
-    // Confirmation email to submitting agent
+      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml})});
     if (o.agentEmail) {
       var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
         +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
@@ -9794,21 +10070,25 @@ async function sendOfferToClient(listingId, offerId) {
         +'</div>'
         +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
-        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address)+'</strong> has been received and submitted to the seller.</p>'
-        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">The listing agent will be in touch regarding next steps.</p>'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address||'')+'</strong> has been forwarded to the seller for review.</p>'
         +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
-        +'<div style="font-size:13px;color:#888;">'+agentName+' — The Garuccio Group</div>'
+        +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
         +'</div></div>';
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+listing.address, html:confirmHtml})});
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml})});
     }
-    // Update offer status to Under Review
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
-    alert('Offer sent to '+clientFirst+'! Submitting agent also notified.');
+    var overlay = document.getElementById('sor-overlay');
+    if (overlay) overlay.remove();
+    alert('Offer sent to '+clientFirst+'!'+(includeNS?' Net sheet included.':''));
     viewOffers(listingId);
-  } catch(e) { alert('Failed to send: '+e.message); }
+  } catch(e) {
+    alert('Failed to send: '+e.message);
+    if (sendBtn) { sendBtn.disabled=false; sendBtn.innerHTML='&#128228; Send to Client'; }
+  }
 }
-window.sendOfferToClient = sendOfferToClient;
+window.confirmSendOffer = confirmSendOffer;
+
 
 // ═══════════════════════════════════════════════════════
 // PUBLIC OFFER SUBMISSION PAGE
@@ -10099,6 +10379,7 @@ window.deleteOffer = deleteOffer;
 // NET SHEET AUTO-FILL FROM OFFER
 // ══════════════════════════════════════════════════════
 function runNetSheetFromOffer(listingId, offerId) {
+  var listing = _listings.find(function(l){ return l.id===listingId; });
   fb.getDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId)).then(function(snap) {
     if (!snap.exists()) return;
     var o = snap.data();
@@ -10106,13 +10387,19 @@ function runNetSheetFromOffer(listingId, offerId) {
     setTimeout(function() {
       var priceEl = document.getElementById('ns-price');
       var creditsEl = document.getElementById('ns-credits');
-      if (priceEl && o.offerPrice) {
-        var price = parseFloat(o.offerPrice.replace(/[^0-9.]/g,''))||0;
-        if (price) priceEl.value = price;
-      }
-      if (creditsEl && o.closingCosts) {
-        var credits = parseFloat(String(o.closingCosts).replace(/[^0-9.]/g,''))||0;
-        if (credits) creditsEl.value = credits;
+      var buyPctEl  = document.getElementById('ns-buy-pct');
+      var listPctEl = document.getElementById('ns-list-pct');
+      var taxesEl   = document.getElementById('ns-taxes');
+      var countyEl  = document.getElementById('ns-county');
+      var mortEl    = document.getElementById('ns-mortgage');
+      if (priceEl && o.offerPrice) { var price = parseFloat(o.offerPrice.replace(/[^0-9.]/g,''))||0; if (price) priceEl.value = price; }
+      if (creditsEl && o.closingCosts) { var cr = parseFloat(String(o.closingCosts).replace(/[^0-9.]/g,''))||0; if (cr) creditsEl.value = cr; }
+      if (buyPctEl && o.buyerAgentComm) { var bp = parseFloat(String(o.buyerAgentComm).replace(/[^0-9.]/g,''))||0; if (bp) buyPctEl.value = bp; }
+      if (listing) {
+        if (listPctEl && listing.listPct) listPctEl.value = listing.listPct;
+        if (taxesEl && listing.taxes) taxesEl.value = listing.taxes;
+        if (countyEl && listing.county) countyEl.value = listing.county;
+        if (mortEl && listing.mortgage) mortEl.value = listing.mortgage;
       }
       calcNetSheet();
       var toast = document.createElement('div');
