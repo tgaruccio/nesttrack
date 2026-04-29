@@ -507,7 +507,21 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- SIDEBAR -->
 <div class="sidebar" id="sidebar">
-  <div class="ns">Start Here</div>
+  <!-- AGENT TOOLS — shown only for agents, at top -->
+  <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
+    <div class="ns" style="padding-top:6px;">Agent Tools</div>
+    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="agent" onclick="go('agent',this)">👥 Clients</button>
+    <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
+    <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet</button>
+    <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
+    <button class="nb" data-pg="idx" onclick="go('idx',this)">🔍 Home Search</button>
+    <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
+    <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
+    <div class="ns">Client View</div>
+  </div>
+  <div class="ns" id="sidebar-start-label">Start Here</div>
   <button class="nb" data-pg="home" onclick="go('home',this)">🏠 Home</button>
   <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ The Home Buyers Trail</button>
   <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this)">🏦 The Mortgage Trail</button>
@@ -552,12 +566,6 @@ textarea{resize:vertical;min-height:68px;}
 
   <div class="ns">Account</div>
   <button class="nb" data-pg="dash" onclick="go('dash',this)">📊 My Dashboard</button>
-  <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
-    <div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);padding:10px 12px 4px;">Agent Tools</div>
-    <button class="nb" data-pg="agent" onclick="go('agent',this)" id="agent-nav">👔 Agent Backend <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
-    <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
-    <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
-  </div>
 </div>
 
 <!-- MAIN -->
@@ -934,37 +942,42 @@ textarea{resize:vertical;min-height:68px;}
 </div>
 
 
-<!-- AGENT TO-DO LIST -->
 <div class="page" id="page-agent-todo">
   <div class="ph"><div class="pt">To-Do List</div></div>
   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-    <button class="todo-chip" onclick="todoQuickAdd('📞 Call client — ')">📞 Call client</button>
-    <button class="todo-chip" onclick="todoQuickAdd('💬 Follow up with ')">💬 Follow up with</button>
-    <button class="todo-chip" onclick="todoQuickAdd('↩️ Respond to ')">↩️ Respond to</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📅 Schedule showing for ')">📅 Schedule showing</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📣 Send update to ')">📣 Send update to</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📝 Submit offer for ')">📝 Submit offer</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📋 Order inspection for ')">📋 Order inspection</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🏦 Check loan status for ')">🏦 Check loan status</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📄 Request documents from ')">📄 Request documents</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🔑 Confirm closing date for ')">🔑 Confirm closing</button>
-    <button class="todo-chip" onclick="todoQuickAdd('✉️ Send email to ')">✉️ Send email</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🏠 Prepare listing for ')">🏠 Prepare listing</button>
-    <button class="todo-chip" onclick="todoQuickAdd('💰 Review net sheet for ')">💰 Review net sheet</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🔍 Research comps for ')">🔍 Research comps</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📊 Prepare CMA for ')">📊 Prepare CMA</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🤝 Negotiate offer for ')">🤝 Negotiate offer</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🗓️ Set up appointment with ')">🗓️ Appointment</button>
-    <button class="todo-chip" onclick="todoQuickAdd('🏡 Schedule walk-through for ')">🏡 Walk-through</button>
-    <button class="todo-chip" onclick="todoQuickAdd('⚠️ Urgent — ')">⚠️ Urgent</button>
-    <button class="todo-chip" onclick="todoQuickAdd('📌 Reminder — ')">📌 Reminder</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Call client — ')">📞 Call client</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Follow up with ')">💬 Follow up with</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Respond to ')">↩️ Respond to</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Schedule showing for ')">📅 Schedule showing</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Send update to ')">📣 Send update to</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Submit offer for ')">📝 Submit offer</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Order inspection for ')">📋 Order inspection</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Check loan status for ')">🏦 Check loan status</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Request documents from ')">📄 Request documents</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Confirm closing date for ')">🔑 Confirm closing</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Send email to ')">✉️ Send email</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Prepare listing for ')">🏠 Prepare listing</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Review net sheet for ')">💰 Review net sheet</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Research comps for ')">🔍 Research comps</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Prepare CMA for ')">📊 Prepare CMA</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Negotiate offer for ')">🤝 Negotiate offer</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Set up appointment with ')">🗓️ Set up appointment</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Schedule walk-through for ')">🏡 Schedule walk-through</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Urgent — ')">⚠️ Urgent</button>
+    <button class="todo-chip" onclick="todoQuickAdd('Reminder — ')">📌 Reminder</button>
   </div>
   <div class="card" style="display:flex;flex-direction:column;gap:10px;">
     <div style="display:flex;gap:8px;align-items:flex-start;">
       <textarea id="todo-input" rows="2" placeholder="Type a task..." style="flex:1;font-size:14px;resize:none;box-sizing:border-box;" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();todoAdd();}"></textarea>
       <div style="display:flex;flex-direction:column;gap:6px;">
-        <input type="date" id="todo-date" style="font-size:12px;padding:6px 8px;"/>
-        <input type="time" id="todo-time" style="font-size:12px;padding:6px 8px;"/>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Date</label>
+          <input type="date" id="todo-date" style="font-size:12px;padding:6px 8px;"/>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.08em;">Time</label>
+          <input type="time" id="todo-time" style="font-size:12px;padding:6px 8px;"/>
+        </div>
       </div>
     </div>
     <button class="btn btn-g" onclick="todoAdd()">Add Task</button>
@@ -973,7 +986,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="todo-empty" style="text-align:center;padding:40px 20px;color:var(--text3);font-size:13px;display:none;">
     <div style="font-size:32px;margin-bottom:8px;">&#10003;</div>
     <div style="font-weight:500;color:var(--text);margin-bottom:4px;">All clear!</div>
-    <div>No tasks — add one above.</div>
+    <div>No tasks yet.</div>
   </div>
 </div>
 
@@ -1041,6 +1054,132 @@ textarea{resize:vertical;min-height:68px;}
       <a href="mailto:Tom@GaruccioGroup.com" class="btn" style="justify-content:center;font-size:13px;">Email Tom</a>
       <a href="https://1660690.my1003app.com/2784866/register" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
     </div>
+  </div>
+</div>
+
+
+
+<!-- AGENT DASHBOARD -->
+<div class="page" id="page-agent-dash">
+  <div id="ad-welcome" style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;">
+    <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
+    <div>
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="ad-greeting">Good morning</div>
+      <div style="font-size:12.5px;color:var(--text2);" id="ad-sub">Here's your day at a glance</div>
+    </div>
+  </div>
+
+  <!-- Quick launch grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">👥</span>
+      <span style="font-size:13px;font-weight:600;">Clients</span>
+      <span style="font-size:11px;opacity:0.85;" id="ad-clients-count">Loading...</span>
+    </button>
+
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('chat')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;position:relative;">
+      <span style="font-size:24px;">💬</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Messages</span>
+      <span style="font-size:11px;color:var(--text2);" id="ad-msg-count">No unread</span>
+      <span id="ad-msg-badge" style="display:none;position:absolute;top:10px;right:10px;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;"></span>
+    </button>
+
+    <button onclick="go('agent-todo',document.querySelector('[data-pg=agent-todo]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">✅</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">To-Do List</span>
+      <span style="font-size:11px;color:var(--text2);" id="ad-todo-count">No tasks</span>
+    </button>
+
+    <button onclick="go('agent-preapproval',document.querySelector('[data-pg=agent-preapproval]'))" style="background:var(--blue-lt);border:1.5px solid #B5D4F4;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">📧</span>
+      <span style="font-size:13px;font-weight:600;color:var(--blue-dk);">Send Pre-Approval</span>
+      <span style="font-size:11px;color:var(--blue-dk);opacity:0.85;">Email link to client</span>
+    </button>
+
+    <button onclick="go('listing-desc',document.querySelector('[data-pg=listing-desc]'))" style="background:var(--purple-lt);border:1.5px solid #C4C0F5;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">✍️</span>
+      <span style="font-size:13px;font-weight:600;color:var(--purple-dk);">Listing Generator</span>
+      <span style="font-size:11px;color:var(--purple-dk);opacity:0.85;">AI listing copy</span>
+    </button>
+
+    <button onclick="go('netsheet',document.querySelector('[data-pg=netsheet]'))" style="background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">💵</span>
+      <span style="font-size:13px;font-weight:600;color:#92400E;">Net Sheet</span>
+      <span style="font-size:11px;color:#92400E;opacity:0.85;">Seller proceeds calc</span>
+    </button>
+
+    <button onclick="go('mortgage',document.querySelector('[data-pg=mortgage]'))" style="background:var(--green-lt);border:1.5px solid var(--green-md);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">💰</span>
+      <span style="font-size:13px;font-weight:600;color:var(--green-dk);">Mortgage Calc</span>
+      <span style="font-size:11px;color:var(--green-dk);opacity:0.85;">Payment estimator</span>
+    </button>
+
+    <button onclick="go('idx',document.querySelector('[data-pg=idx]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">🔍</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Home Search</span>
+      <span style="font-size:11px;color:var(--text2);">MLS listing search</span>
+    </button>
+
+    <button onclick="go('partners',document.querySelector('[data-pg=partners]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">🤝</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Preferred Partners</span>
+      <span style="font-size:11px;color:var(--text2);">Your vendor list</span>
+    </button>
+
+    <button onclick="go('agent-preapproval',document.querySelector('[data-pg=agent-preapproval]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">🏦</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Pre-Approval Tool</span>
+      <span style="font-size:11px;color:var(--text2);">Send link to clients</span>
+    </button>
+
+  </div>
+
+  <!-- Active client pipeline -->
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);">Active Pipeline</div>
+      <button onclick="go('agent',document.querySelector('[data-pg=agent]'))" style="background:none;border:none;font-size:12px;color:var(--green-dk);font-weight:500;cursor:pointer;padding:0;">View All →</button>
+    </div>
+    <div id="ad-pipeline" style="display:flex;flex-direction:column;gap:6px;">
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Loading clients...</div>
+    </div>
+  </div>
+</div>
+
+<!-- AGENT PRE-APPROVAL TOOL -->
+<div class="page" id="page-agent-preapproval">
+  <div class="ph"><div class="pt">Send Pre-Approval</div></div>
+  <div class="notice" style="background:var(--blue-lt);color:var(--blue-dk);">Send Tom's pre-approval application link to any client — from your list or by entering an email manually.</div>
+
+  <!-- Your link display -->
+  <div class="card" style="display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);">Your Pre-Approval Link</div>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;color:var(--text2);word-break:break-all;font-family:monospace;">https://1660690.my1003app.com/2784866/register</div>
+    <button class="btn btn-sm" onclick="navigator.clipboard.writeText('https://1660690.my1003app.com/2784866/register').then(function(){ var b=document.getElementById('pa-copy-status'); b.style.display='block'; setTimeout(function(){ b.style.display='none'; },2000); })">📋 Copy Link</button>
+    <div id="pa-copy-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;">✓ Copied to clipboard</div>
+  </div>
+
+  <!-- Send to existing client -->
+  <div class="card" style="display:flex;flex-direction:column;gap:12px;">
+    <div style="font-weight:500;font-size:14px;">Send to a Client</div>
+    <div>
+      <label class="flabel">Select Client</label>
+      <select id="pa-client-sel" style="font-size:14px;padding:10px 12px;">
+        <option value="">— Choose from your clients —</option>
+      </select>
+    </div>
+    <div style="text-align:center;color:var(--text3);font-size:12px;">— or —</div>
+    <div>
+      <label class="flabel">Enter Email Manually</label>
+      <input type="email" id="pa-manual-email" placeholder="client@email.com" style="font-size:14px;"/>
+    </div>
+    <div>
+      <label class="flabel">Personal Note (optional)</label>
+      <textarea id="pa-note" rows="2" placeholder="e.g. Hi Sarah, here's the link to get started with your pre-approval!" style="font-size:14px;"></textarea>
+    </div>
+    <button class="btn btn-g btn-w" onclick="sendPreApprovalEmail()" style="font-size:14px;padding:12px;">📧 Send Pre-Approval Email</button>
+    <div id="pa-status" style="display:none;font-size:12px;font-weight:500;padding:8px 12px;border-radius:var(--r-sm);"></div>
   </div>
 </div>
 
@@ -1817,7 +1956,7 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- AGENT BACKEND -->
 <div class="page" id="page-agent">
-  <div class="ph"><div class="pt">Agent Backend</div><span class="pill pill-p">Agent Only</span></div>
+  <div class="ph"><div class="pt">Clients</div><span class="pill pill-p">Agent Only</span></div>
 
   <!-- Tabs -->
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
@@ -2174,7 +2313,6 @@ var SELLER_CONTRACT_FIELDS = [
 let currentUser = null;
 let userProfile = null;
 let isAgent = false;
-var _todos = [];
 let props = [], tours = [], quizAnswers = {}, mRating = 0, mTags = [], activeFilt = 'all', currentPartnerCat = 'all';
 let photoB64 = '';
 let assignedAgent = null;
@@ -2812,9 +2950,13 @@ async function showApp() {
   if (isAgent) {
     var agentBtn = document.getElementById('agent-nav');
     if (agentBtn) agentBtn.style.display = '';
+    // Hide buyer-only sidebar items for agents
+    var startLabel = document.getElementById('sidebar-start-label');
+    if (startLabel) startLabel.style.display = 'none';
     setTimeout(function() {
-      go('agent', agentBtn);
+      go('agent-dash', agentBtn);
       watchAllAgentChats();
+      renderAgentDashboard();
     }, 100);
   } else {
     go('home', document.querySelector('[data-pg=home]'));
@@ -2984,6 +3126,7 @@ function go(page, el) {
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
   if (page === 'education') renderEducation();
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
+  if (page === 'agent-dash') { renderAgentDashboard(); }
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
@@ -4519,33 +4662,6 @@ function getChatRoomId(buyerIdOverride) {
 var chatListener = null;
 var currentChatRoom = null;
 
-function setupChatHead() {
-  var a = currentAgent();
-  var initials = (a.name||'Agent').split(' ').map(function(x){return x[0]||'';}).join('').substring(0,2).toUpperCase();
-  var avatarEl = document.getElementById('chat-avatar');
-  var withEl = document.getElementById('chat-with');
-  var roleEl = document.getElementById('chat-role');
-
-  if (isAgent) {
-    // Agent sees list of buyers to chat with
-    if (avatarEl) avatarEl.textContent = '👔';
-    if (withEl) withEl.textContent = 'Buyer Messages';
-    if (roleEl) roleEl.textContent = 'Select a buyer to view conversation';
-    var panel = document.getElementById('agent-chat-panel');
-    if (panel) { panel.style.display = 'block'; renderAgentChatList(); }
-    // Hide input for agent until they pick a buyer
-    var inputArea = document.querySelector('.chat-input');
-    if (inputArea) inputArea.style.display = 'none';
-    var qr = document.getElementById('chat-quick-replies');
-    if (qr) qr.style.display = 'none';
-  } else {
-    if (avatarEl) avatarEl.textContent = initials;
-    if (withEl) withEl.textContent = a.name || 'Your Agent';
-    if (roleEl) roleEl.textContent = (a.role||'REALTOR\u00ae') + ' \u00b7 ' + (a.phone||'');
-    watchChat(null);
-  }
-}
-
 function watchChat(buyerIdOverride) {
   // Unsubscribe previous listener
   if (chatListener) { try { chatListener(); } catch(e){} chatListener = null; }
@@ -5415,7 +5531,136 @@ function sendAgentChatMessage() {
 }
 window.sendAgentChatMessage = sendAgentChatMessage;
 
-// ─── AGENT TO-DO LIST ───
+var _todos = [];
+
+// ─── AGENT DASHBOARD ───
+async function renderAgentDashboard() {
+  if (!isAgent) return;
+  var hour = new Date().getHours();
+  var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  var firstName = (userProfile && userProfile.firstName) || 'Tom';
+  var initials = ((userProfile&&userProfile.firstName||'')[0]||'T') + ((userProfile&&userProfile.lastName||'')[0]||'');
+  var el;
+  el = document.getElementById('ad-greeting'); if (el) el.textContent = greeting + ', ' + firstName;
+  el = document.getElementById('ad-avatar'); if (el) el.textContent = initials.toUpperCase();
+  var today = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+  el = document.getElementById('ad-sub'); if (el) el.textContent = today;
+  if (!allBuyers || !allBuyers.length) await loadBuyersForAgent();
+  var active = myBuyers.filter(function(b){ return !b.pending; });
+  var pending = myBuyers.filter(function(b){ return b.pending; });
+  el = document.getElementById('ad-clients-count');
+  if (el) el.textContent = active.length + ' active' + (pending.length ? ' · ' + pending.length + ' pending' : '');
+  el = document.getElementById('ad-todo-count');
+  if (el) {
+    var activeTodos = _todos.filter(function(t){ return !t.done; }).length;
+    el.textContent = activeTodos > 0 ? activeTodos + ' open task' + (activeTodos !== 1 ? 's' : '') : 'All clear';
+  }
+  var totalUnread = Object.values(agentUnreadCounts || {}).reduce(function(a,b){ return a+b; }, 0);
+  el = document.getElementById('ad-msg-count');
+  if (el) el.textContent = totalUnread > 0 ? totalUnread + ' unread message' + (totalUnread !== 1 ? 's' : '') : 'No unread';
+  el = document.getElementById('ad-msg-badge');
+  if (el) { el.textContent = totalUnread || ''; el.style.display = totalUnread > 0 ? 'block' : 'none'; }
+  renderAdPipeline(active);
+  populatePAClientDropdown();
+}
+window.renderAgentDashboard = renderAgentDashboard;
+
+function renderAdPipeline(buyers) {
+  var container = document.getElementById('ad-pipeline');
+  if (!container) return;
+  if (!buyers || !buyers.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">No active clients yet. Use + Invite Buyer to add one.</div>';
+    return;
+  }
+  var today = new Date(); today.setHours(0,0,0,0);
+  var sorted = buyers.slice().sort(function(a,b){
+    var aDate = a.lastStepUpdate ? (a.lastStepUpdate.toDate ? a.lastStepUpdate.toDate() : new Date(a.lastStepUpdate)) : new Date(0);
+    var bDate = b.lastStepUpdate ? (b.lastStepUpdate.toDate ? b.lastStepUpdate.toDate() : new Date(b.lastStepUpdate)) : new Date(0);
+    return bDate - aDate;
+  }).slice(0, 8);
+  container.innerHTML = sorted.map(function(b) {
+    var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
+    var stepNum = b.currentStep || 1;
+    var stepName = (TIMELINE_STEPS[stepNum-1]||{}).name || 'Initial Consult';
+    var hasDates = b.buyerContractDates && Object.keys(b.buyerContractDates).some(function(k){ return b.buyerContractDates[k]; });
+    var closing = hasDates && b.buyerContractDates.closingDate;
+    var closingTag = '';
+    if (closing) {
+      var cd = new Date(closing+'T12:00:00');
+      var dc = Math.ceil((cd-today)/86400000);
+      closingTag = dc >= 0
+        ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:1px 7px;font-weight:600;margin-left:4px;">'+dc+'d to close</span>'
+        : '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:8px;padding:1px 7px;font-weight:600;margin-left:4px;">Closed ✓</span>';
+    }
+    var unread = (agentUnreadCounts||{})[b.uid] || 0;
+    var unreadTag = unread > 0 ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;">'+unread+'</span>' : '';
+    var lastUpdate = '';
+    if (b.lastStepUpdate) {
+      try {
+        var d = b.lastStepUpdate.toDate ? b.lastStepUpdate.toDate() : new Date(b.lastStepUpdate);
+        var diff = Math.floor((today-d)/86400000);
+        lastUpdate = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff+'d ago';
+      } catch(e){}
+    }
+    return '<div onclick="openBuyerDetail(\''+b.uid+'\')" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;">'
+      + '<div style="width:38px;height:38px;border-radius:50%;background:var(--green-lt);color:var(--green-dk);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">'+initials+'</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-weight:500;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(b.firstName||'')+' '+(b.lastName||'')+unreadTag+'</div>'
+      + '<div style="font-size:11.5px;color:var(--text2);margin-top:2px;">'
+      + '<span style="background:var(--green-lt);color:var(--green-dk);border-radius:8px;padding:1px 7px;font-size:10px;font-weight:500;">Step '+stepNum+' · '+stepName+'</span>'
+      + closingTag+'</div>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);flex-shrink:0;">'+lastUpdate+'</div>'
+      + '</div>';
+  }).join('');
+}
+window.renderAdPipeline = renderAdPipeline;
+
+function populatePAClientDropdown() {
+  var sel = document.getElementById('pa-client-sel');
+  if (!sel) return;
+  var active = myBuyers.filter(function(b){ return !b.pending && b.email; });
+  sel.innerHTML = '<option value="">— Choose from your clients —</option>'
+    + active.map(function(b){
+        return '<option value="'+b.email+'">'+b.firstName+' '+b.lastName+' · '+b.email+'</option>';
+      }).join('');
+}
+window.populatePAClientDropdown = populatePAClientDropdown;
+
+async function sendPreApprovalEmail() {
+  var sel = document.getElementById('pa-client-sel');
+  var manual = document.getElementById('pa-manual-email');
+  var noteEl = document.getElementById('pa-note');
+  var status = document.getElementById('pa-status');
+  var toEmail = (sel && sel.value) || (manual && manual.value.trim());
+  if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
+  var note = noteEl ? noteEl.value.trim() : '';
+  var agentName = ((userProfile&&userProfile.firstName||'') + ' ' + (userProfile&&userProfile.lastName||'')).trim() || 'Tom Garuccio';
+  var PREAPPROVAL_LINK = 'https://1660690.my1003app.com/2784866/register';
+  var html = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    + '<div style="background:#1D9E75;padding:24px 28px;border-radius:10px 10px 0 0;">'
+    + '<div style="font-size:22px;font-weight:300;color:#fff;">Nest Track</div>'
+    + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:3px;">The Garuccio Group · Mortgage Financing</div>'
+    + '</div>'
+    + '<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    + (note ? '<p style="font-size:15px;color:#444;line-height:1.7;margin:0 0 16px;">'+note+'</p>' : '<p style="font-size:15px;color:#444;line-height:1.7;margin:0 0 16px;">Getting pre-approved is the first step to finding your perfect home. The process is quick, free, and puts you in the strongest position when you\'re ready to make an offer.</p>')
+    + '<div style="text-align:center;margin:24px 0;"><a href="'+PREAPPROVAL_LINK+'" style="background:#1D9E75;color:#fff;padding:14px 32px;border-radius:25px;font-size:16px;text-decoration:none;display:inline-block;font-weight:500;">Start My Pre-Approval →</a></div>'
+    + '<p style="font-size:13px;color:#888;text-align:center;">Questions? Reply to this email or call Tom directly at 440-754-7449.</p>'
+    + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
+    + '<p style="font-size:12px;color:#888;margin:0;">Sent by '+agentName+' · The Garuccio Group</p>'
+    + '</div></div>';
+  if (status) { status.textContent = 'Sending...'; status.style.display='block'; status.style.background='var(--surface2)'; status.style.color='var(--text2)'; }
+  try {
+    await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:html}) });
+    if (status) { status.textContent='✓ Pre-approval email sent to '+toEmail; status.style.background='var(--green-lt)'; status.style.color='var(--green-dk)'; }
+    if (manual) manual.value='';
+    if (noteEl) noteEl.value='';
+    if (sel) sel.value='';
+  } catch(e) {
+    if (status) { status.textContent='Failed to send. Try again.'; status.style.background='var(--red-lt)'; status.style.color='var(--red-dk)'; }
+  }
+}
+window.sendPreApprovalEmail = sendPreApprovalEmail;
 
 async function todoLoad() {
   if (!currentUser) return;
@@ -5438,18 +5683,20 @@ async function todoSave() {
 function todoUpdateBadge() {
   var active = _todos.filter(function(t){ return !t.done; }).length;
   var badge = document.getElementById('todo-count-badge');
-  if (!badge) return;
-  if (active > 0) { badge.textContent = active; badge.style.display = 'inline'; }
-  else { badge.style.display = 'none'; }
+  if (badge) {
+    if (active > 0) { badge.textContent = active; badge.style.display = 'inline'; }
+    else { badge.style.display = 'none'; }
+  }
 }
 
 function todoQuickAdd(prefill) {
   var input = document.getElementById('todo-input');
-  if (!input) return;
-  input.value = prefill;
-  input.focus();
-  input.setSelectionRange(prefill.length, prefill.length);
-  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (input) {
+    input.value = prefill;
+    input.focus();
+    input.setSelectionRange(prefill.length, prefill.length);
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 window.todoQuickAdd = todoQuickAdd;
 
@@ -5480,6 +5727,12 @@ async function todoToggle(id) {
   if (!t) return;
   t.done = !t.done;
   if (t.done) t.doneAt = Date.now();
+  var completed = _todos.filter(function(x){ return x.done; });
+  if (completed.length > 10) {
+    completed.sort(function(a,b){ return (a.doneAt||0)-(b.doneAt||0); });
+    var oldest = completed.slice(0, completed.length - 10);
+    oldest.forEach(function(x){ _todos = _todos.filter(function(y){ return y.id !== x.id; }); });
+  }
   _todos.sort(function(a,b){ return a.done === b.done ? 0 : a.done ? 1 : -1; });
   await todoSave();
   todoRender();
@@ -5494,21 +5747,21 @@ async function todoDelete(id) {
 window.todoDelete = todoDelete;
 
 function todoDownloadICS(id) {
-  var t = _todos.find(function(x){ return x.id === id; });
-  if (!t || !t.date) return;
-  var d = t.date.replace(/-/g,'');
+  var todo = _todos.find(function(t){ return t.id === id; });
+  if (!todo || !todo.date) return;
+  var d = todo.date.replace(/-/g,'');
   var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//Todo//EN'];
   lines.push('BEGIN:VEVENT');
-  lines.push('UID:todo-' + t.id + '@nesttrack');
-  if (t.time) {
-    var dt = t.date + 'T' + t.time.replace(':','') + '00';
+  lines.push('UID:todo-'+todo.id+'@nesttrack');
+  if (todo.time) {
+    var dt = todo.date + 'T' + todo.time.replace(':','') + '00';
     lines.push('DTSTART:' + dt);
     lines.push('DTEND:' + dt);
   } else {
     lines.push('DTSTART;VALUE=DATE:' + d);
     lines.push('DTEND;VALUE=DATE:' + d);
   }
-  lines.push('SUMMARY:' + t.text);
+  lines.push('SUMMARY:' + todo.text);
   lines.push('END:VEVENT');
   lines.push('END:VCALENDAR');
   var blob = new Blob([lines.join('\r\n')], {type:'text/calendar'});
@@ -5535,7 +5788,7 @@ function todoRender() {
   var done = _todos.filter(function(t){ return t.done; });
   var html = active.map(function(t){ return todoItemHTML(t, today); }).join('');
   if (done.length) {
-    html += '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;padding:12px 0 4px;font-weight:600;">Completed</div>';
+    html += '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;padding:12px 0 6px;font-weight:600;">Completed</div>';
     html += done.map(function(t){ return todoItemHTML(t, today); }).join('');
   }
   container.innerHTML = html;
@@ -5551,18 +5804,25 @@ function todoItemHTML(t, today) {
   }
   var isOverdue = !t.done && t.date && new Date(t.date+'T12:00:00') < today;
   var bg = t.done ? 'var(--surface2)' : isOverdue ? '#FEF2F2' : 'var(--surface)';
-  var borderLeft = t.done ? '3px solid var(--border)' : isOverdue ? '3px solid #E24B4A' : '3px solid var(--green-md)';
-  var safeId = t.id.replace(/[^a-zA-Z0-9_]/g, '_');
-  var q = '&quot;';
-  return '<div style="background:'+bg+';border:1px solid var(--border);border-left:'+borderLeft+';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
-    + '<div onclick="todoToggle('+q+safeId+q+')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid '+(t.done?'var(--green)':'var(--border)')+';background:'+(t.done?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">'+(t.done?'&#10003;':'')+'</div>'
+  var border = isOverdue ? '3px solid #E24B4A' : t.done ? '3px solid var(--border)' : '3px solid var(--green-md)';
+  var textStyle = t.done ? 'text-decoration:line-through;color:var(--text3);' : '';
+  var sid = t.id.replace(/[^a-zA-Z0-9_]/g, '_');
+  var chkBg = t.done ? 'var(--green)' : 'var(--surface)';
+  var chkBorder = t.done ? 'var(--green)' : 'var(--border)';
+  var calBtn = (t.date && !t.done)
+    ? '<button data-sid="' + sid + '" onclick="todoDownloadICS(this.getAttribute(String.fromCharCode(100,97,116,97,45,115,105,100)))" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;" title="Add to calendar">&#128197;</button>'
+    : '';
+  var delBtn = '<button data-sid="' + sid + '" onclick="todoDelete(this.getAttribute(String.fromCharCode(100,97,116,97,45,115,105,100)))" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>';
+  var chk = '<div data-sid="' + sid + '" onclick="todoToggle(this.getAttribute(String.fromCharCode(100,97,116,97,45,115,105,100)))" style="width:20px;height:20px;border-radius:4px;border:1.5px solid ' + chkBorder + ';background:' + chkBg + ';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">' + (t.done ? '&#10003;' : '') + '</div>';
+  var dateRow = dateStr ? '<div style="font-size:11.5px;color:' + (isOverdue ? '#E24B4A' : 'var(--text3)') + ';margin-top:3px;">' + (isOverdue ? '&#9888; Overdue &middot; ' : '') + dateStr + '</div>' : '';
+  return '<div style="background:' + bg + ';border:1px solid var(--border);border-left:' + border + ';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
+    + chk
     + '<div style="flex:1;min-width:0;">'
-    + '<div style="font-size:13.5px;line-height:1.4;'+(t.done?'text-decoration:line-through;color:var(--text3);':'')+'">'+t.text+'</div>'
-    + (dateStr ? '<div style="font-size:11.5px;color:'+(isOverdue?'#E24B4A':'var(--text3)')+';margin-top:3px;">'+(isOverdue?'&#9888;&#65039; Overdue &middot; ':'')+dateStr+'</div>' : '')
+    + '<div style="font-size:13.5px;line-height:1.4;' + textStyle + '">' + t.text + '</div>'
+    + dateRow
     + '</div>'
     + '<div style="display:flex;gap:4px;flex-shrink:0;">'
-    + (t.date && !t.done ? '<button onclick="todoDownloadICS('+q+safeId+q+')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;" title="Add to calendar">&#128197;</button>' : '')
-    + '<button onclick="todoDelete('+q+safeId+q+')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>'
+    + calBtn + delBtn
     + '</div>'
     + '</div>';
 }
