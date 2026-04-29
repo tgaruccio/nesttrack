@@ -5296,6 +5296,8 @@ async function loadBuyersForAgent() {
     const snap = await fb.getDocs(q);
     allBuyers = [];
     snap.forEach(d => allBuyers.push({ uid: d.id, ...d.data() }));
+    // Keep myBuyers in sync so dashboard has data immediately on first load
+    myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId);
   } catch(e) { console.error('loadBuyers', e); }
 }
 async function renderBuyers() {
