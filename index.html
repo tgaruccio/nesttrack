@@ -1127,12 +1127,6 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:11px;color:var(--text2);">Your vendor list</span>
     </button>
 
-    <button onclick="go('agent-preapproval',document.querySelector('[data-pg=agent-preapproval]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">🏦</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Pre-Approval Tool</span>
-      <span style="font-size:11px;color:var(--text2);">Send link to clients</span>
-    </button>
-
   </div>
 
   <!-- Active client pipeline -->
@@ -1962,11 +1956,12 @@ textarea{resize:vertical;min-height:68px;}
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
     <button id="agent-tab-buyers" onclick="switchAgentTab('buyers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Clients</button>
     <button id="agent-tab-chat" onclick="switchAgentTab('chat')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Messages <span id="agent-chat-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;">!</span></button>
+    <button id="agent-tab-profile" onclick="switchAgentTab('profile')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">My Profile</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
-  <div class="card" id="agent-profile-editor" style="display:none;flex-direction:column;gap:11px;">
+  <div class="card" id="agent-profile-editor" style="display:none;flex-direction:column;gap:11px;" data-profile-card="1">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <div>
         <div style="font-weight:500;font-size:14px;">My Public Agent Profile</div>
@@ -1997,6 +1992,10 @@ textarea{resize:vertical;min-height:68px;}
   <div class="dstats" id="agent-stats"></div>
   <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div><!-- /agent-buyers-panel -->
+
+  <!-- PROFILE TAB -->
+  <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:12px;">
+  </div>
 
   <!-- MESSAGES TAB -->
   <div id="agent-chat-inbox" style="display:none;flex-direction:column;gap:10px;">
@@ -5407,14 +5406,16 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 function switchAgentTab(tab) {
   var bb = document.getElementById('agent-tab-buyers');
   var cb = document.getElementById('agent-tab-chat');
+  var pb = document.getElementById('agent-tab-profile');
   var bp = document.getElementById('agent-buyers-panel');
   var ci = document.getElementById('agent-chat-inbox');
+  var pp = document.getElementById('agent-profile-panel');
+  // Reset all tabs
+  [bb,cb,pb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
-    if (bb) { bb.style.background='var(--surface2)'; bb.style.color='var(--text2)'; }
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
-    if (bp) bp.style.display='none';
-    if (ci) { ci.style.display='flex'; }
-    // Load buyers if not loaded yet then render inbox
+    if (ci) ci.style.display='flex';
     if (!myBuyers || !myBuyers.length) {
       loadBuyersForAgent().then(function(){ renderAgentInbox(); });
     } else {
@@ -5422,11 +5423,21 @@ function switchAgentTab(tab) {
     }
     var badge = document.getElementById('agent-chat-badge');
     if (badge) badge.style.display='none';
+  } else if (tab === 'profile') {
+    if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
+    if (pp) {
+      pp.style.display='flex';
+      // Move profile editor into profile panel if not already there
+      var editor = document.getElementById('agent-profile-editor');
+      if (editor && editor.parentElement !== pp) {
+        pp.appendChild(editor);
+      }
+      if (editor) { editor.style.display='flex'; renderAgentProfileEditor(); }
+    }
   } else {
+    // buyers (default)
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
-    if (cb) { cb.style.background='var(--surface2)'; cb.style.color='var(--text2)'; }
     if (bp) bp.style.display='flex';
-    if (ci) ci.style.display='none';
   }
 }
 window.switchAgentTab = switchAgentTab;
