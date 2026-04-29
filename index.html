@@ -3201,6 +3201,9 @@ function go(page, el) {
           if (data.sellerContractDates && typeof data.sellerContractDates === 'object') {
             data.sellerContractDates = Object.assign({}, data.sellerContractDates);
           }
+          if (data.mortgageContractDates && typeof data.mortgageContractDates === 'object') {
+            data.mortgageContractDates = Object.assign({}, data.mortgageContractDates);
+          }
           userProfile = data;
           renderTxnTimeline();
 
@@ -5989,9 +5992,12 @@ async function openBuyerDetail(uid) {
           </div>
         </div>
         <div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏦 Mortgage Timeline</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏦 Mortgage Step</div>
           <div style="display:flex;gap:6px;align-items:center;">
-            <button class="btn btn-sm btn-g" onclick="openContractDatesForBuyer('${uid}','mortgage')">📋 Set Mortgage Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
+            <select id="bd-mortgage-step" style="flex:1;max-width:220px;"><option value="0">— Not started —</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} — ${s.title.replace(/^Step \d+ — /,'')}</option>`).join('')}</select>
+            <button class="btn btn-sm btn-g" onclick="setMortgageStep('${uid}')">Save</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','mortgage')">📋 Dates</button>
+            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
           </div>
         </div>
       </div>
@@ -6188,6 +6194,22 @@ async function setSellerStep(uid) {
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.setSellerStep = setSellerStep;
+
+async function setMortgageStep(uid) {
+  var newStep = parseInt(document.getElementById('bd-mortgage-step').value);
+  try {
+    var updateData = { currentMortgageStep: newStep, lastStepUpdate: fb.serverTimestamp() };
+    // If step reaches loan app submitted (step 2+) and no mortgage dates set yet, prompt
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), updateData);
+    await loadBuyersForAgent();
+    renderBuyers();
+    // Update the mortgage trail on client side
+    var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+    if (buyer) buyer.currentMortgageStep = newStep;
+    alert('Mortgage step updated to Step ' + newStep);
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.setMortgageStep = setMortgageStep;
 window.setBuyerDocs = setBuyerDocs;
 window.deleteBuyer = deleteBuyer;
 window.agentChatWith = agentChatWith;
@@ -6423,14 +6445,26 @@ function cdmAddDays(base, days) {
 
 function cdmFill(closingDays) {
   var today = new Date().toISOString().split('T')[0];
-  var plan = {
-    acceptanceDate:     today,
-    earnestMoneyDue:    cdmAddDays(today, 3),
-    inspectionDeadline: cdmAddDays(today, 7),
-    appraisalDeadline:  cdmAddDays(today, closingDays === 30 ? 21 : closingDays === 45 ? 30 : 45),
-    financingDeadline:  cdmAddDays(today, closingDays - 5),
-    closingDate:        cdmAddDays(today, closingDays)
-  };
+  var plan;
+  if (_cdmType === 'mortgage') {
+    plan = {
+      preApprovalIssued:  today,
+      loanAppSubmitted:   cdmAddDays(today, 3),
+      appraisalOrdered:   cdmAddDays(today, 7),
+      appraisalReceived:  cdmAddDays(today, closingDays === 30 ? 17 : closingDays === 45 ? 25 : 38),
+      clearToClose:       cdmAddDays(today, closingDays - 3),
+      closingDate:        cdmAddDays(today, closingDays)
+    };
+  } else {
+    plan = {
+      acceptanceDate:     today,
+      earnestMoneyDue:    cdmAddDays(today, 3),
+      inspectionDeadline: cdmAddDays(today, 7),
+      appraisalDeadline:  cdmAddDays(today, closingDays === 30 ? 21 : closingDays === 45 ? 30 : 45),
+      financingDeadline:  cdmAddDays(today, closingDays - 5),
+      closingDate:        cdmAddDays(today, closingDays)
+    };
+  }
   Object.keys(plan).forEach(function(key) {
     var el = document.getElementById('cdm-' + key);
     if (el) el.value = plan[key];
@@ -6439,7 +6473,7 @@ function cdmFill(closingDays) {
 window.cdmFill = cdmFill;
 
 function cdmClear() {
-  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
+  var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : _cdmType === 'mortgage' ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   fields.forEach(function(f) {
     var el = document.getElementById('cdm-' + f.key);
     if (el) el.value = '';
@@ -7224,8 +7258,11 @@ function renderMortgageJourney() {
   MJ_STEPS.forEach(function(s,i) {
     var x = cxFn(i), y = cyFn(i);
     var hl = s.highlight;
-    var fill = hl ? '#185FA5' : '#E6F1FB';
-    var stroke = hl ? '#185FA5' : '#93C5FD';
+    var curMortStep = (userProfile && userProfile.currentMortgageStep) || 0;
+    var isDone = (i+1) < curMortStep;
+    var isCurrent = (i+1) === curMortStep;
+    var fill = isDone ? '#1D9E75' : isCurrent ? '#fff' : hl ? '#185FA5' : '#E6F1FB';
+    var stroke = isDone ? '#1D9E75' : isCurrent ? '#185FA5' : hl ? '#185FA5' : '#93C5FD';
     var foSize = r*2;
     var labelY = y + (y < (mob?80:58) ? (r+14) : -(r+5));
     var cleanTitle = s.title.replace(/Step \d+ — /,'').replace(/Step \d+: /,'');
@@ -7233,8 +7270,13 @@ function renderMortgageJourney() {
     svg += '<g onclick="showMJStep('+i+')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
     svg += '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.5" data-mjid="'+i+'"/>';
     if (hl) svg += '<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="#93C5FD" stroke-width="2" opacity="0.6"/>';
-    svg += '<foreignObject x="'+(x-r)+'" y="'+(y-r)+'" width="'+foSize+'" height="'+foSize+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+foSize+'px;height:'+foSize+'px;display:flex;align-items:center;justify-content:center;font-size:'+emojiSize+'px;line-height:1;">'+s.icon+'</div></foreignObject>';
-    svg += '<text x="'+x+'" y="'+labelY+'" text-anchor="middle" font-size="'+labelSize+'" fill="'+(hl?'#0F6E56':'#555')+'" font-weight="'+(hl?'600':'400')+'">'+word+'</text>';
+    if (isDone) {
+      svg += '<text x="'+x+'" y="'+(y+5)+'" text-anchor="middle" font-size="'+(mob?16:13)+'" font-weight="bold" fill="#fff">&#10003;</text>';
+    } else {
+      svg += '<foreignObject x="'+(x-r)+'" y="'+(y-r)+'" width="'+foSize+'" height="'+foSize+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+foSize+'px;height:'+foSize+'px;display:flex;align-items:center;justify-content:center;font-size:'+emojiSize+'px;line-height:1;">'+s.icon+'</div></foreignObject>';
+    }
+    if (isCurrent) svg += '<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="#93C5FD" stroke-width="2" opacity="0.6"/>';
+    svg += '<text x="'+x+'" y="'+labelY+'" text-anchor="middle" font-size="'+labelSize+'" fill="'+(isCurrent?'#185FA5':hl?'#0F6E56':'#555')+'" font-weight="'+(isCurrent||hl?'600':'400')+'">'+word+'</text>';
     svg += '</g>';
   });
 
