@@ -1981,6 +1981,13 @@ textarea{resize:vertical;min-height:68px;}
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+    <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Buyer</button>
+    <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
+    <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
+  </div>
+  <div class="dstats" id="agent-stats"></div>
+  <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div><!-- /agent-buyers-panel -->
 
   <!-- PROFILE TAB -->
@@ -2008,13 +2015,6 @@ textarea{resize:vertical;min-height:68px;}
     <div><label class="flabel">Short Bio</label><textarea id="ap-bio" placeholder="Write a short client-facing bio..."></textarea></div>
     <div id="ap-status" style="display:none;font-size:12px;"></div>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-    <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Buyer</button>
-    <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
-    <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
-  </div>
-  <div class="dstats" id="agent-stats"></div>
-  <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div>
 
   <!-- MESSAGES TAB -->
@@ -5595,6 +5595,8 @@ function switchAgentTab(tab) {
     // buyers (default)
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (bp) bp.style.display='flex';
+    var editor = document.getElementById('agent-profile-editor');
+    if (editor) editor.style.display='none';
   }
 }
 window.switchAgentTab = switchAgentTab;
