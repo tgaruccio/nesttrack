@@ -153,7 +153,9 @@ input[type=text],input[type=email],input[type=password],input[type=number],input
 
 /* SIDEBAR */
 .sidebar{background:var(--surface);border-right:0.5px solid var(--border);padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto;}
-.ns{font-size:9px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.13em;padding:10px 8px 3px;}
+.ns{font-size:9px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.13em;padding:10px 8px 3px;display:flex;align-items:center;justify-content:space-between;}
+.ns.ns-toggle{cursor:pointer;user-select:none;-webkit-user-select:none;}
+.ns.ns-toggle:hover{color:var(--text2);}
 .nb{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--r-sm);cursor:pointer;font-size:12.5px;color:var(--text2);border:none;background:none;width:100%;text-align:left;font-family:'DM Sans',sans-serif;transition:background 0.12s;}
 .nb:hover{background:var(--surface2);}
 .nb.active{background:var(--green-lt);color:var(--green-dk);font-weight:500;}
@@ -414,7 +416,6 @@ textarea{resize:vertical;min-height:68px;}
 }
 
 /* COLLAPSIBLE SIDEBAR */
-.ns{cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;-webkit-user-select:none;}
 .ns-arrow{font-size:9px;color:var(--text3);transition:transform 0.2s;display:inline-block;margin-left:auto;flex-shrink:0;}
 .ns.collapsed .ns-arrow{transform:rotate(-90deg);}
 .ns-body{display:flex;flex-direction:column;gap:2px;overflow:hidden;transition:max-height 0.22s ease;}
@@ -520,7 +521,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
     <!-- Agent Tools — always expanded -->
     <div class="ns" style="padding-top:6px;cursor:default;">Agent Tools</div>
-    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">👥 Clients</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
@@ -530,11 +531,11 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Pre-Approval</button>
     <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Partners</button>
     <!-- Client View — collapsible -->
-    <div class="ns collapsed" style="margin-top:4px;" onclick="toggleSidebarSection('sec-client-view',this)">Client View <span class="ns-arrow">▾</span></div>
+    <div class="ns collapsed ns-toggle" style="margin-top:4px;" onclick="toggleSidebarSection('sec-client-view',this)">Client View <span class="ns-arrow">▾</span></div>
     <div class="ns-body collapsed" id="sec-client-view" style="max-height:0;">
   </div>
   <!-- START HERE — expanded by default -->
-  <div class="ns" id="sidebar-start-label" onclick="toggleSidebarSection('sec-start',this)">Start Here <span class="ns-arrow">▾</span></div>
+  <div class="ns ns-toggle" id="sidebar-start-label" onclick="toggleSidebarSection('sec-start',this)">Start Here <span class="ns-arrow">▾</span></div>
   <div class="ns-body" id="sec-start">
     <button class="nb" data-pg="home" onclick="go('home',this)">🏠 Home</button>
     <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ Home Buyers Trail</button>
@@ -544,7 +545,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- HOME SEARCH — collapsed -->
-  <div class="ns collapsed" onclick="toggleSidebarSection('sec-search',this)">Home Search <span class="ns-arrow">▾</span></div>
+  <div class="ns collapsed ns-toggle" onclick="toggleSidebarSection('sec-search',this)">Home Search <span class="ns-arrow">▾</span></div>
   <div class="ns-body collapsed" id="sec-search" style="max-height:0;">
     <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
     <button class="nb" data-pg="saved" onclick="go('saved',this)">🏠 Saved Homes <span class="nb-badge" id="sc-saved">0</span></button>
@@ -552,7 +553,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- BUYER TOOLS — collapsed -->
-  <div class="ns collapsed" onclick="toggleSidebarSection('sec-buyer-tools',this)">Buyer Tools <span class="ns-arrow">▾</span></div>
+  <div class="ns collapsed ns-toggle" onclick="toggleSidebarSection('sec-buyer-tools',this)">Buyer Tools <span class="ns-arrow">▾</span></div>
   <div class="ns-body collapsed" id="sec-buyer-tools" style="max-height:0;">
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
     <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Photo Analyzer</button>
@@ -567,7 +568,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- SELLER TOOLS — collapsed -->
-  <div class="ns collapsed" onclick="toggleSidebarSection('sec-seller-tools',this)">Seller Tools <span class="ns-arrow">▾</span></div>
+  <div class="ns collapsed ns-toggle" onclick="toggleSidebarSection('sec-seller-tools',this)">Seller Tools <span class="ns-arrow">▾</span></div>
   <div class="ns-body collapsed" id="sec-seller-tools" style="max-height:0;">
     <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet Calculator</button>
     <button class="nb" data-pg="valuation" onclick="go('valuation',this)">📈 Home Valuation</button>
@@ -576,14 +577,14 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- COMMUNICATE — expanded by default -->
-  <div class="ns" onclick="toggleSidebarSection('sec-communicate',this)">Communicate <span class="ns-arrow">▾</span></div>
+  <div class="ns ns-toggle" onclick="toggleSidebarSection('sec-communicate',this)">Communicate <span class="ns-arrow">▾</span></div>
   <div class="ns-body" id="sec-communicate">
     <button class="nb" data-pg="chat" onclick="go('chat',this)">💬 Chat with Agent</button>
     <button class="nb" data-pg="docs" onclick="go('docs',this)">📁 Documents</button>
   </div>
 
   <!-- RESOURCES — collapsed -->
-  <div class="ns collapsed" onclick="toggleSidebarSection('sec-resources',this)">Resources <span class="ns-arrow">▾</span></div>
+  <div class="ns collapsed ns-toggle" onclick="toggleSidebarSection('sec-resources',this)">Resources <span class="ns-arrow">▾</span></div>
   <div class="ns-body collapsed" id="sec-resources" style="max-height:0;">
     <button class="nb" data-pg="docs-explainer" onclick="go('docs-explainer',this)">📄 Document Explainer</button>
     <button class="nb" data-pg="education" onclick="go('education',this)">📚 Education</button>
@@ -593,7 +594,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- ACCOUNT — collapsed -->
-  <div class="ns collapsed" onclick="toggleSidebarSection('sec-account',this)">Account <span class="ns-arrow">▾</span></div>
+  <div class="ns collapsed ns-toggle" onclick="toggleSidebarSection('sec-account',this)">Account <span class="ns-arrow">▾</span></div>
   <div class="ns-body collapsed" id="sec-account" style="max-height:0;">
     <button class="nb" data-pg="dash" onclick="go('dash',this)">📊 My Dashboard</button>
   </div>
