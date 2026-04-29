@@ -2939,7 +2939,7 @@ async function showApp() {
   renderPartners('all');
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent) { await loadBuyersForAgent(); syncHardcodedAgentsToFirestore(); }
+  if (isAgent) { await loadBuyersForAgent(); syncHardcodedAgentsToFirestore(); await todoLoad(); }
   setupChatHead();
   watchChat();
   if (isAgent) loadAgentDocs();
@@ -5681,6 +5681,12 @@ async function todoLoad() {
     var snap = await fb.getDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid));
     _todos = snap.exists() ? (snap.data().items || []) : [];
     todoRender();
+    // Refresh dashboard todo count if visible
+    var el = document.getElementById('ad-todo-count');
+    if (el) {
+      var active = _todos.filter(function(t){ return !t.done; }).length;
+      el.textContent = active > 0 ? active + ' open task' + (active !== 1 ? 's' : '') : 'All clear';
+    }
   } catch(e) { console.log('todoLoad:', e.message); }
 }
 window.todoLoad = todoLoad;
