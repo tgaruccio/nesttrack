@@ -526,6 +526,7 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ The Home Buyers Trail</button>
   <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this)">🏦 The Mortgage Trail</button>
   <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 The Home Sellers Trail</button>
+  <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
 
   <div class="ns">Discover</div>
   <button class="nb active" data-pg="idx" onclick="go('idx',this)">🔍 Search Homes <span class="nb-badge pill-g" style="background:var(--green-lt);color:var(--green-dk);">Live</span></button>
@@ -561,7 +562,6 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="docs-explainer" onclick="go('docs-explainer',this)">📄 Document Explainer</button>
   <button class="nb" data-pg="education" onclick="go('education',this)">📚 Education</button>
   <button class="nb" data-pg="blog" onclick="go('blog',this)">📰 Blog</button>
-  <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
   <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
 
   <div class="ns">Account</div>
@@ -1981,6 +1981,10 @@ textarea{resize:vertical;min-height:68px;}
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
+  </div><!-- /agent-buyers-panel -->
+
+  <!-- PROFILE TAB -->
+  <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:12px;">
   <div class="card" id="agent-profile-editor" style="display:none;flex-direction:column;gap:11px;" data-profile-card="1">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <div>
@@ -2011,10 +2015,6 @@ textarea{resize:vertical;min-height:68px;}
   </div>
   <div class="dstats" id="agent-stats"></div>
   <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-  </div><!-- /agent-buyers-panel -->
-
-  <!-- PROFILE TAB -->
-  <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:12px;">
   </div>
 
   <!-- MESSAGES TAB -->
@@ -5577,24 +5577,19 @@ function switchAgentTab(tab) {
     if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
     if (pp) {
       pp.style.display='flex';
-      // Move profile editor into profile panel if not already there
       var editor = document.getElementById('agent-profile-editor');
-      if (editor && editor.parentElement !== pp) {
-        pp.appendChild(editor);
-      }
       if (editor) { editor.style.display='flex'; renderAgentProfileEditor(); }
-    // If dual agent+lender, show note that profile feeds lender card too
-    if (isLender) {
-      var lenderNote = document.getElementById('lender-profile-note');
-      if (!lenderNote) {
-        lenderNote = document.createElement('div');
-        lenderNote.id = 'lender-profile-note';
-        lenderNote.className = 'notice';
-        lenderNote.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);font-size:12px;';
-        lenderNote.textContent = '🏦 You are assigned as both agent and lender. This profile photo and bio will appear on both the Your Agent and Your Lender cards for your clients.';
-        if (pp) pp.insertBefore(lenderNote, pp.firstChild);
+      if (isLender) {
+        var lenderNote = document.getElementById('lender-profile-note');
+        if (!lenderNote) {
+          lenderNote = document.createElement('div');
+          lenderNote.id = 'lender-profile-note';
+          lenderNote.className = 'notice';
+          lenderNote.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);font-size:12px;';
+          lenderNote.textContent = '🏦 You are assigned as both agent and lender. This profile photo and bio will appear on both the Your Agent and Your Lender cards for your clients.';
+          pp.insertBefore(lenderNote, pp.firstChild);
+        }
       }
-    }
     }
   } else {
     // buyers (default)
