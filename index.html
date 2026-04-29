@@ -2238,7 +2238,7 @@ textarea{resize:vertical;min-height:68px;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 import { getStorage, ref as storageRef, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
@@ -2260,7 +2260,7 @@ const rtdb = getDatabase(fbApp);
 const storage = getStorage(fbApp);
 
 // Expose for non-module code
-window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll };
+window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -9753,6 +9753,7 @@ async function sendOfferToClient(listingId, offerId) {
     +'<table width="100%" cellpadding="0" cellspacing="0">'+detailRows+'</table>'
     +'</div>'
     +(o.notes ? '<div style="padding:12px 14px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#555;font-style:italic;margin-bottom:16px;line-height:1.6;">'+partnerEsc(o.notes)+'</div>' : '')
+    +(o.pdfUrl ? '<div style="margin-bottom:20px;"><a href="'+o.pdfUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#1D9E75;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600;">&#128196; Download Offer PDF</a></div>' : '')
     +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 20px;">I will be in touch shortly to discuss next steps. Questions? Message me directly in your portal.</p>'
     +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 14px;"/>'
     +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
@@ -9768,6 +9769,7 @@ async function sendOfferToClient(listingId, offerId) {
       var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
         +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
         +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Submitted Successfully</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">Nest Track Offer Portal</div>'
         +'</div>'
         +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
@@ -9838,9 +9840,9 @@ async function loadPublicOfferPage(code) {
     }).join('');
 
     var pdfSection = '<div style="margin-bottom:14px;">'
-      + '<label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Upload Offer PDF <span style="color:#aaa;font-weight:400;">(optional)</span></label>'
-      + '<input type="file" id="of-pdf" accept=".pdf" style="width:100%;padding:8px;border:1.5px dashed #D1FAE5;border-radius:8px;font-size:13px;box-sizing:border-box;background:#F0FDF4;"/>'
-      + '<div style="font-size:11px;color:#aaa;margin-top:4px;">PDF will be stored securely and shared with the listing agent.</div>'
+      + '<label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Upload Offer PDF <span style="color:#E24B4A;font-weight:600;">*</span></label>'
+      + '<input type="file" id="of-pdf" accept=".pdf" style="width:100%;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;box-sizing:border-box;"/>'
+      + '<div style="font-size:11px;color:#888;margin-top:4px;">Required — upload a signed PDF of your offer.</div>'
       + '</div>';
 
     var formBody = '<div style="padding:24px;">'
@@ -9864,8 +9866,11 @@ function offerPageShell(address, photoUrl, listPrice, body, deadline) {
     // Header
     + '<div style="background:#1D9E75;padding:0;">'
     + '<div style="max-width:640px;margin:0 auto;padding:24px 20px 0;">'
-    + '<div style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.7);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Offer Submission</div>'
-    + '<div style="font-size:22px;font-weight:300;color:#fff;letter-spacing:-0.3px;">The Garuccio Group</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;">'
+    + '<svg width="28" height="28" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M20 8L32 18V34H26V24H14V34H8V18L20 8Z" fill="white"/></svg>'
+    + '<div style="font-size:24px;font-weight:300;color:#fff;letter-spacing:-0.5px;font-family:Georgia,serif;">Nest Track</div>'
+    + '</div>'
+    + '<div style="font-size:12px;color:rgba(255,255,255,0.65);margin-top:6px;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;">Offer Submission</div>'
     + '</div>'
     // Property photo / address card
     + (photoUrl
@@ -9887,7 +9892,7 @@ function offerPageShell(address, photoUrl, listPrice, body, deadline) {
     + '<div style="background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.08);overflow:hidden;">'
     + body
     + '</div>'
-    + '<div style="text-align:center;margin-top:20px;font-size:12px;color:#aaa;">Powered by Nest Track &mdash; The Garuccio Group</div>'
+    + '<div style="text-align:center;margin-top:20px;font-size:12px;color:#aaa;">Powered by Nest Track</div>'
     + '</div>'
     + '</div>';
 }
@@ -9914,6 +9919,13 @@ async function submitPublicOffer(listingId) {
   });
   if (missing.length) { alert('Please fill in: '+missing.join(', ')); return; }
 
+  // Validate PDF required
+  var pdfCheck = document.getElementById('of-pdf');
+  if (!pdfCheck || !pdfCheck.files || !pdfCheck.files[0]) {
+    alert('Please attach the offer PDF before submitting.');
+    return;
+  }
+
   // Add price as number for sorting
   if (data.offerPrice) data.offerPriceNum = parseFloat(data.offerPrice.replace(/[^0-9.]/g,''))||0;
 
@@ -9939,17 +9951,25 @@ async function submitPublicOffer(listingId) {
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
       offerCount: fb.increment(1)
     });
-    if (statusEl) {
-      statusEl.style.display='block';
-      statusEl.style.background='#ECFDF5';
-      statusEl.style.color='#065F46';
-      statusEl.textContent='&#10003; Offer submitted successfully! A confirmation has been sent to '+data.agentEmail+'.';
+    // Replace entire inner with success screen
+    var inner = document.getElementById('offer-submit-inner');
+    if (inner) {
+      inner.innerHTML = '<div style="font-family:Georgia,serif;max-width:640px;margin:0 auto;">'
+        + '<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+        + '<svg width="24" height="24" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="rgba(255,255,255,0.2)"/><path d="M20 8L32 18V34H26V24H14V34H8V18L20 8Z" fill="white"/></svg>'
+        + '<div style="font-size:22px;font-weight:300;color:#fff;font-family:Georgia,serif;">Nest Track</div>'
+        + '</div>'
+        + '</div>'
+        + '<div style="background:#fff;padding:40px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;text-align:center;">'
+        + '<div style="width:64px;height:64px;background:#ECFDF5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:32px;">&#10003;</div>'
+        + '<div style="font-size:22px;font-weight:600;color:#065F46;margin-bottom:8px;">Offer Submitted!</div>'
+        + '<div style="font-size:15px;color:#444;line-height:1.65;margin-bottom:20px;">Your offer of <strong>' + (data.offerPrice||'') + '</strong> has been received by the listing agent.<br/>You will be contacted regarding next steps.</div>'
+        + '<div style="font-size:13px;color:#888;padding:12px 16px;background:#f9f9f9;border-radius:8px;">A confirmation will be sent to <strong>' + (data.agentEmail||'') + '</strong> when the listing agent reviews your offer.</div>'
+        + '</div>'
+        + '<div style="text-align:center;margin-top:16px;font-size:12px;color:#aaa;">Powered by Nest Track</div>'
+        + '</div>';
     }
-    // Clear form
-    document.querySelectorAll('[id^="of-"]').forEach(function(el){
-      if (el.tagName==='SELECT') el.selectedIndex=0;
-      else el.value='';
-    });
     if (btn) btn.disabled = false;
   } catch(e) {
     if (statusEl) {
