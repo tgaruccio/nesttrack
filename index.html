@@ -2054,9 +2054,11 @@ textarea{resize:vertical;min-height:68px;}
     <div style="padding:16px 22px 22px;display:flex;flex-direction:column;gap:16px;">
       <div id="ref-step1">
         <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Step 1 &mdash; Select Partners to Send</div>
+        <div id="ref-cat-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
           <button class="btn btn-sm btn-g" onclick="refSelectAllCats()" style="font-size:11px;">&#x2713; Select All</button>
           <button class="btn btn-sm" onclick="refClearAllCats()" style="font-size:11px;">&#x2715; Clear All</button>
+          <button class="btn btn-sm" onclick="refClearFilter()" style="font-size:11px;">Show All</button>
         </div>
         <div id="ref-cat-list" style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto;padding-right:4px;"></div>
       </div>
@@ -4944,23 +4946,24 @@ var _refChecked = {};
 async function openReferralModal() {
   // Load partners if not yet loaded
   if (!agentPartners.length) await loadAgentPartners(userProfile.agentId||'tom');
-  _refStep = 1; _refChecked = {};
-  agentPartners.forEach(function(p){ _refChecked[p.id] = true; });
+  _refStep = 1; _refChecked = {}; // all start unchecked
   document.getElementById('ref-step1').style.display = 'block';
   document.getElementById('ref-step2').style.display = 'none';
   document.getElementById('ref-back-btn').style.display = 'none';
   document.getElementById('ref-next-btn').textContent = 'Next: Select Client';
   document.getElementById('ref-status').style.display = 'none';
+  refBuildCatChips();
   refBuildCatList();
   document.getElementById('referral-modal').style.display = 'flex';
 }
 window.openReferralModal = openReferralModal;
 
-function refBuildCatList() {
+function refBuildCatList(filterCat) {
   var el = document.getElementById('ref-cat-list');
   if (!el) return;
-  var cats = [];
-  agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+  var allCats = [];
+  agentPartners.forEach(function(p){ if (allCats.indexOf(p.cat)===-1) allCats.push(p.cat); });
+  var cats = filterCat ? [filterCat] : allCats;
   el.innerHTML = cats.map(function(cat) {
     var cps = agentPartners.filter(function(p){ return p.cat===cat; });
     return '<div style="margin-bottom:8px;">'
@@ -4978,15 +4981,51 @@ function refBuildCatList() {
 }
 window.refBuildCatList = refBuildCatList;
 
+function refBuildCatChips() {
+  var el = document.getElementById('ref-cat-chips');
+  if (!el) return;
+  var cats = [];
+  agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+  el.innerHTML = cats.map(function(cat){
+    var enc = cat.replace(/'/g, "\\'");
+    return '<span class="chip" onclick="refFilterByCat(\''+enc+'\',this)" style="font-size:11px;cursor:pointer;">'+partnerEsc(cat)+'</span>';
+  }).join('');
+}
+window.refBuildCatChips = refBuildCatChips;
+
+function refFilterByCat(cat, el) {
+  // Toggle active chip
+  var wasActive = el && el.classList.contains('active');
+  document.querySelectorAll('#ref-cat-chips .chip').forEach(function(ch){ ch.classList.remove('active'); });
+  if (!wasActive && el) el.classList.add('active');
+  // Check all in this category when chip selected
+  if (!wasActive) {
+    agentPartners.forEach(function(p){ if (p.cat===cat) _refChecked[p.id]=true; });
+    refBuildCatList(cat);
+  } else {
+    refBuildCatList();
+  }
+}
+window.refFilterByCat = refFilterByCat;
+
+function refClearFilter() {
+  document.querySelectorAll('#ref-cat-chips .chip').forEach(function(ch){ ch.classList.remove('active'); });
+  refBuildCatList();
+}
+window.refClearFilter = refClearFilter;
+
+
 function refSelectAllCats() {
   agentPartners.forEach(function(p){ _refChecked[p.id]=true; });
-  document.querySelectorAll('#ref-cat-list input[type=checkbox]').forEach(function(cb){ cb.checked=true; });
+  document.querySelectorAll('#ref-cat-chips .chip').forEach(function(ch){ ch.classList.remove('active'); });
+  refBuildCatList();
 }
 window.refSelectAllCats = refSelectAllCats;
 
 function refClearAllCats() {
   agentPartners.forEach(function(p){ _refChecked[p.id]=false; });
-  document.querySelectorAll('#ref-cat-list input[type=checkbox]').forEach(function(cb){ cb.checked=false; });
+  document.querySelectorAll('#ref-cat-chips .chip').forEach(function(ch){ ch.classList.remove('active'); });
+  refBuildCatList();
 }
 window.refClearAllCats = refClearAllCats;
 
