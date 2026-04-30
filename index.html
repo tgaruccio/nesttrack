@@ -10951,6 +10951,7 @@ window.debugShowingTime = debugShowingTime;
 
 var _deals = [];
 var _dealsLoaded = false;
+var _activeFilter = 'all';
 
 var DEAL_STATUSES = ['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'];
 var DEAL_STATUS_COLORS = {
@@ -11042,8 +11043,9 @@ async function renderDealTracker() {
     +'</div>';
 
   html += '<div id="deal-cards-container">';
+  var _toRender = _activeFilter==='all' ? _deals : _deals.filter(function(d){ return d.status===_activeFilter; });
   try {
-    html += renderDealCards(_deals);
+    html += renderDealCards(_toRender);
   } catch(renderErr) {
     html += '<div class="notice" style="color:#E24B4A;">Error rendering deals: ' + renderErr.message + '</div>';
     console.error('renderDealCards error:', renderErr);
@@ -11268,10 +11270,7 @@ async function updateDealStatus(dealId, status) {
   if (deal) deal.status = status;
   var agentId = userProfile.agentId||'tom';
   await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{status:status});
-  // Re-render keeping current active filter
-  var activeChip = document.querySelector('[id^="dchip-"][style*="var(--green)"]');
-  var currentFilter = activeChip ? activeChip.id.replace('dchip-','').replace(/-/g,' ') : 'all';
-  filterDeals(currentFilter === 'all' ? 'all' : currentFilter);
+  filterDeals(_activeFilter);
 }
 window.updateDealStatus = updateDealStatus;
 
@@ -11311,6 +11310,7 @@ window.editDealAddress = editDealAddress;
 
 // ── Filter deals by status ──
 function filterDeals(status) {
+  _activeFilter = status;
   // Update chip styles
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
     b.style.background=''; b.style.color=''; b.style.borderColor='';
