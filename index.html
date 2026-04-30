@@ -1958,7 +1958,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-    <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Buyer</button>
+    <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Client</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
@@ -6530,25 +6530,14 @@ async function openBuyerDetail(uid, scrollTo) {
         <div>
           <div class="mtitle">${b.firstName} ${b.lastName}</div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
-          ${(b.listingAddress||b.propertyAddress) ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>📍 ${b.listingAddress||b.propertyAddress}</div>` : ''}
+          ${b.listingAddress ? `<div style='font-size:12px;color:#D97706;margin-top:2px;font-weight:500;'>🏡 ${b.listingAddress}</div>` : ''}${b.propertyAddress ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>🔍 ${b.propertyAddress}</div>` : ''}
         </div>
       </div>
       <button class="xbtn" onclick="closeM('buyer-modal')">✕</button>
     </div>
 
-    ${ (b.listingAddress||b.propertyAddress) ?
-    `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;'>
-      <div style='display:flex;align-items:center;justify-content:space-between;'>
-        <div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>Property</div>
-        <div style='font-size:14px;font-weight:600;margin-top:2px;'>📍 ${b.listingAddress||b.propertyAddress}</div></div>
-        <button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button>
-      </div></div>` :
-    `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;'>
-      <div style='display:flex;align-items:center;justify-content:space-between;'>
-        <div style='font-size:13px;color:var(--text3);'>📍 No property address yet</div>
-        <button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button>
-      </div></div>`
-    }
+    ${(b.journeyType==='seller'||b.journeyType==='both') ? (b.listingAddress ? `<div class='card' style='background:#FFFBEB;border:1px solid #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:#92400E;font-weight:700;text-transform:uppercase;'>🏡 Listing</div><div style='font-size:14px;font-weight:600;margin-top:2px;color:#92400E;'>${b.listingAddress}</div></div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='border-color:#D97706;color:#92400E;'>Edit</button></div></div>` : `<div class='card' style='background:#FFFBEB;border:1px dashed #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:#92400E;'>🏡 No listing address</div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='background:#D97706;color:#fff;border-color:#D97706;'>+ Add</button></div></div>`) : ''}
+    ${(b.journeyType==='buyer'||b.journeyType==='both') ? (b.propertyAddress ? `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>🔍 Purchase</div><div style='font-size:14px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div></div>` : `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:var(--text3);'>🔍 No purchase address yet</div><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div></div>`) : ''}
 
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
@@ -6561,15 +6550,13 @@ async function openBuyerDetail(uid, scrollTo) {
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
           </div>
-          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}${(b.currentStep||0)>0 ? (() => {  var hasBuyDeal = typeof _deals !== 'undefined' && _deals.some(function(d){ return d.clientUid==='${uid}' && d.dealType==='buyer'; });  return hasBuyDeal    ? `<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:8px;width:100%;font-size:12px;'>&#128203; Manage Buy-Side Transaction →</button>`    : `<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='margin-top:8px;width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})() : ''}${(b.currentSellerStep||0)>0 ? (() => {  var hasSellDeal = typeof _deals !== 'undefined' && _deals.some(function(d){ return d.clientUid==='${uid}' && d.dealType==='seller'; });  return hasSellDeal    ? `<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:6px;width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>&#128203; Manage List-Side Transaction →</button>`    : `<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='margin-top:6px;width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add List Side to Deal Tracker</button>`;})() : ''}
-        </div>
-        <div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
+          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}${(b.currentStep||0)>0 ? (() => {  var hasBuyDeal = typeof _deals !== 'undefined' && _deals.some(function(d){ return d.clientUid==='${uid}' && d.dealType==='buyer'; });  return hasBuyDeal    ? `<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:8px;width:100%;font-size:12px;'>&#128203; Manage Buy-Side Transaction →</button>`    : `<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='margin-top:8px;width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})() : ''}Seller Step</div>
           <div style="display:flex;gap:6px;align-items:center;">
             <select id="bd-seller-step" style="flex:1;max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
           </div>
+          ${(b.currentSellerStep||0)>0 ? (() => {var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:8px;width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>&#128203; Manage Listing &#8594;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='margin-top:8px;width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
         </div>
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏦 Mortgage Step</div>
@@ -6606,19 +6593,6 @@ async function openBuyerDetail(uid, scrollTo) {
         <select id="bd-lender" style="max-width:220px;"><option value="none" ${(b.lenderId||'tom')==='none'?'selected':''}>— No Lender —</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' — '+l.role:''}</option>`).join('')}</select>
         <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
       </div>
-    </div>
-
-    <div class="card" style="display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;">Title Company</div>
-      <div class="fg2">
-        <div><label class="flabel">Company Name</label><input type="text" id="bd-title-name" placeholder="e.g. Erieview Title Agency" value="${b.titleCo&&b.titleCo.name||''}"/></div>
-        <div><label class="flabel">Contact Name</label><input type="text" id="bd-title-contact" placeholder="e.g. Sarah Johnson" value="${b.titleCo&&b.titleCo.contact||''}"/></div>
-        <div><label class="flabel">Phone</label><input type="tel" id="bd-title-phone" placeholder="440-555-0100" value="${b.titleCo&&b.titleCo.phone||''}"/></div>
-        <div><label class="flabel">Email</label><input type="email" id="bd-title-email" placeholder="sarah@erieviewtitle.com" value="${b.titleCo&&b.titleCo.email||''}"/></div>
-      </div>
-      <input type="text" id="bd-title-address" placeholder="Office address (optional)" value="${b.titleCo&&b.titleCo.address||''}" style="font-size:13px;"/>
-      <button class="btn btn-sm btn-g" onclick="saveTitleCo('"+(uid)+"')">Save Title Company</button>
-      <div id="bd-title-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;"></div>
     </div>
 
     <div class="card">
@@ -11224,6 +11198,7 @@ async function toggleChecklistItem(dealId, idx, checked) {
   await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:saveList});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
+  if (checked && deal.clientUid) showTaskEmailPrompt(deal.clientUid, itemText);
 }
 window.toggleChecklistItem = toggleChecklistItem;
 
@@ -11450,13 +11425,13 @@ window.syncDealsFromClients = syncDealsFromClients;
 
 async function setPropertyAddress(uid) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
-  var current = b ? (b.listingAddress||b.propertyAddress||'') : '';
+  var current = b ? (b.propertyAddress||'') : '';
   var newAddr = prompt('Property address:', current);
   if (newAddr === null) return;
   newAddr = newAddr.trim();
   try {
-    await fb.updateDoc(fb.doc(fb.db,'users',uid), {listingAddress:newAddr, propertyAddress:newAddr});
-    if (b) { b.listingAddress = newAddr; b.propertyAddress = newAddr; }
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), {propertyAddress:newAddr});
+    if (b) { b.propertyAddress = newAddr; }
     var agentId = userProfile.agentId||'tom';
     var linked = _deals.find(function(d){ return d.clientUid===uid && !d.address; });
     if (linked) {
@@ -11655,6 +11630,53 @@ async function addToDealTracker(uid, dealType) {
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
 window.addToDealTracker = addToDealTracker;
+
+async function setListingAddress(uid) {
+  var b = allBuyers.find(function(x){ return x.uid===uid; });
+  var current = b ? (b.listingAddress||'') : '';
+  var newAddr = prompt('Listing address:', current);
+  if (newAddr === null) return;
+  newAddr = newAddr.trim();
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), {listingAddress:newAddr});
+    if (b) b.listingAddress = newAddr;
+    var agentId = userProfile.agentId||'tom';
+    var linked = _deals.find(function(d){ return d.clientUid===uid && d.dealType==='seller' && !d.address; });
+    if (linked) {
+      await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',linked.id),{address:newAddr});
+      linked.address = newAddr;
+    }
+    openBuyerDetail(uid);
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.setListingAddress = setListingAddress;
+
+function showTaskEmailPrompt(clientUid, taskText) {
+  if (!clientUid || !taskText) return;
+  var ex = document.getElementById('task-email-overlay');
+  if (ex) ex.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'task-email-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:var(--r);width:100%;max-width:380px;padding:22px;';
+  box.innerHTML = '<div style="font-size:15px;font-weight:600;margin-bottom:8px;">Email client an update?</div>'
+    + '<div style="font-size:13px;background:var(--green-lt);border-left:3px solid var(--green);padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:14px;">'
+    + '✓ ' + partnerEsc(taskText) + '</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Send a short update letting them know this is complete?</div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    + '<button class="btn" id="task-no-btn">No, skip</button>'
+    + '<button class="btn btn-g" id="task-yes-btn">Yes, send update</button>'
+    + '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  document.getElementById('task-no-btn').onclick = function(){ overlay.remove(); };
+  document.getElementById('task-yes-btn').onclick = function(){
+    overlay.remove();
+    sendTaskCompleteEmail(clientUid, taskText);
+  };
+}
+window.showTaskEmailPrompt = showTaskEmailPrompt;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
