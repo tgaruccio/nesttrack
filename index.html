@@ -2482,24 +2482,26 @@ let chatUnsubs = [];
 const EMOJIS = ['🏡','🏘️','🏠','🌳','🌊','🏚️'];
 
 var STEP_TASKS = {
-  5:  ['Earnest money submitted','Inspection scheduled','Inspection report reviewed','Appraisal ordered','Title search ordered'],
-  6:  ['Loan application submitted','Required docs sent to lender','Loan conditions cleared'],
-  7:  ['Inspection complete','Repair requests submitted','Repair resolution agreed'],
-  8:  ['Appraisal scheduled','Appraisal complete','Appraisal value confirmed'],
+  5:  ['Purchase agreement signed','Earnest money submitted','Inspection scheduled'],
+  6:  ['Loan application submitted','Required docs sent to lender','Loan conditions cleared','Rate locked'],
+  7:  ['Inspection complete','Inspection report reviewed with client','Repair requests submitted','Repair resolution agreed'],
+  8:  ['Appraisal ordered','Appraisal scheduled','Appraisal complete','Appraisal value confirmed'],
   9:  ['Final walk-through scheduled','Final walk-through complete','Any issues resolved'],
-  10: ['Closing disclosure received','Docs reviewed with client','Wire or cashier check confirmed'],
-  11: ['Closing complete','Keys delivered','Welcome home!'],
+ 10:  ['Closing disclosure received','Docs reviewed with client','Wire or cashier check confirmed'],
+ 11:  ['Closing complete','Keys delivered','Welcome home!'],
 };
+var ALL_BUYER_TASKS = Object.values(STEP_TASKS).reduce(function(a,b){return a.concat(b);},[]);
 var SELLER_STEP_TASKS = {
-  3:  ['Listing agreement signed','Photos scheduled','Staging complete'],
-  4:  ['Listed on MLS','Showings active','Feedback collected'],
-  5:  ['Offer reviewed with client','Offer accepted'],
-  6:  ['Buyer inspection complete','Repair negotiations complete'],
-  7:  ['Appraisal scheduled','Appraisal complete'],
-  8:  ['Buyer clear to close received','Closing date confirmed'],
-  9:  ['Final walk-through complete'],
-  10: ['Closing docs signed','Proceeds confirmed'],
+  3:  ['Listing agreement signed','Photos scheduled','Staging complete','Lockbox installed','Yard sign up'],
+  4:  ['Listed on MLS','Open house scheduled','Showings active','Seller feedback collected','Price adjusted if needed'],
+  5:  ['Offer received and reviewed','Counter-offer sent if needed','Offer accepted and signed','Buyer pre-approval verified','Earnest money received'],
+  6:  ['Inspection scheduled','Inspection complete','Inspection report reviewed','Repair requests received','Repair negotiations complete','Repair resolution agreed'],
+  7:  ['Appraisal scheduled','Appraiser accessed property','Appraisal complete','Appraisal value confirmed'],
+  8:  ['Buyer clear to close received','Title search complete','Title issues resolved if any','Closing date and time confirmed'],
+  9:  ['Final walk-through scheduled','Final walk-through complete','Any last issues resolved'],
+ 10:  ['Closing docs signed','Proceeds confirmed','Keys handed over','Congratulate client'],
 };
+var ALL_SELLER_TASKS = Object.values(SELLER_STEP_TASKS).reduce(function(a,b){return a.concat(b);},[]);
 
 // ─── TIMELINE STEPS ───
 const TIMELINE_STEPS = [
@@ -10946,9 +10948,9 @@ window.debugShowingTime = debugShowingTime;
 var _deals = [];
 var _dealsLoaded = false;
 
-var DEAL_STATUSES = ['Searching','Active','Under Contract','Clear to Close','Closed','Fallen Through'];
+var DEAL_STATUSES = ['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'];
 var DEAL_STATUS_COLORS = {
-  'Searching':       {bg:'#F0F9FF',color:'#0369A1'},
+  'On Market':       {bg:'#FFF7ED',color:'#C2410C'},
   'Active':          {bg:'#F0FDF4',color:'#065F46'},
   'Under Contract':  {bg:'#FEF9C3',color:'#713F12'},
   'Clear to Close':  {bg:'#ECFDF5',color:'#065F46'},
@@ -11023,7 +11025,7 @@ async function renderDealTracker() {
   // Filter chips
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
     +'<button class="btn btn-sm" id="dchip-all" onclick="filterDeals(\'all\')" style="background:var(--green);color:#fff;border-color:var(--green);">All</button>'
-    +['Active','Under Contract','Clear to Close','Searching','Closed','Fallen Through'].map(function(s){
+    +['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'].map(function(s){
       return '<button class="btn btn-sm" id="dchip-'+s.replace(/ /g,'-')+'" onclick="filterDeals(\''+s+'\')">'+s+'</button>';
     }).join('')
     +'</div>';
@@ -11047,16 +11049,15 @@ function renderDealCards(deals) {
   return deals.map(function(deal) {
     // Merge step-specific tasks with custom checklist
     var linkedBuyer = (myBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
-    var clientStep = deal.dealType==='seller' ? (linkedBuyer&&linkedBuyer.currentSellerStep||0) : (linkedBuyer&&linkedBuyer.currentStep||0);
-    var stepPrefills = deal.dealType==='seller' ? (SELLER_STEP_TASKS[clientStep]||[]) : (STEP_TASKS[clientStep]||[]);
+    // Use ALL tasks for deal type — full transaction view
+    var allPrefills = deal.dealType==='seller' ? (typeof ALL_SELLER_TASKS!=='undefined' ? ALL_SELLER_TASKS : []) : (typeof ALL_BUYER_TASKS!=='undefined' ? ALL_BUYER_TASKS : []);
     var customChecklist = deal.checklist || [];
-    // Merge: step prefills first, then custom items not already in list
-    var allCheckItems = stepPrefills.map(function(t){
-      var saved = customChecklist.find(function(c){ return c.text===t; });
+    var allCheckItems = allPrefills.map(function(t){
+      var saved = customChecklist.find(function(ci){ return ci.text===t; });
       return saved || {text:t, done:false};
     });
     customChecklist.forEach(function(item){
-      if (!stepPrefills.includes(item.text)) allCheckItems.push(item);
+      if (!allPrefills.includes(item.text)) allCheckItems.push(item);
     });
     var checklist = allCheckItems;
     deal._mergedChecklist = allCheckItems;
@@ -11084,13 +11085,13 @@ function renderDealCards(deals) {
           +'</div>';
       }).join('')+'</div>'
       +'<div style="padding:10px 14px 12px;">'
-      +'<details style="margin-bottom:8px;">'
-      +'<summary style="list-style:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:5px 0;">'
+      +'<div style="margin-bottom:8px;">'
+      +'<div style="font-size:12px;font-weight:600;color:var(--text2);display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
       +'<span>\u2705 What\'s Needed</span>'
       +'<span style="font-size:11px;background:'+(done===total&&total>0?'var(--green-lt)':'var(--surface2)')+';color:'+(done===total&&total>0?'var(--green-dk)':'var(--text3)')+';padding:2px 7px;border-radius:10px;">'+done+'/'+total+'</span>'
-      +'</summary>'
-      +'<div style="padding:6px 0 0;">'
-      +'<div id="deal-checklist-'+deal.id+'">'+renderChecklist(deal.id, checklist, stepPrefills)+'</div>'
+      +'</div>'
+      +'<div>'
+      +'<div id="deal-checklist-'+deal.id+'">'+renderChecklist(deal.id, checklist)+'</div>'
       +'<div style="display:flex;gap:6px;margin-top:6px;">'
       +'<input type="text" id="deal-new-item-'+deal.id+'" placeholder="Add item..." style="flex:1;font-size:12px;padding:5px 8px;" onkeydown="if(event.key===\'Enter\')addChecklistItem(\''+deal.id+'\')" />'
       +'<button class="btn btn-sm" onclick="addChecklistItem(\''+deal.id+'\')" style="flex-shrink:0;">+</button>'
@@ -11119,15 +11120,36 @@ function renderDealCards(deals) {
 window.renderDealCards = renderDealCards;
 
 function renderChecklist(dealId, checklist, stepPrefills) {
-  stepPrefills = stepPrefills || [];
-  if (!checklist.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No items — add one below</div>';
-  return checklist.map(function(item, i) {
-    return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;" id="deal-item-'+dealId+'-'+i+'">'
-      +'<input type="checkbox" '+(item.done?'checked':'')+' onchange="toggleChecklistItem(\''+dealId+'\','+i+',this.checked)" style="width:16px;height:16px;flex-shrink:0;"/>'
-      +'<span style="font-size:12px;flex:1;'+(item.done?'text-decoration:line-through;color:var(--text3);':'')+'">'+partnerEsc(item.text)+'</span>'
-      +'<button onclick="removeChecklistItem(\''+dealId+'\','+i+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;">×</button>'
-      +'</div>';
-  }).join('');
+  if (!checklist || !checklist.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No items — add one below</div>';
+  var unchecked = checklist.filter(function(i){ return !i.done; });
+  var checked   = checklist.filter(function(i){ return  i.done; });
+  var html = '';
+  if (unchecked.length) {
+    html += unchecked.map(function(item) {
+      var i = checklist.indexOf(item);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);" id="deal-item-'+dealId+'-'+i+'">'
+        +'<input type="checkbox" onchange="toggleChecklistItem(\''+dealId+'\','+i+',this.checked)" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;"/>'
+        +'<span style="font-size:12px;flex:1;">'+partnerEsc(item.text)+'</span>'
+        +'<button onclick="removeChecklistItem(\''+dealId+'\','+i+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0;">×</button>'
+        +'</div>';
+    }).join('');
+  } else {
+    html += '<div style="font-size:12px;color:var(--green-dk);padding:4px 0;">All items complete ✓</div>';
+  }
+  if (checked.length) {
+    html += '<details style="margin-top:4px;">'
+      +'<summary style="list-style:none;font-size:11px;color:var(--text3);cursor:pointer;padding:3px 0;user-select:none;">Completed ('+checked.length+')</summary>'
+      +'<div style="padding-top:2px;">'
+      +checked.map(function(item) {
+        var i = checklist.indexOf(item);
+        return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;opacity:0.55;" id="deal-item-'+dealId+'-'+i+'">'
+          +'<input type="checkbox" checked onchange="toggleChecklistItem(\''+dealId+'\','+i+',this.checked)" style="width:14px;height:14px;flex-shrink:0;cursor:pointer;"/>'
+          +'<span style="font-size:11px;flex:1;text-decoration:line-through;color:var(--text3);">'+partnerEsc(item.text)+'</span>'
+          +'</div>';
+      }).join('')
+      +'</div></div>';
+  }
+  return html;
 }
 
 // ── Prefill modal (shown on new deal or from card) ──
