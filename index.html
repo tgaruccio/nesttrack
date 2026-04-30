@@ -6563,7 +6563,6 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
           ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
-        ${(b.currentStep||1) >= 5 ? `<div style='margin-top:10px;background:var(--surface2);border-radius:var(--r);padding:10px 12px;'><div style='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;'>Step Tasks <span style='font-style:italic;font-weight:400;text-transform:none;'>(agent only)</span></div><div id='bd-tasks-${uid}'>${renderStepTasks('${uid}',b.currentStep||1,b.stepTasks||{},'buyer')}</div><div style='display:flex;gap:6px;margin-top:6px;'><input type='text' id='bd-new-task-${uid}' placeholder='Add task...' style='flex:1;font-size:12px;padding:5px 8px;' onkeydown='if(event.key==="Enter")addStepTask("${uid}","buyer")'/><button class='btn btn-sm' onclick='addStepTask("${uid}","buyer")'>+</button></div></div>` : ''}
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
           <div style="display:flex;gap:6px;align-items:center;">
@@ -6681,6 +6680,28 @@ async function setBuyerStep(uid) {
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
       closeM('buyer-modal');
+      // Auto-create deal in tracker if none exists
+      try {
+        var agentId = userProfile.agentId||'tom';
+        if (!_dealsLoaded) await loadDeals();
+        var existingDeal = _deals.find(function(d){ return d.clientUid===uid; });
+        if (!existingDeal) {
+          var newBuyer = allBuyers.find(function(b){ return b.uid===uid; });
+          var dealData = {
+            clientName: ((newBuyer&&newBuyer.firstName||'')+' '+(newBuyer&&newBuyer.lastName||'')).trim()||(newBuyer&&newBuyer.email)||'',
+            clientUid: uid,
+            dealType: (newBuyer&&newBuyer.journeyType)||'buyer',
+            address: (newBuyer&&newBuyer.listingAddress)||(newBuyer&&newBuyer.propertyAddress)||null,
+            status: 'Under Contract',
+            checklist: [],
+            notes: '',
+            agentId: agentId,
+          };
+          var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},dealData,{createdAt:fb.serverTimestamp()}));
+          dealData.id = ref.id;
+          _deals.push(dealData);
+        }
+      } catch(dealErr){ console.log('Deal auto-create err:', dealErr.message); }
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
@@ -7267,13 +7288,12 @@ async function saveContractDates() {
     await loadBuyersForAgent();
     renderBuyers();
     sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
-    // After saving dates, prompt to add title co if not set
+    // Always reopen client profile after saving dates
     var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
-    if (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) {
-      setTimeout(function(){
-        openBuyerDetail(_cdmBuyerUid, 'titleco');
-      }, 300);
-    }
+    var _scrollTo = (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) ? 'titleco' : null;
+    setTimeout(function(){
+      openBuyerDetail(_cdmBuyerUid, _scrollTo);
+    }, 300);
   } catch(e) {
     alert('Failed to save dates: ' + e.message);
   }
@@ -11049,7 +11069,20 @@ function renderDealCards(deals) {
       +'</div>';
   }
   return deals.map(function(deal) {
-    var checklist = deal.checklist || [];
+    // Merge step-specific tasks with custom checklist
+    var linkedBuyer = (myBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+    var clientStep = deal.dealType==='seller' ? (linkedBuyer&&linkedBuyer.currentSellerStep||0) : (linkedBuyer&&linkedBuyer.currentStep||0);
+    var stepPrefills = deal.dealType==='seller' ? (SELLER_STEP_TASKS[clientStep]||[]) : (STEP_TASKS[clientStep]||[]);
+    var customChecklist = deal.checklist || [];
+    // Merge: step prefills first, then custom items not already in list
+    var allCheckItems = stepPrefills.map(function(t){
+      var saved = customChecklist.find(function(c){ return c.text===t; });
+      return saved || {text:t, done:false};
+    });
+    customChecklist.forEach(function(item){
+      if (!stepPrefills.includes(item.text)) allCheckItems.push(item);
+    });
+    var checklist = allCheckItems;
     var done = checklist.filter(function(i){ return i.done; }).length;
     var total = checklist.length;
     var notes = deal.notes || '';
@@ -11060,7 +11093,7 @@ function renderDealCards(deals) {
       +'<div style="flex:1;min-width:0;">'
       +'<div style="font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
       +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
-      +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+(clientStep?' · Step '+clientStep:'')+'</div>'
       +'</div>'
       +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:3px 4px;border-radius:6px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:600;flex-shrink:0;cursor:pointer;max-width:110px;">'
       +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===deal.status?' selected':'')+' style="color:#1a1a1a;">'+s+'</option>'; }).join('')
@@ -11080,7 +11113,7 @@ function renderDealCards(deals) {
       +'<span style="font-size:11px;background:'+(done===total&&total>0?'var(--green-lt)':'var(--surface2)')+';color:'+(done===total&&total>0?'var(--green-dk)':'var(--text3)')+';padding:2px 7px;border-radius:10px;">'+done+'/'+total+'</span>'
       +'</summary>'
       +'<div style="padding:6px 0 0;">'
-      +'<div id="deal-checklist-'+deal.id+'">'+renderChecklist(deal.id, checklist)+'</div>'
+      +'<div id="deal-checklist-'+deal.id+'">'+renderChecklist(deal.id, checklist, stepPrefills)+'</div>'
       +'<div style="display:flex;gap:6px;margin-top:6px;">'
       +'<input type="text" id="deal-new-item-'+deal.id+'" placeholder="Add item..." style="flex:1;font-size:12px;padding:5px 8px;" onkeydown="if(event.key===\'Enter\')addChecklistItem(\''+deal.id+'\')" />'
       +'<button class="btn btn-sm" onclick="addChecklistItem(\''+deal.id+'\')" style="flex-shrink:0;">+</button>'
@@ -11108,8 +11141,9 @@ function renderDealCards(deals) {
 }
 window.renderDealCards = renderDealCards;
 
-function renderChecklist(dealId, checklist) {
-  if (!checklist.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No items yet — add from prefills or type below</div>';
+function renderChecklist(dealId, checklist, stepPrefills) {
+  stepPrefills = stepPrefills || [];
+  if (!checklist.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No items — add one below</div>';
   return checklist.map(function(item, i) {
     return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;" id="deal-item-'+dealId+'-'+i+'">'
       +'<input type="checkbox" '+(item.done?'checked':'')+' onchange="toggleChecklistItem(\''+dealId+'\','+i+',this.checked)" style="width:16px;height:16px;flex-shrink:0;"/>'
@@ -11163,7 +11197,21 @@ async function toggleChecklistItem(dealId, idx, checked) {
   if (!deal || !deal.checklist) return;
   deal.checklist[idx].done = checked;
   var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:deal.checklist});
+  // Save only the custom/modified items (not pure prefills that are undone)
+  var toSave = deal.checklist.filter(function(item){
+    return item.done; // save done items; prefills that are undone stay as defaults
+  });
+  // Also save any custom items not from prefills
+  var linkedB = (myBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+  var cStep = deal.dealType==='seller' ? (linkedB&&linkedB.currentSellerStep||0) : (linkedB&&linkedB.currentStep||0);
+  var sPrefills = deal.dealType==='seller' ? (SELLER_STEP_TASKS[cStep]||[]) : (STEP_TASKS[cStep]||[]);
+  var customOnly = deal.checklist.filter(function(item){ return !sPrefills.includes(item.text); });
+  var saveList = [];
+  deal.checklist.forEach(function(item){
+    if (item.done || !sPrefills.includes(item.text)) saveList.push(item);
+  });
+  deal.checklist = saveList;
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:saveList});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
 }
@@ -11368,8 +11416,8 @@ async function syncDealsFromClients() {
   for (var i=0; i<myBuyers.length; i++) {
     var b = myBuyers[i];
     if (existingUids.includes(b.uid)) continue; // already has a deal
-    // Only auto-create if client is past step 1 (actually active)
-    if ((b.currentStep||1) < 2) continue;
+    // Only auto-create deal for buyers who are Under Contract (step 5+)
+    if ((b.currentStep||1) < 5 && (b.currentSellerStep||0) < 1) continue;
 
     var dealType = b.journeyType||'buyer';
     var prefills = dealType==='seller' ? SELLER_PREFILLS :
