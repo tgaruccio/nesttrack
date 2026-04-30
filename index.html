@@ -11268,6 +11268,10 @@ async function updateDealStatus(dealId, status) {
   if (deal) deal.status = status;
   var agentId = userProfile.agentId||'tom';
   await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{status:status});
+  // Re-render keeping current active filter
+  var activeChip = document.querySelector('[id^="dchip-"][style*="var(--green)"]');
+  var currentFilter = activeChip ? activeChip.id.replace('dchip-','').replace(/-/g,' ') : 'all';
+  filterDeals(currentFilter === 'all' ? 'all' : currentFilter);
 }
 window.updateDealStatus = updateDealStatus;
 
