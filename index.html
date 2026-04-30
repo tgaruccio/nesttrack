@@ -129,8 +129,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   img,iframe{max-width:100%;display:block;}
   .pt{font-size:18px;}
   .mo{padding:8px;}
-  .mbox{padding:0;max-height:88vh;}
-  .mo{align-items:flex-start;padding-top:max(env(safe-area-inset-top,0px),12px);}
+  .mbox{padding:0;max-height:calc(100vh - env(safe-area-inset-top,0px) - 20px);}
+  .mo{align-items:flex-start;padding-top:max(env(safe-area-inset-top,0px),8px);padding-bottom:8px;}
   .login-card{padding:24px 18px;}
   .tb-r{gap:6px;}
 input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select,textarea{font-size:16px;} /* prevent iOS zoom/keyboard issues */
@@ -6534,7 +6534,7 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
-          <div class="mtitle">${b.firstName} ${b.lastName}</div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px;" title="Edit client info">✏️</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
           ${b.listingAddress ? `<div style='font-size:12px;color:#D97706;margin-top:2px;font-weight:500;'>🏡 ${b.listingAddress}</div>` : ''}${b.propertyAddress ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>🔍 ${b.propertyAddress}</div>` : ''}
         </div>
@@ -10988,7 +10988,12 @@ async function loadDeals() {
   try {
     var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
     _deals = [];
-    snap.forEach(function(d){ _deals.push(Object.assign({id:d.id},d.data())); });
+    snap.forEach(function(d){
+      var data = Object.assign({id:d.id},d.data());
+      // Normalize status — default missing/unknown to Active
+      if (!data.status || !DEAL_STATUSES.includes(data.status)) data.status = 'Active';
+      _deals.push(data);
+    });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dealsLoaded = true;
   } catch(e) { console.log('loadDeals error:', e.message); }
@@ -11718,6 +11723,62 @@ function showTaskEmailPrompt(clientUid, taskText) {
   toast._timer = setTimeout(dismiss, 5000);
 }
 window.showTaskEmailPrompt = showTaskEmailPrompt;
+
+function editClientInfo(uid) {
+  var b = allBuyers.find(function(x){ return x.uid===uid; });
+  if (!b) return;
+  var ex = document.getElementById('edit-client-overlay');
+  if (ex) ex.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'edit-client-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:var(--r);width:100%;max-width:400px;padding:22px;';
+  box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
+    + '<div style="font-size:15px;font-weight:600;">Edit Client Info</div>'
+    + '<button id="edit-client-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">×</button>'
+    + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:12px;">'
+    + '<div style="display:flex;gap:8px;">'
+    + '<div style="flex:1;"><label class="flabel">First Name</label><input type="text" id="ec-first" value="'+partnerEsc(b.firstName||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
+    + '<div style="flex:1;"><label class="flabel">Last Name</label><input type="text" id="ec-last" value="'+partnerEsc(b.lastName||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
+    + '</div>'
+    + '<div><label class="flabel">Email</label><input type="email" id="ec-email" value="'+partnerEsc(b.email||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
+    + '<div><label class="flabel">Phone</label><input type="tel" id="ec-phone" value="'+partnerEsc(b.phone||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">'
+    + '<button class="btn" id="ec-cancel">Cancel</button>'
+    + '<button class="btn btn-g" id="ec-save">Save Changes</button>'
+    + '</div>'
+    + '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  document.getElementById('edit-client-close').onclick = function(){ overlay.remove(); };
+  document.getElementById('ec-cancel').onclick = function(){ overlay.remove(); };
+  document.getElementById('ec-save').onclick = async function() {
+    var first = document.getElementById('ec-first').value.trim();
+    var last  = document.getElementById('ec-last').value.trim();
+    var email = document.getElementById('ec-email').value.trim();
+    var phone = document.getElementById('ec-phone').value.trim();
+    if (!first) { alert('First name is required.'); return; }
+    try {
+      await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, phone:phone});
+      if (b) { b.firstName=first; b.lastName=last; b.email=email; b.phone=phone; }
+      // Update deal name if linked
+      var agentId = userProfile.agentId||'tom';
+      var linked = _deals.filter(function(d){ return d.clientUid===uid; });
+      var fullName = (first+' '+last).trim();
+      for (var i=0;i<linked.length;i++) {
+        linked[i].clientName = fullName;
+        await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',linked[i].id),{clientName:fullName});
+      }
+      overlay.remove();
+      openBuyerDetail(uid);
+      await loadBuyersForAgent();
+      renderBuyers();
+    } catch(e) { alert('Failed to save: '+e.message); }
+  };
+}
+window.editClientInfo = editClientInfo;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
