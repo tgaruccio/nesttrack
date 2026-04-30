@@ -11020,9 +11020,11 @@ async function loadDeals() {
     _deals = [];
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
-      // Normalize old 'both' deals to 'buyer'
       if (data.dealType === 'both') data.dealType = 'buyer';
-      data._storedStatus = data.status || 'Active';
+      // Compute and overwrite status from client step if possible
+      var lb = (myBuyers||[]).find(function(x){ return x.uid===data.clientUid; });
+      if (lb) data.status = getDealStatus(data, lb);
+      else if (!data.status) data.status = 'Active';
       _deals.push(data);
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
@@ -11070,9 +11072,17 @@ async function renderDealTracker() {
   _dedupeDeals();
   // Sync stored status for all linked deals from client steps
   if (myBuyers && myBuyers.length) {
+    var agentId2 = userProfile&&(userProfile.agentId||'tom');
     _deals.forEach(function(d){
       var b = myBuyers.find(function(x){ return x.uid===d.clientUid; });
-      if (b) { var s = getDealStatus(d,b); d.status=s; d._storedStatus=s; }
+      if (b) {
+        var s = getDealStatus(d, b);
+        if (d.status !== s) {
+          d.status = s;
+          // Write to Firestore so it sticks
+          fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',d.id), {status:s}).catch(function(){});
+        }
+      }
     });
   }
 
@@ -11091,7 +11101,7 @@ async function renderDealTracker() {
 
   html += '<div id="deal-cards-container">';
   var _toRender = _activeFilter==='all' ? _deals : _deals.filter(function(d){
-    return (d._storedStatus || d.status || 'Active') === _activeFilter;
+    return (d.status || 'Active') === _activeFilter;
   });
   try {
     html += renderDealCards(_toRender);
@@ -11365,7 +11375,7 @@ function filterDeals(status) {
   var active = document.getElementById('dchip-'+(status==='all'?'all':status.replace(/ /g,'-')));
   if (active) { active.style.background='var(--green)'; active.style.color='#fff'; active.style.borderColor='var(--green)'; }
   var filtered = status==='all' ? _deals : _deals.filter(function(d){
-    return (d._storedStatus || d.status || 'Active') === status;
+    return (d.status || 'Active') === status;
   });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
