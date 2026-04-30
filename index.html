@@ -6658,6 +6658,7 @@ async function setBuyerStep(uid) {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
     renderBuyers();
+    if (_dealsLoaded) syncDealStatusFromStep(uid);
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
@@ -6853,6 +6854,7 @@ async function setSellerStep(uid) {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
     renderBuyers();
+    if (_dealsLoaded) syncDealStatusFromStep(uid);
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = (buyer && buyer.sellerContractDates) || {};
@@ -11066,6 +11068,13 @@ async function renderDealTracker() {
     try { await loadDeals(); } catch(e) { console.log("loadDeals err:",e.message); _dealsLoaded = true; }
   }
   _dedupeDeals();
+  // Sync stored status for all linked deals from client steps
+  if (myBuyers && myBuyers.length) {
+    _deals.forEach(function(d){
+      var b = myBuyers.find(function(x){ return x.uid===d.clientUid; });
+      if (b) { var s = getDealStatus(d,b); d.status=s; d._storedStatus=s; }
+    });
+  }
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
     +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
@@ -11082,8 +11091,7 @@ async function renderDealTracker() {
 
   html += '<div id="deal-cards-container">';
   var _toRender = _activeFilter==='all' ? _deals : _deals.filter(function(d){
-    var lb = (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; });
-    return getDealStatus(d, lb) === _activeFilter;
+    return (d._storedStatus || d.status || 'Active') === _activeFilter;
   });
   try {
     html += renderDealCards(_toRender);
@@ -11357,8 +11365,7 @@ function filterDeals(status) {
   var active = document.getElementById('dchip-'+(status==='all'?'all':status.replace(/ /g,'-')));
   if (active) { active.style.background='var(--green)'; active.style.color='#fff'; active.style.borderColor='var(--green)'; }
   var filtered = status==='all' ? _deals : _deals.filter(function(d){
-    var lb = (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; });
-    return getDealStatus(d, lb) === status;
+    return (d._storedStatus || d.status || 'Active') === status;
   });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
@@ -11725,7 +11732,10 @@ async function addToDealTracker(uid, dealType) {
     contractDate: clientDates.acceptanceDate || null,
     closingDate: clientDates.closingDate || null,
     inspectionDate: clientDates.inspectionDeadline || null,
-    status: dealType==='seller' ? 'On Market' : 'Under Contract',
+    status: (function(){
+      var lb = (myBuyers||[]).find(function(x){ return x.uid===uid; });
+      return getDealStatus({dealType:dealType, _storedStatus: dealType==='seller'?'On Market':'Under Contract'}, lb);
+    })(),
     checklist: [], notes: '', agentId: agentId,
   };
   try {
@@ -11878,6 +11888,25 @@ function _dedupeDeals() {
   });
 }
 window._dedupeDeals = _dedupeDeals;
+
+async function syncDealStatusFromStep(uid) {
+  try {
+    var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
+    if (!b) return;
+    var agentId = userProfile.agentId||'tom';
+    var linkedDeals = _deals.filter(function(d){ return d.clientUid===uid; });
+    for (var i=0; i<linkedDeals.length; i++) {
+      var d = linkedDeals[i];
+      var status = getDealStatus(d, b);
+      if (d._storedStatus !== status || d.status !== status) {
+        d.status = status;
+        d._storedStatus = status;
+        await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',d.id), {status: status});
+      }
+    }
+  } catch(e) { console.log('syncDealStatus err:', e.message); }
+}
+window.syncDealStatusFromStep = syncDealStatusFromStep;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
