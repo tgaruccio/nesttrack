@@ -6663,39 +6663,6 @@ async function setBuyerStep(uid) {
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
       closeM('buyer-modal');
-      // Auto-create deal in tracker if none exists
-      try {
-        var agentId = userProfile.agentId||'tom';
-        if (!_dealsLoaded) await loadDeals();
-        // Check for existing BUYER deal specifically — seller deal doesn't count
-        var existingBuyerDeal = _deals.find(function(d){ return d.clientUid===uid && d.dealType==='buyer'; });
-        if (!existingBuyerDeal) {
-          // Double-check Firestore directly to prevent duplicates from stale memory
-          var fsCheck = await fb.getDocs(fb.query(fb.collection(fb.db,'agents',agentId,'deals'),
-            fb.where('clientUid','==',uid), fb.where('dealType','==','buyer')));
-          existingBuyerDeal = !fsCheck.empty;
-        }
-        if (!existingBuyerDeal) {
-          var newBuyer = allBuyers.find(function(b){ return b.uid===uid; });
-          var buyerDates = (newBuyer&&newBuyer.buyerContractDates) || (newBuyer&&newBuyer.contractDates) || {};
-          var dealData = {
-            clientName: ((newBuyer&&newBuyer.firstName||'')+' '+(newBuyer&&newBuyer.lastName||'')).trim()||(newBuyer&&newBuyer.email)||'',
-            clientUid: uid,
-            dealType: 'buyer',
-            address: (newBuyer&&newBuyer.propertyAddress)||(newBuyer&&newBuyer.listingAddress)||null,
-            contractDate: buyerDates.acceptanceDate || null,
-            closingDate: buyerDates.closingDate || null,
-            inspectionDate: buyerDates.inspectionDeadline || null,
-            status: 'Under Contract',
-            checklist: [],
-            notes: '',
-            agentId: agentId,
-          };
-          var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},dealData,{createdAt:fb.serverTimestamp()}));
-          dealData.id = ref.id;
-          _deals.push(dealData);
-        }
-      } catch(dealErr){ console.log('Deal auto-create err:', dealErr.message); }
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
@@ -11027,7 +10994,6 @@ async function loadDeals() {
       _deals.push(data);
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
-    // Deduplicate via shared _dedupeDeals
     _dedupeDeals();
     _dealsLoaded = true;
   } catch(e) { console.log('loadDeals error:', e.message); }
@@ -11061,7 +11027,6 @@ async function renderDealTracker() {
   if (!_dealsLoaded) {
     try { await loadDeals(); } catch(e) { console.log("loadDeals err:",e.message); _dealsLoaded = true; }
   }
-  _activeFilter = 'active';
   _dedupeDeals();
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
@@ -11491,7 +11456,6 @@ window.createNewDeal = createNewDeal;
 // ── Auto-sync deals from app clients (non-destructive) ──
 async function syncDealsFromClients() {
   // Disabled: auto-creating deals from client steps caused ghost/duplicate deals.
-  // Deals are manually created only until the tracker is stable.
   return;
 }
 window.syncDealsFromClients = syncDealsFromClients;
@@ -11842,7 +11806,7 @@ window.editClientInfo = editClientInfo;
 // ── Auto-compute deal status from client step ──
 function getDealStatus(deal, linkedBuyer) {
   // Manual status is the only source of truth.
-  // Journey steps (currentStep/currentSellerStep) do NOT control deal status.
+  // Journey steps do NOT control deal status.
   if (!deal) return 'Active';
   return deal.status || deal._storedStatus || 'Active';
 }
@@ -11856,21 +11820,66 @@ function _dedupeDeals() {
     if (!d.dealType) d.dealType = 'buyer';
     if (!d.status) d.status = 'Active';
     d._storedStatus = d.status;
-    // Dedupe by Firestore id first, then by clientUid+dealType
-    var key = d.id ? ('id_' + d.id) :
-      'cl_' + (d.clientUid||'') + '_' + d.dealType + '_' + (d.address||'') + '_' + (d.clientName||'');
-    if (seen[key]) return false;
-    seen[key] = true;
+    var logicalKey = [
+      d.clientUid || '',
+      d.dealType || 'buyer',
+      (d.address || '').trim().toLowerCase(),
+      (d.clientName || '').trim().toLowerCase()
+    ].join('|');
+    if (!d.clientUid && !d.address && d.id) logicalKey = 'id|' + d.id;
+    if (seen[logicalKey]) return false;
+    seen[logicalKey] = true;
     return true;
   });
 }
 window._dedupeDeals = _dedupeDeals;
 
 async function syncDealStatusFromStep(uid) {
-  // No-op: journey steps no longer control deal status.
+  // No-op: journey steps do not control deal status.
   return;
 }
 window.syncDealStatusFromStep = syncDealStatusFromStep;
+
+// One-time Firestore repair: remove duplicate deals, reset bad auto-closed statuses
+async function repairDealTrackerData() {
+  var agentId = userProfile.agentId || 'tom';
+  var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
+  var seen = {};
+  var updates = [];
+  var deletes = [];
+  snap.forEach(function(docSnap) {
+    var d = Object.assign({ id: docSnap.id }, docSnap.data());
+    if (d.dealType === 'both') d.dealType = 'buyer';
+    if (!d.dealType) d.dealType = 'buyer';
+    var key = [
+      d.clientUid || '',
+      d.dealType || 'buyer',
+      (d.address || '').trim().toLowerCase(),
+      (d.clientName || '').trim().toLowerCase()
+    ].join('|');
+    if (!d.clientUid && !d.address) key = 'manual|' + d.id;
+    if (seen[key]) { deletes.push(docSnap.id); return; }
+    seen[key] = true;
+    var patch = {};
+    if (d.dealType === 'both') patch.dealType = 'buyer';
+    var hasRealClosedMarker = !!d.closedAt || !!d.actualClosedDate || d.manuallyClosed === true;
+    if (d.status === 'Closed' && !hasRealClosedMarker) {
+      patch.status = d.dealType === 'seller' ? 'On Market' : 'Under Contract';
+    }
+    if (Object.keys(patch).length) updates.push({ id: docSnap.id, patch: patch });
+  });
+  for (var i = 0; i < updates.length; i++) {
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
+  }
+  for (var j = 0; j < deletes.length; j++) {
+    await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
+  }
+  _dealsLoaded = false;
+  await loadDeals();
+  renderDealTracker();
+  alert('Deal Tracker repaired. Updated ' + updates.length + ' records, deleted ' + deletes.length + ' duplicates.');
+}
+window.repairDealTrackerData = repairDealTrackerData;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
