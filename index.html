@@ -6666,8 +6666,15 @@ async function setBuyerStep(uid) {
       try {
         var agentId = userProfile.agentId||'tom';
         if (!_dealsLoaded) await loadDeals();
-        var existingDeal = _deals.find(function(d){ return d.clientUid===uid; });
-        if (!existingDeal) {
+        // Check for existing BUYER deal specifically — seller deal doesn't count
+        var existingBuyerDeal = _deals.find(function(d){ return d.clientUid===uid && d.dealType==='buyer'; });
+        if (!existingBuyerDeal) {
+          // Double-check Firestore directly to prevent duplicates from stale memory
+          var fsCheck = await fb.getDocs(fb.query(fb.collection(fb.db,'agents',agentId,'deals'),
+            fb.where('clientUid','==',uid), fb.where('dealType','==','buyer')));
+          existingBuyerDeal = !fsCheck.empty;
+        }
+        if (!existingBuyerDeal) {
           var newBuyer = allBuyers.find(function(b){ return b.uid===uid; });
           var buyerDates = (newBuyer&&newBuyer.buyerContractDates) || (newBuyer&&newBuyer.contractDates) || {};
           var dealData = {
@@ -11668,8 +11675,24 @@ async function addToDealTracker(uid, dealType) {
   if (!b) return;
   var agentId = userProfile.agentId||'tom';
   if (!_dealsLoaded) await loadDeals();
-  // Check if deal already exists
+  // Check memory first
   var existing = _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
+  if (!existing) {
+    // Double-check Firestore to prevent duplicates from stale memory
+    try {
+      var fsChk = await fb.getDocs(fb.query(fb.collection(fb.db,'agents',agentId,'deals'),
+        fb.where('clientUid','==',uid), fb.where('dealType','==',dealType)));
+      if (!fsChk.empty) {
+        // Found in Firestore — load into memory
+        fsChk.forEach(function(doc){
+          var d = Object.assign({id:doc.id}, doc.data());
+          d._storedStatus = d.status || 'Active';
+          if (!_deals.find(function(x){ return x.id===d.id; })) _deals.push(d);
+        });
+        existing = _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
+      }
+    } catch(e) { console.log('FS check err:', e.message); }
+  }
   if (existing) {
     closeM('buyer-modal');
     switchAgentTab('deals');
