@@ -11019,43 +11019,45 @@ function streetViewUrl(address) {
 }
 
 // ── Render the full Deal Tracker tab ──
+var _dealTrackerRendering = false;
 async function renderDealTracker() {
-  var el = document.getElementById('deal-tracker-panel');
-  if (!el) return;
-  el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
-
-  if (!_dealsLoaded) {
-    try { await loadDeals(); } catch(e) { console.log("loadDeals err:",e.message); _dealsLoaded = true; }
-  }
-  _dedupeDeals();
-
-  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
-    +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
-    +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
-    +'</div>';
-
-  // Filter chips
-  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
-    +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')" style="background:var(--green);color:#fff;border-color:var(--green);">Active</button>'
-    +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
-    +'</div>';
-
-  html += '<div id="deal-cards-container">';
-  // Default to active tab
-  var _toRender = _deals.filter(function(d){
-    var isClosed = (d.status || d._storedStatus || 'Active') === 'Closed';
-    if (_activeFilter === 'closed') return isClosed;
-    return !isClosed;
-  });
+  // Render lock: prevent concurrent renders causing cards outside container
+  if (_dealTrackerRendering) return;
+  _dealTrackerRendering = true;
   try {
-    html += renderDealCards(_toRender);
-  } catch(renderErr) {
-    html += '<div class="notice" style="color:#E24B4A;">Error rendering deals: ' + renderErr.message + '</div>';
-    console.error('renderDealCards error:', renderErr);
-  }
-  html += '</div>';
+    var el = document.getElementById('deal-tracker-panel');
+    if (!el) { _dealTrackerRendering = false; return; }
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
 
-  el.innerHTML = html;
+    if (!_dealsLoaded) {
+      try { await loadDeals(); } catch(e) { console.log('loadDeals err:',e.message); _dealsLoaded = true; }
+    }
+    _dedupeDeals();
+
+    var activeCards = renderDealCards(_deals.filter(function(d){
+      return (d.status || d._storedStatus || 'Active') !== 'Closed';
+    }));
+    var closedCards = renderDealCards(_deals.filter(function(d){
+      return (d.status || d._storedStatus || 'Active') === 'Closed';
+    }));
+
+    var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+      +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
+      +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
+      +'</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
+      +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')" style="background:var(--green);color:#fff;border-color:var(--green);">Active</button>'
+      +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
+      +'</div>';
+    html += '<div id="deal-active-container" style="display:block;">' + activeCards + '</div>';
+    html += '<div id="deal-closed-container" style="display:none;">' + closedCards + '</div>';
+
+    el.innerHTML = html;
+    // Apply correct tab visibility
+    _applyDealFilter();
+  } finally {
+    _dealTrackerRendering = false;
+  }
 }
 window.renderDealTracker = renderDealTracker;
 
@@ -11275,7 +11277,8 @@ async function updateDealStatus(dealId, status) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), {status:status});
   } catch(e) { console.log('updateDealStatus err:', e.message); }
-  filterDeals(_activeFilter);
+  _dealTrackerRendering = false;
+  renderDealTracker();
 }
 window.updateDealStatus = updateDealStatus;
 
@@ -11314,29 +11317,23 @@ function editDealAddress(dealId) {
 window.editDealAddress = editDealAddress;
 
 // ── Filter deals by status ──
-function filterDeals(tab) {
-  _activeFilter = tab;
-  _dedupeDeals();
-  // Update chip styles
+function _applyDealFilter() {
+  var activeEl = document.getElementById('deal-active-container');
+  var closedEl = document.getElementById('deal-closed-container');
+  if (!activeEl || !closedEl) return;
+  activeEl.style.display = _activeFilter === 'active' ? 'block' : 'none';
+  closedEl.style.display = _activeFilter === 'closed' ? 'block' : 'none';
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
     b.style.background=''; b.style.color=''; b.style.borderColor='';
   });
-  var chip = document.getElementById('dchip-'+tab);
+  var chip = document.getElementById('dchip-'+_activeFilter);
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
-  var now = Date.now();
-  var yr = 365*24*60*60*1000;
-  var filtered = _deals.filter(function(d){
-    var isClosed = (d.status || d._storedStatus || 'Active') === 'Closed';
-    // Auto-delete closed deals older than 365 days
-    if (isClosed && d.createdAt) {
-      var created = d.createdAt.toMillis ? d.createdAt.toMillis() : new Date(d.createdAt).getTime();
-      if (now - created > yr) return false;
-    }
-    if (tab === 'closed') return isClosed;
-    return !isClosed;
-  });
-  var container = document.getElementById('deal-cards-container');
-  if (container) container.innerHTML = renderDealCards(filtered);
+}
+window._applyDealFilter = _applyDealFilter;
+
+function filterDeals(tab) {
+  _activeFilter = tab;
+  _applyDealFilter();
 }
 window.filterDeals = filterDeals;
 
@@ -11449,6 +11446,7 @@ async function createNewDeal() {
   _dedupeDeals();
 
   document.getElementById('new-deal-overlay').remove();
+  _dealTrackerRendering = false;
   renderDealTracker();
 }
 window.createNewDeal = createNewDeal;
@@ -11687,8 +11685,8 @@ async function addToDealTracker(uid, dealType) {
     _deals.push(data);
     _dedupeDeals();
     closeM('buyer-modal');
+    _dealTrackerRendering = false;
     switchAgentTab('deals');
-    setTimeout(renderDealTracker, 100);
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
 window.addToDealTracker = addToDealTracker;
@@ -11805,8 +11803,6 @@ window.editClientInfo = editClientInfo;
 
 // ── Auto-compute deal status from client step ──
 function getDealStatus(deal, linkedBuyer) {
-  // Manual status is the only source of truth.
-  // Journey steps do NOT control deal status.
   if (!deal) return 'Active';
   return deal.status || deal._storedStatus || 'Active';
 }
@@ -11849,65 +11845,39 @@ async function repairDealTrackerData() {
   var deletes = [];
   var allDocs = [];
   snap.forEach(function(docSnap) { allDocs.push({ id: docSnap.id, d: docSnap.data() }); });
-
-  // Sort newest first so we keep the most recent duplicate
   allDocs.sort(function(a, b) {
     var ta = a.d.createdAt ? (a.d.createdAt.toMillis ? a.d.createdAt.toMillis() : new Date(a.d.createdAt).getTime()) : 0;
     var tb = b.d.createdAt ? (b.d.createdAt.toMillis ? b.d.createdAt.toMillis() : new Date(b.d.createdAt).getTime()) : 0;
     return tb - ta;
   });
-
   allDocs.forEach(function(item) {
     var d = Object.assign({ id: item.id }, item.d);
     if (d.dealType === 'both') d.dealType = 'buyer';
     if (!d.dealType) d.dealType = 'buyer';
-
-    // Logical dedup key
-    var key = [
-      d.clientUid || '',
-      d.dealType,
-      (d.address || '').trim().toLowerCase(),
-      (d.clientName || '').trim().toLowerCase()
-    ].join('|');
+    var key = [d.clientUid||'', d.dealType, (d.address||'').trim().toLowerCase(), (d.clientName||'').trim().toLowerCase()].join('|');
     if (!d.clientUid && !d.address) key = 'id|' + d.id;
-
     if (seen[key]) { deletes.push(d.id); return; }
     seen[key] = true;
-
     var patch = {};
-
-    // Fix dealType
     if (item.d.dealType === 'both') patch.dealType = 'buyer';
-
-    // Reset ANY status that was auto-set by step logic.
-    // Only keep 'Closed' if agent explicitly set manuallyClosed flag.
-    var manuallyClosedByAgent = d.manuallyClosed === true;
-    if (!manuallyClosedByAgent) {
+    if (d.manuallyClosed !== true) {
       var cleanStatus = d.dealType === 'seller' ? 'On Market' : 'Active';
       if (d.status !== cleanStatus) patch.status = cleanStatus;
     }
-
     if (Object.keys(patch).length) updates.push({ id: d.id, patch: patch });
   });
-
-  // Show a preview before doing anything destructive
-  var msg = 'PREVIEW:\n';
-  msg += 'Will delete ' + deletes.length + ' duplicate deal(s).\n';
-  msg += 'Will reset status on ' + updates.length + ' deal(s).\n\n';
-  msg += 'Proceed?';
+  var msg = 'PREVIEW:\nWill delete ' + deletes.length + ' duplicate deal(s).\nWill reset status on ' + updates.length + ' deal(s).\n\nProceed?';
   if (!confirm(msg)) return;
-
   for (var i = 0; i < updates.length; i++) {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
   }
   for (var j = 0; j < deletes.length; j++) {
     await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
   }
-
   _dealsLoaded = false;
   await loadDeals();
   renderDealTracker();
-  alert('Done. Updated ' + updates.length + ' records, deleted ' + deletes.length + ' duplicates. All statuses reset to Active/On Market. Re-set any that should be Closed manually.');
+  alert('Done. Updated ' + updates.length + ' records, deleted ' + deletes.length + ' duplicates. Re-set any Closed deals manually.');
 }
 window.repairDealTrackerData = repairDealTrackerData;
 </script>
