@@ -520,6 +520,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
     <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings');closeSidebar()">📅 Showings</button>
     <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('offers');closeSidebar()">📋 Offer Manager</button>
+    <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('deals');closeSidebar()">🏠 Deal Tracker</button>
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
     <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
     <div class="ns">Client View</div>
@@ -1074,7 +1075,8 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- AGENT DASHBOARD -->
 <div class="page" id="page-agent-dash">
-  <div id="ad-welcome" style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;">
+  <div id="ad-welcome" style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('profile')" style="position:absolute;top:-4px;right:0;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);padding:4px;" title="My Profile">⚙️</button>
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
     <div>
       <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="ad-greeting">Good morning</div>
@@ -1114,6 +1116,12 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:24px;">📅</span>
       <span style="font-size:13px;font-weight:600;color:#1D4ED8;">Showings</span>
       <span style="font-size:11px;color:#1D4ED8;opacity:0.85;">Sync from ShowingTime</span>
+    </button>
+
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('deals')" style="background:#FDF4FF;border:1.5px solid #E9D5FF;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">🏠</span>
+      <span style="font-size:13px;font-weight:600;color:#7E22CE;">Deal Tracker</span>
+      <span style="font-size:11px;color:#7E22CE;opacity:0.85;" id="ad-deals-count">Track all deals</span>
     </button>
 
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('offers')" style="background:#F0FDF4;border:1.5px solid #6EE7B7;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
@@ -1944,7 +1952,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Partners</button>
     <button id="agent-tab-offers" onclick="switchAgentTab('offers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Offers <span id="offers-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;margin-left:2px;"></span></button>
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings</button>
-    <button id="agent-tab-profile" onclick="switchAgentTab('profile')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">My Profile</button>
+    <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏠 Deals</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -1975,6 +1983,12 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- PROFILE TAB -->
+  <!-- DEALS TAB -->
+  <div id="agent-deals-panel" style="display:none;flex-direction:column;gap:12px;">
+    <div id="deal-tracker-panel"></div>
+  </div>
+
+  <!-- PROFILE PANEL (via gear icon on dashboard) -->
   <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:12px;">
   <div class="card" id="agent-profile-editor" style="display:none;flex-direction:column;gap:11px;" data-profile-card="1">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -2218,6 +2232,7 @@ textarea{resize:vertical;min-height:68px;}
         <button id="inv-jt-both" onclick="invSetJourney('both')" class="btn btn-sm" style="flex:1;">Both</button>
       </div>
     </div>
+    <div id="inv-address-wrap" style="display:none;"><label class="flabel">Listing Address</label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/><div style="font-size:11px;color:var(--text3);margin-top:2px;">Required for seller clients</div></div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
     <div id="invite-result" style="display:none;"></div>
@@ -5985,10 +6000,10 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel');
-  [bb,cb,pb,ptb,otb,stb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp,otp,stp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel');
+  [bb,cb,pb,ptb,otb,stb,dtb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp,otp,stp,dtp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -6021,6 +6036,14 @@ function switchAgentTab(tab) {
     if (stb) { stb.style.background='var(--green)'; stb.style.color='#fff'; }
     if (stp) stp.style.display='flex';
     renderShowingInbox();
+  } else if (tab==='deals') {
+    if (dtb) { dtb.style.background='var(--green)'; dtb.style.color='#fff'; }
+    if (dtp) dtp.style.display='flex';
+    renderDealTracker();
+  } else if (tab==='profile') {
+    if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
+    if (pp) pp.style.display='flex';
+    renderAgentProfileEditor();
   } else if (tab==='offers') {
     if (otb) { otb.style.background='var(--green)'; otb.style.color='#fff'; }
     if (otp) otp.style.display='flex';
@@ -6157,6 +6180,11 @@ async function renderAgentDashboard() {
   var pending = myBuyers.filter(function(b){ return b.pending; });
   el = document.getElementById('ad-clients-count');
   if (el) el.textContent = active.length + ' active' + (pending.length ? ' · ' + pending.length + ' pending' : '');
+  var dealsEl = document.getElementById('ad-deals-count');
+  if (dealsEl && _deals && _deals.length) {
+    var openDeals = _deals.filter(function(d){ return d.status!=='Closed'&&d.status!=='Fallen Through'; });
+    dealsEl.textContent = openDeals.length + ' open · ' + _deals.length + ' total';
+  }
   el = document.getElementById('ad-todo-count');
   if (el) {
     var activeTodos = _todos.filter(function(t){ return !t.done; }).length;
@@ -6844,6 +6872,8 @@ var _invJourneyType = 'buyer';
 
 function invSetJourney(type) {
   _invJourneyType = type;
+  var addrWrap = document.getElementById('inv-address-wrap');
+  if (addrWrap) addrWrap.style.display = (type==='seller'||type==='both') ? 'block' : 'none';
   ['buyer','seller','both'].forEach(function(t) {
     var btn = document.getElementById('inv-jt-'+t);
     if (!btn) return;
@@ -6879,6 +6909,7 @@ async function createInvite() {
     used: false, pending: true,
   };
   var pendingUid = 'pending_' + code;
+  var invListingAddress = document.getElementById('inv-address') ? document.getElementById('inv-address').value.trim() : '';
   var clientData = {
     firstName: first, lastName: last, email: email, phone: phone,
     agentId: agentId, lenderId: invLenderId, role: 'buyer',
@@ -6886,6 +6917,7 @@ async function createInvite() {
     currentStep: 1, currentSellerStep: 0,
     pending: true, inviteCode: code,
     createdAt: fb.serverTimestamp(),
+    listingAddress: invListingAddress || null,
   };
 
   try {
@@ -10838,6 +10870,447 @@ async function debugShowingTime() {
   alert(out.join('\n'));
 }
 window.debugShowingTime = debugShowingTime;
+
+// ═══════════════════════════════════════════════════════
+// DEAL TRACKER SYSTEM
+// Firestore: agents/{agentId}/deals/{dealId}
+// ═══════════════════════════════════════════════════════
+
+var _deals = [];
+var _dealsLoaded = false;
+
+var DEAL_STATUSES = ['Searching','Active','Under Contract','Clear to Close','Closed','Fallen Through'];
+var DEAL_STATUS_COLORS = {
+  'Searching':       {bg:'#F0F9FF',color:'#0369A1'},
+  'Active':          {bg:'#F0FDF4',color:'#065F46'},
+  'Under Contract':  {bg:'#FEF9C3',color:'#713F12'},
+  'Clear to Close':  {bg:'#ECFDF5',color:'#065F46'},
+  'Closed':          {bg:'#F3F4F6',color:'#374151'},
+  'Fallen Through':  {bg:'#FEF2F2',color:'#991B1B'},
+};
+
+var BUYER_PREFILLS = [
+  'Pre-approval confirmed',
+  'Offer submitted',
+  'Inspection scheduled',
+  'Appraisal ordered',
+  'Clear to close received',
+  'Final walkthrough scheduled',
+  'Closing confirmed with title co',
+];
+var SELLER_PREFILLS = [
+  'Listing agreement signed',
+  'Photos scheduled',
+  'Listed on MLS',
+  'Showings active',
+  'Offer accepted',
+  'Appraisal ordered',
+  'Clear to close received',
+  'Closing confirmed with title co',
+];
+
+// ── Load deals for current agent ──
+async function loadDeals() {
+  var agentId = userProfile.agentId || 'tom';
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
+    _deals = [];
+    snap.forEach(function(d){ _deals.push(Object.assign({id:d.id},d.data())); });
+    _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
+    _dealsLoaded = true;
+  } catch(e) { console.log('loadDeals error:', e.message); }
+}
+window.loadDeals = loadDeals;
+
+// ── Save deal to Firestore ──
+async function saveDeal(dealId, data) {
+  var agentId = userProfile.agentId || 'tom';
+  if (dealId) {
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), data);
+  } else {
+    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(data,{createdAt:fb.serverTimestamp()}));
+    return ref.id;
+  }
+}
+
+// ── Street view photo URL (free, no key needed via locationiq or just google) ──
+function streetViewUrl(address) {
+  if (!address) return '';
+  var encoded = encodeURIComponent(address);
+  return 'https://maps.googleapis.com/maps/api/streetview?size=400x160&location='+encoded+'&key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&source=outdoor';
+}
+
+// ── Render the full Deal Tracker tab ──
+async function renderDealTracker() {
+  var el = document.getElementById('deal-tracker-panel');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
+
+  if (!_dealsLoaded) await loadDeals();
+
+  // Also auto-sync deals from app clients
+  await syncDealsFromClients();
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+    +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
+    +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
+    +'</div>';
+
+  // Filter chips
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
+    +'<button class="btn btn-sm" id="dchip-all" onclick="filterDeals(\'all\')" style="background:var(--green);color:#fff;border-color:var(--green);">All</button>'
+    +['Active','Under Contract','Clear to Close','Searching','Closed','Fallen Through'].map(function(s){
+      return '<button class="btn btn-sm" id="dchip-'+s.replace(/ /g,'-')+'" onclick="filterDeals(\''+s+'\')">'+s+'</button>';
+    }).join('')
+    +'</div>';
+
+  html += '<div id="deal-cards-container">';
+  html += renderDealCards(_deals);
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+window.renderDealTracker = renderDealTracker;
+
+function renderDealCards(deals) {
+  if (!deals.length) {
+    return '<div class="notice" style="text-align:center;">'
+      +'<div style="font-size:32px;margin-bottom:8px;">🏠</div>'
+      +'<div style="font-size:14px;font-weight:500;margin-bottom:6px;">No deals yet</div>'
+      +'<div style="font-size:12px;color:var(--text3);">Add a deal manually or invite a client to get started.</div>'
+      +'</div>';
+  }
+
+  return deals.map(function(deal) {
+    var sc = DEAL_STATUS_COLORS[deal.status] || DEAL_STATUS_COLORS['Active'];
+    var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
+    var photo = deal.address ? streetViewUrl(deal.address) : '';
+    var checklist = deal.checklist || [];
+    var done = checklist.filter(function(i){ return i.done; }).length;
+    var notes = deal.notes || '';
+
+    return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;" id="deal-card-'+deal.id+'">'
+      // Photo header
+      +(photo ? '<div style="position:relative;height:100px;background:#e5e7eb;overflow:hidden;">'
+        +'<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display=\'none\'">'
+        +'<div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent 40%,rgba(0,0,0,0.6))"></div>'
+        +'<div style="position:absolute;bottom:8px;left:12px;color:#fff;font-size:14px;font-weight:600;">'+partnerEsc(deal.address||'No address yet')+'</div>'
+        +'</div>' : '<div style="padding:14px 14px 0;font-size:14px;font-weight:600;">'+partnerEsc(deal.address||'No address yet')+'</div>')
+      // Body
+      +'<div style="padding:12px 14px;">'
+      // Client + type + status row
+      +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+      +'<div>'
+      +'<div style="font-size:13px;font-weight:500;">'+partnerEsc(deal.clientName||'Unlinked')+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);">'+typeLabel+(deal.closingDate?' · Closing '+deal.closingDate:'')+'</div>'
+      +'</div>'
+      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:3px 6px;border-radius:6px;background:'+sc.bg+';color:'+sc.color+';border:1px solid '+sc.color+'40;font-weight:600;">'
+      +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===deal.status?' selected':'')+'>'+s+'</option>'; }).join('')
+      +'</select>'
+      +'</div>'
+      // What's needed checklist
+      +'<div style="margin-bottom:10px;">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">What\'s Needed <span style="color:var(--green-dk);">'+done+'/'+checklist.length+'</span></div>'
+      +'<div id="deal-checklist-'+deal.id+'">'
+      +renderChecklist(deal.id, checklist)
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:6px;">'
+      +'<input type="text" id="deal-new-item-'+deal.id+'" placeholder="Add item..." style="flex:1;font-size:12px;padding:5px 8px;" onkeydown="if(event.key===\'Enter\')addChecklistItem(\''+deal.id+'\')" />'
+      +'<button class="btn btn-sm" onclick="addChecklistItem(\''+deal.id+'\')">+</button>'
+      +'</div>'
+      +'</div>'
+      // Notes
+      +'<div style="margin-bottom:10px;">'
+      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:4px;">Notes</div>'
+      +'<textarea id="deal-notes-'+deal.id+'" rows="2" placeholder="Running notes on this deal..." style="width:100%;font-size:12px;resize:vertical;box-sizing:border-box;" onblur="saveDealNotes(\''+deal.id+'\')" >'+partnerEsc(notes)+'</textarea>'
+      +'</div>'
+      // Action row
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      +(deal.clientUid ? '<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">👤 View Client</button>' : '')
+      +(deal.listingId ? '<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">📋 Offers</button>' : '')
+      +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">📍 Edit Address</button>'
+      +'<button class="btn btn-sm" onclick="deleteDeal(\''+deal.id+'\')" style="color:#E24B4A;">🗑</button>'
+      +'</div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+}
+window.renderDealCards = renderDealCards;
+
+function renderChecklist(dealId, checklist) {
+  if (!checklist.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No items yet — add from prefills or type below</div>';
+  return checklist.map(function(item, i) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;" id="deal-item-'+dealId+'-'+i+'">'
+      +'<input type="checkbox" '+(item.done?'checked':'')+' onchange="toggleChecklistItem(\''+dealId+'\','+i+',this.checked)" style="width:16px;height:16px;flex-shrink:0;"/>'
+      +'<span style="font-size:12px;flex:1;'+(item.done?'text-decoration:line-through;color:var(--text3);':'')+'">'+partnerEsc(item.text)+'</span>'
+      +'<button onclick="removeChecklistItem(\''+dealId+'\','+i+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;">×</button>'
+      +'</div>';
+  }).join('');
+}
+
+// ── Prefill modal (shown on new deal or from card) ──
+function showPrefillOptions(dealId, dealType) {
+  var prefills = dealType === 'seller' ? SELLER_PREFILLS :
+                 dealType === 'both'   ? BUYER_PREFILLS.concat(SELLER_PREFILLS) :
+                 BUYER_PREFILLS;
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  var existing = (deal&&deal.checklist||[]).map(function(i){ return i.text; });
+  var newItems = prefills.filter(function(p){ return !existing.includes(p); });
+  if (!newItems.length) { alert('All prefill items already added!'); return; }
+  if (confirm('Add '+newItems.length+' standard checklist items for this deal type?')) {
+    var checklist = (deal&&deal.checklist||[]).concat(newItems.map(function(t){ return {text:t,done:false}; }));
+    var agentId = userProfile.agentId||'tom';
+    fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:checklist}).then(function(){
+      var d = _deals.find(function(x){ return x.id===dealId; });
+      if (d) d.checklist = checklist;
+      var el = document.getElementById('deal-checklist-'+dealId);
+      if (el) el.innerHTML = renderChecklist(dealId, checklist);
+    });
+  }
+}
+window.showPrefillOptions = showPrefillOptions;
+
+// ── Checklist operations ──
+async function addChecklistItem(dealId) {
+  var inp = document.getElementById('deal-new-item-'+dealId);
+  if (!inp || !inp.value.trim()) return;
+  var text = inp.value.trim();
+  inp.value = '';
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var checklist = (deal.checklist||[]).concat([{text:text,done:false}]);
+  deal.checklist = checklist;
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:checklist});
+  var el = document.getElementById('deal-checklist-'+dealId);
+  if (el) el.innerHTML = renderChecklist(dealId, checklist);
+}
+window.addChecklistItem = addChecklistItem;
+
+async function toggleChecklistItem(dealId, idx, checked) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.checklist) return;
+  deal.checklist[idx].done = checked;
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:deal.checklist});
+  var el = document.getElementById('deal-checklist-'+dealId);
+  if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
+}
+window.toggleChecklistItem = toggleChecklistItem;
+
+async function removeChecklistItem(dealId, idx) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.checklist) return;
+  deal.checklist.splice(idx, 1);
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:deal.checklist});
+  var el = document.getElementById('deal-checklist-'+dealId);
+  if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
+}
+window.removeChecklistItem = removeChecklistItem;
+
+async function saveDealNotes(dealId) {
+  var el = document.getElementById('deal-notes-'+dealId);
+  if (!el) return;
+  var notes = el.value;
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (deal) deal.notes = notes;
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{notes:notes});
+}
+window.saveDealNotes = saveDealNotes;
+
+async function updateDealStatus(dealId, status) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (deal) deal.status = status;
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{status:status});
+}
+window.updateDealStatus = updateDealStatus;
+
+async function deleteDeal(dealId) {
+  if (!confirm('Delete this deal? This cannot be undone.')) return;
+  var agentId = userProfile.agentId||'tom';
+  await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId));
+  _deals = _deals.filter(function(d){ return d.id!==dealId; });
+  var el = document.getElementById('deal-card-'+dealId);
+  if (el) el.remove();
+}
+window.deleteDeal = deleteDeal;
+
+function editDealAddress(dealId) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  var current = deal ? (deal.address||'') : '';
+  var newAddr = prompt('Enter property address:', current);
+  if (newAddr === null) return;
+  newAddr = newAddr.trim();
+  if (deal) deal.address = newAddr;
+  var agentId = userProfile.agentId||'tom';
+  fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{address:newAddr}).then(function(){
+    renderDealTracker();
+  });
+}
+window.editDealAddress = editDealAddress;
+
+// ── Filter deals by status ──
+function filterDeals(status) {
+  // Update chip styles
+  document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
+    b.style.background=''; b.style.color=''; b.style.borderColor='';
+  });
+  var active = document.getElementById('dchip-'+(status==='all'?'all':status.replace(/ /g,'-')));
+  if (active) { active.style.background='var(--green)'; active.style.color='#fff'; active.style.borderColor='var(--green)'; }
+  var filtered = status==='all' ? _deals : _deals.filter(function(d){ return d.status===status; });
+  var container = document.getElementById('deal-cards-container');
+  if (container) container.innerHTML = renderDealCards(filtered);
+}
+window.filterDeals = filterDeals;
+
+// ── New deal modal ──
+function openNewDealModal() {
+  var overlay = document.createElement('div');
+  overlay.id = 'new-deal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--surface);border-radius:var(--r);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;';
+
+  // Build buyer options
+  var buyerOpts = '<option value="">— Unlinked (manual) —</option>'
+    + (myBuyers||[]).map(function(b){
+        var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
+        return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
+      }).join('');
+
+  box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);">'
+    +'<div style="font-weight:600;font-size:15px;">New Deal</div>'
+    +'<button onclick="document.getElementById(\'new-deal-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;">&#x2715;</button>'
+    +'</div>'
+    +'<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px;">'
+    +'<div><label class="flabel">Client Name</label><input type="text" id="nd-name" placeholder="Tom & Sarah Johnson"/></div>'
+    +'<div><label class="flabel">Link to App Client (optional)</label><select id="nd-client">'+buyerOpts+'</select></div>'
+    +'<div><label class="flabel">Deal Type</label>'
+    +'<div style="display:flex;gap:8px;margin-top:4px;">'
+    +'<button class="btn btn-sm" id="nd-type-buyer" onclick="ndSetType(\'buyer\')" style="flex:1;background:var(--green);color:#fff;border-color:var(--green);">🔍 Buyer</button>'
+    +'<button class="btn btn-sm" id="nd-type-seller" onclick="ndSetType(\'seller\')" style="flex:1;">🏡 Seller</button>'
+    +'<button class="btn btn-sm" id="nd-type-both" onclick="ndSetType(\'both\')" style="flex:1;">Both</button>'
+    +'</div></div>'
+    +'<div><label class="flabel">Property Address (optional)</label><input type="text" id="nd-address" placeholder="123 Main St, Avon Lake OH"/></div>'
+    +'<div><label class="flabel">Closing Date (optional)</label><input type="date" id="nd-closing"/></div>'
+    +'<div><label class="flabel">Status</label>'
+    +'<select id="nd-status">'
+    +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s==='Active'?' selected':'')+'>'+s+'</option>'; }).join('')
+    +'</select></div>'
+    +'<div id="nd-prefill-note" style="font-size:12px;color:var(--text3);background:var(--surface2);padding:8px 10px;border-radius:8px;">Standard checklist items will be added automatically based on deal type.</div>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    +'<button class="btn" onclick="document.getElementById(\'new-deal-overlay\').remove()">Cancel</button>'
+    +'<button class="btn btn-g" onclick="createNewDeal()">Create Deal</button>'
+    +'</div>'
+    +'</div>';
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  window._ndType = 'buyer';
+}
+window.openNewDealModal = openNewDealModal;
+
+function ndSetType(type) {
+  window._ndType = type;
+  ['buyer','seller','both'].forEach(function(t){
+    var b = document.getElementById('nd-type-'+t);
+    if (b) { b.style.background=''; b.style.color=''; b.style.borderColor=''; }
+  });
+  var active = document.getElementById('nd-type-'+type);
+  if (active) { active.style.background='var(--green)'; active.style.color='#fff'; active.style.borderColor='var(--green)'; }
+}
+window.ndSetType = ndSetType;
+
+async function createNewDeal() {
+  var name = document.getElementById('nd-name').value.trim();
+  var clientUid = document.getElementById('nd-client').value;
+  var address = document.getElementById('nd-address').value.trim();
+  var closing = document.getElementById('nd-closing').value;
+  var status = document.getElementById('nd-status').value;
+  var dealType = window._ndType || 'buyer';
+
+  if (!name && !clientUid) { alert('Please enter a client name or link to an app client.'); return; }
+
+  // Auto-fill name from linked client
+  if (!name && clientUid) {
+    var linked = (myBuyers||[]).find(function(b){ return b.uid===clientUid; });
+    if (linked) name = ((linked.firstName||'')+' '+(linked.lastName||'')).trim();
+  }
+
+  // Auto-fill deal type from linked client journey
+  if (clientUid) {
+    var linked2 = (myBuyers||[]).find(function(b){ return b.uid===clientUid; });
+    if (linked2 && linked2.journeyType) dealType = linked2.journeyType;
+  }
+
+  // Build prefill checklist
+  var prefills = dealType==='seller' ? SELLER_PREFILLS :
+                 dealType==='both'   ? BUYER_PREFILLS.concat(SELLER_PREFILLS) :
+                 BUYER_PREFILLS;
+  var checklist = prefills.map(function(t){ return {text:t,done:false}; });
+
+  var data = {
+    clientName: name,
+    clientUid: clientUid || null,
+    dealType: dealType,
+    address: address || null,
+    closingDate: closing || null,
+    status: status,
+    checklist: checklist,
+    notes: '',
+    agentId: userProfile.agentId||'tom',
+  };
+
+  var newId = await saveDeal(null, data);
+  data.id = newId;
+  _deals.unshift(data);
+
+  document.getElementById('new-deal-overlay').remove();
+  renderDealTracker();
+}
+window.createNewDeal = createNewDeal;
+
+// ── Auto-sync deals from app clients (non-destructive) ──
+async function syncDealsFromClients() {
+  if (!myBuyers || !myBuyers.length) return;
+  var agentId = userProfile.agentId||'tom';
+  var existingUids = _deals.map(function(d){ return d.clientUid; }).filter(Boolean);
+
+  for (var i=0; i<myBuyers.length; i++) {
+    var b = myBuyers[i];
+    if (existingUids.includes(b.uid)) continue; // already has a deal
+    // Only auto-create if client is past step 1 (actually active)
+    if ((b.currentStep||1) < 2) continue;
+
+    var dealType = b.journeyType||'buyer';
+    var prefills = dealType==='seller' ? SELLER_PREFILLS :
+                   dealType==='both'   ? BUYER_PREFILLS.concat(SELLER_PREFILLS) :
+                   BUYER_PREFILLS;
+
+    var data = {
+      clientName: ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email,
+      clientUid: b.uid,
+      dealType: dealType,
+      address: b.propertyAddress || b.listingAddress || null,
+      closingDate: null,
+      status: b.pending ? 'Searching' : 'Active',
+      checklist: prefills.map(function(t){ return {text:t,done:false}; }),
+      notes: '',
+      agentId: agentId,
+    };
+    try {
+      var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},data,{createdAt:fb.serverTimestamp()}));
+      data.id = ref.id;
+      _deals.push(data);
+    } catch(e) {}
+  }
+}
+window.syncDealsFromClients = syncDealsFromClients;
+
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
