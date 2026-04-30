@@ -11021,7 +11021,8 @@ async function loadDeals() {
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
       if (data.dealType === 'both') data.dealType = 'buyer';
-      // Manual status is source of truth
+      if (!data.dealType) data.dealType = 'buyer';
+      // Manual status is the source of truth
       if (!data.status) data.status = 'Active';
       data._storedStatus = data.status;
       _deals.push(data);
@@ -11068,9 +11069,8 @@ async function renderDealTracker() {
   if (!_dealsLoaded) {
     try { await loadDeals(); } catch(e) { console.log("loadDeals err:",e.message); _dealsLoaded = true; }
   }
-  _dedupeDeals();
-  // Reset to active on every full re-render
   _activeFilter = 'active';
+  _dedupeDeals();
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
     +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
@@ -11365,7 +11365,7 @@ function filterDeals(tab) {
   var now = Date.now();
   var yr = 365*24*60*60*1000;
   var filtered = _deals.filter(function(d){
-    var isClosed = getDealStatus(d, (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; })) === 'Closed';
+    var isClosed = (d.status || d._storedStatus || 'Active') === 'Closed';
     // Auto-delete closed deals older than 365 days
     if (isClosed && d.createdAt) {
       var created = d.createdAt.toMillis ? d.createdAt.toMillis() : new Date(d.createdAt).getTime();
@@ -11494,31 +11494,9 @@ window.createNewDeal = createNewDeal;
 
 // ── Auto-sync deals from app clients (non-destructive) ──
 async function syncDealsFromClients() {
-  // Only auto-creates buyer deals at step 5+ (Under Contract)
-  // Seller deals are created manually via addToDealTracker()
-  if (!myBuyers || !myBuyers.length) return;
-  var agentId = userProfile.agentId||'tom';
-  var existingKeys = _deals.map(function(d){ return (d.clientUid||'')+'_'+(d.dealType||'buyer'); }).filter(Boolean);
-  for (var i=0; i<myBuyers.length; i++) {
-    var b = myBuyers[i];
-    var jType = b.journeyType||'buyer';
-    var isBuyer = jType==='buyer' || jType==='both';
-    if (isBuyer && (b.currentStep||0) >= 5) {
-      var buyerKey = b.uid+'_buyer';
-      if (!existingKeys.includes(buyerKey)) {
-        var buyData = {
-          clientName: ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email,
-          clientUid: b.uid, dealType: 'buyer',
-          address: b.propertyAddress||null, closingDate: null,
-          status: 'Under Contract', checklist: [], notes: '', agentId: agentId,
-        };
-        try {
-          var bRef = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},buyData,{createdAt:fb.serverTimestamp()}));
-          buyData.id = bRef.id; _deals.push(buyData); existingKeys.push(buyerKey);
-        } catch(e) {}
-      }
-    }
-  }
+  // Disabled: auto-creating deals from steps caused ghost/duplicate deals.
+  // Deals are now manually created only.
+  return;
 }
 window.syncDealsFromClients = syncDealsFromClients;
 
@@ -11868,50 +11846,34 @@ function editClientInfo(uid) {
 }
 window.editClientInfo = editClientInfo;
 
-// ── Deal status: manual is source of truth ──
-function getDealStatus(deal) {
+// ── Auto-compute deal status from client step ──
+function getDealStatus(deal, linkedBuyer) {
+  if (!deal) return 'Active';
   return deal.status || deal._storedStatus || 'Active';
 }
 window.getDealStatus = getDealStatus;
 
 function _dedupeDeals() {
-  // Normalize 'both' -> 'buyer'
-  _deals.forEach(function(d){ if (d.dealType === 'both') d.dealType = 'buyer'; });
-  // Pass 1: dedupe by Firestore id (exact in-memory duplicates)
-  var seenId = {};
-  _deals = _deals.filter(function(d){
-    if (!d.id) return true;
-    if (seenId[d.id]) return false;
-    seenId[d.id] = true;
-    return true;
-  });
-  // Pass 2: dedupe by clientUid+dealType (keep first/newest)
-  var seenKey = {};
-  _deals = _deals.filter(function(d){
-    var key = (d.clientUid||d.id)+'_'+(d.dealType||'buyer');
-    if (seenKey[key]) return false;
-    seenKey[key] = true;
+  var seen = {};
+  _deals = (_deals || []).filter(function(d) {
+    if (!d) return false;
+    if (d.dealType === 'both') d.dealType = 'buyer';
+    if (!d.dealType) d.dealType = 'buyer';
+    if (!d.status) d.status = 'Active';
+    d._storedStatus = d.status;
+    var key = d.id ? ('id_' + d.id) : (
+      'client_' + (d.clientUid || '') + '_' + d.dealType + '_' + (d.address || '') + '_' + (d.clientName || '')
+    );
+    if (seen[key]) return false;
+    seen[key] = true;
     return true;
   });
 }
 window._dedupeDeals = _dedupeDeals;
 
 async function syncDealStatusFromStep(uid) {
-  try {
-    var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
-    if (!b) return;
-    var agentId = userProfile.agentId||'tom';
-    var linkedDeals = _deals.filter(function(d){ return d.clientUid===uid; });
-    for (var i=0; i<linkedDeals.length; i++) {
-      var d = linkedDeals[i];
-      var status = getDealStatus(d, b);
-      if (d._storedStatus !== status || d.status !== status) {
-        d.status = status;
-        d._storedStatus = status;
-        await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',d.id), {status: status});
-      }
-    }
-  } catch(e) { console.log('syncDealStatus err:', e.message); }
+  // No-op: journey steps no longer control deal status.
+  return;
 }
 window.syncDealStatusFromStep = syncDealStatusFromStep;
 </script>
