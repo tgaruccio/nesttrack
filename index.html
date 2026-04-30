@@ -11084,9 +11084,7 @@ function renderDealCards(deals) {
       +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
       +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+(clientStep?' · Step '+clientStep:'')+'</div>'
       +'</div>'
-      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 6px;flex-shrink:0;cursor:pointer;font-family:inherit;">'
-      +['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+' style="color:#000;background:#fff;">'+s+'</option>'; }).join('')
-      +'</select>'
+      +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;flex-shrink:0;">'+autoStatus+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
       +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate']].map(function(pair,i){
@@ -11125,6 +11123,9 @@ function renderDealCards(deals) {
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 Client</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
+      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
+      +['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
+      +'</select>'
       +'<button class="btn btn-sm" onclick="deleteDeal(\''+deal.id+'\')" style="color:#E24B4A;">\ud83d\uddd1</button>'
       +'</div></div></div>';
   }).join('');
