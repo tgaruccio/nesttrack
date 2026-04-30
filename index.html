@@ -11011,8 +11011,8 @@ async function loadDeals() {
     _deals = [];
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
-      // Normalize status — default missing/unknown to Active
-      if (!data.status || !DEAL_STATUSES.includes(data.status)) data.status = 'Active';
+      // Store original status for unlinked deals, computed status used for linked
+      data._storedStatus = data.status || 'Active';
       _deals.push(data);
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
@@ -11063,7 +11063,10 @@ async function renderDealTracker() {
     +'</div>';
 
   html += '<div id="deal-cards-container">';
-  var _toRender = _activeFilter==='all' ? _deals : _deals.filter(function(d){ return d.status===_activeFilter; });
+  var _toRender = _activeFilter==='all' ? _deals : _deals.filter(function(d){
+    var lb = (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; });
+    return getDealStatus(d, lb) === _activeFilter;
+  });
   try {
     html += renderDealCards(_toRender);
   } catch(renderErr) {
@@ -11104,6 +11107,7 @@ function renderDealCards(deals) {
     var total = checklist.length;
     var notes = deal.notes || '';
     var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
+    var autoStatus = getDealStatus(deal, linkedBuyer);
     var hasAddr = deal.address && deal.address.trim();
     return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;" id="deal-card-'+deal.id+'">'
       +'<div style="background:'+(deal.dealType==='seller'?'#D97706':'var(--green)')+';padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
@@ -11112,9 +11116,8 @@ function renderDealCards(deals) {
       +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
       +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+(clientStep?' · Step '+clientStep:'')+'</div>'
       +'</div>'
-      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:3px 4px;border-radius:6px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:600;flex-shrink:0;cursor:pointer;max-width:110px;">'
-      +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===deal.status?' selected':'')+' style="color:#1a1a1a;">'+s+'</option>'; }).join('')
-      +'</select></div>'
+      +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;flex-shrink:0;">'+autoStatus+'</div>'
+      +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
       +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate']].map(function(pair,i){
         var label=pair[0],key=pair[1],val=deal[key]||'';
@@ -11286,11 +11289,8 @@ async function saveDealNotes(dealId) {
 window.saveDealNotes = saveDealNotes;
 
 async function updateDealStatus(dealId, status) {
-  var deal = _deals.find(function(d){ return d.id===dealId; });
-  if (deal) deal.status = status;
-  var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{status:status});
-  filterDeals(_activeFilter);
+  // Status is now auto-computed from client step — manual status changes ignored
+  // Kept for compatibility but does nothing
 }
 window.updateDealStatus = updateDealStatus;
 
@@ -11337,7 +11337,10 @@ function filterDeals(status) {
   });
   var active = document.getElementById('dchip-'+(status==='all'?'all':status.replace(/ /g,'-')));
   if (active) { active.style.background='var(--green)'; active.style.color='#fff'; active.style.borderColor='var(--green)'; }
-  var filtered = status==='all' ? _deals : _deals.filter(function(d){ return d.status===status; });
+  var filtered = status==='all' ? _deals : _deals.filter(function(d){
+    var lb = (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; });
+    return getDealStatus(d, lb) === status;
+  });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
 }
@@ -11810,6 +11813,25 @@ function editClientInfo(uid) {
   };
 }
 window.editClientInfo = editClientInfo;
+
+// ── Auto-compute deal status from client step ──
+function getDealStatus(deal, linkedBuyer) {
+  if (deal._storedStatus && !linkedBuyer) return deal._storedStatus;
+  if (!linkedBuyer) return deal._storedStatus || 'Active';
+  if (deal.dealType === 'seller') {
+    var ss = linkedBuyer.currentSellerStep || 0;
+    if (ss >= 10) return 'Closed';
+    if (ss >= 5)  return 'Under Contract';
+    if (ss >= 1)  return 'On Market';
+    return 'Active';
+  } else {
+    var bs = linkedBuyer.currentStep || 0;
+    if (bs >= 11) return 'Closed';
+    if (bs >= 5)  return 'Under Contract';
+    return 'Active';
+  }
+}
+window.getDealStatus = getDealStatus;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
