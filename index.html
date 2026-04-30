@@ -6561,7 +6561,7 @@ async function openBuyerDetail(uid, scrollTo) {
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
           </div>
-          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}
+          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}${(b.currentStep||1)>=5?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:10px;width:100%;font-size:13px;'>&#128203; Manage Transaction in Deal Tracker →</button>`:''}
         </div>
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
@@ -6670,8 +6670,10 @@ async function openBuyerDetail(uid, scrollTo) {
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
-  var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
-  if (!confirm('Move to "'+stepName+'"? This will email the client.')) return;
+  if (newStep !== 0) {
+    var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
+    if (!confirm('Move to "'+stepName+'"? This will email the client.')) return;
+  }
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
@@ -6706,7 +6708,7 @@ async function setBuyerStep(uid) {
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
-    if (!skipForCash) sendStepEmail(uid, newStep, 'buyer');
+    if (newStep > 0 && !skipForCash) sendStepEmail(uid, newStep, 'buyer');
   } catch(e) { alert('Failed: '+e.message); }
 }
 async function setBuyerAgent(uid) {
@@ -6852,8 +6854,10 @@ window.saveTitleCo = saveTitleCo;
 
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
-  var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
-  if (!confirm('Move to "'+sName+'"? This will email the client.')) return;
+  if (newStep !== 0) {
+    var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
+    if (!confirm('Move to "'+sName+'"? This will email the client.')) return;
+  }
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
@@ -6864,7 +6868,7 @@ async function setSellerStep(uid) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
-    sendStepEmail(uid, newStep, 'seller');
+    if (newStep > 0) sendStepEmail(uid, newStep, 'seller');
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.setSellerStep = setSellerStep;
@@ -6975,7 +6979,8 @@ async function createInvite() {
     firstName: first, lastName: last, email: email, phone: phone,
     agentId: agentId, lenderId: invLenderId, role: 'buyer',
     journeyType: _invJourneyType,
-    currentStep: 1, currentSellerStep: 0,
+    currentStep: (_invJourneyType==='seller') ? 0 : 1,
+    currentSellerStep: (_invJourneyType==='buyer') ? 0 : 1,
     pending: true, inviteCode: code,
     createdAt: fb.serverTimestamp(),
     listingAddress: invListingAddress || null,
@@ -11083,6 +11088,7 @@ function renderDealCards(deals) {
       if (!stepPrefills.includes(item.text)) allCheckItems.push(item);
     });
     var checklist = allCheckItems;
+    deal._mergedChecklist = allCheckItems;
     var done = checklist.filter(function(i){ return i.done; }).length;
     var total = checklist.length;
     var notes = deal.notes || '';
@@ -11194,8 +11200,15 @@ window.addChecklistItem = addChecklistItem;
 
 async function toggleChecklistItem(dealId, idx, checked) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
-  if (!deal || !deal.checklist) return;
-  deal.checklist[idx].done = checked;
+  if (!deal) return;
+  var displayList = deal._mergedChecklist || deal.checklist || [];
+  if (!displayList[idx]) return;
+  var itemText = displayList[idx].text;
+  displayList[idx].done = checked;
+  if (!deal.checklist) deal.checklist = [];
+  var savedItem = deal.checklist.find(function(i){ return i.text===itemText; });
+  if (savedItem) { savedItem.done = checked; }
+  else { deal.checklist.push({text:itemText, done:checked}); }
   var agentId = userProfile.agentId||'tom';
   // Save only the custom/modified items (not pure prefills that are undone)
   var toSave = deal.checklist.filter(function(item){
