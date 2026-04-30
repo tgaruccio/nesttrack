@@ -3186,7 +3186,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();} }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
   await loadAgentPartners(userProfile.agentId||'tom');
   if (isAgent) runSilentPurge();
   setupChatHead();
@@ -6338,6 +6338,45 @@ async function todoLoad() {
   } catch(e) { console.log('todoLoad:', e.message); }
 }
 window.todoLoad = todoLoad;
+
+function injectDealReminders() {
+  if (!_deals || !_deals.length) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var injected = 0;
+  var watchDates = [
+    { key: 'inspectionDate', label: 'Inspection deadline', warn: 1 },
+    { key: 'closingDate',    label: 'Closing date',        warn: 7 },
+  ];
+  _deals.forEach(function(deal) {
+    if (deal.status === 'Closed' || deal.status === 'Fallen Through') return;
+    var name = deal.clientName || 'Client';
+    var addr = deal.address ? deal.address.split(',')[0] : 'No address';
+    watchDates.forEach(function(wd) {
+      var dateStr = deal[wd.key];
+      if (!dateStr) return;
+      var date = new Date(dateStr + 'T12:00:00');
+      var daysOut = Math.ceil((date - today) / 86400000);
+      if (daysOut < 0 || daysOut > wd.warn) return;
+      var reminderId = 'dr_' + deal.id + '_' + wd.key + '_' + dateStr;
+      var exists = _todos.some(function(t){ return t.id === reminderId; });
+      if (exists) return;
+      var urgency = daysOut === 0 ? 'TODAY' : daysOut === 1 ? 'TOMORROW' : 'in ' + daysOut + ' days';
+      var text = '[AUTO] ' + wd.label + ' ' + urgency + ' - ' + name + ' (' + addr + ')';
+      _todos.unshift({
+        id: reminderId,
+        text: text,
+        date: dateStr,
+        time: '',
+        done: false,
+        createdAt: Date.now(),
+        isAutoReminder: true
+      });
+      injected++;
+    });
+  });
+  if (injected > 0) { todoSave(); todoRender(); todoUpdateBadge(); }
+}
+window.injectDealReminders = injectDealReminders;
 
 async function todoSave() {
   if (!currentUser) return;
