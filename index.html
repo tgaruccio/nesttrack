@@ -11022,21 +11022,13 @@ async function loadDeals() {
       var data = Object.assign({id:d.id},d.data());
       if (data.dealType === 'both') data.dealType = 'buyer';
       if (!data.dealType) data.dealType = 'buyer';
-      // Manual status is the source of truth
       if (!data.status) data.status = 'Active';
       data._storedStatus = data.status;
       _deals.push(data);
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
-    // Deduplicate: keep only first (newest) deal per clientUid+dealType
-    var seen = {};
-    _deals = _deals.filter(function(d){
-      var dt = (d.dealType==='both') ? 'buyer' : (d.dealType||'buyer');
-    var key = (d.clientUid||d.id)+'_'+dt;
-      if (seen[key]) return false;
-      seen[key] = true;
-      return true;
-    });
+    // Deduplicate via shared _dedupeDeals
+    _dedupeDeals();
     _dealsLoaded = true;
   } catch(e) { console.log('loadDeals error:', e.message); }
 }
@@ -11086,8 +11078,7 @@ async function renderDealTracker() {
   html += '<div id="deal-cards-container">';
   // Default to active tab
   var _toRender = _deals.filter(function(d){
-    var lb = (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; });
-    var isClosed = getDealStatus(d, lb) === 'Closed';
+    var isClosed = (d.status || d._storedStatus || 'Active') === 'Closed';
     if (_activeFilter === 'closed') return isClosed;
     return !isClosed;
   });
@@ -11131,7 +11122,7 @@ function renderDealCards(deals) {
     var total = checklist.length;
     var notes = deal.notes || '';
     var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
-    var autoStatus = getDealStatus(deal, linkedBuyer);
+    var autoStatus = deal.status || deal._storedStatus || 'Active';
     var hasAddr = deal.address && deal.address.trim();
     return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;" id="deal-card-'+deal.id+'">'
       +'<div style="background:'+(deal.dealType==='seller'?'#D97706':'var(--green)')+';padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
@@ -11313,8 +11304,13 @@ async function saveDealNotes(dealId) {
 window.saveDealNotes = saveDealNotes;
 
 async function updateDealStatus(dealId, status) {
-  // Status is now auto-computed from client step — manual status changes ignored
-  // Kept for compatibility but does nothing
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (deal) { deal.status = status; deal._storedStatus = status; }
+  var agentId = userProfile.agentId||'tom';
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), {status:status});
+  } catch(e) { console.log('updateDealStatus err:', e.message); }
+  filterDeals(_activeFilter);
 }
 window.updateDealStatus = updateDealStatus;
 
@@ -11494,8 +11490,8 @@ window.createNewDeal = createNewDeal;
 
 // ── Auto-sync deals from app clients (non-destructive) ──
 async function syncDealsFromClients() {
-  // Disabled: auto-creating deals from steps caused ghost/duplicate deals.
-  // Deals are now manually created only.
+  // Disabled: auto-creating deals from client steps caused ghost/duplicate deals.
+  // Deals are manually created only until the tracker is stable.
   return;
 }
 window.syncDealsFromClients = syncDealsFromClients;
@@ -11701,7 +11697,6 @@ async function addToDealTracker(uid, dealType) {
   if (existing) {
     closeM('buyer-modal');
     switchAgentTab('deals');
-    setTimeout(renderDealTracker, 100);
     return;
   }
   var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
@@ -11718,12 +11713,10 @@ async function addToDealTracker(uid, dealType) {
     contractDate: clientDates.acceptanceDate || null,
     closingDate: clientDates.closingDate || null,
     inspectionDate: clientDates.inspectionDeadline || null,
-    status: (function(){
-      var lb = (myBuyers||[]).find(function(x){ return x.uid===uid; });
-      return getDealStatus({dealType:dealType, _storedStatus: dealType==='seller'?'On Market':'Under Contract'}, lb);
-    })(),
+    status: dealType==='seller' ? 'On Market' : 'Active',
     checklist: [], notes: '', agentId: agentId,
   };
+  data._storedStatus = data.status;
   try {
     var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},data,{createdAt:fb.serverTimestamp()}));
     data.id = ref.id;
@@ -11848,6 +11841,8 @@ window.editClientInfo = editClientInfo;
 
 // ── Auto-compute deal status from client step ──
 function getDealStatus(deal, linkedBuyer) {
+  // Manual status is the only source of truth.
+  // Journey steps (currentStep/currentSellerStep) do NOT control deal status.
   if (!deal) return 'Active';
   return deal.status || deal._storedStatus || 'Active';
 }
@@ -11861,9 +11856,9 @@ function _dedupeDeals() {
     if (!d.dealType) d.dealType = 'buyer';
     if (!d.status) d.status = 'Active';
     d._storedStatus = d.status;
-    var key = d.id ? ('id_' + d.id) : (
-      'client_' + (d.clientUid || '') + '_' + d.dealType + '_' + (d.address || '') + '_' + (d.clientName || '')
-    );
+    // Dedupe by Firestore id first, then by clientUid+dealType
+    var key = d.id ? ('id_' + d.id) :
+      'cl_' + (d.clientUid||'') + '_' + d.dealType + '_' + (d.address||'') + '_' + (d.clientName||'');
     if (seen[key]) return false;
     seen[key] = true;
     return true;
