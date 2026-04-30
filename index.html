@@ -10738,7 +10738,7 @@ async function renderShowingInbox() {
           return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
         }).join('');
 
-    var assignKey = (ev.uid||('st-'+i)).replace(/[^a-zA-Z0-9_-]/g,'_');
+    var assignKey = ((ev.address||'')+(ev.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80)||('st_'+i);
     var existing = _showingAssignments[assignKey];
     return '<div style="background:var(--surface);border:0.5px solid '+(existing?'var(--green-md)':'var(--border)')+';border-radius:var(--r);padding:14px 16px;margin-bottom:10px;" id="showing-card-'+i+'">'
       +'<div style="display:flex;align-items:flex-start;gap:10px;">'
@@ -10859,7 +10859,7 @@ async function assignShowing(idx) {
     // 4. Save assignment to Firestore so inbox remembers
     try {
       var agentId = userProfile.agentId||'tom';
-      var assignKey = (ev.uid||('st-'+idx)).replace(/[^a-zA-Z0-9_-]/g,'_');
+      var assignKey = ((ev.address||'')+(ev.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80)||('st_'+idx);
       await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',assignKey), {
         clientUid: clientUid,
         clientName: ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email,
