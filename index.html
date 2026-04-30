@@ -11015,7 +11015,9 @@ async function renderDealTracker() {
   if (!el) return;
   el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
 
-  if (!_dealsLoaded) await loadDeals();
+  if (!_dealsLoaded) {
+    try { await loadDeals(); } catch(e) { console.log("loadDeals err:",e.message); _dealsLoaded = true; }
+  }
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
     +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
