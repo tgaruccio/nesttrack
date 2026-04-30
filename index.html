@@ -11033,7 +11033,12 @@ async function renderDealTracker() {
     +'</div>';
 
   html += '<div id="deal-cards-container">';
-  html += renderDealCards(_deals);
+  try {
+    html += renderDealCards(_deals);
+  } catch(renderErr) {
+    html += '<div class="notice" style="color:#E24B4A;">Error rendering deals: ' + renderErr.message + '</div>';
+    console.error('renderDealCards error:', renderErr);
+  }
   html += '</div>';
 
   el.innerHTML = html;
@@ -11051,6 +11056,7 @@ function renderDealCards(deals) {
   return deals.map(function(deal) {
     // Merge step-specific tasks with custom checklist
     var linkedBuyer = (myBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+    var clientStep = deal.dealType==='seller' ? (linkedBuyer&&linkedBuyer.currentSellerStep||0) : (linkedBuyer&&linkedBuyer.currentStep||0);
     // Use ALL tasks for deal type — full transaction view
     var allPrefills = deal.dealType==='seller' ? (typeof ALL_SELLER_TASKS!=='undefined' ? ALL_SELLER_TASKS : []) : (typeof ALL_BUYER_TASKS!=='undefined' ? ALL_BUYER_TASKS : []);
     var customChecklist = deal.checklist || [];
