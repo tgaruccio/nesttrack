@@ -11084,7 +11084,9 @@ function renderDealCards(deals) {
       +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
       +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+(clientStep?' · Step '+clientStep:'')+'</div>'
       +'</div>'
-      +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;flex-shrink:0;">'+autoStatus+'</div>'
+      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 6px;flex-shrink:0;cursor:pointer;font-family:inherit;">'
+      +['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+' style="color:#000;background:#fff;">'+s+'</option>'; }).join('')
+      +'</select>'
       +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
       +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate']].map(function(pair,i){
@@ -11652,7 +11654,7 @@ async function addToDealTracker(uid, dealType) {
     contractDate: clientDates.acceptanceDate || null,
     closingDate: clientDates.closingDate || null,
     inspectionDate: clientDates.inspectionDeadline || null,
-    status: dealType==='seller' ? 'On Market' : 'Active',
+    status: dealType==='seller' ? 'On Market' : 'Under Contract',
     checklist: [], notes: '', agentId: agentId,
   };
   data._storedStatus = data.status;
