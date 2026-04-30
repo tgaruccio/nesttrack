@@ -6507,6 +6507,8 @@ function agentCallBuyer() {
 window.agentCallBuyer = agentCallBuyer;
 
 async function openBuyerDetail(uid, scrollTo) {
+  // Ensure deals are loaded so modal buttons show correctly
+  if (!_dealsLoaded) { try { await loadDeals(); } catch(e) {} }
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) {
     // Try loading directly from Firestore (e.g. pending record)
@@ -11839,18 +11841,17 @@ window.editClientInfo = editClientInfo;
 
 // ── Auto-compute deal status from client step ──
 function getDealStatus(deal, linkedBuyer) {
-  if (deal._storedStatus && !linkedBuyer) return deal._storedStatus;
   if (!linkedBuyer) return deal._storedStatus || 'Active';
   if (deal.dealType === 'seller') {
     var ss = linkedBuyer.currentSellerStep || 0;
-    if (ss >= 10) return 'Closed';
-    if (ss >= 5)  return 'Under Contract';
+    if (ss >= 13) return 'Closed';          // Step 13 = Closing Day
+    if (ss >= 9)  return 'Under Contract'; // Step 9 = Offers & Negotiation
     if (ss >= 1)  return 'On Market';
     return 'Active';
   } else {
     var bs = linkedBuyer.currentStep || 0;
-    if (bs >= 11) return 'Closed';
-    if (bs >= 5)  return 'Under Contract';
+    if (bs >= 11) return 'Closed';          // Step 11 = Closing
+    if (bs >= 5)  return 'Under Contract'; // Step 5 = Under Contract
     return 'Active';
   }
 }
