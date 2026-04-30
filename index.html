@@ -6561,7 +6561,7 @@ async function openBuyerDetail(uid, scrollTo) {
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
           </div>
-          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}${(b.currentStep||1)>=5?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:10px;width:100%;font-size:13px;'>&#128203; Manage Transaction in Deal Tracker →</button>`:''}
+          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}${((b.currentStep||0)>=5||(b.currentSellerStep||0)>=1)?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");setTimeout(renderDealTracker,100);' style='margin-top:10px;width:100%;font-size:13px;'>&#128203; Manage Transaction in Deal Tracker →</button>`:''}
         </div>
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
@@ -6692,7 +6692,7 @@ async function setBuyerStep(uid) {
           var dealData = {
             clientName: ((newBuyer&&newBuyer.firstName||'')+' '+(newBuyer&&newBuyer.lastName||'')).trim()||(newBuyer&&newBuyer.email)||'',
             clientUid: uid,
-            dealType: (newBuyer&&newBuyer.journeyType)||'buyer',
+            dealType: 'buyer', // Always buyer when triggered from setBuyerStep
             address: (newBuyer&&newBuyer.listingAddress)||(newBuyer&&newBuyer.propertyAddress)||null,
             status: 'Under Contract',
             checklist: [],
@@ -6862,6 +6862,30 @@ async function setSellerStep(uid) {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
     renderBuyers();
+    // Auto-create seller deal if none exists
+    if (newStep >= 1) {
+      try {
+        var agentId = userProfile.agentId||'tom';
+        if (!_dealsLoaded) await loadDeals();
+        var existingSellerDeal = _deals.find(function(d){ return d.clientUid===uid && d.dealType==='seller'; });
+        if (!existingSellerDeal) {
+          var sellerB = allBuyers.find(function(b){ return b.uid===uid; });
+          var sellerDealData = {
+            clientName: ((sellerB&&sellerB.firstName||'')+' '+(sellerB&&sellerB.lastName||'')).trim()||(sellerB&&sellerB.email)||'',
+            clientUid: uid,
+            dealType: 'seller',
+            address: (sellerB&&sellerB.listingAddress)||(sellerB&&sellerB.propertyAddress)||null,
+            status: 'Active',
+            checklist: [],
+            notes: '',
+            agentId: agentId,
+          };
+          var sRef = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},sellerDealData,{createdAt:fb.serverTimestamp()}));
+          sellerDealData.id = sRef.id;
+          _deals.push(sellerDealData);
+        }
+      } catch(sde){ console.log('Seller deal create err:', sde.message); }
+    }
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = (buyer && buyer.sellerContractDates) || {};
@@ -11424,35 +11448,62 @@ window.createNewDeal = createNewDeal;
 async function syncDealsFromClients() {
   if (!myBuyers || !myBuyers.length) return;
   var agentId = userProfile.agentId||'tom';
-  var existingUids = _deals.map(function(d){ return d.clientUid; }).filter(Boolean);
+  // Track existing deals by uid+dealType to prevent duplicates
+  var existingKeys = _deals.map(function(d){ return (d.clientUid||'')+'_'+(d.dealType||'buyer'); }).filter(Boolean);
 
   for (var i=0; i<myBuyers.length; i++) {
     var b = myBuyers[i];
-    if (existingUids.includes(b.uid)) continue; // already has a deal
-    // Only auto-create deal for buyers who are Under Contract (step 5+)
-    if ((b.currentStep||1) < 5 && (b.currentSellerStep||0) < 1) continue;
+    var jType = b.journeyType||'buyer';
+    var isBuyer  = jType==='buyer'  || jType==='both';
+    var isSeller = jType==='seller' || jType==='both';
 
-    var dealType = b.journeyType||'buyer';
-    var prefills = dealType==='seller' ? SELLER_PREFILLS :
-                   dealType==='both'   ? BUYER_PREFILLS.concat(SELLER_PREFILLS) :
-                   BUYER_PREFILLS;
+    // Create buyer deal if Under Contract (step 5+) and no buyer deal exists
+    if (isBuyer && (b.currentStep||0) >= 5) {
+      var buyerKey = b.uid+'_buyer';
+      if (!existingKeys.includes(buyerKey)) {
+        var buyData = {
+          clientName: ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email,
+          clientUid: b.uid,
+          dealType: 'buyer',
+          address: b.propertyAddress || null,
+          closingDate: null,
+          status: 'Under Contract',
+          checklist: [],
+          notes: '',
+          agentId: agentId,
+        };
+        try {
+          var bRef = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},buyData,{createdAt:fb.serverTimestamp()}));
+          buyData.id = bRef.id;
+          _deals.push(buyData);
+          existingKeys.push(buyerKey);
+        } catch(e) {}
+      }
+    }
 
-    var data = {
-      clientName: ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email,
-      clientUid: b.uid,
-      dealType: dealType,
-      address: b.propertyAddress || b.listingAddress || null,
-      closingDate: null,
-      status: b.pending ? 'Searching' : 'Active',
-      checklist: prefills.map(function(t){ return {text:t,done:false}; }),
-      notes: '',
-      agentId: agentId,
-    };
-    try {
-      var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},data,{createdAt:fb.serverTimestamp()}));
-      data.id = ref.id;
-      _deals.push(data);
-    } catch(e) {}
+    // Create seller deal if active seller (step 1+) and no seller deal exists
+    if (isSeller && (b.currentSellerStep||0) >= 1) {
+      var sellerKey = b.uid+'_seller';
+      if (!existingKeys.includes(sellerKey)) {
+        var sellData = {
+          clientName: ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email,
+          clientUid: b.uid,
+          dealType: 'seller',
+          address: b.listingAddress || b.propertyAddress || null,
+          closingDate: null,
+          status: 'Active',
+          checklist: [],
+          notes: '',
+          agentId: agentId,
+        };
+        try {
+          var sRef = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},sellData,{createdAt:fb.serverTimestamp()}));
+          sellData.id = sRef.id;
+          _deals.push(sellData);
+          existingKeys.push(sellerKey);
+        } catch(e) {}
+      }
+    }
   }
 }
 window.syncDealsFromClients = syncDealsFromClients;
