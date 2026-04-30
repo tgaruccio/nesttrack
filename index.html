@@ -11840,44 +11840,74 @@ async function syncDealStatusFromStep(uid) {
 }
 window.syncDealStatusFromStep = syncDealStatusFromStep;
 
-// One-time Firestore repair: remove duplicate deals, reset bad auto-closed statuses
+// One-time Firestore repair: remove duplicates + reset all auto-set statuses
 async function repairDealTrackerData() {
   var agentId = userProfile.agentId || 'tom';
   var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
   var seen = {};
   var updates = [];
   var deletes = [];
-  snap.forEach(function(docSnap) {
-    var d = Object.assign({ id: docSnap.id }, docSnap.data());
+  var allDocs = [];
+  snap.forEach(function(docSnap) { allDocs.push({ id: docSnap.id, d: docSnap.data() }); });
+
+  // Sort newest first so we keep the most recent duplicate
+  allDocs.sort(function(a, b) {
+    var ta = a.d.createdAt ? (a.d.createdAt.toMillis ? a.d.createdAt.toMillis() : new Date(a.d.createdAt).getTime()) : 0;
+    var tb = b.d.createdAt ? (b.d.createdAt.toMillis ? b.d.createdAt.toMillis() : new Date(b.d.createdAt).getTime()) : 0;
+    return tb - ta;
+  });
+
+  allDocs.forEach(function(item) {
+    var d = Object.assign({ id: item.id }, item.d);
     if (d.dealType === 'both') d.dealType = 'buyer';
     if (!d.dealType) d.dealType = 'buyer';
+
+    // Logical dedup key
     var key = [
       d.clientUid || '',
-      d.dealType || 'buyer',
+      d.dealType,
       (d.address || '').trim().toLowerCase(),
       (d.clientName || '').trim().toLowerCase()
     ].join('|');
-    if (!d.clientUid && !d.address) key = 'manual|' + d.id;
-    if (seen[key]) { deletes.push(docSnap.id); return; }
+    if (!d.clientUid && !d.address) key = 'id|' + d.id;
+
+    if (seen[key]) { deletes.push(d.id); return; }
     seen[key] = true;
+
     var patch = {};
-    if (d.dealType === 'both') patch.dealType = 'buyer';
-    var hasRealClosedMarker = !!d.closedAt || !!d.actualClosedDate || d.manuallyClosed === true;
-    if (d.status === 'Closed' && !hasRealClosedMarker) {
-      patch.status = d.dealType === 'seller' ? 'On Market' : 'Under Contract';
+
+    // Fix dealType
+    if (item.d.dealType === 'both') patch.dealType = 'buyer';
+
+    // Reset ANY status that was auto-set by step logic.
+    // Only keep 'Closed' if agent explicitly set manuallyClosed flag.
+    var manuallyClosedByAgent = d.manuallyClosed === true;
+    if (!manuallyClosedByAgent) {
+      var cleanStatus = d.dealType === 'seller' ? 'On Market' : 'Active';
+      if (d.status !== cleanStatus) patch.status = cleanStatus;
     }
-    if (Object.keys(patch).length) updates.push({ id: docSnap.id, patch: patch });
+
+    if (Object.keys(patch).length) updates.push({ id: d.id, patch: patch });
   });
+
+  // Show a preview before doing anything destructive
+  var msg = 'PREVIEW:\n';
+  msg += 'Will delete ' + deletes.length + ' duplicate deal(s).\n';
+  msg += 'Will reset status on ' + updates.length + ' deal(s).\n\n';
+  msg += 'Proceed?';
+  if (!confirm(msg)) return;
+
   for (var i = 0; i < updates.length; i++) {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
   }
   for (var j = 0; j < deletes.length; j++) {
     await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
   }
+
   _dealsLoaded = false;
   await loadDeals();
   renderDealTracker();
-  alert('Deal Tracker repaired. Updated ' + updates.length + ' records, deleted ' + deletes.length + ' duplicates.');
+  alert('Done. Updated ' + updates.length + ' records, deleted ' + deletes.length + ' duplicates. All statuses reset to Active/On Market. Re-set any that should be Closed manually.');
 }
 window.repairDealTrackerData = repairDealTrackerData;
 </script>
