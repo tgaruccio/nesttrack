@@ -10719,6 +10719,14 @@ async function renderShowingInbox() {
     +'<button class="btn btn-sm" onclick="renderShowingInbox()" style="font-size:11px;">↺ Refresh</button>'
     +'</div>';
 
+  // Load assignments from Firestore
+  var _showingAssignments = {};
+  try {
+    var agentId2 = userProfile.agentId||'tom';
+    var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agentId2,'showingAssignments'));
+    asnSnap.forEach(function(d){ _showingAssignments[d.id] = d.data(); });
+  } catch(ae){ console.log('Load assignments err:', ae.message); }
+
   html += events.map(function(ev, i) {
     var dt = ev.start ? new Date(ev.start) : null;
     var dateStr = dt ? dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
@@ -10730,7 +10738,9 @@ async function renderShowingInbox() {
           return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
         }).join('');
 
-    return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;" id="showing-card-'+i+'">'
+    var assignKey = (ev.uid||('st-'+i)).replace(/[^a-zA-Z0-9_-]/g,'_');
+    var existing = _showingAssignments[assignKey];
+    return '<div style="background:var(--surface);border:0.5px solid '+(existing?'var(--green-md)':'var(--border)')+';border-radius:var(--r);padding:14px 16px;margin-bottom:10px;" id="showing-card-'+i+'">'
       +'<div style="display:flex;align-items:flex-start;gap:10px;">'
       +'<div style="background:var(--green-lt);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'
       +'<div style="font-size:11px;font-weight:700;color:var(--green-dk);text-transform:uppercase;">'+dateStr.split(' ')[0]+'</div>'
@@ -10742,8 +10752,14 @@ async function renderShowingInbox() {
       +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+timeStr+(ev.end?' — '+new Date(ev.end).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'')+'</div>'
       +(ev.description?'<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic;">'+partnerEsc(ev.description.substring(0,100))+'</div>':'')
       +'<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">'
-      +'<select id="showing-client-'+i+'" style="flex:1;font-size:12px;">'+buyerOpts+'</select>'
-      +'<button class="btn btn-sm btn-g" onclick="assignShowing('+i+')">Assign →</button>'
+      +(existing
+        ? '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--green-lt);border-radius:8px;padding:6px 10px;">'
+          +'<div style="font-size:12px;font-weight:500;color:var(--green-dk);">&#10003; Assigned to '+partnerEsc(existing.clientName||'client')+'</div>'
+          +'<button class="btn btn-sm" onclick="unassignShowing('+i+',\''+assignKey+'\')" style="font-size:11px;">Change</button>'
+          +'</div>'
+        : '<select id="showing-client-'+i+'" style="flex:1;font-size:12px;">'+buyerOpts+'</select>'
+          +'<button class="btn btn-sm btn-g" onclick="assignShowing('+i+')">Assign →</button>'
+      )
       +'</div>'
       +'</div></div>'
       +'<div id="showing-status-'+i+'" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"></div>'
@@ -10840,10 +10856,22 @@ async function assignShowing(idx) {
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml})});
 
-    // 4. Update status
+    // 4. Save assignment to Firestore so inbox remembers
+    try {
+      var agentId = userProfile.agentId||'tom';
+      var assignKey = (ev.uid||('st-'+idx)).replace(/[^a-zA-Z0-9_-]/g,'_');
+      await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',assignKey), {
+        clientUid: clientUid,
+        clientName: ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email,
+        address: ev.address||'',
+        start: ev.start||'',
+        assignedAt: fb.serverTimestamp(),
+      });
+    } catch(ae){ console.log('Assignment save err:', ae.message); }
+    // 5. Update status
     if (statusEl) {
       statusEl.style.display='block';
-      statusEl.innerHTML = '&#10003; Assigned to '+partnerEsc(buyer.firstName||buyer.email||'client')+'! Tour added, confirmation email sent.';
+      statusEl.innerHTML = '✓ Assigned to '+partnerEsc(buyer.firstName||buyer.email||'client')+'! Tour added, confirmation email sent.';
     }
     if (btn) { btn.disabled=true; btn.textContent='Done ✓'; btn.style.background='var(--green-dk)'; }
 
@@ -11408,6 +11436,15 @@ async function checkDealTodo(dealId, idx) {
   }, 700);
 }
 window.checkDealTodo = checkDealTodo;
+
+async function unassignShowing(idx, assignKey) {
+  try {
+    var agentId = userProfile.agentId||'tom';
+    await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',assignKey));
+    renderShowingInbox();
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.unassignShowing = unassignShowing;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
