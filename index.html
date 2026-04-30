@@ -11019,45 +11019,49 @@ function streetViewUrl(address) {
 }
 
 // ── Render the full Deal Tracker tab ──
-var _dealTrackerRendering = false;
+var _dealRenderVersion = 0;
 async function renderDealTracker() {
-  // Render lock: prevent concurrent renders causing cards outside container
-  if (_dealTrackerRendering) return;
-  _dealTrackerRendering = true;
-  try {
-    var el = document.getElementById('deal-tracker-panel');
-    if (!el) { _dealTrackerRendering = false; return; }
+  var myVersion = ++_dealRenderVersion;
+  var el = document.getElementById('deal-tracker-panel');
+  if (!el) return;
+
+  // Show loading only if we're the first render in this cycle
+  if (myVersion === _dealRenderVersion) {
     el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
-
-    if (!_dealsLoaded) {
-      try { await loadDeals(); } catch(e) { console.log('loadDeals err:',e.message); _dealsLoaded = true; }
-    }
-    _dedupeDeals();
-
-    var activeCards = renderDealCards(_deals.filter(function(d){
-      return (d.status || d._storedStatus || 'Active') !== 'Closed';
-    }));
-    var closedCards = renderDealCards(_deals.filter(function(d){
-      return (d.status || d._storedStatus || 'Active') === 'Closed';
-    }));
-
-    var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
-      +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
-      +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
-      +'</div>';
-    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
-      +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')" style="background:var(--green);color:#fff;border-color:var(--green);">Active</button>'
-      +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
-      +'</div>';
-    html += '<div id="deal-active-container" style="display:block;">' + activeCards + '</div>';
-    html += '<div id="deal-closed-container" style="display:none;">' + closedCards + '</div>';
-
-    el.innerHTML = html;
-    // Apply correct tab visibility
-    _applyDealFilter();
-  } finally {
-    _dealTrackerRendering = false;
   }
+
+  if (!_dealsLoaded) {
+    try { await loadDeals(); } catch(e) { console.log('loadDeals err:',e.message); _dealsLoaded = true; }
+  }
+
+  // If a newer render started while we were loading, abort
+  if (myVersion !== _dealRenderVersion) return;
+
+  _dedupeDeals();
+
+  var activeCards = renderDealCards(_deals.filter(function(d){
+    return (d.status || d._storedStatus || 'Active') !== 'Closed';
+  }));
+  var closedCards = renderDealCards(_deals.filter(function(d){
+    return (d.status || d._storedStatus || 'Active') === 'Closed';
+  }));
+
+  // One final staleness check before touching the DOM
+  if (myVersion !== _dealRenderVersion) return;
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+    +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
+    +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
+    +'</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
+    +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')" style="background:var(--green);color:#fff;border-color:var(--green);">Active</button>'
+    +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
+    +'</div>';
+  html += '<div id="deal-active-container" style="display:block;">' + activeCards + '</div>';
+  html += '<div id="deal-closed-container" style="display:none;">' + closedCards + '</div>';
+
+  el.innerHTML = html;
+  _applyDealFilter();
 }
 window.renderDealTracker = renderDealTracker;
 
@@ -11277,7 +11281,6 @@ async function updateDealStatus(dealId, status) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), {status:status});
   } catch(e) { console.log('updateDealStatus err:', e.message); }
-  _dealTrackerRendering = false;
   renderDealTracker();
 }
 window.updateDealStatus = updateDealStatus;
@@ -11324,9 +11327,9 @@ function _applyDealFilter() {
   activeEl.style.display = _activeFilter === 'active' ? 'block' : 'none';
   closedEl.style.display = _activeFilter === 'closed' ? 'block' : 'none';
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
-    b.style.background=''; b.style.color=''; b.style.borderColor='';
+    b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
   });
-  var chip = document.getElementById('dchip-'+_activeFilter);
+  var chip = document.getElementById('dchip-' + _activeFilter);
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
 }
 window._applyDealFilter = _applyDealFilter;
@@ -11446,7 +11449,6 @@ async function createNewDeal() {
   _dedupeDeals();
 
   document.getElementById('new-deal-overlay').remove();
-  _dealTrackerRendering = false;
   renderDealTracker();
 }
 window.createNewDeal = createNewDeal;
@@ -11685,7 +11687,6 @@ async function addToDealTracker(uid, dealType) {
     _deals.push(data);
     _dedupeDeals();
     closeM('buyer-modal');
-    _dealTrackerRendering = false;
     switchAgentTab('deals');
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
@@ -11816,12 +11817,7 @@ function _dedupeDeals() {
     if (!d.dealType) d.dealType = 'buyer';
     if (!d.status) d.status = 'Active';
     d._storedStatus = d.status;
-    var logicalKey = [
-      d.clientUid || '',
-      d.dealType || 'buyer',
-      (d.address || '').trim().toLowerCase(),
-      (d.clientName || '').trim().toLowerCase()
-    ].join('|');
+    var logicalKey = [d.clientUid||'', d.dealType||'buyer', (d.address||'').trim().toLowerCase(), (d.clientName||'').trim().toLowerCase()].join('|');
     if (!d.clientUid && !d.address && d.id) logicalKey = 'id|' + d.id;
     if (seen[logicalKey]) return false;
     seen[logicalKey] = true;
@@ -11840,10 +11836,7 @@ window.syncDealStatusFromStep = syncDealStatusFromStep;
 async function repairDealTrackerData() {
   var agentId = userProfile.agentId || 'tom';
   var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
-  var seen = {};
-  var updates = [];
-  var deletes = [];
-  var allDocs = [];
+  var seen = {}; var updates = []; var deletes = []; var allDocs = [];
   snap.forEach(function(docSnap) { allDocs.push({ id: docSnap.id, d: docSnap.data() }); });
   allDocs.sort(function(a, b) {
     var ta = a.d.createdAt ? (a.d.createdAt.toMillis ? a.d.createdAt.toMillis() : new Date(a.d.createdAt).getTime()) : 0;
@@ -11866,18 +11859,15 @@ async function repairDealTrackerData() {
     }
     if (Object.keys(patch).length) updates.push({ id: d.id, patch: patch });
   });
-  var msg = 'PREVIEW:\nWill delete ' + deletes.length + ' duplicate deal(s).\nWill reset status on ' + updates.length + ' deal(s).\n\nProceed?';
+  var msg = 'PREVIEW:\nDelete ' + deletes.length + ' duplicate(s).\nReset status on ' + updates.length + ' deal(s).\n\nProceed?';
   if (!confirm(msg)) return;
-  for (var i = 0; i < updates.length; i++) {
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
-  }
-  for (var j = 0; j < deletes.length; j++) {
-    await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
-  }
+  for (var i = 0; i < updates.length; i++) await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
+  for (var j = 0; j < deletes.length; j++) await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
   _dealsLoaded = false;
   await loadDeals();
+  _dealTrackerRendering = false;
   renderDealTracker();
-  alert('Done. Updated ' + updates.length + ' records, deleted ' + deletes.length + ' duplicates. Re-set any Closed deals manually.');
+  alert('Done. Updated ' + updates.length + ', deleted ' + deletes.length + '. Re-set any Closed deals manually.');
 }
 window.repairDealTrackerData = repairDealTrackerData;
 </script>
