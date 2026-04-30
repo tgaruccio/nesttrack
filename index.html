@@ -11021,6 +11021,8 @@ async function loadDeals() {
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
       if (data.dealType === 'both') data.dealType = 'buyer';
+      // Preserve stored status so getDealStatus fallback works for unlinked deals
+      data._storedStatus = data.status || 'Active';
       // Compute and overwrite status from client step if possible
       var lb = (myBuyers||[]).find(function(x){ return x.uid===data.clientUid; });
       if (lb) data.status = getDealStatus(data, lb);
@@ -11079,6 +11081,7 @@ async function renderDealTracker() {
         var s = getDealStatus(d, b);
         if (d.status !== s) {
           d.status = s;
+          d._storedStatus = s;
           // Write to Firestore so it sticks
           fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',d.id), {status:s}).catch(function(){});
         }
@@ -11091,7 +11094,8 @@ async function renderDealTracker() {
     +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
     +'</div>';
 
-  // Filter chips
+  // Filter chips -- always reset to active on full re-render so returning to tab shows active deals
+  _activeFilter = 'active';
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
     +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')" style="background:var(--green);color:#fff;border-color:var(--green);">Active</button>'
     +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
