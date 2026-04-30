@@ -2481,6 +2481,26 @@ function updateAgentTokens(root) {
 let chatUnsubs = [];
 const EMOJIS = ['🏡','🏘️','🏠','🌳','🌊','🏚️'];
 
+var STEP_TASKS = {
+  5:  ['Earnest money submitted','Inspection scheduled','Inspection report reviewed','Appraisal ordered','Title search ordered'],
+  6:  ['Loan application submitted','Required docs sent to lender','Loan conditions cleared'],
+  7:  ['Inspection complete','Repair requests submitted','Repair resolution agreed'],
+  8:  ['Appraisal scheduled','Appraisal complete','Appraisal value confirmed'],
+  9:  ['Final walk-through scheduled','Final walk-through complete','Any issues resolved'],
+  10: ['Closing disclosure received','Docs reviewed with client','Wire or cashier check confirmed'],
+  11: ['Closing complete','Keys delivered','Welcome home!'],
+};
+var SELLER_STEP_TASKS = {
+  3:  ['Listing agreement signed','Photos scheduled','Staging complete'],
+  4:  ['Listed on MLS','Showings active','Feedback collected'],
+  5:  ['Offer reviewed with client','Offer accepted'],
+  6:  ['Buyer inspection complete','Repair negotiations complete'],
+  7:  ['Appraisal scheduled','Appraisal complete'],
+  8:  ['Buyer clear to close received','Closing date confirmed'],
+  9:  ['Final walk-through complete'],
+  10: ['Closing docs signed','Proceeds confirmed'],
+};
+
 // ─── TIMELINE STEPS ───
 const TIMELINE_STEPS = [
   {id:1,name:'Initial Consult',short:'Initial',
@@ -6543,6 +6563,7 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
           ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
+        ${(b.currentStep||1) >= 5 ? `<div style='margin-top:10px;background:var(--surface2);border-radius:var(--r);padding:10px 12px;'><div style='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;'>Step Tasks <span style='font-style:italic;font-weight:400;text-transform:none;'>(agent only)</span></div><div id='bd-tasks-${uid}'>${renderStepTasks('${uid}',b.currentStep||1,b.stepTasks||{},'buyer')}</div><div style='display:flex;gap:6px;margin-top:6px;'><input type='text' id='bd-new-task-${uid}' placeholder='Add task...' style='flex:1;font-size:12px;padding:5px 8px;' onkeydown='if(event.key==="Enter")addStepTask("${uid}","buyer")'/><button class='btn btn-sm' onclick='addStepTask("${uid}","buyer")'>+</button></div></div>` : ''}
         <div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏡 Seller Step</div>
           <div style="display:flex;gap:6px;align-items:center;">
@@ -6650,6 +6671,8 @@ async function openBuyerDetail(uid, scrollTo) {
 }
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
+  var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
+  if (!confirm('Move to "'+stepName+'"? This will email the client.')) return;
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
@@ -6808,6 +6831,8 @@ window.saveTitleCo = saveTitleCo;
 
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
+  var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
+  if (!confirm('Move to "'+sName+'"? This will email the client.')) return;
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
     await loadBuyersForAgent();
@@ -11445,6 +11470,106 @@ async function unassignShowing(idx, assignKey) {
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.unassignShowing = unassignShowing;
+
+// ── Step Task Functions ──
+function renderStepTasks(uid, stepNum, savedTasks, journeyType) {
+  var prefills = journeyType === 'seller'
+    ? (SELLER_STEP_TASKS[stepNum] || [])
+    : (STEP_TASKS[stepNum] || []);
+  var saved = savedTasks[stepNum] || [];
+  var allTexts = prefills.slice();
+  saved.forEach(function(t) { if (!allTexts.includes(t.text)) allTexts.push(t.text); });
+  if (!allTexts.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No tasks for this step — add one below.</div>';
+  return allTexts.map(function(text) {
+    var savedItem = saved.find(function(s){ return s.text === text; });
+    var done = savedItem ? savedItem.done : false;
+    var escaped = text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">'
+      +'<input type="checkbox" '+(done?'checked':'')+' onchange="toggleStepTask(\''+uid+'\','+stepNum+',\''+escaped+'\',this.checked,\''+journeyType+'\')" style="width:16px;height:16px;flex-shrink:0;"/>'
+      +'<span style="font-size:12px;flex:1;'+(done?'text-decoration:line-through;color:var(--text3);':'')+'">'+partnerEsc(text)+'</span>'
+      +'<button onclick="removeStepTask(\''+uid+'\','+stepNum+',\''+escaped+'\',\''+journeyType+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 3px;">×</button>'
+      +'</div>';
+  }).join('');
+}
+window.renderStepTasks = renderStepTasks;
+
+async function toggleStepTask(uid, stepNum, text, checked, journeyType) {
+  var b = allBuyers.find(function(x){ return x.uid===uid; });
+  if (!b) return;
+  var stepTasks = JSON.parse(JSON.stringify(b.stepTasks||{}));
+  if (!stepTasks[stepNum]) stepTasks[stepNum] = [];
+  var existing = stepTasks[stepNum].find(function(t){ return t.text===text; });
+  if (existing) { existing.done = checked; } else { stepTasks[stepNum].push({text:text, done:checked}); }
+  b.stepTasks = stepTasks;
+  await fb.updateDoc(fb.doc(fb.db,'users',uid), {stepTasks:stepTasks});
+  var listEl = document.getElementById('bd-tasks-'+uid);
+  if (listEl) listEl.innerHTML = renderStepTasks(uid, stepNum, stepTasks, journeyType||'buyer');
+  if (checked) {
+    if (confirm('"'+text+'" marked complete.\n\nSend client a quick update email?')) {
+      await sendTaskCompleteEmail(uid, text);
+    }
+  }
+}
+window.toggleStepTask = toggleStepTask;
+
+async function addStepTask(uid, journeyType) {
+  var b = allBuyers.find(function(x){ return x.uid===uid; });
+  var inp = document.getElementById('bd-new-task-'+uid);
+  if (!inp || !inp.value.trim()) return;
+  var text = inp.value.trim();
+  inp.value = '';
+  var stepNum = journeyType==='seller' ? (b.currentSellerStep||1) : (b.currentStep||1);
+  var stepTasks = JSON.parse(JSON.stringify(b&&b.stepTasks||{}));
+  if (!stepTasks[stepNum]) stepTasks[stepNum] = [];
+  stepTasks[stepNum].push({text:text, done:false});
+  if (b) b.stepTasks = stepTasks;
+  await fb.updateDoc(fb.doc(fb.db,'users',uid), {stepTasks:stepTasks});
+  var listEl = document.getElementById('bd-tasks-'+uid);
+  if (listEl) listEl.innerHTML = renderStepTasks(uid, stepNum, stepTasks, journeyType||'buyer');
+}
+window.addStepTask = addStepTask;
+
+async function removeStepTask(uid, stepNum, text, journeyType) {
+  var b = allBuyers.find(function(x){ return x.uid===uid; });
+  var stepTasks = JSON.parse(JSON.stringify(b&&b.stepTasks||{}));
+  if (!stepTasks[stepNum]) return;
+  stepTasks[stepNum] = stepTasks[stepNum].filter(function(t){ return t.text!==text; });
+  if (b) b.stepTasks = stepTasks;
+  await fb.updateDoc(fb.doc(fb.db,'users',uid), {stepTasks:stepTasks});
+  var listEl = document.getElementById('bd-tasks-'+uid);
+  if (listEl) listEl.innerHTML = renderStepTasks(uid, stepNum, stepTasks, journeyType||'buyer');
+}
+window.removeStepTask = removeStepTask;
+
+async function sendTaskCompleteEmail(uid, taskLabel) {
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db,'users',uid));
+    if (!snap.exists()) return;
+    var client = snap.data();
+    if (!client.email) return;
+    var first = client.firstName||'there';
+    var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id===client.agentId; });
+    var agentName = agentObj ? agentObj.name : 'Your Agent';
+    var emailHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;color:#1a1a1a;">'
+      +'<div style="background:#1D9E75;padding:18px 24px;border-radius:10px 10px 0 0;">'
+      +'<div style="font-size:18px;font-weight:300;color:#fff;">Transaction Update</div>'
+      +'</div>'
+      +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+      +'<p style="font-size:14px;color:#444;margin:0 0 14px;">Hi '+first+',</p>'
+      +'<p style="font-size:14px;color:#444;margin:0 0 14px;">Quick update on your transaction:</p>'
+      +'<div style="background:#f0fdf4;border-left:3px solid #1D9E75;padding:12px 16px;border-radius:0 8px 8px 0;margin-bottom:16px;">'
+      +'<div style="font-size:15px;font-weight:600;color:#065F46;">'+String.fromCharCode(10003)+' '+partnerEsc(taskLabel)+'</div>'
+      +'</div>'
+      +'<p style="font-size:13px;color:#888;margin:0;">Questions? Reach out anytime.</p>'
+      +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+      +'<div style="font-size:13px;font-weight:600;">'+agentName+'</div>'
+      +'</div></div>';
+    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+      body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:emailHtml})});
+  } catch(e) { console.log('Task email err:', e.message); }
+}
+window.sendTaskCompleteEmail = sendTaskCompleteEmail;
+
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
