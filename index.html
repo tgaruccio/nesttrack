@@ -11350,6 +11350,13 @@ window.editDealAddress = editDealAddress;
 function filterDeals(status) {
   _activeFilter = status;
   _dedupeDeals();
+  // DEBUG: log what's in _deals and computed statuses
+  console.log('filterDeals called with:', status);
+  console.log('_deals count:', _deals.length);
+  _deals.forEach(function(d){
+    var lb = (myBuyers||[]).find(function(b){ return b.uid===d.clientUid; });
+    console.log('Deal:', d.id, 'clientUid:', d.clientUid, 'dealType:', d.dealType, 'computedStatus:', getDealStatus(d,lb), 'linkedBuyer step:', lb&&lb.currentStep, 'sellerStep:', lb&&lb.currentSellerStep);
+  });
   // Update chip styles
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
     b.style.background=''; b.style.color=''; b.style.borderColor='';
