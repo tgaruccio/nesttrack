@@ -11018,7 +11018,8 @@ async function loadDeals() {
     _deals = [];
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
-      // Store original status for unlinked deals, computed status used for linked
+      // Normalize old 'both' deals to 'buyer'
+      if (data.dealType === 'both') data.dealType = 'buyer';
       data._storedStatus = data.status || 'Active';
       _deals.push(data);
     });
@@ -11026,7 +11027,8 @@ async function loadDeals() {
     // Deduplicate: keep only first (newest) deal per clientUid+dealType
     var seen = {};
     _deals = _deals.filter(function(d){
-      var key = (d.clientUid||d.id)+'_'+(d.dealType||'buyer');
+      var dt = (d.dealType==='both') ? 'buyer' : (d.dealType||'buyer');
+    var key = (d.clientUid||d.id)+'_'+dt;
       if (seen[key]) return false;
       seen[key] = true;
       return true;
@@ -11347,6 +11349,7 @@ window.editDealAddress = editDealAddress;
 // ── Filter deals by status ──
 function filterDeals(status) {
   _activeFilter = status;
+  _dedupeDeals();
   // Update chip styles
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
     b.style.background=''; b.style.color=''; b.style.borderColor='';
@@ -11849,6 +11852,7 @@ window.editClientInfo = editClientInfo;
 // ── Auto-compute deal status from client step ──
 function getDealStatus(deal, linkedBuyer) {
   if (!linkedBuyer) return deal._storedStatus || 'Active';
+  // Treat 'both' as buyer (legacy deals)
   if (deal.dealType === 'seller') {
     var ss = linkedBuyer.currentSellerStep || 0;
     if (ss >= 13) return 'Closed';          // Step 13 = Closing Day
