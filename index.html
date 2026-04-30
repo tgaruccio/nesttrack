@@ -6510,7 +6510,7 @@ async function openBuyerDetail(uid, scrollTo) {
         <div>
           <div class="mtitle">${b.firstName} ${b.lastName}</div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
-          ${(b.listingAddress||b.propertyAddress) ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>📍 \${b.listingAddress||b.propertyAddress}</div>` : ''}
+          ${(b.listingAddress||b.propertyAddress) ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>📍 ${b.listingAddress||b.propertyAddress}</div>` : ''}
         </div>
       </div>
       <button class="xbtn" onclick="closeM('buyer-modal')">✕</button>
@@ -6520,7 +6520,7 @@ async function openBuyerDetail(uid, scrollTo) {
     `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;'>
       <div style='display:flex;align-items:center;justify-content:space-between;'>
         <div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>Property</div>
-        <div style='font-size:14px;font-weight:600;margin-top:2px;'>📍 \${b.listingAddress||b.propertyAddress}</div></div>
+        <div style='font-size:14px;font-weight:600;margin-top:2px;'>📍 ${b.listingAddress||b.propertyAddress}</div></div>
         <button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button>
       </div></div>` :
     `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;'>
@@ -11035,10 +11035,15 @@ function renderDealCards(deals) {
       +'</div></div></details>'
       +'<details style="margin-bottom:8px;">'
       +'<summary style="list-style:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:5px 0;">'
-      +'<span>\ud83d\udccb Notes</span>'
-      +(notes?'<span style="font-size:10px;color:var(--text3);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(notes.substring(0,40))+'</span>':'<span style="font-size:10px;color:var(--text3);">tap to add</span>')
+      +'<span>📝 To-Do</span>'
+      +(deal.todos&&deal.todos.length?'<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+deal.todos.length+' items</span>':'<span style="font-size:10px;color:var(--text3);">tap to add</span>')
       +'</summary>'
-      +'<textarea id="deal-notes-'+deal.id+'" rows="3" placeholder="Running notes..." style="width:100%;font-size:12px;resize:vertical;box-sizing:border-box;margin-top:6px;" onblur="saveDealNotes(\''+deal.id+'\')">'+partnerEsc(notes)+'</textarea>'
+      +'<div style="padding:6px 0 0;">'
+      +'<div id="deal-todos-'+deal.id+'">' + renderDealTodos(deal.id, deal.todos||[]) + '</div>'
+      +'<div style="display:flex;gap:6px;margin-top:6px;">'
+      +'<input type="text" id="deal-todo-input-'+deal.id+'" placeholder="Add to-do..." style="flex:1;font-size:12px;padding:5px 8px;" onkeydown="if(event.key===\'Enter\')addDealTodo(\''+deal.id+'\')" />'
+      +'<button class="btn btn-sm" onclick="addDealTodo(\''+deal.id+'\')" style="flex-shrink:0;">+</button>'
+      +'</div></div>'
       +'</details>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 Client</button>':'')
@@ -11358,6 +11363,51 @@ async function setPropertyAddress(uid) {
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.setPropertyAddress = setPropertyAddress;
+
+function renderDealTodos(dealId, todos) {
+  if (!todos || !todos.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;padding:2px 0;">No items yet</div>';
+  return todos.map(function(item, idx) {
+    var iStr = String(idx);
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;" id="dtodo-'+dealId+'-'+iStr+'">'
+      +'<input type="checkbox" onchange="checkDealTodo(\''+dealId+'\','+iStr+')" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;"/>'
+      +'<span style="font-size:13px;flex:1;">'+partnerEsc(item)+'</span>'
+      +'</div>';
+  }).join('');
+}
+window.renderDealTodos = renderDealTodos;
+
+async function addDealTodo(dealId) {
+  var inp = document.getElementById('deal-todo-input-'+dealId);
+  if (!inp || !inp.value.trim()) return;
+  var text = inp.value.trim();
+  inp.value = '';
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var todos = (deal.todos||[]).concat([text]);
+  deal.todos = todos;
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{todos:todos});
+  var el = document.getElementById('deal-todos-'+dealId);
+  if (el) el.innerHTML = renderDealTodos(dealId, todos);
+}
+window.addDealTodo = addDealTodo;
+
+async function checkDealTodo(dealId, idx) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.todos) return;
+  // Strike through briefly then remove
+  var row = document.getElementById('dtodo-'+dealId+'-'+idx);
+  if (row) { row.style.opacity='0.4'; row.style.textDecoration='line-through'; }
+  setTimeout(async function() {
+    var todos = (deal.todos||[]).filter(function(_,i){ return i!==idx; });
+    deal.todos = todos;
+    var agentId = userProfile.agentId||'tom';
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{todos:todos});
+    var el = document.getElementById('deal-todos-'+dealId);
+    if (el) el.innerHTML = renderDealTodos(dealId, todos);
+  }, 700);
+}
+window.checkDealTodo = checkDealTodo;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
