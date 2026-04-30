@@ -6669,11 +6669,15 @@ async function setBuyerStep(uid) {
         var existingDeal = _deals.find(function(d){ return d.clientUid===uid; });
         if (!existingDeal) {
           var newBuyer = allBuyers.find(function(b){ return b.uid===uid; });
+          var buyerDates = (newBuyer&&newBuyer.buyerContractDates) || (newBuyer&&newBuyer.contractDates) || {};
           var dealData = {
             clientName: ((newBuyer&&newBuyer.firstName||'')+' '+(newBuyer&&newBuyer.lastName||'')).trim()||(newBuyer&&newBuyer.email)||'',
             clientUid: uid,
-            dealType: 'buyer', // Always buyer when triggered from setBuyerStep
-            address: (newBuyer&&newBuyer.listingAddress)||(newBuyer&&newBuyer.propertyAddress)||null,
+            dealType: 'buyer',
+            address: (newBuyer&&newBuyer.propertyAddress)||(newBuyer&&newBuyer.listingAddress)||null,
+            contractDate: buyerDates.acceptanceDate || null,
+            closingDate: buyerDates.closingDate || null,
+            inspectionDate: buyerDates.inspectionDeadline || null,
             status: 'Under Contract',
             checklist: [],
             notes: '',
@@ -7273,6 +7277,22 @@ async function saveContractDates() {
     await loadBuyersForAgent();
     renderBuyers();
     sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
+    // Sync dates to linked deal card
+    try {
+      var agentId2 = userProfile.agentId||'tom';
+      var linkedDeals = _deals.filter(function(d){
+        return d.clientUid===_cdmBuyerUid && (_cdmType==='seller' ? d.dealType==='seller' : d.dealType==='buyer');
+      });
+      for (var di=0; di<linkedDeals.length; di++) {
+        var dealUpdate = {
+          contractDate: dates.acceptanceDate || null,
+          closingDate: dates.closingDate || null,
+          inspectionDate: dates.inspectionDeadline || null,
+        };
+        Object.assign(linkedDeals[di], dealUpdate);
+        await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
+      }
+    } catch(syncErr){ console.log('Deal date sync err:', syncErr.message); }
     // Always reopen client profile after saving dates
     var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
     var _scrollTo = (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) ? 'titleco' : null;
@@ -11657,9 +11677,16 @@ async function addToDealTracker(uid, dealType) {
   var addr = dealType==='seller'
     ? (b.listingAddress||b.propertyAddress||null)
     : (b.propertyAddress||null);
+  // Pull dates from client contract dates
+  var clientDates = dealType==='seller'
+    ? (b.sellerContractDates || {})
+    : (b.buyerContractDates || b.contractDates || {});
   var data = {
     clientName: name, clientUid: uid, dealType: dealType,
-    address: addr, closingDate: null,
+    address: addr,
+    contractDate: clientDates.acceptanceDate || null,
+    closingDate: clientDates.closingDate || null,
+    inspectionDate: clientDates.inspectionDeadline || null,
     status: dealType==='seller' ? 'On Market' : 'Under Contract',
     checklist: [], notes: '', agentId: agentId,
   };
