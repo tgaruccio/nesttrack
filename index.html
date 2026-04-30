@@ -6507,8 +6507,6 @@ function agentCallBuyer() {
 window.agentCallBuyer = agentCallBuyer;
 
 async function openBuyerDetail(uid, scrollTo) {
-  // Ensure deals are loaded so modal buttons show correctly
-  if (!_dealsLoaded) { try { await loadDeals(); } catch(e) {} }
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) {
     // Try loading directly from Firestore (e.g. pending record)
@@ -11025,6 +11023,14 @@ async function loadDeals() {
       _deals.push(data);
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
+    // Deduplicate: keep only first (newest) deal per clientUid+dealType
+    var seen = {};
+    _deals = _deals.filter(function(d){
+      var key = (d.clientUid||d.id)+'_'+(d.dealType||'buyer');
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
     _dealsLoaded = true;
   } catch(e) { console.log('loadDeals error:', e.message); }
 }
@@ -11057,6 +11063,7 @@ async function renderDealTracker() {
   if (!_dealsLoaded) {
     try { await loadDeals(); } catch(e) { console.log("loadDeals err:",e.message); _dealsLoaded = true; }
   }
+  _dedupeDeals();
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
     +'<div style="font-size:15px;font-weight:600;">Deal Tracker</div>'
@@ -11856,6 +11863,17 @@ function getDealStatus(deal, linkedBuyer) {
   }
 }
 window.getDealStatus = getDealStatus;
+
+function _dedupeDeals() {
+  var seen = {};
+  _deals = _deals.filter(function(d){
+    var key = (d.clientUid||d.id)+'_'+(d.dealType||'buyer');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+window._dedupeDeals = _dedupeDeals;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
