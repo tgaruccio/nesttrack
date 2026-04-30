@@ -11231,7 +11231,7 @@ async function toggleChecklistItem(dealId, idx, checked) {
   deal.checklist = saveList;
   await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:saveList});
   var el = document.getElementById('deal-checklist-'+dealId);
-  if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
+  if (el) el.innerHTML = renderChecklist(dealId, deal._mergedChecklist || deal.checklist);
   if (checked && deal.clientUid) showTaskEmailPrompt(deal.clientUid, itemText);
 }
 window.toggleChecklistItem = toggleChecklistItem;
@@ -11687,28 +11687,35 @@ window.setListingAddress = setListingAddress;
 
 function showTaskEmailPrompt(clientUid, taskText) {
   if (!clientUid || !taskText) return;
-  var ex = document.getElementById('task-email-overlay');
-  if (ex) ex.remove();
-  var overlay = document.createElement('div');
-  overlay.id = 'task-email-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;';
-  var box = document.createElement('div');
-  box.style.cssText = 'background:var(--surface);border-radius:var(--r);width:100%;max-width:380px;padding:22px;';
-  box.innerHTML = '<div style="font-size:15px;font-weight:600;margin-bottom:8px;">Email client an update?</div>'
-    + '<div style="font-size:13px;background:var(--green-lt);border-left:3px solid var(--green);padding:10px 12px;border-radius:0 8px 8px 0;margin-bottom:14px;">'
-    + '✓ ' + partnerEsc(taskText) + '</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Send a short update letting them know this is complete?</div>'
-    + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
-    + '<button class="btn" id="task-no-btn">No, skip</button>'
-    + '<button class="btn btn-g" id="task-yes-btn">Yes, send update</button>'
-    + '</div>';
-  overlay.appendChild(box);
-  document.body.appendChild(overlay);
-  document.getElementById('task-no-btn').onclick = function(){ overlay.remove(); };
-  document.getElementById('task-yes-btn').onclick = function(){
-    overlay.remove();
+  // Remove any existing toast
+  var ex = document.getElementById('task-email-toast');
+  if (ex) { clearTimeout(ex._timer); ex.remove(); }
+  // Build toast
+  var toast = document.createElement('div');
+  toast.id = 'task-email-toast';
+  toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:600;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;box-shadow:0 4px 20px rgba(0,0,0,0.15);display:flex;align-items:center;gap:12px;min-width:280px;max-width:90vw;animation:slideUp 0.2s ease;';
+  toast.innerHTML = '<div style="flex:1;">'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:2px;">Task complete</div>'
+    + '<div style="font-size:13px;font-weight:500;">✓ ' + partnerEsc(taskText) + '</div>'
+    + '</div>'
+    + '<button id="task-toast-yes" class="btn btn-sm btn-g" style="flex-shrink:0;font-size:12px;">Email client</button>'
+    + '<button id="task-toast-no" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:0;flex-shrink:0;">×</button>';
+  document.body.appendChild(toast);
+  // Add animation keyframe once
+  if (!document.getElementById('toast-style')) {
+    var s = document.createElement('style');
+    s.id = 'toast-style';
+    s.textContent = '@keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(s);
+  }
+  var dismiss = function(){ clearTimeout(toast._timer); toast.remove(); };
+  document.getElementById('task-toast-no').onclick = dismiss;
+  document.getElementById('task-toast-yes').onclick = function(){
+    dismiss();
     sendTaskCompleteEmail(clientUid, taskText);
   };
+  // Auto-dismiss after 5 seconds
+  toast._timer = setTimeout(dismiss, 5000);
 }
 window.showTaskEmailPrompt = showTaskEmailPrompt;
 </script>
