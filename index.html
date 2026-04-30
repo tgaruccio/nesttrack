@@ -6510,10 +6510,25 @@ async function openBuyerDetail(uid, scrollTo) {
         <div>
           <div class="mtitle">${b.firstName} ${b.lastName}</div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
+          ${(b.listingAddress||b.propertyAddress) ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>📍 \${b.listingAddress||b.propertyAddress}</div>` : ''}
         </div>
       </div>
       <button class="xbtn" onclick="closeM('buyer-modal')">✕</button>
     </div>
+
+    ${ (b.listingAddress||b.propertyAddress) ?
+    `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;'>
+      <div style='display:flex;align-items:center;justify-content:space-between;'>
+        <div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>Property</div>
+        <div style='font-size:14px;font-weight:600;margin-top:2px;'>📍 \${b.listingAddress||b.propertyAddress}</div></div>
+        <button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button>
+      </div></div>` :
+    `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;'>
+      <div style='display:flex;align-items:center;justify-content:space-between;'>
+        <div style='font-size:13px;color:var(--text3);'>📍 No property address yet</div>
+        <button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button>
+      </div></div>`
+    }
 
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
@@ -10977,62 +10992,60 @@ function renderDealCards(deals) {
     return '<div class="notice" style="text-align:center;">'
       +'<div style="font-size:32px;margin-bottom:8px;">🏠</div>'
       +'<div style="font-size:14px;font-weight:500;margin-bottom:6px;">No deals yet</div>'
-      +'<div style="font-size:12px;color:var(--text3);">Add a deal manually or invite a client to get started.</div>'
+      +'<div style="font-size:12px;color:var(--text3);">Click + New Deal or invite a client to get started.</div>'
       +'</div>';
   }
-
   return deals.map(function(deal) {
-    var sc = DEAL_STATUS_COLORS[deal.status] || DEAL_STATUS_COLORS['Active'];
-    var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
-    var photo = deal.address ? streetViewUrl(deal.address) : '';
     var checklist = deal.checklist || [];
     var done = checklist.filter(function(i){ return i.done; }).length;
+    var total = checklist.length;
     var notes = deal.notes || '';
-
+    var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
+    var hasAddr = deal.address && deal.address.trim();
     return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px;" id="deal-card-'+deal.id+'">'
-      // Photo header
-      +(photo ? '<div style="position:relative;height:100px;background:#e5e7eb;overflow:hidden;">'
-        +'<img src="'+photo+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display=\'none\'">'
-        +'<div style="position:absolute;inset:0;background:linear-gradient(to bottom,transparent 40%,rgba(0,0,0,0.6))"></div>'
-        +'<div style="position:absolute;bottom:8px;left:12px;color:#fff;font-size:14px;font-weight:600;">'+partnerEsc(deal.address||'No address yet')+'</div>'
-        +'</div>' : '<div style="padding:14px 14px 0;font-size:14px;font-weight:600;">'+partnerEsc(deal.address||'No address yet')+'</div>')
-      // Body
-      +'<div style="padding:12px 14px;">'
-      // Client + type + status row
-      +'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-      +'<div>'
-      +'<div style="font-size:13px;font-weight:500;">'+partnerEsc(deal.clientName||'Unlinked')+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);">'+typeLabel+(deal.closingDate?' · Closing '+deal.closingDate:'')+'</div>'
+      +'<div style="background:var(--green);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+      +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+'</div>'
       +'</div>'
-      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:3px 6px;border-radius:6px;background:'+sc.bg+';color:'+sc.color+';border:1px solid '+sc.color+'40;font-weight:600;">'
-      +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===deal.status?' selected':'')+'>'+s+'</option>'; }).join('')
-      +'</select>'
-      +'</div>'
-      // What's needed checklist
-      +'<div style="margin-bottom:10px;">'
-      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">What\'s Needed <span style="color:var(--green-dk);">'+done+'/'+checklist.length+'</span></div>'
-      +'<div id="deal-checklist-'+deal.id+'">'
-      +renderChecklist(deal.id, checklist)
-      +'</div>'
+      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:600;flex-shrink:0;cursor:pointer;">'
+      +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===deal.status?' selected':'')+' style="color:#1a1a1a;">'+s+'</option>'; }).join('')
+      +'</select></div>'
+      +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
+      +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate']].map(function(pair,i){
+        var label=pair[0],key=pair[1],val=deal[key]||'';
+        return '<div style="flex:1;padding:7px 10px;'+(i>0?'border-left:1px solid var(--border);':'')+'">'
+          +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:2px;">'+label+'</div>'
+          +'<input type="date" value="'+val+'" onchange="updateDealDate(\''+deal.id+'\',\''+key+'\',this.value)" style="font-size:12px;border:none;background:transparent;padding:0;width:100%;color:var(--text);font-family:inherit;cursor:pointer;"/>'
+          +'</div>';
+      }).join('')+'</div>'
+      +'<div style="padding:10px 14px 12px;">'
+      +'<details style="margin-bottom:8px;">'
+      +'<summary style="list-style:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:5px 0;">'
+      +'<span>\u2705 What\'s Needed</span>'
+      +'<span style="font-size:11px;background:'+(done===total&&total>0?'var(--green-lt)':'var(--surface2)')+';color:'+(done===total&&total>0?'var(--green-dk)':'var(--text3)')+';padding:2px 7px;border-radius:10px;">'+done+'/'+total+'</span>'
+      +'</summary>'
+      +'<div style="padding:6px 0 0;">'
+      +'<div id="deal-checklist-'+deal.id+'">'+renderChecklist(deal.id, checklist)+'</div>'
       +'<div style="display:flex;gap:6px;margin-top:6px;">'
       +'<input type="text" id="deal-new-item-'+deal.id+'" placeholder="Add item..." style="flex:1;font-size:12px;padding:5px 8px;" onkeydown="if(event.key===\'Enter\')addChecklistItem(\''+deal.id+'\')" />'
-      +'<button class="btn btn-sm" onclick="addChecklistItem(\''+deal.id+'\')">+</button>'
-      +'</div>'
-      +'</div>'
-      // Notes
-      +'<div style="margin-bottom:10px;">'
-      +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:4px;">Notes</div>'
-      +'<textarea id="deal-notes-'+deal.id+'" rows="2" placeholder="Running notes on this deal..." style="width:100%;font-size:12px;resize:vertical;box-sizing:border-box;" onblur="saveDealNotes(\''+deal.id+'\')" >'+partnerEsc(notes)+'</textarea>'
-      +'</div>'
-      // Action row
-      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-      +(deal.clientUid ? '<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">👤 View Client</button>' : '')
-      +(deal.listingId ? '<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">📋 Offers</button>' : '')
-      +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">📍 Edit Address</button>'
-      +'<button class="btn btn-sm" onclick="deleteDeal(\''+deal.id+'\')" style="color:#E24B4A;">🗑</button>'
-      +'</div>'
-      +'</div>'
-      +'</div>';
+      +'<button class="btn btn-sm" onclick="addChecklistItem(\''+deal.id+'\')" style="flex-shrink:0;">+</button>'
+      +'<button class="btn btn-sm" onclick="showPrefillOptions(\''+deal.id+'\',\''+deal.dealType+'\')" style="flex-shrink:0;font-size:10px;">Prefills</button>'
+      +'</div></div></details>'
+      +'<details style="margin-bottom:8px;">'
+      +'<summary style="list-style:none;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:5px 0;">'
+      +'<span>\ud83d\udccb Notes</span>'
+      +(notes?'<span style="font-size:10px;color:var(--text3);max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(notes.substring(0,40))+'</span>':'<span style="font-size:10px;color:var(--text3);">tap to add</span>')
+      +'</summary>'
+      +'<textarea id="deal-notes-'+deal.id+'" rows="3" placeholder="Running notes..." style="width:100%;font-size:12px;resize:vertical;box-sizing:border-box;margin-top:6px;" onblur="saveDealNotes(\''+deal.id+'\')">'+partnerEsc(notes)+'</textarea>'
+      +'</details>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
+      +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 Client</button>':'')
+      +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
+      +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
+      +'<button class="btn btn-sm" onclick="deleteDeal(\''+deal.id+'\')" style="color:#E24B4A;">\ud83d\uddd1</button>'
+      +'</div></div></div>';
   }).join('');
 }
 window.renderDealCards = renderDealCards;
@@ -11128,6 +11141,16 @@ async function updateDealStatus(dealId, status) {
 }
 window.updateDealStatus = updateDealStatus;
 
+async function updateDealDate(dealId, field, value) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (deal) deal[field] = value;
+  var agentId = userProfile.agentId||'tom';
+  var update = {};
+  update[field] = value;
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), update);
+}
+window.updateDealDate = updateDealDate;
+
 async function deleteDeal(dealId) {
   if (!confirm('Delete this deal? This cannot be undone.')) return;
   var agentId = userProfile.agentId||'tom';
@@ -11196,7 +11219,7 @@ function openNewDealModal() {
     +'<button class="btn btn-sm" id="nd-type-both" onclick="ndSetType(\'both\')" style="flex:1;">Both</button>'
     +'</div></div>'
     +'<div><label class="flabel">Property Address (optional)</label><input type="text" id="nd-address" placeholder="123 Main St, Avon Lake OH"/></div>'
-    +'<div><label class="flabel">Closing Date (optional)</label><input type="date" id="nd-closing"/></div>'
+    +'<div class="fg2" style="gap:6px;">'+'<div><label class="flabel" style="font-size:10px;">Contract Date</label><input type="date" id="nd-contract"/></div>'+'<div><label class="flabel" style="font-size:10px;">Closing Date</label><input type="date" id="nd-closing"/></div>'+'<div><label class="flabel" style="font-size:10px;">Inspection Date</label><input type="date" id="nd-inspection"/></div>'+'</div>'
     +'<div><label class="flabel">Status</label>'
     +'<select id="nd-status">'
     +DEAL_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s==='Active'?' selected':'')+'>'+s+'</option>'; }).join('')
@@ -11230,6 +11253,8 @@ async function createNewDeal() {
   var clientUid = document.getElementById('nd-client').value;
   var address = document.getElementById('nd-address').value.trim();
   var closing = document.getElementById('nd-closing').value;
+  var contractDate = document.getElementById('nd-contract') ? document.getElementById('nd-contract').value : '';
+  var inspectionDate = document.getElementById('nd-inspection') ? document.getElementById('nd-inspection').value : '';
   var status = document.getElementById('nd-status').value;
   var dealType = window._ndType || 'buyer';
 
@@ -11259,6 +11284,8 @@ async function createNewDeal() {
     dealType: dealType,
     address: address || null,
     closingDate: closing || null,
+    contractDate: contractDate || null,
+    inspectionDate: inspectionDate || null,
     status: status,
     checklist: checklist,
     notes: '',
@@ -11311,6 +11338,26 @@ async function syncDealsFromClients() {
 }
 window.syncDealsFromClients = syncDealsFromClients;
 
+
+async function setPropertyAddress(uid) {
+  var b = allBuyers.find(function(x){ return x.uid===uid; });
+  var current = b ? (b.listingAddress||b.propertyAddress||'') : '';
+  var newAddr = prompt('Property address:', current);
+  if (newAddr === null) return;
+  newAddr = newAddr.trim();
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), {listingAddress:newAddr, propertyAddress:newAddr});
+    if (b) { b.listingAddress = newAddr; b.propertyAddress = newAddr; }
+    var agentId = userProfile.agentId||'tom';
+    var linked = _deals.find(function(d){ return d.clientUid===uid && !d.address; });
+    if (linked) {
+      await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',linked.id),{address:newAddr});
+      linked.address = newAddr;
+    }
+    openBuyerDetail(uid);
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.setPropertyAddress = setPropertyAddress;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
