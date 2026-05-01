@@ -6598,6 +6598,8 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
         </div>
         ${(b.currentStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
+        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
+        <div id="bd-timeline-mortgage"></div>
       </div>
     </details>
     <details ${(b.currentSellerStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
@@ -6615,9 +6617,9 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
         </div>
         ${(b.currentSellerStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>Manage Listing</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
+        <div id="bd-timeline-seller" style="margin-top:8px;"></div>
       </div>
     </details>
-    <div id="bd-timeline-preview"></div>
     <details open style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;">Client Team<span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:12px;padding:10px 0 14px;">
@@ -6852,13 +6854,15 @@ function renderAgentTimelinePreview(b) {
       +'</div>'+rows+'</div>';
   }
 
-  var html = '';
   var isCash = b.buyerIsCash === true;
   var previewBuyerFields = isCash ? BUYER_CONTRACT_FIELDS.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : BUYER_CONTRACT_FIELDS;
-  if (buyerHas) html += buildCard(buyerDates, previewBuyerFields, 'var(--green-dk)', '&#127968; Buying' + (isCash ? ' (Cash)' : '') + ' Timeline');
-  if (sellerHas) html += buildCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline');
-  if (mortgageHas) html += buildCard(mortgageDates, MORTGAGE_CONTRACT_FIELDS, '#185FA5', '🏦 Mortgage Timeline');
-  container.innerHTML = html;
+  var buyerEl = document.getElementById('bd-timeline-buyer');
+  var sellerEl = document.getElementById('bd-timeline-seller');
+  var mortgageEl = document.getElementById('bd-timeline-mortgage');
+  if (buyerEl) buyerEl.innerHTML = buyerHas ? buildCard(buyerDates, previewBuyerFields, 'var(--green-dk)', '&#127968; Buying' + (isCash ? ' (Cash)' : '') + ' Timeline') : '';
+  if (sellerEl) sellerEl.innerHTML = sellerHas ? buildCard(sellerDates, SELLER_CONTRACT_FIELDS, '#92400E', '&#127968; Selling Timeline') : '';
+  if (mortgageEl) mortgageEl.innerHTML = mortgageHas ? buildCard(mortgageDates, MORTGAGE_CONTRACT_FIELDS, '#185FA5', '🏦 Mortgage Timeline') : '';
+  if (container) container.innerHTML = '';
 }
 window.renderAgentTimelinePreview = renderAgentTimelinePreview;
 
