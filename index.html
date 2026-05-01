@@ -5025,6 +5025,12 @@ async function savePartnerEdit() {
 window.savePartnerEdit = savePartnerEdit;
 
 async function deletePartner(id) {
+  // Protect Tom Garuccio as platform lender -- cannot be removed
+  var p = agentPartners.find(function(p){ return p.id===id; });
+  if (p && p.cat === 'Lender' && (p.name||'').toLowerCase().includes('garuccio')) {
+    alert('Tom Garuccio cannot be removed as lender. He is the platform lender for all agents.');
+    return;
+  }
   if (!confirm('Remove this partner from your list?')) return;
   agentPartners = agentPartners.filter(function(p){ return p.id!==id; });
   await saveAgentPartners();
