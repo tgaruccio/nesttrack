@@ -2611,7 +2611,7 @@ var agentPartners = [];
 
 // ─── DEFAULT TEAM ───
 const DEFAULT_AGENTS = [
-  {id:'tom',name:'Tom Garuccio',role:'Team Leader',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',googleReviewUrl:'https://g.page/r/CYTaeIyFmCHoEBM/review',isDefault:true},
+  {id:'tom',name:'Tom Garuccio',role:'Team Leader',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',googleReviewUrl:'https://g.page/r/CYTaeIyFmCHoEBM/review',isDefault:true,isAdmin:true},
   {id:'christine',name:'Christine Revay',role:'REALTOR®',phone:'440-376-4181',email:''},
   {id:'taylor',name:'Taylor Kaczur',role:'REALTOR®',phone:'216-219-1954',email:''},
   {id:'molly',name:'Molly Ebosh',role:'REALTOR®',phone:'440-281-4115',email:''},
@@ -4380,6 +4380,8 @@ async function sendStepEmail(uid, stepNum, type) {
     var html = nsEmailWrap(agentName, subject, bodyHtml);
     var stepPayload = { to: client.email, subject: subject, html: html };
     if (agentObj && agentObj.email) stepPayload.cc = agentObj.email;
+    var coAgentStepObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.coAgentId; });
+    if (coAgentStepObj && coAgentStepObj.email && coAgentStepObj.email !== stepPayload.cc) stepPayload.cc2 = coAgentStepObj.email;
     await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
@@ -5863,15 +5865,19 @@ let myBuyers = [];
 
 function isTeamLeader() {
   const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
-  return userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com';
+  if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
+  // Also true if the agent's profile has isAdmin flag
+  var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === userProfile?.agentId; });
+  return !!(agentEntry && agentEntry.isAdmin);
 }
 
 function canAccessBuyer(buyer) {
   if (!buyer) return false;
   if (!isAgent && !isLender) return false;
   if (isTeamLeader()) return true;
-  // Agent access: buyer assigned to this agent
+  // Agent access: buyer assigned to this agent OR co-agent
   if (isAgent && buyer.agentId === userProfile.agentId) return true;
+  if (isAgent && buyer.coAgentId && buyer.coAgentId === userProfile.agentId) return true;
   // Lender access: buyer assigned to this lender
   if (isLender && (buyer.lenderId === userProfile.lenderId || (!buyer.lenderId && userProfile.lenderId === 'tom'))) return true;
   return false;
@@ -5908,8 +5914,20 @@ async function loadBuyersForAgent() {
     const snap = await fb.getDocs(q);
     allBuyers = [];
     snap.forEach(d => allBuyers.push({ uid: d.id, ...d.data() }));
+    // Also load clients where this agent is co-agent (second query, merge)
+    if (isAgent && !isTeamLeader()) {
+      try {
+        var coQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('coAgentId','==',userProfile.agentId));
+        var coSnap = await fb.getDocs(coQ);
+        coSnap.forEach(d => {
+          if (!allBuyers.find(function(b){ return b.uid === d.id; })) {
+            allBuyers.push({ uid: d.id, ...d.data() });
+          }
+        });
+      } catch(e) { console.log('coAgent query err:', e.message); }
+    }
     // Keep myBuyers in sync so dashboard has data immediately on first load
-    myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId);
+    myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
   } catch(e) { console.error('loadBuyers', e); }
 }
 async function renderBuyers() {
@@ -5920,7 +5938,7 @@ async function renderBuyers() {
   const manageBtn = document.getElementById('manage-team-btn');
   if (manageBtn) manageBtn.style.display = teamLeader ? 'inline-flex' : 'none';
 
-  myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId);
+  myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
 
   const total = myBuyers.length;
@@ -5938,6 +5956,8 @@ async function renderBuyers() {
     const step = TIMELINE_STEPS[(b.currentStep||1)-1];
     const agent = DEFAULT_AGENTS.find(a => a.id === b.agentId);
     const agentLine = teamLeader && agent ? `<div class="buyer-meta">Assigned to ${agent.name}</div>` : '';
+    const coAgent = DEFAULT_AGENTS.find(a => a.id === b.coAgentId);
+    const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
     const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
     const stepInfo = isPending
@@ -5948,7 +5968,7 @@ async function renderBuyers() {
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
-        ${agentLine}
+        ${agentLine}${coAgentLine}
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
@@ -6628,6 +6648,13 @@ async function openBuyerDetail(uid, scrollTo) {
           ${teamLeader?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><select id="bd-agent" style="max-width:220px;font-size:13px;">${agentOpts}</select><button class="btn btn-sm" onclick="setBuyerAgent('${uid}')">Reassign</button></div>`:`<div style="font-size:13px;color:var(--text2);">${(DEFAULT_AGENTS.find(a=>a.id===b.agentId)||assignedAgent||{}).name||'Assigned to you'}</div>`}
         </div>
         <div style="border-top:1px solid var(--border);padding-top:12px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:5px;">Co-Agent <span style="font-weight:400;font-size:10px;opacity:0.7;">(optional)</span></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <select id="bd-co-agent" style="max-width:220px;font-size:13px;"><option value="">-- None --</option>${DEFAULT_AGENTS.filter(a=>a.id!==b.agentId).map(a=>`<option value="${a.id}" ${a.id===(b.coAgentId||'')?'selected':''}>${a.name}</option>`).join('')}</select>
+            <button class="btn btn-sm" onclick="setCoAgent('${uid}')">Assign</button>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:12px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:5px;">Assigned Lender</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <select id="bd-lender" style="max-width:220px;font-size:13px;"><option value="none" ${(b.lenderId||'tom')==='none'?'selected':''}>-- No Lender --</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' - '+l.role:''}</option>`).join('')}</select>
@@ -6764,6 +6791,20 @@ async function setBuyerAgent(uid) {
   const newAg = document.getElementById('bd-agent').value;
   try { await fb.updateDoc(fb.doc(fb.db, 'users', uid), { agentId: newAg }); alert('Reassigned!'); await loadBuyersForAgent(); renderBuyers(); } catch(e) { alert('Failed: '+e.message); }
 }
+async function setCoAgent(uid) {
+  if (!canAccessBuyer(allBuyers.find(function(b){ return b.uid===uid; }))) { alert('No access.'); return; }
+  var sel = document.getElementById('bd-co-agent');
+  if (!sel) return;
+  var newCoId = sel.value;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { coAgentId: newCoId || null });
+    var buyer = allBuyers.find(function(b){ return b.uid===uid; });
+    if (buyer) buyer.coAgentId = newCoId || null;
+    alert(newCoId ? 'Co-agent assigned!' : 'Co-agent removed.');
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.setCoAgent = setCoAgent;
+
 async function setBuyerDocs(uid) {
   const url = document.getElementById('bd-docs').value.trim();
   const name = document.getElementById('bd-docs-name').value.trim();
