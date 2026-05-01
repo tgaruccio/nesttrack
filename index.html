@@ -10924,10 +10924,49 @@ async function renderShowingInbox() {
   // Load buyers for assignment dropdown
   if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
 
+  // Load manual showings and merge
+  var manualShowings = [];
+  try {
+    var agId = userProfile.agentId||'tom';
+    var mSnap = await fb.getDocs(fb.collection(fb.db,'agents',agId,'manualShowings'));
+    mSnap.forEach(function(d){ manualShowings.push(Object.assign({id:d.id},d.data())); });
+    var now = Date.now();
+    var cutoff = now + 60*24*60*60*1000;
+    manualShowings = manualShowings.filter(function(m){
+      var t = new Date(m.date).getTime();
+      return t >= now - 3600000 && t <= cutoff;
+    });
+    manualShowings.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+  } catch(me){ console.log('manualShowings load err:', me.message); }
+
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
     +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'
     +'<button class="btn btn-sm" onclick="renderShowingInbox()" style="font-size:11px;">↺ Refresh</button>'
     +'</div>';
+
+  if (manualShowings.length) {
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">Manual Showings</div>';
+    html += manualShowings.map(function(m) {
+      var mDt = new Date(m.date);
+      var mDateStr = mDt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      var mTimeStr = mDt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      return '<div style="background:var(--surface);border:0.5px solid var(--green-md);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
+        +'<div style="display:flex;align-items:flex-start;gap:10px;">'
+        +'<div style="background:var(--green-lt);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--green-dk);text-transform:uppercase;">'+mDateStr.split(' ')[0]+'</div>'
+        +'<div style="font-size:18px;font-weight:700;color:var(--green-dk);line-height:1;">'+mDateStr.split(' ')[2]+'</div>'
+        +'<div style="font-size:10px;color:var(--green-dk);">'+mDateStr.split(' ')[1]+'</div>'
+        +'</div>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:14px;font-weight:600;">'+partnerEsc(m.address||'Showing')+'</div>'
+        +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+mTimeStr+(m.price?' · '+m.price:'')+'</div>'
+        +'<div style="font-size:12px;color:var(--green-dk);margin-top:4px;font-weight:500;">✓ '+partnerEsc(m.clientName||'Client')+'</div>'
+        +(m.notes?'<div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic;">'+partnerEsc(m.notes)+'</div>':'')
+        +'<button onclick="deleteManualShowing(\''+m.id+'\')" style="margin-top:8px;background:none;border:none;font-size:11px;color:#E24B4A;cursor:pointer;padding:0;">Remove</button>'
+        +'</div></div></div>';
+    }).join('');
+    if (events.length) html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:10px 0 6px;">ShowingTime</div>';
+  }
 
   // Load assignments from Firestore
   var _showingAssignments = {};
@@ -11144,6 +11183,23 @@ async function saveManualShowing() {
     var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
     var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 
+    var agentId = userProfile.agentId||'tom';
+    var showingUid = 'manual-' + Date.now();
+
+    // Save to agent's manual showings collection (for inbox display)
+    var manualRecord = {
+      address: address,
+      price: price,
+      notes: notes,
+      date: dt.toISOString(),
+      clientUid: clientUid,
+      clientName: ((buyer&&buyer.firstName||'')+' '+(buyer&&buyer.lastName||'')).trim()||(buyer&&buyer.email)||'',
+      createdAt: new Date().toISOString(),
+      source: 'manual',
+      showingUid: showingUid,
+    };
+    await fb.addDoc(fb.collection(fb.db,'agents',agentId,'manualShowings'), manualRecord);
+
     // Save to tours
     var tourData = {
       address: address,
@@ -11156,7 +11212,7 @@ async function saveManualShowing() {
       saved: false,
       createdAt: new Date().toISOString(),
       source: 'manual',
-      showingUid: 'manual-' + Date.now(),
+      showingUid: showingUid,
     };
     await fb.addDoc(fb.collection(fb.db,'users',clientUid,'tours'), tourData);
 
@@ -11192,6 +11248,7 @@ async function saveManualShowing() {
         +(notes?'<div style="font-size:13px;color:#065F46;margin-top:6px;font-style:italic;">'+partnerEsc(notes)+'</div>':'')
         +'</div>'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">This property has been added to your Tour Mode in the Nest Track app.</p>'
+        +nsEmailBtn('Open Nest Track →', APP_LINK)
         +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
         +(agentEmail?'<div style="font-size:13px;color:#1D9E75;">'+agentEmail+'</div>':'')
         +'</div></div>';
@@ -11214,6 +11271,16 @@ async function saveManualShowing() {
   }
 }
 window.saveManualShowing = saveManualShowing;
+
+async function deleteManualShowing(docId) {
+  if (!confirm('Remove this showing?')) return;
+  try {
+    var agentId = userProfile.agentId||'tom';
+    await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'manualShowings',docId));
+    renderShowingInbox();
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.deleteManualShowing = deleteManualShowing;
 
 async function debugShowingTime() {
   var out = ['=== ShowingTime Debug ==='];
