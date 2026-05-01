@@ -2012,6 +2012,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div><label class="flabel">Calendar / Booking Link</label><input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/></div>
       <div><label class="flabel">ShowingTime iCal URL</label><input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..."/><div style="font-size:11px;color:var(--text3);margin-top:3px;">ShowingTime → Settings → Calendar Sync → Subscribe link</div></div>
+      <div><label class="flabel">Zapier Webhook URL <span style="font-weight:400;color:var(--text3);">(optional — syncs new &amp; updated clients to your CRM)</span></label><input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/><div style="font-size:11px;color:var(--text3);margin-top:3px;">Zapier → Create Zap → Trigger: Webhooks → Catch Hook → paste URL here</div></div>
       <div><label class="flabel">Google Review Link</label><input type="url" id="ap-google" placeholder="https://g.page/.../review"/></div>
       <div><label class="flabel">Zillow Review Link</label><input type="url" id="ap-zillow" placeholder="https://www.zillow.com/reviews/write/..."/></div>
     </div>
@@ -2990,9 +2991,12 @@ function renderAgentProfileEditor() {
   set('ap-bio', a.bio);
   // Load from Firestore profile (has showingTimeUrl)
   fb.getDoc(fb.doc(fb.db,'users',currentUser.uid)).then(function(snap){
-    if(snap.exists()&&snap.data().showingTimeUrl){
+    if(snap.exists()){
+      var d = snap.data();
       var el=document.getElementById('ap-showingtime');
-      if(el) el.value=snap.data().showingTimeUrl;
+      if(el && d.showingTimeUrl) el.value=d.showingTimeUrl;
+      var ze=document.getElementById('ap-zapier');
+      if(ze && d.zapierWebhookUrl) ze.value=d.zapierWebhookUrl;
     }
   }).catch(function(){});
   updateAgentPhotoPreview();
@@ -3070,6 +3074,7 @@ async function saveAgentProfile() {
     zillowReviewUrl: document.getElementById('ap-zillow').value.trim(),
     bio: document.getElementById('ap-bio').value.trim(),
     showingTimeUrl: document.getElementById('ap-showingtime') ? document.getElementById('ap-showingtime').value.trim() : '',
+    zapierWebhookUrl: document.getElementById('ap-zapier') ? document.getElementById('ap-zapier').value.trim() : '',
     updatedAt: fb.serverTimestamp()
   };
   const status = document.getElementById('ap-status');
@@ -7135,6 +7140,38 @@ function invSetJourney(type) {
 }
 window.invSetJourney = invSetJourney;
 
+async function fireZapierWebhook(agentId, clientData) {
+  try {
+    // Load the agent's webhook URL from Firestore
+    var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === agentId; });
+    if (!agentEntry) return;
+    // Find the agent's Firebase UID to get their profile
+    var agentSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'),
+      fb.where('agentId','==',agentId), fb.where('role','==','agent')));
+    var webhookUrl = '';
+    agentSnap.forEach(function(d){ if(d.data().zapierWebhookUrl) webhookUrl = d.data().zapierWebhookUrl; });
+    if (!webhookUrl) return; // no webhook configured for this agent
+    var payload = {
+      firstName: clientData.firstName || '',
+      lastName: clientData.lastName || '',
+      email: clientData.email || '',
+      phone: clientData.phone || '',
+      agentName: agentEntry.name || '',
+      agentEmail: agentEntry.email || '',
+      journeyType: clientData.journeyType || 'buyer',
+      source: 'NestTrack',
+      timestamp: new Date().toISOString()
+    };
+    await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'webhook', 'X-Webhook-Url': webhookUrl },
+      body: JSON.stringify(payload)
+    });
+    console.log('Zapier webhook fired for', clientData.email);
+  } catch(e) { console.log('Zapier webhook err:', e.message); }
+}
+window.fireZapierWebhook = fireZapierWebhook;
+
 async function createInvite() {
   var first = document.getElementById('inv-first').value.trim();
   var last = document.getElementById('inv-last').value.trim();
@@ -7173,6 +7210,8 @@ async function createInvite() {
   try {
     await fb.setDoc(fb.doc(fb.db, 'invites', code), inviteData);
     await fb.setDoc(fb.doc(fb.db, 'users', pendingUid), clientData);
+    // Fire Zapier webhook for CRM sync (non-blocking)
+    fireZapierWebhook(agentId, Object.assign({}, clientData, inviteData)).catch(function(){});
 
     // Journey-specific content
     var isBuyer  = true;
@@ -12258,6 +12297,8 @@ function editClientInfo(uid) {
     try {
       await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, phone:phone});
       if (b) { b.firstName=first; b.lastName=last; b.email=email; b.phone=phone; }
+      // Fire Zapier webhook for CRM sync (non-blocking)
+      fireZapierWebhook(b ? (b.agentId||userProfile.agentId||'tom') : (userProfile.agentId||'tom'), {firstName:first,lastName:last,email:email,phone:phone,journeyType:(b&&b.journeyType)||'buyer'}).catch(function(){});
       // Update deal name if linked
       var agentId = userProfile.agentId||'tom';
       var linked = _deals.filter(function(d){ return d.clientUid===uid; });
