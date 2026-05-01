@@ -6565,121 +6565,151 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
-          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px;" title="Edit client info">✏️</button></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
-          ${b.listingAddress ? `<div style='font-size:12px;color:#D97706;margin-top:2px;font-weight:500;'>🏡 ${b.listingAddress}</div>` : ''}${b.propertyAddress ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>🔍 ${b.propertyAddress}</div>` : ''}
-          ${b.pending ? `<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>` : ''}
+          ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
       </div>
       <button class="xbtn" onclick="closeM('buyer-modal')">✕</button>
     </div>
 
-    ${b.listingAddress ? `<div class='card' style='background:#FFFBEB;border:1px solid #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:#92400E;font-weight:700;text-transform:uppercase;'>🏡 Listing</div><div style='font-size:14px;font-weight:600;margin-top:2px;color:#92400E;'>${b.listingAddress}</div></div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='border-color:#D97706;color:#92400E;'>Edit</button></div></div>` : `<div class='card' style='background:#FFFBEB;border:1px dashed #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:#92400E;'>🏡 No listing address</div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='background:#D97706;color:#fff;border-color:#D97706;'>+ Add</button></div></div>`}
-    ${b.propertyAddress ? `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>🔍 Purchase</div><div style='font-size:14px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div></div>` : `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:var(--text3);'>🔍 No purchase address yet</div><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div></div>`}
-
-    <div class="card">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
-      <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">${step?step.name:''} <span style="font-size:13px;color:var(--text2);">— Step ${b.currentStep||1} of 11</span></div>
-      <div style="margin-top:10px;display:flex;flex-direction:column;gap:10px;">
+    <div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+      <div onclick="var p=this.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--green-lt);cursor:pointer;user-select:none;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:700;color:var(--green-dk);">Buying</span><span style="font-size:11px;color:var(--green-dk);opacity:0.75;">${(b.currentStep||0)>0?'Step '+(b.currentStep||1)+' - '+(step?step.name:''):'Not active'}</span></div>
+        <span style="font-size:11px;color:var(--green-dk);">▾</span>
+      </div>
+      <div style="display:${(b.currentStep||0)>0?'flex':'none'};flex-direction:column;gap:10px;padding:12px 14px;">
+        ${b.propertyAddress?`<div style='background:var(--green-lt);border:1px solid #6EE7B7;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:9px;color:var(--green-dk);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;'>Purchase Address</div><div style='font-size:13px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div>`:`<div style='border:1px dashed var(--border);padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><span style='font-size:12px;color:var(--text3);'>No purchase address yet</span><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div>`}
         <div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏠 Buyer Step</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <select id="bd-step" style="flex:1;max-width:220px;"><option value="0">— Not a buyer —</option>${TIMELINE_STEPS.map(s => `<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} — ${s.name}</option>`).join('')}</select>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Buyer Step</div>
+          <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${step?step.name:'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentStep||0} of 11</span></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <select id="bd-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not a buyer --</option>${TIMELINE_STEPS.map(s=>`<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} - ${s.name}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">Dates</button>
+            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
           </div>
-          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">&#128203; Tap Dates to set up the live transaction timeline</div>`:''}${(b.currentStep||0)>0 ? (() => {  var hasBuyDeal = typeof _deals !== 'undefined' && _deals.some(function(d){ return d.clientUid==='${uid}' && d.dealType==='buyer'; });  return hasBuyDeal    ? `<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='margin-top:8px;width:100%;font-size:12px;'>&#128203; Manage Buy-Side Transaction →</button>`    : `<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='margin-top:8px;width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})() : ''}Seller Step</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <select id="bd-seller-step" style="flex:1;max-width:220px;"><option value="0">— Not a seller —</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} — ${s.title}</option>`).join('')}</select>
-            <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">📋 Dates</button><button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
-          </div>
-          ${(b.currentSellerStep||0)>0 ? (() => {var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='margin-top:8px;width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>&#128203; Manage Listing &#8594;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='margin-top:8px;width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
+          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
         <div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">🏦 Mortgage Step</div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <select id="bd-mortgage-step" style="flex:1;max-width:220px;"><option value="0">— Not started —</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} — ${s.title.replace(/^Step \d+ — /,'')}</option>`).join('')}</select>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Mortgage Step</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <select id="bd-mortgage-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} - ${s.title.replace(/^Step \d+ - /,'')}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setMortgageStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','mortgage')">📋 Dates</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','mortgage')">Dates</button>
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
           </div>
         </div>
+        ${(b.currentStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
       </div>
     </div>
 
-    <div class="dstats" style="grid-template-columns:repeat(3,1fr);">
-      <div class="dstat"><div class="dnum">${bProps.length}</div><div class="dlbl">Saved</div></div>
-      <div class="dstat"><div class="dnum">${bTours.length}</div><div class="dlbl">Tours</div></div>
-      <div class="dstat"><div class="dnum">${bProps.length?(bProps.reduce((s,p)=>s+(p.rating||0),0)/bProps.length).toFixed(1):'—'}</div><div class="dlbl">Avg Rating</div></div>
+    <div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+      <div onclick="var p=this.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#FFFBEB;cursor:pointer;user-select:none;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:700;color:#92400E;">Selling</span><span style="font-size:11px;color:#92400E;opacity:0.75;">${(b.currentSellerStep||0)>0?'Step '+(b.currentSellerStep)+' - '+((SELLER_STEPS[(b.currentSellerStep||1)-1]||{}).title||''):'Not active'}</span></div>
+        <span style="font-size:11px;color:#92400E;">▾</span>
+      </div>
+      <div style="display:${(b.currentSellerStep||0)>0?'flex':'none'};flex-direction:column;gap:10px;padding:12px 14px;">
+        ${b.listingAddress?`<div style='background:#FFFBEB;border:1px solid #D97706;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:9px;color:#92400E;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;'>Listing Address</div><div style='font-size:13px;font-weight:600;margin-top:2px;color:#92400E;'>${b.listingAddress}</div></div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='border-color:#D97706;color:#92400E;'>Edit</button></div>`:`<div style='border:1px dashed #D97706;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><span style='font-size:12px;color:#92400E;'>No listing address yet</span><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='background:#D97706;color:#fff;border-color:#D97706;'>+ Add</button></div>`}
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Seller Step</div>
+          <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${(SELLER_STEPS[(b.currentSellerStep||1)-1]||{}).title||'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentSellerStep||0} of 13</span></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <select id="bd-seller-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not a seller --</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} - ${s.title}</option>`).join('')}</select>
+            <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
+            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">Dates</button>
+            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
+          </div>
+        </div>
+        ${(b.currentSellerStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>Manage Listing</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
+      </div>
     </div>
 
     <div id="bd-timeline-preview"></div>
 
-    <div class="card">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Assigned Agent</div>
-      ${teamLeader ? `
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <select id="bd-agent" style="max-width:220px;">${agentOpts}</select>
-        <button class="btn btn-sm" onclick="setBuyerAgent('${uid}')">Reassign</button>
-      </div>` : `<div style="font-size:13px;color:var(--text2);">${(DEFAULT_AGENTS.find(a => a.id === b.agentId) || assignedAgent || {}).name || 'Assigned to you'}</div>`}
-    </div>
-
-    <div class="card">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Assigned Lender</div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <select id="bd-lender" style="max-width:220px;"><option value="none" ${(b.lenderId||'tom')==='none'?'selected':''}>— No Lender —</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' — '+l.role:''}</option>`).join('')}</select>
-        <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
+    <div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+      <div onclick="var p=this.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">Client Team</span>
+        <span style="font-size:11px;color:var(--text3);">▾</span>
+      </div>
+      <div style="display:flex;flex-direction:column;">
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Assigned Agent</div>
+          ${teamLeader?`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><select id="bd-agent" style="max-width:220px;font-size:13px;">${agentOpts}</select><button class="btn btn-sm" onclick="setBuyerAgent('${uid}')">Reassign</button></div>`:`<div style="font-size:13px;color:var(--text2);">${(DEFAULT_AGENTS.find(a=>a.id===b.agentId)||assignedAgent||{}).name||'Assigned to you'}</div>`}
+        </div>
+        <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Assigned Lender</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <select id="bd-lender" style="max-width:220px;font-size:13px;"><option value="none" ${(b.lenderId||'tom')==='none'?'selected':''}>-- No Lender --</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' - '+l.role:''}</option>`).join('')}</select>
+            <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
+          </div>
+        </div>
+        <div style="padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Title Company</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <input type="text" id="bd-title-name" placeholder="Company name" value="${(b.titleCo&&b.titleCo.name)||''}" style="font-size:13px;"/>
+            <input type="text" id="bd-title-contact" placeholder="Contact person (closer/coordinator)" value="${(b.titleCo&&b.titleCo.contact)||''}" style="font-size:13px;"/>
+            <input type="text" id="bd-title-phone" placeholder="Phone" value="${(b.titleCo&&b.titleCo.phone)||''}" style="font-size:13px;"/>
+            <input type="text" id="bd-title-email" placeholder="Email" value="${(b.titleCo&&b.titleCo.email)||''}" style="font-size:13px;"/>
+            <input type="text" id="bd-title-address" placeholder="Office address" value="${(b.titleCo&&b.titleCo.address)||''}" style="font-size:13px;"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+            <button class="btn btn-sm btn-g" onclick="saveTitleCo('${uid}')">Save Title Co</button>
+            <div id="bd-title-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Document Folder (Google Drive)</div>
-      <input type="text" id="bd-docs" placeholder="Paste Google Drive folder share URL..." value="${b.docFolderUrl||''}" style="margin-bottom:6px;"/>
-      <input type="text" id="bd-docs-name" placeholder="Folder display name (optional)" value="${b.docFolderName||''}" style="margin-bottom:8px;"/>
-      <button class="btn btn-sm btn-g" onclick="setBuyerDocs('${uid}')">Save Folder Link</button>
-    </div>
-
-    <div class="card">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:8px;">🏦 Title Company</div>
-      <div style="display:flex;flex-direction:column;gap:6px;">
-        <input type="text" id="bd-title-name" placeholder="Company name" value="${(b.titleCo&&b.titleCo.name)||''}" style="font-size:13px;"/>
-        <input type="text" id="bd-title-contact" placeholder="Contact person (closer/coordinator)" value="${(b.titleCo&&b.titleCo.contact)||''}" style="font-size:13px;"/>
-        <input type="text" id="bd-title-phone" placeholder="Phone" value="${(b.titleCo&&b.titleCo.phone)||''}" style="font-size:13px;"/>
-        <input type="text" id="bd-title-email" placeholder="Email" value="${(b.titleCo&&b.titleCo.email)||''}" style="font-size:13px;"/>
-        <input type="text" id="bd-title-address" placeholder="Office address" value="${(b.titleCo&&b.titleCo.address)||''}" style="font-size:13px;"/>
+    <div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+      <div onclick="var p=this.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">Activity</span>
+        <span style="font-size:11px;color:var(--text3);">${(bProps.length||bTours.length)?'▾':'▸'}</span>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-        <button class="btn btn-sm btn-g" onclick="saveTitleCo('${uid}')">Save Title Co</button>
-        <div id="bd-title-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
+      <div style="display:${(bProps.length||bTours.length)?'flex':'none'};flex-direction:column;gap:10px;padding:12px 14px;">
+        <div class="dstats" style="grid-template-columns:repeat(3,1fr);margin:0;">
+          <div class="dstat"><div class="dnum">${bProps.length}</div><div class="dlbl">Saved</div></div>
+          <div class="dstat"><div class="dnum">${bTours.length}</div><div class="dlbl">Tours</div></div>
+          <div class="dstat"><div class="dnum">${bProps.length?(bProps.reduce((s,p)=>s+(p.rating||0),0)/bProps.length).toFixed(1):'--'}</div><div class="dlbl">Avg Rating</div></div>
+        </div>
+        ${bProps.length?`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Saved Properties (${bProps.length})</div><div style="display:flex;flex-direction:column;gap:6px;">${bProps.slice(0,5).map(p=>`<div style="background:var(--surface2);padding:9px 11px;border-radius:6px;font-size:12.5px;"><div style="display:flex;justify-content:space-between;gap:8px;"><strong>${p.address.split(',')[0]}</strong><span>${'\u2605'.repeat(p.rating||0)}${'\u2606'.repeat(5-(p.rating||0))}</span></div><div style="color:var(--text2);font-size:11.5px;">${p.price} &middot; ${(p.tags||[]).map(t=>tl(t)).join(', ')||'no tags'}</div></div>`).join('')}</div></div>`:''}
       </div>
     </div>
 
-    <div class="card" style="display:flex;flex-direction:column;gap:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);">🔒 Private Notes</div>
-        ${b.notesUpdatedAt ? '<div style="font-size:10.5px;color:var(--text3);">Last updated '+new Date(b.notesUpdatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'</div>' : ''}
+    <div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+      <div onclick="var p=this.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;">
+        <span style="font-size:13px;font-weight:700;color:var(--text);">Documents</span>
+        <span style="font-size:11px;color:var(--text3);">${b.docFolderUrl?'▾':'▸'}</span>
       </div>
-      <textarea id="bd-notes-ta" rows="4" placeholder="Add private notes about this client — never visible to them..." style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.6;resize:vertical;">${b.agentNotes||''}</textarea>
-      <button class="btn btn-sm btn-g" onclick="saveAgentNotes('${uid}')">Save Notes</button>
-      <div id="bd-notes-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
+      <div style="display:${b.docFolderUrl?'flex':'none'};flex-direction:column;gap:6px;padding:12px 14px;">
+        <input type="text" id="bd-docs" placeholder="Paste Google Drive folder URL..." value="${b.docFolderUrl||''}" style="font-size:13px;"/>
+        <input type="text" id="bd-docs-name" placeholder="Folder display name (optional)" value="${b.docFolderName||''}" style="font-size:13px;"/>
+        <button class="btn btn-sm btn-g" onclick="setBuyerDocs('${uid}')">Save Folder Link</button>
+      </div>
     </div>
 
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-g" onclick="agentChatWith('${uid}')">💬 Chat with Buyer</button>
-      <button class="btn" onclick="aiBuyerSummary('${uid}')">✦ AI Summary</button>
-      <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete Buyer</button>
+    <div style="border-radius:var(--r);overflow:hidden;border:1px solid var(--border);margin-bottom:10px;">
+      <div onclick="var p=this.nextElementSibling;p.style.display=p.style.display==='none'?'flex':'none';" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:700;color:var(--text);">Private Notes</span>${b.notesUpdatedAt?`<span style="font-size:10px;color:var(--text3);">Updated ${new Date(b.notesUpdatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:''}</div>
+        <span style="font-size:11px;color:var(--text3);">${b.agentNotes?'▾':'▸'}</span>
+      </div>
+      <div style="display:${b.agentNotes?'flex':'none'};flex-direction:column;gap:8px;padding:12px 14px;">
+        <textarea id="bd-notes-ta" rows="4" placeholder="Add private notes about this client -- never visible to them..." style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.6;resize:vertical;">${b.agentNotes||''}</textarea>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="btn btn-sm btn-g" onclick="saveAgentNotes('${uid}')">Save Notes</button>
+          <div id="bd-notes-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;">
+      <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
+      <button class="btn" onclick="aiBuyerSummary('${uid}')">AI Summary</button>
+      <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
     </div>
 
     <div id="bd-summary" style="display:none;"></div>
-
-    ${bProps.length?`<div><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Saved Properties (${bProps.length})</div>
-      <div style="display:flex;flex-direction:column;gap:6px;">${bProps.slice(0,5).map(p=>`
-        <div style="background:var(--surface2);padding:9px 11px;border-radius:6px;font-size:12.5px;">
-          <div style="display:flex;justify-content:space-between;gap:8px;"><strong>${p.address.split(',')[0]}</strong><span>${'★'.repeat(p.rating||0)}${'☆'.repeat(5-(p.rating||0))}</span></div>
-          <div style="color:var(--text2);font-size:11.5px;">${p.price} · ${(p.tags||[]).map(t=>tl(t)).join(', ')||'no tags'}</div>
-        </div>`).join('')}</div>
-    </div>`:''}`;
+`;
   document.getElementById('buyer-modal').style.display = 'flex';
   window._currentBuyer = b;
   setTimeout(function(){
