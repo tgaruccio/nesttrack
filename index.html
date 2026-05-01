@@ -1974,6 +1974,10 @@ textarea{resize:vertical;min-height:68px;}
 
   <!-- SHOWINGS TAB -->
   <div id="agent-showings-panel" style="display:none;flex-direction:column;gap:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <div style="font-size:13px;color:var(--text3);">ShowingTime sync + manual showings</div>
+      <button class="btn btn-sm btn-g" onclick="openManualShowingModal()">+ Add Showing</button>
+    </div>
     <div id="showing-inbox"></div>
   </div>
 
@@ -6601,7 +6605,7 @@ async function openBuyerDetail(uid, scrollTo) {
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Buyer Step</div>
           <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${step?step.name:'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentStep||0} of 11</span></div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not a buyer --</option>${TIMELINE_STEPS.map(s=>`<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} - ${s.name}</option>`).join('')}</select>
+            <select id="bd-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Select step to activate buying --</option>${TIMELINE_STEPS.map(s=>`<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} - ${s.name}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">Dates</button>
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
@@ -6630,7 +6634,7 @@ async function openBuyerDetail(uid, scrollTo) {
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Seller Step</div>
           <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${(SELLER_STEPS[(b.currentSellerStep||1)-1]||{}).title||'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentSellerStep||0} of 13</span></div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-seller-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not a seller --</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} - ${s.title}</option>`).join('')}</select>
+            <select id="bd-seller-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Select step to activate selling --</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} - ${s.title}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">Dates</button>
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
@@ -11090,6 +11094,127 @@ window.assignShowing = assignShowing;
 
 
 // Debug helper for ShowingTime issues
+function openManualShowingModal() {
+  if (!myBuyers || !myBuyers.length) { alert('No clients loaded.'); return; }
+  var sel = document.getElementById('ms-client');
+  if (sel) {
+    sel.innerHTML = '<option value="">-- Select client --</option>'
+      + (myBuyers||[]).map(function(b){
+          var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
+          return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
+        }).join('');
+  }
+  // Default date to today
+  var dateEl = document.getElementById('ms-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+  var errEl = document.getElementById('ms-error');
+  if (errEl) errEl.style.display = 'none';
+  var overlay = document.getElementById('manual-showing-overlay');
+  if (overlay) { overlay.style.display = 'flex'; }
+}
+window.openManualShowingModal = openManualShowingModal;
+
+function closeManualShowingModal() {
+  var overlay = document.getElementById('manual-showing-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+window.closeManualShowingModal = closeManualShowingModal;
+
+async function saveManualShowing() {
+  var clientUid = (document.getElementById('ms-client')||{}).value;
+  var address = ((document.getElementById('ms-address')||{}).value||'').trim();
+  var dateVal = (document.getElementById('ms-date')||{}).value;
+  var timeVal = (document.getElementById('ms-time')||{}).value || '09:00';
+  var price = ((document.getElementById('ms-price')||{}).value||'').trim();
+  var notes = ((document.getElementById('ms-notes')||{}).value||'').trim();
+  var sendEmail = (document.getElementById('ms-send-email')||{}).checked !== false;
+  var errEl = document.getElementById('ms-error');
+
+  if (!clientUid) { if(errEl){errEl.textContent='Please select a client.';errEl.style.display='block';} return; }
+  if (!address) { if(errEl){errEl.textContent='Please enter a property address.';errEl.style.display='block';} return; }
+  if (!dateVal) { if(errEl){errEl.textContent='Please select a date.';errEl.style.display='block';} return; }
+  if (errEl) errEl.style.display = 'none';
+
+  var saveBtn = document.querySelector('#manual-showing-overlay .btn-g');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+
+  try {
+    var buyer = (myBuyers||[]).find(function(b){ return b.uid===clientUid; });
+    var dt = new Date(dateVal + 'T' + timeVal + ':00');
+    var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+    // Save to tours
+    var tourData = {
+      address: address,
+      price: price,
+      bedbath: '',
+      date: dt.toLocaleDateString(),
+      time: timeStr,
+      rooms: {},
+      rating: 0,
+      saved: false,
+      createdAt: new Date().toISOString(),
+      source: 'manual',
+      showingUid: 'manual-' + Date.now(),
+    };
+    await fb.addDoc(fb.collection(fb.db,'users',clientUid,'tours'), tourData);
+
+    // Save to saved homes
+    var propData = {
+      address: address,
+      price: price,
+      beds: '', baths: '', sqft: '', photo: '', tags: [], rating: 0,
+      notes: 'Showing scheduled: ' + dateStr + ' at ' + timeStr + (notes ? '. ' + notes : ''),
+      savedAt: fb.serverTimestamp(),
+      source: 'manual',
+    };
+    await fb.addDoc(fb.collection(fb.db,'users',clientUid,'properties'), propData);
+
+    // Send confirmation email
+    if (sendEmail && buyer && buyer.email) {
+      var clientFirst = buyer.firstName || 'there';
+      var agentName = (currentAgent&&currentAgent().name) || ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your Agent';
+      var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === (userProfile.agentId||'tom'); });
+      var agentEmail = agentObj ? agentObj.email : '';
+      var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+        +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+        +'<div style="font-size:22px;font-weight:300;color:#fff;">Showing Confirmed</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Nest Track</div>'
+        +'</div>'
+        +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+        +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+clientFirst+',</p>'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">Your showing has been scheduled. Here are the details:</p>'
+        +'<div style="background:#f0fdf4;border-radius:10px;padding:16px 20px;margin-bottom:20px;">'
+        +'<div style="font-size:16px;font-weight:600;color:#065F46;margin-bottom:6px;">'+partnerEsc(address)+'</div>'
+        +'<div style="font-size:14px;color:#065F46;">'+dateStr+'</div>'
+        +'<div style="font-size:14px;color:#065F46;font-weight:600;">'+timeStr+'</div>'
+        +(notes?'<div style="font-size:13px;color:#065F46;margin-top:6px;font-style:italic;">'+partnerEsc(notes)+'</div>':'')
+        +'</div>'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">This property has been added to your Tour Mode in the Nest Track app.</p>'
+        +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
+        +(agentEmail?'<div style="font-size:13px;color:#1D9E75;">'+agentEmail+'</div>':'')
+        +'</div></div>';
+      var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml };
+      if (agentEmail) payload.cc = agentEmail;
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+    }
+
+    closeManualShowingModal();
+    // Clear form
+    ['ms-address','ms-price','ms-notes'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
+    var timeEl = document.getElementById('ms-time'); if(timeEl) timeEl.value='';
+    alert('Showing added for '+(buyer?(buyer.firstName||buyer.email):'client')+'!');
+    renderShowingInbox();
+  } catch(e) {
+    if (saveBtn) { saveBtn.disabled=false; saveBtn.textContent='Save Showing'; }
+    if (errEl) { errEl.textContent='Failed: '+e.message; errEl.style.display='block'; }
+  } finally {
+    if (saveBtn) { saveBtn.disabled=false; saveBtn.textContent='Save Showing'; }
+  }
+}
+window.saveManualShowing = saveManualShowing;
+
 async function debugShowingTime() {
   var out = ['=== ShowingTime Debug ==='];
   out.push('PROXY_URL: ' + PROXY_URL);
@@ -12030,6 +12155,53 @@ window.repairDealTrackerData = repairDealTrackerData;
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
 <div id="page-offer-submit" style="display:none;position:fixed;inset:0;background:#f5f5f3;overflow-y:auto;z-index:999;">
   <div id="offer-submit-inner" style="max-width:640px;margin:0 auto;padding:0 0 40px;"></div>
+</div>
+
+<!-- MANUAL SHOWING MODAL -->
+<div id="manual-showing-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">
+      <div style="font-size:15px;font-weight:600;">Add Manual Showing</div>
+      <button onclick="closeManualShowingModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">&#10005;</button>
+    </div>
+    <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <label class="flabel">Client</label>
+        <select id="ms-client" style="width:100%;font-size:13px;"><option value="">-- Select client --</option></select>
+      </div>
+      <div>
+        <label class="flabel">Property Address</label>
+        <input type="text" id="ms-address" placeholder="123 Main St, City OH 44000" style="width:100%;box-sizing:border-box;"/>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <label class="flabel">Date</label>
+          <input type="date" id="ms-date" style="width:100%;box-sizing:border-box;"/>
+        </div>
+        <div style="flex:1;">
+          <label class="flabel">Time</label>
+          <input type="time" id="ms-time" style="width:100%;box-sizing:border-box;"/>
+        </div>
+      </div>
+      <div>
+        <label class="flabel">Price <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+        <input type="text" id="ms-price" placeholder="$450,000" style="width:100%;box-sizing:border-box;"/>
+      </div>
+      <div>
+        <label class="flabel">Notes <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+        <input type="text" id="ms-notes" placeholder="e.g. Meet agent at door" style="width:100%;box-sizing:border-box;"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="ms-send-email" checked style="width:16px;height:16px;cursor:pointer;"/>
+        <label for="ms-send-email" style="font-size:13px;cursor:pointer;">Send confirmation email to client</label>
+      </div>
+      <div id="ms-error" style="display:none;font-size:12px;color:#E24B4A;font-weight:500;"></div>
+      <div style="display:flex;gap:8px;padding-top:4px;">
+        <button class="btn btn-g" onclick="saveManualShowing()" style="flex:1;">Save Showing</button>
+        <button class="btn" onclick="closeManualShowingModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 </body>
