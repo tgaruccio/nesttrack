@@ -4943,7 +4943,8 @@ function renderAgentPartnersEditor() {
   var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'
     + '<div style="font-size:14px;font-weight:500;flex:1;">My Partner List</div>'
     + '<button class="btn btn-sm btn-g" onclick="openAddPartnerModal()">+ Add Partner</button>'
-    + '<button class="btn btn-sm" onclick="resetPartnersToDefault()" style="font-size:11px;">Restore Original List</button>'
+    + (isTeamLeader() ? '<button class="btn btn-sm" onclick="saveMasterPartnerList()" style="font-size:11px;background:#1D9E75;color:#fff;border-color:#1D9E75;">Save as Master</button>' : '')
+    + '<button class="btn btn-sm" onclick="resetPartnersToDefault()" style="font-size:11px;">Restore Defaults</button>'
     + '</div>';
   var cats = [];
   agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
@@ -5038,11 +5039,37 @@ async function deletePartner(id) {
 }
 window.deletePartner = deletePartner;
 
+async function saveMasterPartnerList() {
+  if (!isTeamLeader()) { alert('Only the admin can save the master list.'); return; }
+  if (!confirm('Save your current partner list as the master? All agents who restore defaults will get this list.')) return;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agents','tom','settings','masterPartners'), {
+      partners: agentPartners,
+      savedAt: fb.serverTimestamp(),
+      savedBy: currentUser.uid
+    });
+    alert('Master partner list saved! Agents who restore defaults will now get your list.');
+  } catch(e) { alert('Failed to save master list: '+e.message); }
+}
+window.saveMasterPartnerList = saveMasterPartnerList;
+
 async function resetPartnersToDefault() {
-  if (!confirm('Reset your partner list to the default? This will overwrite your changes.')) return;
-  agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
+  if (!confirm('Restore partner list to defaults? This will overwrite your current list.')) return;
+  try {
+    // Try to load master list from Firestore first
+    var masterSnap = await fb.getDoc(fb.doc(fb.db,'agents','tom','settings','masterPartners'));
+    if (masterSnap.exists() && masterSnap.data().partners && masterSnap.data().partners.length) {
+      agentPartners = masterSnap.data().partners;
+    } else {
+      // Fall back to hardcoded defaults
+      agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
+    }
+  } catch(e) {
+    agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
+  }
   await saveAgentPartners();
   renderAgentPartnersEditor();
+  alert('Partner list restored!');
 }
 window.resetPartnersToDefault = resetPartnersToDefault;
 
