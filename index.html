@@ -2017,29 +2017,33 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- MESSAGES TAB -->
-  <div id="agent-chat-inbox" style="display:none;flex-direction:column;gap:10px;">
-    <div id="agent-inbox-list">
-      <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Select a client</div>
-      <div id="agent-inbox-buyers" style="display:flex;flex-direction:column;gap:8px;"></div>
-    </div>
-    <div id="agent-chat-window" style="display:none;flex-direction:column;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
-      <div class="chat-hdr">
-        <button onclick="closeAgentChatWindow()" style="background:none;border:none;font-size:18px;cursor:pointer;padding:4px;color:var(--text3);flex-shrink:0;">&#8592;</button>
-        <div id="agent-chat-hdr-name" style="font-weight:500;font-size:14px;flex:1;">Client</div>
-        <button id="agent-call-btn" onclick="agentCallBuyer()" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;cursor:pointer;">&#128222; Call</button>
+  <div id="agent-chat-inbox" style="display:none;">
+    <div style="display:flex;gap:0;height:520px;border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surface);">
+      <div id="agent-inbox-list" style="width:220px;min-width:150px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;">
+        <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Messages</div>
+        <div id="agent-inbox-buyers" style="flex:1;overflow-y:auto;"></div>
       </div>
-      <div class="chat-messages" id="agent-chat-messages" style="height:340px;"></div>
-      <div style="padding:6px 10px;border-top:0.5px solid var(--border);display:flex;gap:6px;overflow-x:auto;flex-shrink:0;">
-        <button class="btn btn-sm" onclick="setAgentChatInput('On it!')" style="white-space:nowrap;font-size:11px;">On it</button>
-        <button class="btn btn-sm" onclick="setAgentChatInput('Can you tell me more?')" style="white-space:nowrap;font-size:11px;">Tell me more</button>
-        <button class="btn btn-sm" onclick="setAgentChatInput('Give me a moment to check.')" style="white-space:nowrap;font-size:11px;">Give me a moment</button>
-      </div>
-      <div class="chat-input">
-        <textarea id="agent-chat-input" placeholder="Reply to client..." rows="1"
-          style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:var(--surface2);"
-          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentChatMessage();}"></textarea>
-        <button onclick="sendAgentChatMessage()" style="width:40px;height:40px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">&#8593;</button>
+      <div id="agent-chat-window" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+        <div id="agent-chat-empty-state" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:13px;">Select a client to message</div>
+        <div id="agent-chat-active" style="display:none;flex-direction:column;height:100%;">
+          <div class="chat-hdr" style="border-bottom:0.5px solid var(--border);flex-shrink:0;">
+            <div id="agent-chat-hdr-name" style="font-weight:500;font-size:14px;flex:1;">Client</div>
+            <button id="agent-call-btn" onclick="agentCallBuyer()" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;cursor:pointer;">&#128222; Call</button>
+          </div>
+          <div class="chat-messages" id="agent-chat-messages" style="flex:1;overflow-y:auto;"></div>
+          <div style="padding:6px 10px;border-top:0.5px solid var(--border);display:flex;gap:6px;overflow-x:auto;flex-shrink:0;">
+            <button class="btn btn-sm" onclick="setAgentChatInput('On it!')" style="white-space:nowrap;font-size:11px;">On it</button>
+            <button class="btn btn-sm" onclick="setAgentChatInput('Can you tell me more?')" style="white-space:nowrap;font-size:11px;">Tell me more</button>
+            <button class="btn btn-sm" onclick="setAgentChatInput('Give me a moment to check.')" style="white-space:nowrap;font-size:11px;">Give me a moment</button>
+          </div>
+          <div class="chat-input" style="flex-shrink:0;">
+            <textarea id="agent-chat-input" placeholder="Reply to client..." rows="1"
+              style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:var(--surface2);"
+              oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentChatMessage();}"></textarea>
+            <button onclick="sendAgentChatMessage()" style="width:40px;height:40px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">&#8593;</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -5312,21 +5316,20 @@ function watchChat(buyerIdOverride) {
     // Auto-scroll to bottom
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    // Update unread badge on nav if message is not mine and chat not open
-    if (!isMine && !firstLoad) {
-      var agName = (currentAgent()&&currentAgent().firstName) || 'Your agent';
+    if (!isMine) {
       var chatPage = document.getElementById('page-chat');
       var chatIsActive = chatPage && chatPage.classList.contains('active');
-      // Only show alert and notification if chat is not currently open
-      if (!chatIsActive && !isMine) {
+      if (chatIsActive) {
+        if (currentUser && currentChatRoom) {
+          fb.set(fb.ref(fb.rtdb,'chatRead/'+currentUser.uid+'/'+currentChatRoom), Date.now()).catch(function(){});
+        }
+      } else if (!firstLoad) {
+        var agName = (currentAgent()&&currentAgent().firstName) || 'Your agent';
         showBrowserNotification('New message from ' + agName, msg.text ? msg.text.substring(0,80) : 'New message');
         var homeAlert = document.getElementById('home-unread-alert');
         var homeAlertText = document.getElementById('home-unread-text');
         if (homeAlert) homeAlert.style.display = 'flex';
         if (homeAlertText) homeAlertText.textContent = 'New message from ' + agName;
-      }
-      // Nav badge
-      if (!chatIsActive) {
         var badge = document.getElementById('chat-unread-badge');
         if (!badge) {
           var chatNav = document.querySelector('[data-pg="chat"]');
@@ -5394,6 +5397,9 @@ function clearChatBadge() {
   if (badge) badge.remove();
   var homeAlert = document.getElementById('home-unread-alert');
   if (homeAlert) homeAlert.style.display = 'none';
+  if (currentUser && currentChatRoom) {
+    fb.set(fb.ref(fb.rtdb,'chatRead/'+currentUser.uid+'/'+currentChatRoom), Date.now()).catch(function(){});
+  }
 }
 window.clearChatBadge = clearChatBadge;
 
@@ -5977,15 +5983,18 @@ function watchAllAgentChats() {
     return a.email && a.email.toLowerCase() === ((userProfile&&userProfile.email)||'').toLowerCase();
   });
   var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
-  var lastSeen = 0;
-  try { lastSeen = parseInt(localStorage.getItem('lastSeen_'+currentUser.uid)||'0'); } catch(e){}
 
   myBuyers.forEach(function(b) {
     var roomId = 'chat_'+agentShortId+'_'+b.uid;
     var chatRef = fb.ref(fb.rtdb, 'chats/'+roomId+'/messages');
+    var readRef = fb.ref(fb.rtdb, 'chatRead/'+currentUser.uid+'/'+roomId);
+    var roomReadAt = 0;
+    fb.get(readRef).then(function(snap) {
+      if (snap.exists()) roomReadAt = snap.val() || 0;
+    }).catch(function(){});
     var listener = fb.onChildAdded(chatRef, function(snapshot) {
       var msg = snapshot.val(); if (!msg) return;
-      if (msg.role === 'buyer' && msg.ts > lastSeen) {
+      if (msg.role === 'buyer' && msg.ts > roomReadAt) {
         agentUnreadCounts[b.uid] = (agentUnreadCounts[b.uid]||0) + 1;
         updateAgentUnreadBadge();
       }
@@ -6011,7 +6020,12 @@ window.updateAgentUnreadBadge = updateAgentUnreadBadge;
 
 function clearAgentUnreadForBuyer(buyerUid) {
   delete agentUnreadCounts[buyerUid];
-  try { localStorage.setItem('lastSeen_'+currentUser.uid, String(Date.now())); } catch(e){}
+  var ae = DEFAULT_AGENTS.find(function(a){
+    return a.email && a.email.toLowerCase() === ((userProfile&&userProfile.email)||'').toLowerCase();
+  });
+  var sid = ae ? ae.id : (userProfile&&userProfile.agentId)||'tom';
+  var rid = 'chat_'+sid+'_'+buyerUid;
+  fb.set(fb.ref(fb.rtdb,'chatRead/'+currentUser.uid+'/'+rid), Date.now()).catch(function(){});
   updateAgentUnreadBadge();
 }
 window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
@@ -6094,7 +6108,7 @@ function renderAgentInbox() {
     var hasUnread = unread > 0;
     var borderColor = hasUnread ? '#E24B4A' : 'var(--border)';
     var bgColor = hasUnread ? '#FEF2F2' : 'var(--surface)';
-    return '<button onclick="openAgentInboxChat(\''+uid+'\',\''+name+'\',\''+ph+'\')" '
+    return '<button class="inbox-buyer-row" data-uid="'+uid+'" onclick="openAgentInboxChat(\''+uid+'\',\''+name+'\',\''+ph+'\')" '
       +'style="width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border:0.5px solid '+borderColor+';border-radius:var(--r);background:'+bgColor+';cursor:pointer;font-family:inherit;text-align:left;">'
       +'<div style="width:42px;height:42px;border-radius:50%;background:'+(hasUnread?'#E24B4A':'var(--green-lt)')+';color:'+(hasUnread?'#fff':'var(--green-dk)')+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;flex-shrink:0;">'+initials+'</div>'
       +'<div style="flex:1;min-width:0;"><div style="font-weight:'+(hasUnread?'600':'500')+';font-size:13.5px;color:'+(hasUnread?'#991B1B':'var(--text)')+';">'+name+'</div>'
@@ -6111,13 +6125,16 @@ var agentCurrentBuyerPhone = '';
 
 function openAgentInboxChat(buyerUid, buyerName, buyerPhone) {
   agentCurrentBuyerPhone = buyerPhone;
-  var win = document.getElementById('agent-chat-window');
   var nameEl = document.getElementById('agent-chat-hdr-name');
   var msgs = document.getElementById('agent-chat-messages');
-  var list = document.getElementById('agent-inbox-list');
+  var emptyState = document.getElementById('agent-chat-empty-state');
+  var activeChat = document.getElementById('agent-chat-active');
   if (nameEl) nameEl.textContent = buyerName;
-  if (list) list.style.display = 'none';
-  if (win) { win.style.display='flex'; win.style.flexDirection='column'; }
+  if (emptyState) emptyState.style.display = 'none';
+  if (activeChat) { activeChat.style.display='flex'; activeChat.style.flexDirection='column'; }
+  document.querySelectorAll('.inbox-buyer-row').forEach(function(el){ el.style.background=''; });
+  var sel = document.querySelector('.inbox-buyer-row[data-uid="'+buyerUid+'"]');
+  if (sel) sel.style.background = 'var(--green-lt)';
   if (msgs) { msgs.innerHTML=''; msgs.removeAttribute('data-last-date'); }
   if (agentChatListener2) { try { agentChatListener2(); } catch(e){} agentChatListener2=null; }
   clearAgentUnreadForBuyer(buyerUid);
@@ -6148,10 +6165,11 @@ function openAgentInboxChat(buyerUid, buyerName, buyerPhone) {
 window.openAgentInboxChat = openAgentInboxChat;
 
 function closeAgentChatWindow() {
-  var win=document.getElementById('agent-chat-window');
-  var list=document.getElementById('agent-inbox-list');
-  if (win) win.style.display='none';
-  if (list) list.style.display='block';
+  var emptyState = document.getElementById('agent-chat-empty-state');
+  var activeChat = document.getElementById('agent-chat-active');
+  if (emptyState) emptyState.style.display = 'flex';
+  if (activeChat) activeChat.style.display = 'none';
+  document.querySelectorAll('.inbox-buyer-row').forEach(function(el){ el.style.background=''; });
   if (agentChatListener2) { try { agentChatListener2(); } catch(e){} agentChatListener2=null; }
 }
 window.closeAgentChatWindow = closeAgentChatWindow;
@@ -6568,6 +6586,7 @@ async function openBuyerDetail(uid, scrollTo) {
           <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px;" title="Edit client info">✏️</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
           ${b.listingAddress ? `<div style='font-size:12px;color:#D97706;margin-top:2px;font-weight:500;'>🏡 ${b.listingAddress}</div>` : ''}${b.propertyAddress ? `<div style='font-size:12px;color:var(--green-dk);margin-top:2px;font-weight:500;'>🔍 ${b.propertyAddress}</div>` : ''}
+          ${b.pending ? `<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>` : ''}
         </div>
       </div>
       <button class="xbtn" onclick="closeM('buyer-modal')">✕</button>
@@ -6679,11 +6698,33 @@ async function openBuyerDetail(uid, scrollTo) {
     }
   }, 80);
 }
+function stepEmailPrompt(message) {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = '<div style="background:var(--surface);border-radius:var(--r);padding:24px;max-width:340px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.2);">'
+      + '<div style="font-size:15px;font-weight:600;margin-bottom:6px;">Update Step</div>'
+      + '<div style="font-size:13px;color:var(--text2);margin-bottom:18px;">' + message + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + '<button id="sep-send" style="padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:13px;font-weight:500;cursor:pointer;">Save &amp; Send Email to Client</button>'
+      + '<button id="sep-nosend" style="padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;cursor:pointer;">Save Only (No Email)</button>'
+      + '<button id="sep-cancel" style="padding:8px;background:none;color:var(--text3);border:none;font-size:12px;cursor:pointer;">Cancel</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('#sep-send').onclick = function(){ document.body.removeChild(overlay); resolve('send'); };
+    overlay.querySelector('#sep-nosend').onclick = function(){ document.body.removeChild(overlay); resolve('nosend'); };
+    overlay.querySelector('#sep-cancel').onclick = function(){ document.body.removeChild(overlay); resolve('cancel'); };
+  });
+}
+window.stepEmailPrompt = stepEmailPrompt;
+
 async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
   if (newStep !== 0) {
     var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
-    if (!confirm('Move to "'+stepName+'"? This will email the client.')) return;
+    var choice = await stepEmailPrompt('Move buyer to "'+stepName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
   }
   try {
     var buyerJourneyPatch = { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -6710,7 +6751,8 @@ async function setBuyerStep(uid) {
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
-    if (newStep > 0 && !skipForCash) sendStepEmail(uid, newStep, 'buyer');
+    if (newStep > 0 && !skipForCash && window._pendingStepEmailChoice !== 'nosend') sendStepEmail(uid, newStep, 'buyer');
+    window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: '+e.message); }
 }
 async function setBuyerAgent(uid) {
@@ -6858,7 +6900,9 @@ async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   if (newStep !== 0) {
     var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
-    if (!confirm('Move to "'+sName+'"? This will email the client.')) return;
+    var choice = await stepEmailPrompt('Move seller to "'+sName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
   }
   try {
     var sellerJourneyPatch = { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -6883,7 +6927,8 @@ async function setSellerStep(uid) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
-    if (newStep > 0) sendStepEmail(uid, newStep, 'seller');
+    if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') sendStepEmail(uid, newStep, 'seller');
+    window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.setSellerStep = setSellerStep;
@@ -7082,6 +7127,40 @@ async function createInvite() {
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.createInvite = createInvite;
+
+async function resendInvite(uid) {
+  var buyer = allBuyers.find(function(b){ return b.uid === uid; });
+  if (!buyer || !buyer.pending) { alert('This client has already accepted their invite.'); return; }
+  if (!buyer.inviteCode) { alert('No invite code found.'); return; }
+  var code = buyer.inviteCode;
+  var link = location.origin + location.pathname + '#invite=' + code;
+  var first = buyer.firstName || 'there';
+  var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.agentId; });
+  var agentName = agentEntry ? agentEntry.name : 'Tom Garuccio';
+  var agentPhone = agentEntry ? (agentEntry.phone||'') : '';
+  var agentEmail = agentEntry ? (agentEntry.email||'') : '';
+  var subjectLine = first + ', a reminder: your real estate portal is waiting for you';
+  var ctaBtn = '<div style="text-align:center;margin:20px 0;"><a href="' + link + '" style="background:#1D9E75;color:#fff;padding:13px 34px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Open My Portal</a></div>';
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;">'
+    + '<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Nest Track</div></div>'
+    + '<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    + '<p style="font-size:17px;font-weight:300;margin:0 0 10px;">Hi ' + first + ',</p>'
+    + '<p style="font-size:14px;color:#444;line-height:1.65;">Just a reminder - your personal Nest Track portal is ready and waiting.</p>'
+    + ctaBtn
+    + '<p style="font-size:11px;color:#bbb;text-align:center;word-break:break-all;">Or copy: ' + link + '</p>'
+    + '<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+    + '<div style="font-size:14px;font-weight:600;">' + agentName + '</div>'
+    + (agentPhone ? '<div style="font-size:13px;color:#555;">' + agentPhone + '</div>' : '')
+    + (agentEmail ? '<div style="font-size:13px;color:#1D9E75;">' + agentEmail + '</div>' : '')
+    + '</div></div>';
+  try {
+    var payload = { to: buyer.email, subject: subjectLine, html: emailHtml };
+    if (agentEmail && agentEmail !== buyer.email) payload.cc = agentEmail;
+    await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+    alert('Invite resent to ' + buyer.email + '!');
+  } catch(e) { alert('Failed to resend: ' + e.message); }
+}
+window.resendInvite = resendInvite;
 
 
 // TEAM MGMT
