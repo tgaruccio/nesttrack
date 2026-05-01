@@ -2224,15 +2224,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <div><label class="flabel">Email</label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
     <div><label class="flabel">Phone (optional)</label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
-    <div>
-      <label class="flabel">Journey Type</label>
-      <div style="display:flex;gap:8px;margin-top:4px;">
-        <button id="inv-jt-buyer" onclick="invSetJourney('buyer')" class="btn btn-sm" style="flex:1;background:var(--green);color:#fff;border-color:var(--green);">&#127968; Buying</button>
-        <button id="inv-jt-seller" onclick="invSetJourney('seller')" class="btn btn-sm" style="flex:1;">&#127968; Selling</button>
-        <button id="inv-jt-both" onclick="invSetJourney('both')" class="btn btn-sm" style="flex:1;">Both</button>
-      </div>
-    </div>
-    <div id="inv-address-wrap" style="display:none;"><label class="flabel">Listing Address</label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/><div style="font-size:11px;color:var(--text3);margin-top:2px;">Required for seller clients</div></div>
+    <div id="inv-address-wrap"><label class="flabel">Listing Address <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/><div style="font-size:11px;color:var(--text3);margin-top:2px;">Add now or set later from the client profile</div></div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
     <div id="invite-result" style="display:none;"></div>
@@ -6581,8 +6573,8 @@ async function openBuyerDetail(uid, scrollTo) {
       <button class="xbtn" onclick="closeM('buyer-modal')">✕</button>
     </div>
 
-    ${(b.journeyType==='seller'||b.journeyType==='both') ? (b.listingAddress ? `<div class='card' style='background:#FFFBEB;border:1px solid #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:#92400E;font-weight:700;text-transform:uppercase;'>🏡 Listing</div><div style='font-size:14px;font-weight:600;margin-top:2px;color:#92400E;'>${b.listingAddress}</div></div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='border-color:#D97706;color:#92400E;'>Edit</button></div></div>` : `<div class='card' style='background:#FFFBEB;border:1px dashed #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:#92400E;'>🏡 No listing address</div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='background:#D97706;color:#fff;border-color:#D97706;'>+ Add</button></div></div>`) : ''}
-    ${(b.journeyType==='buyer'||b.journeyType==='both') ? (b.propertyAddress ? `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>🔍 Purchase</div><div style='font-size:14px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div></div>` : `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:var(--text3);'>🔍 No purchase address yet</div><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div></div>`) : ''}
+    ${b.listingAddress ? `<div class='card' style='background:#FFFBEB;border:1px solid #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:#92400E;font-weight:700;text-transform:uppercase;'>🏡 Listing</div><div style='font-size:14px;font-weight:600;margin-top:2px;color:#92400E;'>${b.listingAddress}</div></div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='border-color:#D97706;color:#92400E;'>Edit</button></div></div>` : `<div class='card' style='background:#FFFBEB;border:1px dashed #D97706;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:#92400E;'>🏡 No listing address</div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='background:#D97706;color:#fff;border-color:#D97706;'>+ Add</button></div></div>`}
+    ${b.propertyAddress ? `<div class='card' style='background:var(--green-lt);border:1px solid #6EE7B7;padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:10px;color:var(--green-dk);font-weight:700;text-transform:uppercase;'>🔍 Purchase</div><div style='font-size:14px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div></div>` : `<div class='card' style='background:var(--surface2);border:1px dashed var(--border);padding:10px 14px;margin-bottom:8px;'><div style='display:flex;align-items:center;justify-content:space-between;'><div style='font-size:13px;color:var(--text3);'>🔍 No purchase address yet</div><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div></div>`}
 
     <div class="card">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;">Current Step</div>
@@ -6694,7 +6686,19 @@ async function setBuyerStep(uid) {
     if (!confirm('Move to "'+stepName+'"? This will email the client.')) return;
   }
   try {
-    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() });
+    var buyerJourneyPatch = { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() };
+    if (newStep > 0) {
+      var bForJT = allBuyers.find(function(x){ return x.uid===uid; });
+      var currentJT = (bForJT && bForJT.journeyType) || 'buyer';
+      if (currentJT === 'seller') buyerJourneyPatch.journeyType = 'both';
+      else if (!currentJT || currentJT === 'none') buyerJourneyPatch.journeyType = 'buyer';
+    } else {
+      var bForJT2 = allBuyers.find(function(x){ return x.uid===uid; });
+      var currentJT2 = (bForJT2 && bForJT2.journeyType) || 'buyer';
+      if (currentJT2 === 'both') buyerJourneyPatch.journeyType = 'seller';
+      else if (currentJT2 === 'buyer') buyerJourneyPatch.journeyType = 'buyer';
+    }
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), buyerJourneyPatch);
     await loadBuyersForAgent();
     renderBuyers();
     if (_dealsLoaded) syncDealStatusFromStep(uid);
@@ -6857,7 +6861,19 @@ async function setSellerStep(uid) {
     if (!confirm('Move to "'+sName+'"? This will email the client.')) return;
   }
   try {
-    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() });
+    var sellerJourneyPatch = { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() };
+    if (newStep > 0) {
+      var sForJT = allBuyers.find(function(x){ return x.uid===uid; });
+      var currentSJT = (sForJT && sForJT.journeyType) || 'buyer';
+      if (currentSJT === 'buyer') sellerJourneyPatch.journeyType = 'both';
+      else if (!currentSJT || currentSJT === 'none') sellerJourneyPatch.journeyType = 'seller';
+    } else {
+      var sForJT2 = allBuyers.find(function(x){ return x.uid===uid; });
+      var currentSJT2 = (sForJT2 && sForJT2.journeyType) || 'buyer';
+      if (currentSJT2 === 'both') sellerJourneyPatch.journeyType = 'buyer';
+      else if (currentSJT2 === 'seller') sellerJourneyPatch.journeyType = 'seller';
+    }
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), sellerJourneyPatch);
     await loadBuyersForAgent();
     renderBuyers();
     if (_dealsLoaded) syncDealStatusFromStep(uid);
@@ -6968,7 +6984,7 @@ async function createInvite() {
 
   var inviteData = {
     firstName: first, lastName: last, email: email, phone: phone,
-    agentId: agentId, journeyType: _invJourneyType,
+    agentId: agentId, journeyType: 'buyer',
     invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(),
     used: false, pending: true,
   };
@@ -6977,9 +6993,9 @@ async function createInvite() {
   var clientData = {
     firstName: first, lastName: last, email: email, phone: phone,
     agentId: agentId, lenderId: invLenderId, role: 'buyer',
-    journeyType: _invJourneyType,
-    currentStep: (_invJourneyType==='seller') ? 0 : 1,
-    currentSellerStep: (_invJourneyType==='buyer') ? 0 : 1,
+    journeyType: 'buyer',
+    currentStep: 1,
+    currentSellerStep: 0,
     pending: true, inviteCode: code,
     createdAt: fb.serverTimestamp(),
     listingAddress: invListingAddress || null,
@@ -6990,9 +7006,9 @@ async function createInvite() {
     await fb.setDoc(fb.doc(fb.db, 'users', pendingUid), clientData);
 
     // Journey-specific content
-    var isBuyer  = _invJourneyType === 'buyer' || _invJourneyType === 'both';
-    var isSeller = _invJourneyType === 'seller' || _invJourneyType === 'both';
-    var subjectLine = first + (isBuyer && isSeller ? ', your real estate portal is ready 🏠🏡' : isBuyer ? ', your home buying portal is ready 🏠' : ', your home selling portal is ready 🏡');
+    var isBuyer  = true;
+    var isSeller = !!(document.getElementById('inv-address') && document.getElementById('inv-address').value.trim());
+    var subjectLine = first + (isSeller ? ', your real estate portal is ready 🏠🏡' : ', your home buying portal is ready 🏠');
 
     // Compact feature tiles
     function fTile(icon, title, desc) {
