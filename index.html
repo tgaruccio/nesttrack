@@ -1035,20 +1035,10 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Quick launch grid -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
-    <button onclick="contactClient('call')" style="position:relative;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-            <span style="font-size:24px;">📞</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Call Client</span>
-      <span style="font-size:11px;color:var(--text2);">Tap to dial</span>
-    </button>
-    <button onclick="contactClient('text')" style="position:relative;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">💬</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Text Client</span>
-      <span style="font-size:11px;color:var(--text2);">Send a message</span>
-    </button>
-    <button onclick="contactClient('email')" style="position:relative;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">✉️</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Email Client</span>
-      <span style="font-size:11px;color:var(--text2);">Open email</span>
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">👥</span>
+      <span style="font-size:13px;font-weight:600;">Clients</span>
+      <span style="font-size:11px;opacity:0.85;" id="ad-clients-count">Loading...</span>
     </button>
 
     <button onclick="go('agent-todo',document.querySelector('[data-pg=agent-todo]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
@@ -1118,7 +1108,6 @@ textarea{resize:vertical;min-height:68px;}
     </button>
 
   </div>
-
   <!-- Active client pipeline -->
   <div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -5689,9 +5678,7 @@ function renderHome() {
     var buyLabel = isBoth ? 'Home Buyers Journey' : 'Home Buyers Journey';
     cards += '<div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">'
       + '<div style="font-family:\'Fraunces\',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">' + buyLabel + '</div>'
-      + (isBoth
-          ? '<button onclick="homeShowSelling()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.5);border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;">Also Selling &#8594;</button>'
-          : '<span style="font-size:11px;color:rgba(255,255,255,0.65);">11 steps</span>')
+      + '<span style="font-size:11px;color:rgba(255,255,255,0.65);">11 steps</span>'
       + '</div>';
 
     // Buyer contract timeline (if under contract)
@@ -5727,13 +5714,11 @@ function renderHome() {
   // ── SELLING JOURNEY SECTION (shown if seller or both) ──
   if (isBoth || isSellerOnly) {
     var sellLabel = isSellerOnly ? 'Home Sellers Journey' : 'Home Sellers Journey';
-    cards += '<div id="home-selling-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;' + (isBoth ? 'display:none;' : '') + '">';
+    cards += '<div id="home-selling-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">';
 
     cards += '<div style="background:linear-gradient(135deg,#92400E,#D97706);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">'
       + '<div style="font-family:\'Fraunces\',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">'+sellLabel+'</div>'
-      + (isBoth
-          ? '<button onclick="homeShowBuying()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.5);border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;">&#8592; Also Buying</button>'
-          : '<span style="font-size:11px;color:rgba(255,255,255,0.65);">13 steps</span>')
+      + '<span style="font-size:11px;color:rgba(255,255,255,0.65);">13 steps</span>'
       + '</div>';
 
     // Seller contract timeline (if under contract)
@@ -5750,7 +5735,7 @@ function renderHome() {
 
     // Seller bubble trail
     cards += '<div style="padding:14px 16px 8px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-      + (sellStep > 0 ? trailSVG(sellerStages, sellStep, amber, 'showSellerStep') : '<div style="padding:8px;font-size:12px;color:var(--text3);text-align:center;">Seller trail not started</div>')
+      + (sellStep > 0 ? trailSVG(sellerStages, sellStep, amber, 'homeSellerBubble') : '<div style="padding:8px;font-size:12px;color:var(--text3);text-align:center;">Seller trail not started</div>')
       + '</div>';
 
     // Progress bar
@@ -5792,7 +5777,7 @@ function renderHome() {
 
     // Mortgage bubble trail
     cards += '<div style="padding:14px 16px 8px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-      + (mortStep > 0 ? trailSVG(mortStages, mortStep, blue, 'showMJStep') : '')
+      + (mortStep > 0 ? trailSVG(mortStages, mortStep, blue, 'homeMortBubble') : '')
       + '</div>';
 
     if (mortStep > 0) {
@@ -5815,23 +5800,15 @@ function renderHome() {
   if (savedBadge) savedBadge.textContent = props.length ? '('+props.length+')' : '';
 }
 window.renderHome = renderHome;
+// Bubble click wrappers — showSellerStep and showMJStep use 0-based index
+function homeSellerBubble(id) { showSellerStep(id - 1); }
+window.homeSellerBubble = homeSellerBubble;
+function homeMortBubble(id) { showMJStep(id - 1); }
+window.homeMortBubble = homeMortBubble;
+
 
 // Toggle between buying/selling sections for 'both' clients
-function homeShowSelling() {
-  var buyCard = document.getElementById('home-journeys').querySelector('div:first-child');
-  var sellCard = document.getElementById('home-selling-section');
-  if (buyCard) buyCard.style.display = 'none';
-  if (sellCard) sellCard.style.display = 'block';
-}
-window.homeShowSelling = homeShowSelling;
 
-function homeShowBuying() {
-  var buyCard = document.getElementById('home-journeys').querySelector('div:first-child');
-  var sellCard = document.getElementById('home-selling-section');
-  if (buyCard) buyCard.style.display = 'block';
-  if (sellCard) sellCard.style.display = 'none';
-}
-window.homeShowBuying = homeShowBuying;
 
 // Inline step updates from home page
 async function homeUpdateBuyStep(val) {
@@ -6461,26 +6438,6 @@ async function renderAgentDashboard() {
   populatePAClientDropdown();
 }
 window.renderAgentDashboard = renderAgentDashboard;
-function contactClient(method) {
-  // Find the currently selected/viewed client's phone and email
-  var uid = window._agentViewingUid || (myBuyers && myBuyers[0] && myBuyers[0].uid);
-  var buyer = myBuyers && myBuyers.find(function(b){ return b.uid === uid; });
-  if (!buyer) { alert('Please select a client first from the Clients tab.'); return; }
-  var phone = buyer.phone || buyer.phoneNumber || '';
-  var email = buyer.email || '';
-  var name = buyer.firstName || buyer.name || 'client';
-  if (method === 'call') {
-    if (phone) window.location.href = 'tel:' + phone.replace(/D/g,'');
-    else alert('No phone number on file for ' + name);
-  } else if (method === 'text') {
-    if (phone) window.location.href = 'sms:' + phone.replace(/D/g,'');
-    else alert('No phone number on file for ' + name);
-  } else if (method === 'email') {
-    if (email) window.location.href = 'mailto:' + email;
-    else alert('No email on file for ' + name);
-  }
-}
-window.contactClient = contactClient;
 
 
 function renderAdPipeline(buyers) {
