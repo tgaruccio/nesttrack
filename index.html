@@ -5733,23 +5733,24 @@ function renderHome() {
   // (uses requestAnimationFrame to ensure render is complete first)
   requestAnimationFrame(function() {
     var src, dst;
+    // Buyer trail — showTrailStage → showHomeTrailStage (id stays the same, 1-based)
     src = document.getElementById('trail-map');
     dst = document.getElementById('home-trail-map');
     if (src && dst) {
       dst.innerHTML = src.innerHTML.replace(/showTrailStage/g, 'showHomeTrailStage');
     }
+    // Mortgage trail — showMJStep → showHomeMJStep (i stays the same, 0-based)
     src = document.getElementById('mj-trail-map');
     dst = document.getElementById('home-mj-trail-map');
     if (src && dst) {
-      dst.innerHTML = src.innerHTML.replace(/showMJStep((d+))/g, function(m,i){ return 'showHomeMJStep('+(parseInt(i)+1)+')'; });
+      dst.innerHTML = src.innerHTML.replace(/showMJStep/g, 'showHomeMJStep');
     }
+    // Seller trail — showSellerStep → showHomeSellerStep (i stays the same, 0-based)
     src = document.getElementById('seller-trail-map');
     dst = document.getElementById('home-seller-trail-map');
     if (src && dst) {
-      dst.innerHTML = src.innerHTML.replace(/showSellerStep((d+))/g, function(m,i){ return 'showHomeSellerStep('+(parseInt(i)+1)+')'; });
+      dst.innerHTML = src.innerHTML.replace(/showSellerStep/g, 'showHomeSellerStep');
     }
-    // Close popup when navigating away from home
-    document.getElementById('home-step-popup') && (document.getElementById('home-step-popup').style.display = 'none');
   });
 
   // Saved homes badge
@@ -5815,8 +5816,7 @@ function showHomeTrailStage(id) {
 }
 window.showHomeTrailStage = showHomeTrailStage;
 
-function showHomeSellerStep(id) {
-  var i = id - 1;
+function showHomeSellerStep(i) {
   var s = SELLER_STEPS[i]; if (!s) return;
   // Close other section popups
   ['home-buyer-popup','home-mort-popup'].forEach(function(pid){ var p=document.getElementById(pid); if(p) p.style.display='none'; });
@@ -5828,8 +5828,7 @@ function showHomeSellerStep(id) {
 }
 window.showHomeSellerStep = showHomeSellerStep;
 
-function showHomeMJStep(id) {
-  var i = id - 1;
+function showHomeMJStep(i) {
   var s = MJ_STEPS[i]; if (!s) return;
   // Close other section popups
   ['home-buyer-popup','home-sell-popup'].forEach(function(pid){ var p=document.getElementById(pid); if(p) p.style.display='none'; });
