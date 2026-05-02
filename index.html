@@ -12935,8 +12935,12 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
       +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
       +'<div style="font-size:13px;font-weight:600;">'+agentName+'</div>'
       +'</div></div>';
-    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:emailHtml})});
+    showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function() {
+      try {
+        await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+          body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:emailHtml})});
+      } catch(e) { console.log('Task email send err:', e.message); }
+    });
   } catch(e) { console.log('Task email err:', e.message); }
 }
 window.sendTaskCompleteEmail = sendTaskCompleteEmail;
