@@ -577,46 +577,17 @@ textarea{resize:vertical;min-height:68px;}
     <div id="home-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">U</div>
     <div>
       <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="home-welcome">Welcome back</div>
-      <div style="font-size:12.5px;color:var(--text2);" id="home-sub">What would you like to do today?</div>
+      <div style="font-size:12.5px;color:var(--text2);" id="home-sub" style="display:none;"></div>
     </div>
   </div>
 
 
 
-  <!-- Buyer Transaction Timeline -->
-  <div id="txn-buyer-card" style="display:none;border-radius:var(--r);border:1.5px solid var(--green-md);">
-    <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏠 Buying — Under Contract</div>
-        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-buyer-headline">Under Contract</div>
-      </div>
-      <button onclick="downloadICS('buyer')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
-    </div>
-    <div id="txn-buyer-list" style="background:var(--surface);display:block;"></div>
-  </div>
+  
 
-  <!-- Mortgage Timeline -->
-  <div id="txn-mortgage-card" style="display:none;border-radius:var(--r);border:1.5px solid #93C5FD;">
-    <div style="background:linear-gradient(135deg,#185FA5,#378ADD);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏦 Mortgage Timeline</div>
-        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-mortgage-headline">In Progress</div>
-      </div>
-    </div>
-    <div id="txn-mortgage-list" style="background:var(--surface);display:block;"></div>
-  </div>
+  
 
-  <!-- Seller Transaction Timeline -->
-  <div id="txn-seller-card" style="display:none;border-radius:var(--r);border:1.5px solid #F59E0B;">
-    <div style="background:linear-gradient(135deg,#92400E,#D97706);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏡 Selling — Under Contract</div>
-        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-seller-headline">Under Contract</div>
-      </div>
-      <button onclick="downloadICS('seller')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
-    </div>
-    <div id="txn-seller-list" style="background:var(--surface);display:block;"></div>
-  </div>
+  
 
   <!-- Journey progress cards (filled by JS) -->
   <div id="home-journeys" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -5567,7 +5538,6 @@ function renderHome() {
   var agentFirst = (currentAgent()&&currentAgent().firstName) || 'Agent';
   if (chatLabel) chatLabel.textContent = 'Chat with ' + agentFirst;
 
-  renderTxnTimeline();
 
   var journeys = document.getElementById('home-journeys');
   if (!journeys) return;
@@ -5590,18 +5560,27 @@ function renderHome() {
   var mortStep = (userProfile && userProfile.currentMortgageStep) || 0;
 
   // ── BUYING + SELLING SECTION ──
+  var isBoth = (jType === 'both');
+  var isBuyingOnly = (jType === 'buyer' || jType === 'buyer-only' || !jType);
+  var isSellingOnly = (jType === 'seller' || jType === 'seller-only');
+
+  // Determine which trail to show by default
+  var defaultTab = isSellingOnly ? 'selling' : 'buying';
+  var sectionLabel = isSellingOnly ? 'Home Sellers Journey' : 'Home Buyers Journey';
+
   cards += '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">';
 
-  // Header with toggle buttons
+  // Header — toggle only shown if both buyer AND seller
   cards += '<div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">'
-    + '<div>'
-    + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.75;color:#fff;margin-bottom:2px;">Your Journey</div>'
-    + '<div style="font-family:\'Fraunces\',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:-0.3px;" id="home-trail-label">Home Buyers Trail</div>'
-    + '</div>'
-    + '<div style="display:flex;gap:6px;">'
-    + '<button id="home-trail-btn-buying" onclick="homeTrailTab(\'buying\')" style="background:rgba(255,255,255,0.92);color:var(--green-dk);border:none;border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">Buying</button>'
-    + '<button id="home-trail-btn-selling" onclick="homeTrailTab(\'selling\')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.5);border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;">Selling</button>'
-    + '</div></div>';
+    + '<div style="font-family:\'Fraunces\',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;" id="home-trail-label">' + sectionLabel + '</div>'
+    + (isBoth
+        ? '<div style="display:flex;gap:6px;">'
+          + '<button id="home-trail-btn-buying" onclick="homeTrailTab(\'buying\')" style="background:rgba(255,255,255,0.92);color:var(--green-dk);border:none;border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">Buying</button>'
+          + '<button id="home-trail-btn-selling" onclick="homeTrailTab(\'selling\')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.5);border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;">Selling</button>'
+          + '</div>'
+        : '<span style="font-size:11px;color:rgba(255,255,255,0.6);">' + (isSellingOnly ? '13 steps' : '11 steps') + '</span>'
+      )
+    + '</div>';
 
   // ── Buyer timeline (if under contract) ──
   if (buyerHasDates) {
@@ -5640,10 +5619,10 @@ function renderHome() {
   }
 
   // ── Buyer trail map ──
-  cards += '<div id="home-buyer-trail" style="padding:14px 16px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+  cards += '<div id="home-buyer-trail" style="padding:14px 16px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;' + (isSellingOnly ? 'display:none;' : '') + '">'
     + '<div id="home-trail-map" style="min-width:320px;"></div>'
     + '</div>';
-  cards += '<div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">'
+  cards += '<div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);' + (isSellingOnly ? 'display:none;' : '') + '">'
     + '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
     + '<span style="font-size:11.5px;color:var(--text2);">'+buyStepName+'</span>'
     + '<span style="font-size:11px;color:var(--green-dk);font-weight:500;">Step '+buyStep+' of 11</span>'
@@ -5653,7 +5632,7 @@ function renderHome() {
     + '</div></div>';
 
   // ── Seller trail (hidden, toggled by button) ──
-  cards += '<div id="home-seller-trail" style="display:none;">';
+  cards += '<div id="home-seller-trail" style="' + (isSellingOnly ? '' : 'display:none;') + '">';
 
   if (sellerHasDates) {
     var stoday = new Date(); stoday.setHours(0,0,0,0);
@@ -5711,7 +5690,7 @@ function renderHome() {
     cards += '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">';
     cards += '<div style="background:linear-gradient(135deg,#185FA5,#378ADD);padding:14px 16px;">'
       + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.75;color:#fff;margin-bottom:2px;">Your Journey</div>'
-      + '<div style="font-family:\'Fraunces\',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:-0.3px;">Mortgage Trail</div>'
+      + '<div style="font-family:\'Fraunces\',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Mortgage Journey</div>'
       + '</div>';
 
     if (mortHasDates) {
@@ -5766,11 +5745,19 @@ function renderHome() {
 
   journeys.innerHTML = cards;
 
-  setTimeout(function(){
-    renderHomeTrailMap();
-    renderHomeSellerTrailMap();
-    if (mortStep > 0 || mortHasDates) renderHomeMortgageTrailMap();
-  }, 80);
+  // Render trail maps - use requestAnimationFrame for reliability
+  function _doRenderTrails() {
+    if (!isSellingOnly) renderHomeTrailMap();
+    if (isBoth || isSellingOnly) { if (document.getElementById('home-seller-trail-map')) renderHomeSellerTrailMap(); }
+    if (mortStep > 0 || mortHasDates) {
+      if (document.getElementById('home-mortgage-trail-map')) renderHomeMortgageTrailMap();
+    }
+  }
+  if (typeof requestAnimationFrame !== 'undefined') {
+    requestAnimationFrame(function(){ requestAnimationFrame(_doRenderTrails); });
+  } else {
+    setTimeout(_doRenderTrails, 150);
+  }
 
   var sellerNavBtn = document.querySelector('[data-pg="sellertrail"]');
   var buyerNavBtn  = document.querySelector('[data-pg="guide"]');
@@ -5790,13 +5777,13 @@ function homeTrailTab(tab) {
   if (tab === 'selling') {
     if (buyerTrail)  buyerTrail.style.display  = 'none';
     if (sellerTrail) { sellerTrail.style.display = 'block'; renderHomeSellerTrailMap(); }
-    if (label) label.textContent = 'Home Sellers Trail';
+    if (label) label.textContent = 'Home Sellers Journey';
     if (btnBuying)  { btnBuying.style.background='rgba(255,255,255,0.2)'; btnBuying.style.color='#fff'; btnBuying.style.border='1px solid rgba(255,255,255,0.5)'; }
     if (btnSelling) { btnSelling.style.background='rgba(255,255,255,0.92)'; btnSelling.style.color='var(--green-dk)'; btnSelling.style.border='none'; }
   } else {
     if (buyerTrail)  buyerTrail.style.display  = 'block';
     if (sellerTrail) sellerTrail.style.display = 'none';
-    if (label) label.textContent = 'Home Buyers Trail';
+    if (label) label.textContent = 'Home Buyers Journey';
     if (btnBuying)  { btnBuying.style.background='rgba(255,255,255,0.92)'; btnBuying.style.color='var(--green-dk)'; btnBuying.style.border='none'; }
     if (btnSelling) { btnSelling.style.background='rgba(255,255,255,0.2)'; btnSelling.style.color='#fff'; btnSelling.style.border='1px solid rgba(255,255,255,0.5)'; }
   }
@@ -5834,7 +5821,8 @@ function _renderMiniTrail(container, stages, cur, colorName, onClickFn) {
     var foSize=r*2;
     var labelY=y+(y<(mob?58:52)?(r+13):-(r+4));
     var labelSz=mob?8:7.5;
-    svg+='<g onclick="window._htClick('+i+')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
+    var mid = container.getAttribute('data-mapid') || '';
+    svg+='<g onclick="window._htClick('+i+',\''+mid+'\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
     svg+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"/>';
     if(active) svg+='<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="'+c.lt+'" stroke-width="1.5" opacity="0.6"/>';
     if(done){
@@ -5851,16 +5839,14 @@ function _renderMiniTrail(container, stages, cur, colorName, onClickFn) {
   container.innerHTML=svg;
   container._htStages=stages;
   container._htClickFn=onClickFn;
-  window._htClick=function(idx){
-    // Find the container that was just interacted with
-    // by checking all trail maps - call the one that matches
-    var maps = ['home-trail-map','home-seller-trail-map','home-mortgage-trail-map'];
-    maps.forEach(function(id){
-      var ct = document.getElementById(id);
-      if(ct && ct._htStages && ct._htStages[idx]!==undefined && ct._htClickFn){
-        ct._htClickFn(ct._htStages[idx].id, idx);
-      }
-    });
+  // Store mapId on the SVG element so clicks know which map they're in
+  container.setAttribute('data-mapid', container.id || 'map-' + Date.now());
+  var mapId = container.getAttribute('data-mapid');
+  window._htClick=function(idx, mid){
+    var ct = document.querySelector('[data-mapid="'+mid+'"]');
+    if(ct && ct._htStages && ct._htStages[idx]!==undefined && ct._htClickFn){
+      ct._htClickFn(ct._htStages[idx].id, idx);
+    }
   };
 }
 window._renderMiniTrail = _renderMiniTrail;
