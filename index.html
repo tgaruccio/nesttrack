@@ -1163,6 +1163,21 @@ textarea{resize:vertical;min-height:68px;}
       <a href="https://1660690.my1003app.com/2784866/register" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
     </div>
   </div>
+  <!-- Agent-only email section -->
+  <div id="mort-email-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:13px;font-weight:500;">📧 Email Payment Summary to Client</div>
+    <div>
+      <label class="flabel">Select Client</label>
+      <select id="mort-client-sel" style="font-size:13px;"><option value="">— Choose a client —</option></select>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);">— or enter manually —</div>
+    <div>
+      <label class="flabel">Email Address</label>
+      <input type="email" id="mort-email" placeholder="client@email.com" style="font-size:14px;"/>
+    </div>
+    <button class="btn btn-g" onclick="emailMortCalc()" style="justify-content:center;">📧 Send Payment Summary</button>
+    <div id="mort-email-status" style="display:none;font-size:12px;font-weight:500;"></div>
+  </div>
 </div>
 
 
@@ -3651,6 +3666,12 @@ function go(page, el) {
     setTimeout(function(){ renderTrailMap(); }, 150);
   }
   if (page === 'commute') { buildCommuteDropdown(); }
+  if (page === 'agent-preapproval' && isAgent) { _populateToolDropdown('pa-client-sel'); }
+  if (page === 'mortgage') {
+    var mortEmailSec = document.getElementById('mort-email-section');
+    if (mortEmailSec) mortEmailSec.style.display = isAgent ? 'flex' : 'none';
+    if (isAgent) _populateToolDropdown('mort-client-sel');
+  }
   if (page === 'netsheet' && isAgent) {
     var nsWrap = document.getElementById('ns-client-wrap');
     var nsSel  = document.getElementById('ns-client-sel');
@@ -5539,7 +5560,7 @@ async function sendReferrals() {
     var payload = {to:buyer.email, subject:agentFirst+' sent you some referral recommendations', html:emailHtml};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
     if (ae && ae!==buyer.email) payload.cc = ae;
-    showEmailPreview(clientEmail, payload.subject, emailHtml, async function() {
+    showEmailPreview(buyer.email, payload.subject, emailHtml, async function() {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
         var status = document.getElementById('ref-status'); if(status){status.textContent='✓ Sent!';status.style.color='var(--green-dk)';status.style.display='block';}
@@ -5979,6 +6000,85 @@ async function _epoApprove() {
 window._epoApprove = _epoApprove;
 
 window.renderHome = renderHome;
+
+// ─── Shared tool dropdown population ───
+function _populateToolDropdown(selId) {
+  var sel = document.getElementById(selId);
+  if (!sel) return;
+  function fill() {
+    var clients = (myBuyers||[]).filter(function(b){ return b.email; });
+    sel.innerHTML = '<option value="">— Choose a client —</option>'
+      + clients.map(function(b){
+          var n = (((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email);
+          return '<option value="'+b.uid+'|'+b.email+'|'+n+'">'+n+(b.pending?' (pending)':'')+'</option>';
+        }).join('');
+    // Wire up to manual email field (same pattern: selId minus '-sel' + '-email' or '-manual-email')
+    var emailFldId = selId.replace('-client-sel','-email').replace('-client-sel','-manual-email');
+    var emailFld = document.getElementById(emailFldId) || document.getElementById(selId.replace('-client-sel','-manual-email'));
+    if (emailFld) {
+      sel.onchange = function(){
+        var parts = sel.value.split('|');
+        if (emailFld) emailFld.value = parts[1] || '';
+      };
+    }
+  }
+  if (myBuyers && myBuyers.length) { fill(); }
+  else { loadBuyersForAgent().then(fill); }
+}
+window._populateToolDropdown = _populateToolDropdown;
+
+// ─── Mortgage calc email ───
+async function emailMortCalc() {
+  var sel = document.getElementById('mort-client-sel');
+  var manualFld = document.getElementById('mort-email');
+  var toEmail = '', toLabel = '';
+  if (sel && sel.value) {
+    var parts = sel.value.split('|');
+    toEmail = parts[1] || '';
+    toLabel = parts[2] || toEmail;
+  }
+  if (!toEmail && manualFld) toEmail = manualFld.value.trim();
+  if (!toLabel) toLabel = toEmail;
+  if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
+  var result = document.getElementById('mort-result');
+  if (!result || result.style.display === 'none') { alert('Calculate a payment first.'); return; }
+  var agentName = ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || 'Tom Garuccio';
+  var price = (document.getElementById('mort-price')||{}).value || '';
+  var down = (document.getElementById('mort-down')||{}).value || '';
+  var rate = (document.getElementById('mort-rate')||{}).value || '';
+  var term = (document.getElementById('mort-term')||{}).value || '';
+  var payMatch = result.innerHTML.match(/\$[\d,]+/);
+  var monthly = payMatch ? payMatch[0] : 'See details';
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:22px;font-weight:300;color:#fff;">Mortgage Payment Estimate</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Prepared by '+agentName+' · Nest Track</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<div style="background:#f0fdf4;border-radius:10px;padding:16px 20px;margin-bottom:20px;text-align:center;">'
+    +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#065F46;margin-bottom:6px;">Est. Monthly Payment</div>'
+    +'<div style="font-size:40px;font-weight:300;color:#065F46;">'+monthly+'</div>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'
+    +'<tr><td style="padding:6px 0;font-size:13px;color:#666;">Home Price</td><td style="text-align:right;font-size:13px;font-weight:600;">$'+parseFloat(price||0).toLocaleString()+'</td></tr>'
+    +'<tr><td style="padding:6px 0;font-size:13px;color:#666;">Down Payment</td><td style="text-align:right;font-size:13px;font-weight:600;">'+down+'%</td></tr>'
+    +'<tr><td style="padding:6px 0;font-size:13px;color:#666;">Interest Rate</td><td style="text-align:right;font-size:13px;font-weight:600;">'+rate+'%</td></tr>'
+    +'<tr><td style="padding:6px 0;font-size:13px;color:#666;">Loan Term</td><td style="text-align:right;font-size:13px;font-weight:600;">'+term+' years</td></tr>'
+    +'</table>'
+    +'<p style="font-size:11px;color:#888;">This is an estimate. Contact '+agentName+' for an exact quote.</p>'
+    +'</div></div>';
+  showEmailPreview(toLabel, 'Mortgage Payment Estimate from '+agentName, emailHtml, async function() {
+    var status = document.getElementById('mort-email-status');
+    try {
+      if (status) { status.textContent='Sending...'; status.style.display='block'; status.style.color='var(--text2)'; }
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:emailHtml}) });
+      if (status) { status.textContent='Sent to '+toLabel; status.style.color='var(--green-dk)'; }
+    } catch(e) {
+      if (status) { status.textContent='Failed to send.'; status.style.color='#E24B4A'; }
+    }
+  });
+}
+window.emailMortCalc = emailMortCalc;
 
 // ─── Home page inline step popups ───
 function _showHomePopup(num, title, body, tip, actions) {
