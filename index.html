@@ -8328,15 +8328,27 @@ function renderSellerTrail() {
   svg += '<path d="';
   SELLER_STEPS.forEach(function(s,i){ var x=cxFn(i),y=cyFn(i); svg+=(i===0?'M '+x+' '+y:' L '+x+' '+y); });
   svg += '" fill="none" stroke="#F5D0A9" stroke-width="2" stroke-dasharray="5,4"/>';
+  var curSell = (userProfile && userProfile.currentSellerStep) || 1;
+  // Completed path
+  var sell_done_path = '';
+  SELLER_STEPS.forEach(function(s,i){ if((i+1)<=curSell) sell_done_path+=(sell_done_path===''?'M '+cxFn(i)+' '+cyFn(i):' L '+cxFn(i)+' '+cyFn(i)); });
+  if(sell_done_path) svg+='<path d="'+sell_done_path+'" fill="none" stroke="#D97706" stroke-width="2"/>';
   SELLER_STEPS.forEach(function(s,i) {
-    var x=cxFn(i), y=cyFn(i), hl=s.highlight;
-    var fill=hl?'#D97706':'#FEF3C7', stroke=hl?'#B45309':'#F59E0B';
+    var x=cxFn(i), y=cyFn(i);
+    var done=(i+1)<curSell, active=(i+1)===curSell;
+    var fill=done?'#D97706':active?'#fff':'#FEF3C7';
+    var stroke=(done||active)?'#D97706':'#F59E0B';
+    var sw=active?2.5:1.5;
     var foSize=r*2, labelY=y+(y<(mob?80:72)?(r+14):-(r+5)), word=s.title.split(' ')[0];
     svg += '<g onclick="showSellerStep('+i+')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
-    svg += '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.5"/>';
-    if(hl) svg += '<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="#F59E0B" stroke-width="2" opacity="0.5"/>';
-    svg += '<foreignObject x="'+(x-r)+'" y="'+(y-r)+'" width="'+foSize+'" height="'+foSize+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+foSize+'px;height:'+foSize+'px;display:flex;align-items:center;justify-content:center;font-size:'+emojiSize+'px;line-height:1;">'+s.icon+'</div></foreignObject>';
-    svg += '<text x="'+x+'" y="'+labelY+'" text-anchor="middle" font-size="'+labelSize+'" fill="'+(hl?'#92400E':'#555')+'" font-weight="'+(hl?'600':'400')+'">'+word+'</text>';
+    svg += '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"/>';
+    if(active) svg += '<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="#F5C97A" stroke-width="2" opacity="0.6"/>';
+    if(done){
+      svg += '<text x="'+x+'" y="'+(y+5)+'" text-anchor="middle" font-size="'+(mob?16:13)+'" font-weight="bold" fill="#fff">&#10003;</text>';
+    } else {
+      svg += '<foreignObject x="'+(x-r)+'" y="'+(y-r)+'" width="'+foSize+'" height="'+foSize+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+foSize+'px;height:'+foSize+'px;display:flex;align-items:center;justify-content:center;font-size:'+emojiSize+'px;line-height:1;">'+s.icon+'</div></foreignObject>';
+    }
+    svg += '<text x="'+x+'" y="'+labelY+'" text-anchor="middle" font-size="'+labelSize+'" fill="'+(active?'#92400E':'#888')+'" font-weight="'+(active?'600':'400')+'">'+word+'</text>';
     svg += '</g>';
   });
   svg += '</svg>';
