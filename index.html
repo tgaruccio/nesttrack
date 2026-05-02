@@ -1195,7 +1195,7 @@ textarea{resize:vertical;min-height:68px;}
 
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings')" style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">📅</span>
-      <span style="font-size:13px;font-weight:600;color:#1D4ED8;">Showings</span>
+      <span style="font-size:13px;font-weight:600;color:#1D4ED8;">Showings / Appts</span>
       <span style="font-size:11px;color:#1D4ED8;opacity:0.85;">Sync from ShowingTime</span>
     </button>
 
@@ -6426,6 +6426,7 @@ function switchAgentTab(tab) {
     if (stb) { stb.style.background='var(--green)'; stb.style.color='#fff'; }
     if (stp) stp.style.display='flex';
     renderShowingInbox();
+    renderApptList();
   } else if (tab==='deals') {
     if (dtb) { dtb.style.background='var(--green)'; dtb.style.color='#fff'; }
     if (dtp) dtp.style.display='flex';
@@ -11677,6 +11678,11 @@ window._commitAppt = _commitAppt;
 async function renderApptList() {
   var el = document.getElementById('appt-list');
   if (!el) return;
+  if (!userProfile || !userProfile.agentId) { 
+    // Not ready yet - try again shortly
+    setTimeout(renderApptList, 500); 
+    return; 
+  }
   el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px;">Loading...</div>';
   try {
     var agentId = userProfile.agentId||'tom';
@@ -11718,7 +11724,8 @@ async function renderApptList() {
         +'</div></div></div>';
     }).join('');
   } catch(e) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--red-dk);padding:10px;">Error loading appointments.</div>';
+    console.error('renderApptList error:', e);
+    el.innerHTML = '<div style="font-size:12px;color:var(--red-dk);padding:10px;">Error: ' + e.message + '</div>';
   }
 }
 window.renderApptList = renderApptList;
