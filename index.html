@@ -600,8 +600,8 @@ textarea{resize:vertical;min-height:68px;}
     <div id="txn-buyer-list" style="background:var(--surface);display:block;"></div>
   </div>
     <!-- Buyer bubble trail — filled by renderTrailMap() -->
-    <div style="padding:16px;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;">
-      <div id="home-trail-map" style="min-width:340px;"></div>
+    <div style="padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div id="home-trail-map"></div>
     </div>
     <!-- Buyer progress bar — filled by renderHome() -->
     <div style="padding:8px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">
@@ -632,8 +632,8 @@ textarea{resize:vertical;min-height:68px;}
     <div id="txn-mortgage-list" style="background:var(--surface);display:block;"></div>
   </div>
     <!-- Mortgage bubble trail — filled by renderMortgageJourney() -->
-    <div style="padding:16px;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;">
-      <div id="home-mj-trail-map" style="min-width:340px;"></div>
+    <div style="padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div id="home-mj-trail-map"></div>
     </div>
     <!-- Mortgage progress bar -->
     <div style="padding:8px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">
@@ -665,8 +665,8 @@ textarea{resize:vertical;min-height:68px;}
     <div id="txn-seller-list" style="background:var(--surface);display:block;"></div>
   </div>
     <!-- Seller bubble trail — filled by renderSellerTrail() -->
-    <div style="padding:16px;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;">
-      <div id="home-seller-trail-map" style="min-width:340px;"></div>
+    <div style="padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div id="home-seller-trail-map"></div>
     </div>
     <!-- Seller progress bar -->
     <div style="padding:8px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">
@@ -677,6 +677,21 @@ textarea{resize:vertical;min-height:68px;}
       <div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden;">
         <div id="home-sell-progress" style="background:#D97706;height:100%;border-radius:20px;width:5%;transition:width 0.4s;"></div>
       </div>
+    </div>
+  </div>
+
+
+  <!-- Home page step detail popup -->
+  <div id="home-step-popup" style="display:none;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-top:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;" id="hsp-num"></span>
+      <button onclick="document.getElementById('home-step-popup').style.display='none'" style="background:none;border:none;font-size:20px;color:var(--text3);cursor:pointer;padding:0;line-height:1;">&#215;</button>
+    </div>
+    <div style="padding:16px;">
+      <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;margin-bottom:10px;" id="hsp-title"></div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;" id="hsp-body"></div>
+      <div id="hsp-tip" style="display:none;margin-top:10px;background:var(--green-lt);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--green-dk);"></div>
+      <div id="hsp-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
     </div>
   </div>
 
@@ -5695,15 +5710,21 @@ function renderHome() {
     var src, dst;
     src = document.getElementById('trail-map');
     dst = document.getElementById('home-trail-map');
-    if (src && dst) dst.innerHTML = src.innerHTML;
-
+    if (src && dst) {
+      dst.innerHTML = src.innerHTML.replace(/showTrailStage/g, 'showHomeTrailStage');
+    }
     src = document.getElementById('mj-trail-map');
     dst = document.getElementById('home-mj-trail-map');
-    if (src && dst) dst.innerHTML = src.innerHTML;
-
+    if (src && dst) {
+      dst.innerHTML = src.innerHTML.replace(/showMJStep((d+))/g, function(m,i){ return 'showHomeMJStep('+(parseInt(i)+1)+')'; });
+    }
     src = document.getElementById('seller-trail-map');
     dst = document.getElementById('home-seller-trail-map');
-    if (src && dst) dst.innerHTML = src.innerHTML;
+    if (src && dst) {
+      dst.innerHTML = src.innerHTML.replace(/showSellerStep((d+))/g, function(m,i){ return 'showHomeSellerStep('+(parseInt(i)+1)+')'; });
+    }
+    // Close popup when navigating away from home
+    document.getElementById('home-step-popup') && (document.getElementById('home-step-popup').style.display = 'none');
   });
 
   // Saved homes badge
@@ -5711,6 +5732,71 @@ function renderHome() {
   if (savedBadge) savedBadge.textContent = props.length ? '('+props.length+')' : '';
 }
 window.renderHome = renderHome;
+
+// ─── Home page inline step popups ───
+function _showHomePopup(num, title, body, tip, actions) {
+  var popup = document.getElementById('home-step-popup');
+  if (!popup) return;
+  document.getElementById('hsp-num').textContent = num;
+  document.getElementById('hsp-title').textContent = title;
+  document.getElementById('hsp-body').innerHTML = body;
+  var tipEl = document.getElementById('hsp-tip');
+  if (tip) { tipEl.textContent = tip; tipEl.style.display = 'block'; }
+  else { tipEl.style.display = 'none'; }
+  var actEl = document.getElementById('hsp-actions');
+  actEl.innerHTML = actions || '';
+  popup.style.display = 'block';
+  // Scroll popup into view smoothly
+  setTimeout(function(){ popup.scrollIntoView({behavior:'smooth', block:'nearest'}); }, 50);
+  if (typeof updateAgentTokens === 'function') updateAgentTokens(popup);
+}
+window._showHomePopup = _showHomePopup;
+
+function showHomeTrailStage(id) {
+  var s = TRAIL_STAGES.find(function(x){ return x.id === id; });
+  if (!s) return;
+  var body = '<p style="margin-bottom:10px;">' + A(s.body) + '</p>'
+    + '<ul style="padding-left:18px;display:flex;flex-direction:column;gap:5px;">'
+    + (s.facts||[]).map(function(f){ return '<li style="color:var(--text2);line-height:1.5;">' + A(f) + '</li>'; }).join('')
+    + '</ul>';
+  var acts = '';
+  if (s.action) {
+    if (s.action.url) {
+      acts += '<a href="' + s.action.url + '" target="_blank" class="btn btn-g">' + A(s.action.label) + '</a>';
+    } else if (s.action.page) {
+      acts += '<button class="btn btn-g" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));document.getElementById(\'home-step-popup\').style.display=\'none\';">' + A(s.action.label) + '</button>';
+    }
+  }
+  _showHomePopup('Stop ' + id + ' of 11', A(s.title), body, null, acts);
+}
+window.showHomeTrailStage = showHomeTrailStage;
+
+function showHomeSellerStep(id) {
+  var i = id - 1;
+  var s = SELLER_STEPS[i]; if (!s) return;
+  var acts = '';
+  if (s.action && s.action.page) {
+    acts += '<button class="btn btn-g" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));document.getElementById(\'home-step-popup\').style.display=\'none\';">' + s.action.label + ' →</button>';
+  }
+  _showHomePopup('Step ' + (i+1) + ' of ' + SELLER_STEPS.length, s.title, s.body, s.tip||null, acts);
+}
+window.showHomeSellerStep = showHomeSellerStep;
+
+function showHomeMJStep(id) {
+  var i = id - 1;
+  var s = MJ_STEPS[i]; if (!s) return;
+  var acts = '';
+  if (s.action) {
+    if (s.action.url) {
+      acts += '<a href="' + s.action.url + '" target="_blank" class="btn btn-g btn-sm">' + s.action.label + '</a>';
+    } else if (s.action.page) {
+      acts += '<button class="btn btn-g btn-sm" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));">' + s.action.label + '</button>';
+    }
+  }
+  _showHomePopup('Step ' + (i+1) + ' of ' + MJ_STEPS.length, s.title, s.body, s.tip||null, acts);
+}
+window.showHomeMJStep = showHomeMJStep;
+
 
 // Inline step updates from home page
 async function homeUpdateBuyStep(val) {
