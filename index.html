@@ -583,7 +583,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- ══ HOME BUYERS JOURNEY ══ -->
-  <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
+  <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Home Buyers Journey</div>
       <button onclick="go('guide',document.querySelector('[data-pg=guide]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
@@ -5797,6 +5797,11 @@ function renderHome() {
   var mortSection = document.getElementById('home-mort-section');
   if (mortSection) mortSection.style.display = (mortStep > 0 || mortHasDates) ? 'block' : 'none';
 
+  // Show/hide buyer section — hide for seller-only clients
+  var buySection = document.getElementById('home-buy-section');
+  var isSellerOnly = jType === 'seller' || jType === 'seller-only';
+  if (buySection) buySection.style.display = isSellerOnly ? 'none' : 'block';
+
   // Show seller section if jType includes selling OR they have seller steps/dates
   var sellSection = document.getElementById('home-sell-section');
   var showSeller = jType === 'both' || jType === 'seller' || jType === 'seller-only' || sellStep > 0 || sellerHasDates;
@@ -6942,6 +6947,14 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
         ${b.propertyAddress?`<div style='background:var(--green-lt);border:1px solid #6EE7B7;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:9px;color:var(--green-dk);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;'>Purchase Address</div><div style='font-size:13px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div>`:`<div style='border:1px dashed var(--border);padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><span style='font-size:12px;color:var(--text3);'>No purchase address yet</span><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div>`}
         <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);">Journey Type</div>
+            <select onchange="setJourneyType('${uid}',this.value)" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">
+              <option value="buyer" ${(b.journeyType||'buyer')==='buyer'?'selected':''}>🏠 Buyer</option>
+              <option value="seller" ${b.journeyType==='seller'?'selected':''}>🏡 Seller</option>
+              <option value="both" ${b.journeyType==='both'?'selected':''}>🏠🏡 Buyer + Seller</option>
+            </select>
+          </div>
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Buyer Step</div>
           <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${step?step.name:'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentStep||0} of 11</span></div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -11671,9 +11684,10 @@ async function renderApptList() {
     var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'appointments'));
     var appts = [];
     snap.forEach(function(d){ appts.push(Object.assign({id:d.id},d.data())); });
+    var todayStart = new Date(); todayStart.setHours(0,0,0,0);
     appts = appts.filter(function(a){
       var t = new Date(a.date).getTime();
-      return t >= now - 3600000 && t <= cutoff;
+      return t >= todayStart.getTime() && t <= cutoff;
     });
     appts.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
 
@@ -12533,6 +12547,17 @@ async function setPropertyAddress(uid) {
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.setPropertyAddress = setPropertyAddress;
+function setJourneyType(uid, jType) {
+  var agentId = userProfile.agentId || 'tom';
+  fb.updateDoc(fb.doc(fb.db, 'users', uid), { journeyType: jType })
+    .then(function() {
+      var b = myBuyers.find(function(x){ return x.uid === uid; });
+      if (b) b.journeyType = jType;
+    })
+    .catch(function(e){ alert('Failed to update: ' + e.message); });
+}
+window.setJourneyType = setJourneyType;
+
 
 function renderDealTodos(dealId, todos) {
   if (!todos || !todos.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;padding:2px 0;">No items yet</div>';
