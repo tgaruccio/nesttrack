@@ -3651,6 +3651,28 @@ function go(page, el) {
     setTimeout(function(){ renderTrailMap(); }, 150);
   }
   if (page === 'commute') { buildCommuteDropdown(); }
+  if (page === 'netsheet' && isAgent) {
+    var nsWrap = document.getElementById('ns-client-wrap');
+    var nsSel  = document.getElementById('ns-client-sel');
+    var nsFld  = document.getElementById('ns-email');
+    if (nsWrap) nsWrap.style.display = 'flex';
+    function _populateNsSel() {
+      if (!nsSel) return;
+      var list = (myBuyers||[]).filter(function(b){ return b.email; });
+      nsSel.innerHTML = '<option value="">-- Select client --</option>'
+        + '<option value="__all__">📤 Send to ALL clients (' + list.length + ')</option>'
+        + list.map(function(b){
+            var n = (((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email);
+            return '<option value="'+b.email+'">'+n+(b.pending?' (pending)':'')+'</option>';
+          }).join('');
+      nsSel.onchange = function(){ if(nsFld) nsFld.value = nsSel.value==='__all__'?'__all__':nsSel.value; };
+    }
+    if (myBuyers && myBuyers.length) {
+      _populateNsSel();
+    } else {
+      loadBuyersForAgent().then(_populateNsSel);
+    }
+  }
   if (page === 'valuation') { buildValuationDropdown(); }
   if (page === 'mortgagejourney') { setTimeout(function(){ renderMortgageJourney(); }, 150); }
   if (page === 'sellertrail') { setTimeout(function(){ renderSellerTrail(); }, 150); }
