@@ -515,7 +515,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
     <button class="nb" data-pg="idx" onclick="go('idx',this)">🔍 Home Search</button>
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
-    <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings');closeSidebar()">📅 Showings</button>
+    <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings');closeSidebar()">📅 Showings / Appts</button>
     <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('offers');closeSidebar()">📋 Offer Manager</button>
     <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('deals');closeSidebar()">🏠 Deal Tracker</button>
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
@@ -2027,6 +2027,93 @@ textarea{resize:vertical;min-height:68px;}
     <div id="agent-partners-editor"></div>
   </div>
 
+  <!-- Appointment Modal -->
+  <div id="appt-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);">
+        <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">New Appointment</div>
+        <button onclick="closeApptModal()" style="background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;padding:0;line-height:1;">&#215;</button>
+      </div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:13px;">
+
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);display:block;margin-bottom:5px;">Client *</label>
+          <select id="appt-client" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;">
+            <option value="">-- Select client --</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);display:block;margin-bottom:5px;">Appointment Type *</label>
+          <select id="appt-type" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;">
+            <option value="Meeting">📋 Meeting</option>
+            <option value="Walkthrough">🚶 Walkthrough</option>
+            <option value="Final Walkthrough">🏁 Final Walkthrough</option>
+            <option value="Signing">✍️ Signing / Closing</option>
+            <option value="Inspection">🔍 Inspection</option>
+            <option value="Appraisal">📐 Appraisal</option>
+            <option value="Open House">🏡 Open House</option>
+            <option value="Other">📌 Other</option>
+          </select>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);display:block;margin-bottom:5px;">Date *</label>
+            <input type="date" id="appt-date" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);display:block;margin-bottom:5px;">Time *</label>
+            <input type="time" id="appt-time" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;"/>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);display:block;margin-bottom:5px;">Address <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+          <input type="text" id="appt-address" placeholder="123 Main St" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;"/>
+        </div>
+
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);display:block;margin-bottom:5px;">Notes <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+          <textarea id="appt-notes" rows="2" placeholder="Any details..." style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;resize:none;"></textarea>
+        </div>
+
+        <div style="background:var(--blue-lt);border-radius:var(--r-sm);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+          <input type="checkbox" id="appt-send-email" checked style="margin-top:2px;flex-shrink:0;"/>
+          <label for="appt-send-email" style="font-size:13px;color:var(--blue-dk);cursor:pointer;line-height:1.5;">
+            <strong>Send confirmation email</strong> to client &amp; agent<br>
+            <span style="font-size:11px;opacity:0.85;">You'll review before it sends</span>
+          </label>
+        </div>
+
+        <div id="appt-error" style="display:none;font-size:12px;color:var(--red-dk);background:var(--red-lt);padding:8px 12px;border-radius:var(--r-sm);"></div>
+
+        <div style="display:flex;gap:8px;padding-top:4px;">
+          <button onclick="closeApptModal()" class="btn" style="flex:1;">Cancel</button>
+          <button onclick="saveAppt()" class="btn btn-g" style="flex:2;">Save Appointment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Appointment Email Preview Modal -->
+  <div id="appt-email-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1001;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);">
+        <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">Review &amp; Send Email</div>
+        <button onclick="document.getElementById('appt-email-overlay').style.display='none'" style="background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;padding:0;line-height:1;">&#215;</button>
+      </div>
+      <div style="padding:18px;display:flex;flex-direction:column;gap:14px;">
+        <div style="font-size:13px;color:var(--text2);">Review the email below then approve to send, or skip to save without emailing.</div>
+        <div id="appt-email-preview" style="border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;font-size:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="sendApptEmail(false)" class="btn" style="flex:1;">Skip — Don't Send</button>
+          <button onclick="sendApptEmail(true)" class="btn btn-g" style="flex:2;">✓ Approve &amp; Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- SHOWINGS TAB -->
   <div id="agent-showings-panel" style="display:none;flex-direction:column;gap:12px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
@@ -2034,6 +2121,18 @@ textarea{resize:vertical;min-height:68px;}
       <button class="btn btn-sm btn-g" onclick="openManualShowingModal()">+ Add Showing</button>
     </div>
     <div id="showing-inbox"></div>
+
+    <!-- Appointments section -->
+    <div style="border-top:0.5px solid var(--border);padding-top:14px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:14px;font-weight:500;">Appointments</div>
+          <div style="font-size:12px;color:var(--text3);">Meetings, signings, walkthroughs & more</div>
+        </div>
+        <button class="btn btn-sm btn-g" onclick="openApptModal()">+ Add Appt</button>
+      </div>
+      <div id="appt-list"></div>
+    </div>
   </div>
 
   <!-- OFFERS TAB -->
@@ -11347,6 +11446,281 @@ async function renderShowingInbox() {
   el.innerHTML = html;
 }
 window.renderShowingInbox = renderShowingInbox;
+
+// ═══════════════════════════════════════════════════════
+// APPOINTMENTS SYSTEM
+// Firestore: agents/{agentId}/appointments/{apptId}
+// ═══════════════════════════════════════════════════════
+
+var _pendingApptData = null; // stores appt data while email is being reviewed
+
+function openApptModal() {
+  if (!myBuyers || !myBuyers.length) { alert('No clients loaded.'); return; }
+  var sel = document.getElementById('appt-client');
+  if (sel) {
+    sel.innerHTML = '<option value="">-- Select client --</option>'
+      + (myBuyers||[]).map(function(b){
+          var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
+          return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
+        }).join('');
+  }
+  var dateEl = document.getElementById('appt-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+  var timeEl = document.getElementById('appt-time');
+  if (timeEl && !timeEl.value) timeEl.value = '10:00';
+  var errEl = document.getElementById('appt-error');
+  if (errEl) errEl.style.display = 'none';
+  var overlay = document.getElementById('appt-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+window.openApptModal = openApptModal;
+
+function closeApptModal() {
+  var overlay = document.getElementById('appt-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+window.closeApptModal = closeApptModal;
+
+async function saveAppt() {
+  var clientUid  = (document.getElementById('appt-client')||{}).value;
+  var apptType   = (document.getElementById('appt-type')||{}).value || 'Meeting';
+  var dateVal    = (document.getElementById('appt-date')||{}).value;
+  var timeVal    = (document.getElementById('appt-time')||{}).value || '10:00';
+  var address    = ((document.getElementById('appt-address')||{}).value||'').trim();
+  var notes      = ((document.getElementById('appt-notes')||{}).value||'').trim();
+  var sendEmail  = (document.getElementById('appt-send-email')||{}).checked !== false;
+  var errEl      = document.getElementById('appt-error');
+
+  if (!clientUid) { if(errEl){errEl.textContent='Please select a client.';errEl.style.display='block';} return; }
+  if (!dateVal)   { if(errEl){errEl.textContent='Please select a date.';errEl.style.display='block';} return; }
+  if (!timeVal)   { if(errEl){errEl.textContent='Please select a time.';errEl.style.display='block';} return; }
+  if (errEl) errEl.style.display = 'none';
+
+  var buyer = (myBuyers||[]).find(function(b){ return b.uid===clientUid; });
+  var dt = new Date(dateVal + 'T' + timeVal + ':00');
+  var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  var agentId = userProfile.agentId||'tom';
+  var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id===agentId; });
+  var agentName = (userProfile.firstName||'')+' '+(userProfile.lastName||'');
+  var agentEmail = agentObj ? agentObj.email : '';
+  var clientFirst = buyer ? (buyer.firstName||'there') : 'there';
+  var clientName = buyer ? (((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email) : 'Client';
+  var clientEmail = buyer ? buyer.email : '';
+
+  // Build the appt record
+  var apptRecord = {
+    clientUid:   clientUid,
+    clientName:  clientName,
+    clientEmail: clientEmail,
+    type:        apptType,
+    date:        dt.toISOString(),
+    dateStr:     dateStr,
+    timeStr:     timeStr,
+    address:     address,
+    notes:       notes,
+    agentId:     agentId,
+    agentName:   agentName.trim(),
+    agentEmail:  agentEmail,
+    createdAt:   new Date().toISOString(),
+    emailSent:   false,
+  };
+
+  // Build email HTML for preview
+  var typeEmojis = {'Meeting':'📋','Walkthrough':'🚶','Final Walkthrough':'🏁','Signing':'✍️','Inspection':'🔍','Appraisal':'📐','Open House':'🏡','Other':'📌'};
+  var emoji = typeEmojis[apptType] || '📌';
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:22px;font-weight:300;color:#fff;">'+emoji+' Appointment Confirmed</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Nest Track · The Garuccio Group</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+partnerEsc(clientFirst)+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">Your appointment has been confirmed. Here are the details:</p>'
+    +'<div style="background:#f0fdf4;border-radius:10px;padding:16px 20px;margin-bottom:20px;">'
+    +'<div style="font-size:16px;font-weight:600;color:#065F46;margin-bottom:4px;">'+emoji+' '+partnerEsc(apptType)+'</div>'
+    +'<div style="font-size:14px;color:#065F46;">'+partnerEsc(dateStr)+'</div>'
+    +'<div style="font-size:14px;color:#065F46;font-weight:600;">'+partnerEsc(timeStr)+'</div>'
+    +(address?'<div style="font-size:13px;color:#065F46;margin-top:6px;">📍 '+partnerEsc(address)+'</div>':'')
+    +(notes?'<div style="font-size:13px;color:#065F46;margin-top:6px;font-style:italic;">'+partnerEsc(notes)+'</div>':'')
+    +'</div>'
+    +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">If you have any questions, please reach out.</p>'
+    +nsEmailBtn('Open Nest Track →', APP_LINK)
+    +'<div style="font-size:14px;font-weight:600;margin-top:16px;">'+partnerEsc(agentName.trim()||'Your Agent')+'</div>'
+    +(agentEmail?'<div style="font-size:13px;color:#1D9E75;">'+agentEmail+'</div>':'')
+    +'</div></div>';
+
+  apptRecord._emailHtml = emailHtml;
+  apptRecord._emailSubject = emoji+' '+apptType+' — '+dateStr+' at '+timeStr;
+
+  if (sendEmail && clientEmail) {
+    // Show email preview for agent approval
+    _pendingApptData = apptRecord;
+    var preview = document.getElementById('appt-email-preview');
+    if (preview) preview.innerHTML = emailHtml;
+    closeApptModal();
+    var emailOverlay = document.getElementById('appt-email-overlay');
+    if (emailOverlay) emailOverlay.style.display = 'flex';
+  } else {
+    // Save without email
+    await _commitAppt(apptRecord, false);
+  }
+}
+window.saveAppt = saveAppt;
+
+async function sendApptEmail(doSend) {
+  document.getElementById('appt-email-overlay').style.display = 'none';
+  if (!_pendingApptData) return;
+  await _commitAppt(_pendingApptData, doSend);
+  _pendingApptData = null;
+}
+window.sendApptEmail = sendApptEmail;
+
+async function _commitAppt(appt, sendEmail) {
+  try {
+    var agentId = appt.agentId || userProfile.agentId||'tom';
+
+    // 1. Save to Firestore
+    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'appointments'), {
+      clientUid:  appt.clientUid,
+      clientName: appt.clientName,
+      clientEmail:appt.clientEmail,
+      type:       appt.type,
+      date:       appt.date,
+      dateStr:    appt.dateStr,
+      timeStr:    appt.timeStr,
+      address:    appt.address||'',
+      notes:      appt.notes||'',
+      agentName:  appt.agentName||'',
+      agentEmail: appt.agentEmail||'',
+      emailSent:  sendEmail,
+      createdAt:  fb.serverTimestamp(),
+    });
+
+    // 2. Add to agent To-Do list (fires on the day of the appointment)
+    var todoText = appt.type+' — '+appt.clientName+(appt.address?' @ '+appt.address:'')+'  '+appt.timeStr;
+    _todos.unshift({
+      id: 'appt-'+ref.id,
+      text: todoText,
+      date: appt.date.split('T')[0],
+      time: appt.timeStr,
+      done: false,
+      createdAt: Date.now(),
+      apptId: ref.id,
+    });
+    await todoSave();
+
+    // 3. Generate ICS calendar file for download
+    var dt = new Date(appt.date);
+    var dtEnd = new Date(dt.getTime() + 60*60*1000); // 1 hour duration
+    function icsDate(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
+    var icsParts = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//NestTrack//EN',
+      'BEGIN:VEVENT',
+      'UID:appt-'+ref.id+'@nesttrack',
+      'DTSTAMP:'+icsDate(new Date()),
+      'DTSTART:'+icsDate(dt),
+      'DTEND:'+icsDate(dtEnd),
+      'SUMMARY:'+appt.type+' - '+appt.clientName,
+      appt.address ? 'LOCATION:'+appt.address : '',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].filter(Boolean);
+    var icsContent = icsParts.join(String.fromCharCode(10));
+    var blob = new Blob([icsContent],{type:'text/calendar'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (appt.type+'-'+appt.clientName).replace(/s+/g,'-')+'.ics';
+    a.click();
+
+    // 4. Send confirmation email if approved
+    if (sendEmail && appt.clientEmail) {
+      var payload = {
+        to: appt.clientEmail,
+        subject: appt._emailSubject,
+        html: appt._emailHtml
+      };
+      if (appt.agentEmail) payload.cc = appt.agentEmail;
+      await fetch(PROXY_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify(payload)
+      });
+    }
+
+    // 5. Refresh appointments list
+    renderApptList();
+    alert('Appointment saved for '+appt.clientName+'!'+(sendEmail&&appt.clientEmail?' Email sent.':' (No email sent.)'));
+
+  } catch(e) {
+    alert('Failed to save appointment: '+e.message);
+  }
+}
+window._commitAppt = _commitAppt;
+
+async function renderApptList() {
+  var el = document.getElementById('appt-list');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px;">Loading...</div>';
+  try {
+    var agentId = userProfile.agentId||'tom';
+    var now = Date.now();
+    var cutoff = now + 60*24*60*60*1000; // 60 days ahead
+    var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'appointments'));
+    var appts = [];
+    snap.forEach(function(d){ appts.push(Object.assign({id:d.id},d.data())); });
+    appts = appts.filter(function(a){
+      var t = new Date(a.date).getTime();
+      return t >= now - 3600000 && t <= cutoff;
+    });
+    appts.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+
+    if (!appts.length) {
+      el.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:16px;">No upcoming appointments.</div>';
+      return;
+    }
+
+    var typeEmojis = {'Meeting':'📋','Walkthrough':'🚶','Final Walkthrough':'🏁','Signing':'✍️','Inspection':'🔍','Appraisal':'📐','Open House':'🏡','Other':'📌'};
+    el.innerHTML = appts.map(function(a) {
+      var dt = new Date(a.date);
+      var dayStr = dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      var emoji = typeEmojis[a.type]||'📌';
+      return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:13px 15px;margin-bottom:9px;">'
+        +'<div style="display:flex;align-items:flex-start;gap:10px;">'
+        +'<div style="background:var(--purple-lt);border-radius:8px;padding:7px 9px;text-align:center;flex-shrink:0;min-width:48px;">'
+        +'<div style="font-size:10px;font-weight:700;color:var(--purple-dk);text-transform:uppercase;">'+dayStr.split(' ')[0]+'</div>'
+        +'<div style="font-size:17px;font-weight:700;color:var(--purple-dk);line-height:1.1;">'+dayStr.split(' ')[2]+'</div>'
+        +'<div style="font-size:10px;color:var(--purple-dk);">'+dayStr.split(' ')[1]+'</div>'
+        +'</div>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:13px;font-weight:600;">'+emoji+' '+partnerEsc(a.type)+'</div>'
+        +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(a.timeStr||'')+(a.address?' · '+partnerEsc(a.address):'')+'</div>'
+        +'<div style="font-size:12px;color:var(--purple-dk);margin-top:3px;font-weight:500;">'+partnerEsc(a.clientName||'')+'</div>'
+        +(a.notes?'<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic;">'+partnerEsc(a.notes)+'</div>':'')
+        +'<button onclick="deleteAppt(\''+a.id+'\',\''+partnerEsc(a.clientName||'')+'\',\'appt-'+a.id+'\')" style="margin-top:7px;background:none;border:none;font-size:11px;color:#E24B4A;cursor:pointer;padding:0;">Remove</button>'
+        +'</div></div></div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red-dk);padding:10px;">Error loading appointments.</div>';
+  }
+}
+window.renderApptList = renderApptList;
+
+async function deleteAppt(docId, clientName, todoId) {
+  if (!confirm('Remove appointment for '+clientName+'?')) return;
+  try {
+    var agentId = userProfile.agentId||'tom';
+    await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'appointments',docId));
+    // Remove from todos too
+    _todos = _todos.filter(function(t){ return t.id !== todoId; });
+    await todoSave();
+    renderApptList();
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.deleteAppt = deleteAppt;
+
 
 // ── Assign a showing to a client ──
 async function assignShowing(idx) {
