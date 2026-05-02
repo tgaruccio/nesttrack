@@ -492,10 +492,7 @@ textarea{resize:vertical;min-height:68px;}
   <div class="tl-head">
     <div style="display:flex;align-items:center;gap:10px;">
       <div class="tl-label" id="tl-label-text">Your Buyers Journey</div>
-      <div style="display:flex;gap:0;border:0.5px solid var(--border);border-radius:20px;overflow:hidden;flex-shrink:0;">
-        <button id="tl-tab-buying" onclick="switchJourneyTab('buying')" style="padding:3px 10px;font-size:10px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;letter-spacing:0.03em;">Buying</button>
-        <button id="tl-tab-selling" onclick="switchJourneyTab('selling')" style="padding:3px 10px;font-size:10px;font-weight:500;background:transparent;color:var(--text3);border:none;cursor:pointer;letter-spacing:0.03em;border-left:0.5px solid var(--border);">Selling</button>
-      </div>
+      <div id="tl-journey-pills" style="display:flex;gap:4px;flex-shrink:0;"></div>
     </div>
     <div class="tl-status" id="tl-status">Currently in: <strong>Initial Consultation</strong></div>
   </div>
@@ -558,7 +555,6 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="photochecklist" onclick="go('photochecklist',this)">📋 Listing Photos Checklist</button>
 
   <div class="ns">Communicate</div>
-  <button class="nb" data-pg="chat" onclick="go('chat',this)">💬 Chat with Agent</button>
   <button class="nb" data-pg="docs" onclick="go('docs',this)">📁 Documents</button>
 
   <div class="ns">Resources</div>
@@ -585,15 +581,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
   </div>
 
-  <!-- Unread message alert -->
-  <div id="home-unread-alert" style="display:none;background:#FEF2F2;border:1px solid #E24B4A;border-radius:var(--r);padding:12px 14px;display:none;align-items:center;gap:12px;cursor:pointer;" onclick="go('chat',document.querySelector('[data-pg=chat]'))">
-    <span style="font-size:22px;flex-shrink:0;">💬</span>
-    <div style="flex:1;">
-      <div style="font-weight:600;font-size:13.5px;color:#991B1B;" id="home-unread-text">New message from your agent</div>
-      <div style="font-size:12px;color:#E24B4A;">Tap to open chat</div>
-    </div>
-    <span style="font-size:20px;color:#E24B4A;">›</span>
-  </div>
+
 
   <!-- Buyer Transaction Timeline -->
   <div id="txn-buyer-card" style="display:none;border-radius:var(--r);border:1.5px solid var(--green-md);">
@@ -693,11 +681,22 @@ textarea{resize:vertical;min-height:68px;}
     </div>
   </div>
 
-  <!-- Communicate & Resources -->
+  <!-- Contact Agent -->
+  <div>
+    <div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Contact Your Agent</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <button onclick="contactAgent('call')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:13px 10px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;font-family:inherit;">
+        <span style="font-size:22px;">&#128222;</span><span style="font-size:12px;font-weight:500;">Call</span>
+      </button>
+      <button onclick="contactAgent('text')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:13px 10px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;font-family:inherit;">
+        <span style="font-size:22px;">&#128172;</span><span style="font-size:12px;font-weight:500;">Text</span>
+      </button>
+      <button onclick="contactAgent('email')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:13px 10px;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;font-family:inherit;">
+        <span style="font-size:22px;">&#9993;</span><span style="font-size:12px;font-weight:500;">Email</span>
+      </button>
+    </div>
+  </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-    <button onclick="go('chat',document.querySelector('[data-pg=chat]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:13px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;font-family:inherit;">
-      <span style="font-size:20px;">💬</span><span style="font-size:13px;font-weight:500;" id="home-chat-label">Chat with Agent</span>
-    </button>
     <button onclick="go('education',document.querySelector('[data-pg=education]'))" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r);padding:13px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;font-family:inherit;">
       <span style="font-size:20px;">📚</span><span style="font-size:13px;font-weight:500;">Education</span>
     </button>
@@ -950,6 +949,10 @@ textarea{resize:vertical;min-height:68px;}
     <div class="notice" style="background:#FEF3C7;color:#92400E;font-size:11.5px;">Title fees based on real Northeast Ohio closings. Tax proration estimated at 9 months. Your actual net will vary — contact Tom for a precise net sheet.</div>
     <div class="card" style="display:flex;flex-direction:column;gap:10px;">
       <div style="font-size:13px;font-weight:500;">Email this Net Sheet</div>
+      <div id="ns-client-wrap" style="display:none;flex-direction:column;gap:6px;">
+        <label class="flabel">Send to Client</label>
+        <select id="ns-client-sel" style="font-size:13px;"><option value="">-- Select client --</option></select>
+      </div>
       <input type="email" id="ns-email" placeholder="Enter email address" style="font-size:14px;"/>
       <button class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;" onclick="emailNetSheet()">📧 Send Net Sheet</button>
       <div id="ns-email-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;"></div>
@@ -1093,7 +1096,6 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:11px;opacity:0.85;" id="ad-clients-count">Loading...</span>
     </button>
 
-    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('chat')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;position:relative;">
       <span style="font-size:24px;">💬</span>
       <span style="font-size:13px;font-weight:600;color:var(--text);">Messages</span>
       <span style="font-size:11px;color:var(--text2);" id="ad-msg-count">No unread</span>
@@ -1891,32 +1893,7 @@ textarea{resize:vertical;min-height:68px;}
 <div class="page" id="page-dash">
   <div class="ph"><div class="pt">My Dashboard</div></div>
   <div class="dstats" id="dstats"></div>
-  <!-- Buyer journey step selector -->
-  <div class="card" style="display:flex;flex-direction:column;gap:12px;">
-    <div style="font-weight:500;font-size:14px;">My Journey Progress</div>
-    <!-- Journey type -->
-    <div>
-      <label class="flabel">I am a</label>
-      <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
-        <button id="jt-both" onclick="setJourneyType('both')" style="flex:1;padding:8px;font-size:12px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Buyer &amp; Seller</button>
-        <button id="jt-buyer" onclick="setJourneyType('buyer-only')" style="flex:1;padding:8px;font-size:12px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Buyer Only</button>
-        <button id="jt-seller" onclick="setJourneyType('seller-only')" style="flex:1;padding:8px;font-size:12px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Seller Only</button>
-      </div>
-    </div>
-    <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
-      <button id="dash-tab-buy" onclick="switchDashJourney('buying')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Buying Step</button>
-      <button id="dash-tab-sell" onclick="switchDashJourney('selling')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Selling Step</button>
-    </div>
-    <div id="dash-buy-wrap" style="display:flex;flex-direction:column;gap:8px;">
-      <select id="buyer-step-sel" style="font-size:14px;padding:10px 12px;"></select>
-      <button class="btn btn-g" onclick="buyerUpdateStep()">Update Buying Step</button>
-    </div>
-    <div id="dash-sell-wrap" style="display:none;flex-direction:column;gap:8px;">
-      <select id="seller-step-sel" style="font-size:14px;padding:10px 12px;"></select>
-      <button class="btn" onclick="sellerUpdateStep()" style="background:#D97706;color:#fff;border-color:#B45309;">Update Selling Step</button>
-    </div>
-    <div id="buyer-step-status" style="display:none;font-size:12px;padding:8px 12px;border-radius:6px;"></div>
-  </div>
+
 
   <div class="card" style="display:flex;flex-direction:column;gap:12px;">
     <div style="font-weight:500;font-size:14px;">Search Preferences</div>
@@ -1948,7 +1925,6 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Tabs -->
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
     <button id="agent-tab-buyers" onclick="switchAgentTab('buyers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;">Clients</button>
-    <button id="agent-tab-chat" onclick="switchAgentTab('chat')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Messages <span id="agent-chat-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;">!</span></button>
     <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Partners</button>
     <button id="agent-tab-offers" onclick="switchAgentTab('offers')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">Offers <span id="offers-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;margin-left:2px;"></span></button>
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings</button>
@@ -3543,19 +3519,18 @@ var activeJourneyTab = 'buying';
 
 function switchJourneyTab(tab) {
   activeJourneyTab = tab;
-  // Update tab buttons in tlbar
-  var bb = document.getElementById('tl-tab-buying');
-  var sb = document.getElementById('tl-tab-selling');
   var lbl = document.getElementById('tl-label-text');
-  if (bb) { bb.style.background = tab==='buying'?'var(--green)':'transparent'; bb.style.color = tab==='buying'?'#fff':'var(--text3)'; }
-  if (sb) { sb.style.background = tab==='selling'?'#D97706':'transparent'; sb.style.color = tab==='selling'?'#fff':'var(--text3)'; }
-  if (lbl) lbl.textContent = tab==='buying'?'Your Buyers Journey':'Your Sellers Journey';
-  // Render correct timeline strip only
-  if (tab === 'selling') {
-    renderSellerTimeline();
-  } else {
-    renderTimeline();
+  // Update read-only pills
+  var pillsEl = document.getElementById('tl-journey-pills');
+  var jt = (userProfile && userProfile.journeyType) || 'buyer';
+  if (pillsEl) {
+    var pills = '';
+    if (jt === 'buyer' || jt === 'both') pills += '<span style="background:var(--green);color:#fff;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;">Buying</span>';
+    if (jt === 'seller' || jt === 'both') pills += '<span style="background:#D97706;color:#fff;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;">Selling</span>';
+    pillsEl.innerHTML = pills;
   }
+  if (lbl) lbl.textContent = tab==='buying'?'Your Buyers Journey':'Your Sellers Journey';
+  if (tab === 'selling') { renderSellerTimeline(); } else { renderTimeline(); }
 }
 window.switchJourneyTab = switchJourneyTab;
 
@@ -4487,6 +4462,20 @@ window.sendContractDatesEmail = sendContractDatesEmail;
 
 
 async function emailNetSheet() {
+  // For agents: populate client selector if not already done
+  if (isAgent) {
+    var wrap = document.getElementById('ns-client-wrap');
+    var sel = document.getElementById('ns-client-sel');
+    var emailFld = document.getElementById('ns-email');
+    if (wrap) wrap.style.display = 'flex';
+    if (sel && sel.options.length <= 1 && myBuyers && myBuyers.length) {
+      sel.innerHTML = '<option value="">-- Select client --</option>'
+        + myBuyers.filter(function(b){ return !b.pending && b.email; }).map(function(b){
+            return '<option value="'+b.email+'">'+(((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email)+'</option>';
+          }).join('');
+      sel.onchange = function(){ if(emailFld) emailFld.value = sel.value; };
+    }
+  }
   var email = (document.getElementById('ns-email')||{}).value||'';
   var status = document.getElementById('ns-email-status');
   if (!email) { alert('Enter an email address.'); return; }
@@ -4847,6 +4836,15 @@ function updateAgentRefs() {
   updateAgentTokens(document.body);
 }
 window.updateAgentRefs = updateAgentRefs;
+
+// Pre-fill net sheet email for clients
+function prefillNetSheetEmail() {
+  if (!isAgent && userProfile && userProfile.email) {
+    var el = document.getElementById('ns-email');
+    if (el && !el.value) el.value = userProfile.email;
+  }
+}
+window.prefillNetSheetEmail = prefillNetSheetEmail;
 
 function contactAgent(method, subjectOrMessage = '', body = '') {
   const a = currentAgent();
@@ -6052,6 +6050,7 @@ async function renderBuyers() {
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
         ${agentLine}${coAgentLine}
+        ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; ctBtns+='</div>'; } return ctBtns; })()}
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
