@@ -5541,7 +5541,7 @@ function renderHome() {
 
   // ── BUYING + SELLING SECTION ──
   var jType = (userProfile && userProfile.journeyType) || 'buyer';
-  var isBoth = (jType === 'both');
+  var isBoth = (jType === 'both') || (jType === 'buyer' && (userProfile && (userProfile.currentSellerStep||0) > 0));
   var isBuyingOnly = (jType === 'buyer' || jType === 'buyer-only' || !jType);
   var isSellingOnly = (jType === 'seller' || jType === 'seller-only');
 
@@ -5728,11 +5728,12 @@ function renderHome() {
 
   // Render trail maps - use requestAnimationFrame for reliability
   function _doRenderTrails() {
-    if (!isSellingOnly) renderHomeTrailMap();
-    if (isBoth || isSellingOnly) { if (document.getElementById('home-seller-trail-map')) renderHomeSellerTrailMap(); }
-    if (mortStep > 0 || mortHasDates) {
-      if (document.getElementById('home-mortgage-trail-map')) renderHomeMortgageTrailMap();
-    }
+    // Always render buyer trail (hidden via CSS if seller-only)
+    if (document.getElementById('home-trail-map')) renderHomeTrailMap();
+    // Always render seller trail (hidden via CSS if buyer-only; ready when toggled)
+    if (document.getElementById('home-seller-trail-map')) renderHomeSellerTrailMap();
+    // Mortgage trail
+    if (document.getElementById('home-mortgage-trail-map')) renderHomeMortgageTrailMap();
   }
   if (typeof requestAnimationFrame !== 'undefined') {
     requestAnimationFrame(function(){ requestAnimationFrame(_doRenderTrails); });
@@ -5749,6 +5750,189 @@ function renderHome() {
   if (savedBadge) savedBadge.textContent = props.length ? '('+props.length+')' : '';
 }
 // ─── Home trail toggle ───
+
+// ─── Home page mini trail renderer (mirrors working renderTrailMap exactly) ───
+function renderHomeTrailMap() {
+  var cur = (userProfile && userProfile.currentStep) || 1;
+  var map = document.getElementById('home-trail-map');
+  if (!map) return;
+
+  var mob = window.innerWidth <= 700;
+  var r = mob ? 26 : 22;
+  var stageW = mob ? 82 : 72;
+  var gap = mob ? 10 : 10;
+  var svgH = mob ? 148 : 130;
+  var cy0 = mob ? 42 : 38;
+  var cy1 = mob ? 98 : 86;
+  var totalW = TRAIL_STAGES.length * (stageW + gap) + 16;
+  var emojiSize = mob ? 16 : 14;
+
+  var cx = function(i) { return 8 + i * (stageW + gap) + stageW/2; };
+  var cy = function(i) { return i % 2 === 0 ? cy0 : cy1; };
+
+  var svg = '<svg viewBox="0 0 ' + totalW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" style="display:block;width:' + totalW + 'px;min-width:' + totalW + 'px;height:' + svgH + 'px;">';
+
+  // Dashed background path
+  svg += '<path d="';
+  TRAIL_STAGES.forEach(function(s,i) { svg += (i===0 ? 'M ' : 'L ') + cx(i) + ' ' + cy(i) + ' '; });
+  svg += '" fill="none" stroke="#e0e0d8" stroke-width="2.5" stroke-dasharray="6,4"/>';
+
+  // Completed path
+  var donePath = '';
+  TRAIL_STAGES.forEach(function(s,i) {
+    if (s.id <= cur) donePath += (donePath==='' ? 'M ' : 'L ') + cx(i) + ' ' + cy(i) + ' ';
+  });
+  if (donePath) svg += '<path d="' + donePath + '" fill="none" stroke="#1D9E75" stroke-width="2.5"/>';
+
+  // Bubbles
+  TRAIL_STAGES.forEach(function(s,i) {
+    var x = cx(i), y = cy(i);
+    var done = s.id < cur, active = s.id === cur;
+    var fill   = done ? '#1D9E75' : active ? '#fff' : '#f5f4f0';
+    var stroke = (done||active) ? '#1D9E75' : '#ccc';
+    var sw     = active ? 2.5 : 1.5;
+    var foSize = r * 2;
+    var labelY = y + (y < (mob ? 74 : 60) ? (r + 13) : -(r + 4));
+    var labelSz = mob ? 9 : 8.5;
+
+    svg += '<g onclick="showTrailStage(' + s.id + ')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
+    svg += '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
+    if (active) svg += '<circle cx="' + x + '" cy="' + y + '" r="' + (r+5) + '" fill="none" stroke="#9FE1CB" stroke-width="2" opacity="0.6"/>';
+    if (done) {
+      svg += '<text x="' + x + '" y="' + (y+5) + '" text-anchor="middle" font-size="' + (mob?15:12) + '" font-weight="bold" fill="#fff">&#10003;</text>';
+    } else {
+      svg += '<foreignObject x="' + (x-r) + '" y="' + (y-r) + '" width="' + foSize + '" height="' + foSize + '"><div xmlns="http://www.w3.org/1999/xhtml" style="width:' + foSize + 'px;height:' + foSize + 'px;display:flex;align-items:center;justify-content:center;font-size:' + emojiSize + 'px;line-height:1;">' + (s.emoji||'●') + '</div></foreignObject>';
+    }
+    var lbl = s.title ? s.title.split(' ')[0] : '';
+    svg += '<text x="' + x + '" y="' + labelY + '" text-anchor="middle" font-size="' + labelSz + '" fill="' + (active ? '#0F6E56' : '#888') + '" font-weight="' + (active ? '600' : '400') + '">' + lbl + '</text>';
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  map.innerHTML = svg;
+  if (typeof updateAgentTokens === 'function') updateAgentTokens(map);
+}
+window.renderHomeTrailMap = renderHomeTrailMap;
+
+function renderHomeSellerTrailMap() {
+  var cur = (userProfile && userProfile.currentSellerStep) || 1;
+  var map = document.getElementById('home-seller-trail-map');
+  if (!map) return;
+
+  var mob = window.innerWidth <= 700;
+  var r = mob ? 26 : 22;
+  var stageW = mob ? 82 : 68;
+  var gap = mob ? 8 : 8;
+  var svgH = mob ? 148 : 130;
+  var cy0 = mob ? 42 : 38;
+  var cy1 = mob ? 98 : 86;
+  var totalW = SELLER_STEPS.length * (stageW + gap) + 16;
+  var emojiSize = mob ? 16 : 14;
+
+  var cx = function(i) { return 8 + i * (stageW + gap) + stageW/2; };
+  var cy = function(i) { return i % 2 === 0 ? cy0 : cy1; };
+
+  var svg = '<svg viewBox="0 0 ' + totalW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" style="display:block;width:' + totalW + 'px;min-width:' + totalW + 'px;height:' + svgH + 'px;">';
+
+  svg += '<path d="';
+  SELLER_STEPS.forEach(function(s,i) { svg += (i===0 ? 'M ' : 'L ') + cx(i) + ' ' + cy(i) + ' '; });
+  svg += '" fill="none" stroke="#e0e0d8" stroke-width="2.5" stroke-dasharray="6,4"/>';
+
+  var donePath = '';
+  SELLER_STEPS.forEach(function(s,i) {
+    if ((i+1) <= cur) donePath += (donePath==='' ? 'M ' : 'L ') + cx(i) + ' ' + cy(i) + ' ';
+  });
+  if (donePath) svg += '<path d="' + donePath + '" fill="none" stroke="#D97706" stroke-width="2.5"/>';
+
+  SELLER_STEPS.forEach(function(s,i) {
+    var id = i+1;
+    var x = cx(i), y = cy(i);
+    var done = id < cur, active = id === cur;
+    var fill   = done ? '#D97706' : active ? '#fff' : '#FFFBEB';
+    var stroke = (done||active) ? '#D97706' : '#e5d5a0';
+    var sw     = active ? 2.5 : 1.5;
+    var foSize = r * 2;
+    var labelY = y + (y < (mob ? 74 : 60) ? (r + 13) : -(r + 4));
+    var labelSz = mob ? 9 : 8.5;
+
+    svg += '<g onclick="showSellerStepEdu(' + i + ')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
+    svg += '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
+    if (active) svg += '<circle cx="' + x + '" cy="' + y + '" r="' + (r+5) + '" fill="none" stroke="#F5C97A" stroke-width="2" opacity="0.6"/>';
+    if (done) {
+      svg += '<text x="' + x + '" y="' + (y+5) + '" text-anchor="middle" font-size="' + (mob?15:12) + '" font-weight="bold" fill="#fff">&#10003;</text>';
+    } else {
+      svg += '<foreignObject x="' + (x-r) + '" y="' + (y-r) + '" width="' + foSize + '" height="' + foSize + '"><div xmlns="http://www.w3.org/1999/xhtml" style="width:' + foSize + 'px;height:' + foSize + 'px;display:flex;align-items:center;justify-content:center;font-size:' + emojiSize + 'px;line-height:1;">' + (s.icon||'●') + '</div></foreignObject>';
+    }
+    var lbl = s.title ? s.title.split(' ')[0] : '';
+    svg += '<text x="' + x + '" y="' + labelY + '" text-anchor="middle" font-size="' + labelSz + '" fill="' + (active ? '#92400E' : '#888') + '" font-weight="' + (active ? '600' : '400') + '">' + lbl + '</text>';
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  map.innerHTML = svg;
+}
+window.renderHomeSellerTrailMap = renderHomeSellerTrailMap;
+
+function renderHomeMortgageTrailMap() {
+  var cur = (userProfile && userProfile.currentMortgageStep) || 0;
+  var map = document.getElementById('home-mortgage-trail-map');
+  if (!map) return;
+
+  var mob = window.innerWidth <= 700;
+  var r = mob ? 26 : 22;
+  var stageW = mob ? 82 : 72;
+  var gap = mob ? 10 : 10;
+  var svgH = mob ? 148 : 130;
+  var cy0 = mob ? 42 : 38;
+  var cy1 = mob ? 98 : 86;
+  var totalW = MJ_STEPS.length * (stageW + gap) + 16;
+  var emojiSize = mob ? 16 : 14;
+
+  var cx = function(i) { return 8 + i * (stageW + gap) + stageW/2; };
+  var cy = function(i) { return i % 2 === 0 ? cy0 : cy1; };
+
+  var svg = '<svg viewBox="0 0 ' + totalW + ' ' + svgH + '" xmlns="http://www.w3.org/2000/svg" style="display:block;width:' + totalW + 'px;min-width:' + totalW + 'px;height:' + svgH + 'px;">';
+
+  svg += '<path d="';
+  MJ_STEPS.forEach(function(s,i) { svg += (i===0 ? 'M ' : 'L ') + cx(i) + ' ' + cy(i) + ' '; });
+  svg += '" fill="none" stroke="#e0e0d8" stroke-width="2.5" stroke-dasharray="6,4"/>';
+
+  var donePath = '';
+  MJ_STEPS.forEach(function(s,i) {
+    if ((i+1) <= cur) donePath += (donePath==='' ? 'M ' : 'L ') + cx(i) + ' ' + cy(i) + ' ';
+  });
+  if (donePath) svg += '<path d="' + donePath + '" fill="none" stroke="#378ADD" stroke-width="2.5"/>';
+
+  MJ_STEPS.forEach(function(s,i) {
+    var id = i+1;
+    var x = cx(i), y = cy(i);
+    var done = id < cur, active = id === cur;
+    var fill   = done ? '#378ADD' : active ? '#fff' : '#EFF6FF';
+    var stroke = (done||active) ? '#378ADD' : '#93C5FD';
+    var sw     = active ? 2.5 : 1.5;
+    var foSize = r * 2;
+    var labelY = y + (y < (mob ? 74 : 60) ? (r + 13) : -(r + 4));
+    var labelSz = mob ? 9 : 8.5;
+    var cleanTitle = s.title ? s.title.replace(/^Step \\d+ — /, '').split(' ')[0] : '';
+
+    svg += '<g onclick="showMJStepEdu(' + i + ')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
+    svg += '<circle cx="' + x + '" cy="' + y + '" r="' + r + '" fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '"/>';
+    if (active) svg += '<circle cx="' + x + '" cy="' + y + '" r="' + (r+5) + '" fill="none" stroke="#93C5FD" stroke-width="2" opacity="0.6"/>';
+    if (done) {
+      svg += '<text x="' + x + '" y="' + (y+5) + '" text-anchor="middle" font-size="' + (mob?15:12) + '" font-weight="bold" fill="#fff">&#10003;</text>';
+    } else {
+      svg += '<foreignObject x="' + (x-r) + '" y="' + (y-r) + '" width="' + foSize + '" height="' + foSize + '"><div xmlns="http://www.w3.org/1999/xhtml" style="width:' + foSize + 'px;height:' + foSize + 'px;display:flex;align-items:center;justify-content:center;font-size:' + emojiSize + 'px;line-height:1;">' + (s.icon||'●') + '</div></foreignObject>';
+    }
+    svg += '<text x="' + x + '" y="' + labelY + '" text-anchor="middle" font-size="' + labelSz + '" fill="' + (active ? '#185FA5' : '#888') + '" font-weight="' + (active ? '600' : '400') + '">' + cleanTitle + '</text>';
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  map.innerHTML = svg;
+}
+window.renderHomeMortgageTrailMap = renderHomeMortgageTrailMap;
+
+
 function homeTrailTab(tab) {
   var buyerTrail  = document.getElementById('home-buyer-trail');
   var sellerTrail = document.getElementById('home-seller-trail');
@@ -5757,7 +5941,7 @@ function homeTrailTab(tab) {
   var btnSelling  = document.getElementById('home-trail-btn-selling');
   if (tab === 'selling') {
     if (buyerTrail)  buyerTrail.style.display  = 'none';
-    if (sellerTrail) { sellerTrail.style.display = 'block'; renderHomeSellerTrailMap(); }
+    if (sellerTrail) { sellerTrail.style.display = 'block'; setTimeout(renderHomeSellerTrailMap, 50); }
     if (label) label.textContent = 'Home Sellers Journey';
     if (btnBuying)  { btnBuying.style.background='rgba(255,255,255,0.2)'; btnBuying.style.color='#fff'; btnBuying.style.border='1px solid rgba(255,255,255,0.5)'; }
     if (btnSelling) { btnSelling.style.background='rgba(255,255,255,0.92)'; btnSelling.style.color='var(--green-dk)'; btnSelling.style.border='none'; }
@@ -5772,593 +5956,7 @@ function homeTrailTab(tab) {
 window.homeTrailTab = homeTrailTab;
 
 // ─── Mini trail renderer (shared by buyer/seller/mortgage on home page) ───
-function _renderMiniTrail(container, stages, cur, colorName, onClickFn) {
-  if (!container) return;
-  var mob = window.innerWidth <= 700;
-  var r = mob ? 22 : 20, stageW = mob ? 68 : 64, gap = mob ? 8 : 10;
-  var svgH = mob ? 122 : 112, cy0 = mob ? 36 : 34, cy1 = mob ? 80 : 72;
-  var totalW = stages.length * (stageW + gap) + 10;
-  var palettes = {
-    green:{main:'#1D9E75',lt:'#9FE1CB',dk:'#0F6E56',activeShadow:'#E1F5EE'},
-    amber:{main:'#D97706',lt:'#F5C97A',dk:'#92400E',activeShadow:'#FEF3C7'},
-    blue: {main:'#378ADD',lt:'#93C5FD',dk:'#185FA5',activeShadow:'#E6F1FB'},
-  };
-  var c = palettes[colorName] || palettes.green;
-  var cxFn = function(i){ return 5 + i*(stageW+gap)+stageW/2; };
-  var cyFn = function(i){ return i%2===0 ? cy0 : cy1; };
-  var svg = '<svg viewBox="0 0 '+totalW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" style="display:block;width:'+totalW+'px;min-width:'+totalW+'px;height:'+svgH+'px;">';
-  svg += '<path d="';
-  stages.forEach(function(s,i){ svg += (i===0?'M ':'L ')+cxFn(i)+' '+cyFn(i)+' '; });
-  svg += '" fill="none" stroke="#e0e0d8" stroke-width="2" stroke-dasharray="5,4"/>';
-  var donePath = '';
-  stages.forEach(function(s,i){ if(s.id<=cur) donePath+=(donePath===''?'M ':'L ')+cxFn(i)+' '+cyFn(i)+' '; });
-  if(donePath) svg+='<path d="'+donePath+'" fill="none" stroke="'+c.main+'" stroke-width="2"/>';
-  stages.forEach(function(s,i){
-    var x=cxFn(i), y=cyFn(i);
-    var done=s.id<cur, active=s.id===cur;
-    var fill=done?c.main:active?'#fff':c.activeShadow;
-    var stroke=(done||active)?c.main:'#ddd';
-    var sw=active?2.5:1.5;
-    var foSize=r*2;
-    var labelY=y+(y<(mob?58:52)?(r+13):-(r+4));
-    var labelSz=mob?8:7.5;
-    var mid = container.getAttribute('data-mapid') || '';
-    svg+='<g onclick="window._htClick('+i+',\''+mid+'\')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
-    svg+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"/>';
-    if(active) svg+='<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="'+c.lt+'" stroke-width="1.5" opacity="0.6"/>';
-    if(done){
-      svg+='<text x="'+x+'" y="'+(y+5)+'" text-anchor="middle" font-size="'+(mob?12:11)+'" fill="#fff">&#10003;</text>';
-    } else {
-      var emoji=s.emoji||s.icon||String(s.id);
-      svg+='<foreignObject x="'+(x-r)+'" y="'+(y-r)+'" width="'+foSize+'" height="'+foSize+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+foSize+'px;height:'+foSize+'px;display:flex;align-items:center;justify-content:center;font-size:'+(mob?13:12)+'px;line-height:1;">'+emoji+'</div></foreignObject>';
-    }
-    var lt=(s.label||s.title||'').split(' ')[0];
-    svg+='<text x="'+x+'" y="'+labelY+'" text-anchor="middle" font-size="'+labelSz+'" fill="'+(active?c.dk:'#999')+'" font-weight="'+(active?'600':'400')+'">'+lt+'</text>';
-    svg+='</g>';
-  });
-  svg+='</svg>';
-  container.innerHTML=svg;
-  container._htStages=stages;
-  container._htClickFn=onClickFn;
-  // Store mapId on the SVG element so clicks know which map they're in
-  container.setAttribute('data-mapid', container.id || 'map-' + Date.now());
-  var mapId = container.getAttribute('data-mapid');
-  window._htClick=function(idx, mid){
-    var ct = document.querySelector('[data-mapid="'+mid+'"]');
-    if(ct && ct._htStages && ct._htStages[idx]!==undefined && ct._htClickFn){
-      ct._htClickFn(ct._htStages[idx].id, idx);
-    }
-  };
-}
-window._renderMiniTrail = _renderMiniTrail;
-
-function renderHomeTrailMap() {
-  var map=document.getElementById('home-trail-map'); if(!map) return;
-  var cur=(userProfile&&userProfile.currentStep)||1;
-  var stages=TRAIL_STAGES.map(function(s){ return {id:s.id,emoji:s.emoji,label:s.short||s.name.split(' ')[0]}; });
-  map._htClickFn=function(id){ openStep(id); };
-  map._htStages=stages;
-  _renderMiniTrail(map,stages,cur,'green',function(id){ openStep(id); });
-}
-window.renderHomeTrailMap = renderHomeTrailMap;
-
-function renderHomeSellerTrailMap() {
-  var map=document.getElementById('home-seller-trail-map'); if(!map) return;
-  var cur=(userProfile&&userProfile.currentSellerStep)||1;
-  var stages=SELLER_STEPS.map(function(s,i){ return {id:i+1,emoji:s.icon,label:s.title.split(' ')[0]}; });
-  map._htClickFn=function(id,idx){ showSellerStepEdu(idx); };
-  map._htStages=stages;
-  _renderMiniTrail(map,stages,cur,'amber',function(id,idx){ showSellerStepEdu(idx); });
-}
-window.renderHomeSellerTrailMap = renderHomeSellerTrailMap;
-
-function renderHomeMortgageTrailMap() {
-  var map=document.getElementById('home-mortgage-trail-map'); if(!map) return;
-  var cur=(userProfile&&userProfile.currentMortgageStep)||0;
-  var stages=MJ_STEPS.map(function(s,i){ return {id:i+1,emoji:s.icon,label:s.title.replace(/^Step \d+ — /,'').split(' ')[0]}; });
-  map._htClickFn=function(id,idx){ showMJStepEdu(idx); };
-  map._htStages=stages;
-  _renderMiniTrail(map,stages,cur,'blue',function(id,idx){ showMJStepEdu(idx); });
-}
-window.renderHomeMortgageTrailMap = renderHomeMortgageTrailMap;
-
-window.renderHome = renderHome;
-
-// Inline step updates from home page
-
-function renderDash() {
-  const t = props.length, tr = props.filter(p => p.rating >= 4).length, avg = t ? +(props.reduce((s,p) => s + (p.rating||0), 0)/t).toFixed(1) : 0, ms = props.filter(p => (p.tags||[]).includes('mustsee')).length;
-  document.getElementById('dstats').innerHTML = `
-    <div class="dstat"><div class="dnum">${t}</div><div class="dlbl">Saved</div></div>
-    <div class="dstat"><div class="dnum">${tours.length}</div><div class="dlbl">Tours</div></div>
-    <div class="dstat"><div class="dnum">${avg}</div><div class="dlbl">Avg Rating</div></div>
-    <div class="dstat"><div class="dnum">${ms}</div><div class="dlbl">Must-See</div></div>`;
-}
-async function savePref() {
-  const data = {
-    minPrice: document.getElementById('pref-min').value,
-    maxPrice: document.getElementById('pref-max').value,
-    minBeds: document.getElementById('pref-beds').value,
-    cities: document.getElementById('pref-cities').value,
-  };
-  try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { preferences: data }); alert('Saved!'); } catch(e) { alert('Failed: ' + e.message); }
-}
-async function genReport() {
-  const out = document.getElementById('report-out'); think(out);
-  const summary = props.length ? props.map(p => `${p.address} (${p.price}, ${p.rating}/5): Pros: ${(p.pros||[]).join(', ')||'none'}. Cons: ${(p.cons||[]).join(', ')||'none'}.`).join('\n') : 'No properties saved.';
-  try {
-    const d = await claudeAPI({model:'claude-sonnet-4-5',max_tokens:1000,messages:[{role:'user',content:`Write a 3-4 paragraph buyer feedback report for the real estate agent based on these saved properties:\n\n${summary}\n\nCover: overall impressions, top candidates, deal-breakers, and what they're looking for next. Professional but warm.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
-  } catch(e) { out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed.</div>`; out.style.display = 'block'; }
-}
-window.savePref = savePref;
-window.genReport = genReport;
-
-// ─── TOUR MODE ───
-function openTourAdd() { ['t-addr','t-price','t-bedbath'].forEach(id => document.getElementById(id).value = ''); document.getElementById('tour-modal').style.display = 'flex'; setTimeout(()=>setupPlacesAC('t-addr'),100); }
-async function startTour() {
-  const addr = document.getElementById('t-addr').value.trim(); if (!addr) return;
-  const t = { address: addr, price: document.getElementById('t-price').value, bedbath: document.getElementById('t-bedbath').value, date: new Date().toLocaleDateString(), rooms: {}, rating: 0, saved: false, createdAt: new Date().toISOString() };
-  try {
-    const ref = await fb.addDoc(fb.collection(fb.db, 'users', currentUser.uid, 'tours'), t);
-    t.id = ref.id; tours.push(t);
-    document.getElementById('sc-tour').textContent = tours.length;
-    closeM('tour-modal'); renderTours(); openTourDetail(t.id);
-  } catch(e) { alert('Failed: ' + e.message); }
-}
-function renderTours() {
-  var list = document.getElementById('tour-list');
-  var empty = document.getElementById('tour-empty');
-  if (!tours.length) { list.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
-  list.innerHTML = tours.map(function(t) {
-    var doneCount = ROOMS.concat(SYSTEMS).filter(function(r){return (t.rooms||{})[r];}).length;
-    var total = ROOMS.length + SYSTEMS.length;
-    var pct = Math.round((doneCount/total)*100);
-    var ratingLabel = t.rating ? (t.rating+' of 5 stars') : 'Tap stars to rate';
-    var starsHtml = [1,2,3,4,5].map(function(s){
-      var on = s<=(t.rating||0)?'on':'';
-      return '<span class="star '+on+'" data-tid="'+t.id+'" data-s="'+s+'" onclick="event.stopPropagation();handleTourStar(this)" style="font-size:30px;padding:4px;-webkit-tap-highlight-color:transparent;cursor:pointer;">&#9733;</span>';
-    }).join('');
-    var savedBtn = t.saved
-      ? '<span class="pill pill-g" style="flex-shrink:0;">&#10003; Saved</span>'
-      : '<button class="btn btn-sm btn-g" style="flex-shrink:0;" data-tid="'+t.id+'" onclick="event.stopPropagation();saveTourAsProp(this.dataset.tid)">Save to Tracker</button>';
-    var roomChips = ROOMS.map(function(r){
-      var done=(t.rooms||{})[r];
-      return '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+(done?'var(--green-lt)':'var(--surface2)')+';color:'+(done?'var(--green-dk)':'var(--text3)')+';">'+r+'</span>';
-    }).join('');
-    var sysChips = SYSTEMS.map(function(r){
-      var done=(t.rooms||{})[r];
-      return '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+(done?'var(--amber-lt)':'var(--surface2)')+';color:'+(done?'var(--amber-dk)':'var(--text3)')+';">'+r+'</span>';
-    }).join('');
-    return '<div class="card" style="cursor:pointer;border-width:1.5px;" data-tid="'+t.id+'" onclick="openTourDetail(this.dataset.tid)">'
-      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">'
-      +'<div><div style="font-weight:600;font-size:15px;margin-bottom:2px;">'+t.address.split(',')[0]+'</div>'
-      +'<div style="font-size:11.5px;color:var(--text2);">'+(t.price||'')+(t.bedbath?' &middot; '+t.bedbath:'')+' &middot; '+t.date+'</div></div>'
-      +savedBtn+'</div>'
-      +'<div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px 16px;margin-bottom:12px;text-align:center;" onclick="event.stopPropagation();">'
-      +'<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Overall Rating</div>'
-      +'<div style="display:flex;justify-content:center;">'+starsHtml+'</div>'
-      +'<div style="font-size:11.5px;color:var(--text3);margin-top:6px;">'+ratingLabel+'</div>'
-      +'</div>'
-      +'<div style="margin-bottom:10px;">'
-      +'<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
-      +'<div style="font-size:10.5px;font-weight:500;color:var(--text2);">Notes Progress</div>'
-      +'<div style="font-size:10.5px;color:'+(pct===100?'var(--green-dk)':'var(--text3)')+';">'+doneCount+'/'+total+'</div></div>'
-      +'<div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden;">'
-      +'<div style="background:var(--green);height:100%;width:'+pct+'%;border-radius:20px;"></div></div></div>'
-      +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;">'+roomChips+'</div>'
-      +'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px;">'+sysChips+'</div>'
-      +'<div style="font-size:12px;color:var(--green-dk);font-weight:500;">Tap to open tour notes &rarr;</div>'
-      +'<button class="btn btn-sm" style="margin-top:10px;width:100%;background:var(--red-lt,#FEE2E2);color:#DC2626;border-color:#FCA5A5;font-size:12px;" data-tid="'+t.id+'" onclick="event.stopPropagation();deleteTour(this.dataset.tid)">🗑 Delete Tour</button>'
-      +'</div>';
-  }).join('');
-}
-
-function handleTourStar(el) {
-  var id = el.dataset.tid;
-  var r = parseInt(el.dataset.s);
-  // Update all stars in this rating block immediately
-  var block = el.parentElement;
-  block.querySelectorAll('.star').forEach(function(s, i) {
-    s.classList.toggle('on', i < r);
-  });
-  // Update label
-  var lbl = block.nextElementSibling;
-  if (lbl) lbl.textContent = r + ' of 5 stars';
-  rateTour(id, r);
-}
-window.handleTourStar = handleTourStar;
-
-
-async function deleteTour(id) {
-  var t = tours.find(function(x){ return x.id === id; });
-  var name = t ? t.address : 'this tour';
-  if (!confirm('Delete tour for ' + name + '?')) return;
-  try {
-    await fb.deleteDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id));
-    tours = tours.filter(function(x){ return x.id !== id; });
-    document.getElementById('sc-tour').textContent = tours.length || '';
-    renderTours();
-  } catch(e) { alert('Failed to delete: ' + e.message); }
-}
-window.deleteTour = deleteTour;
-
-async function saveTourAsProp(id) {
-  const t = tours.find(x => x.id === id); if (!t) return;
-  const notes = Object.entries(t.rooms||{}).map(([r,d]) => `${r}: ${d.mc||''} ${d.notes||''}`.trim()).join(' | ');
-  const data = { address: t.address, price: t.price||'N/A', status:'active', beds:0, baths:0, sqft:0, year:0, rating: t.rating||0, tags:[], pros:[], cons:[], notes, agent:'', emoji: EMOJIS[Math.floor(Math.random()*EMOJIS.length)], saved: t.date, createdAt: new Date().toISOString() };
-  try {
-    const ref = await fb.addDoc(fb.collection(fb.db, 'users', currentUser.uid, 'properties'), data);
-    props.push({ id: ref.id, ...data });
-    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id), { saved: true });
-    t.saved = true;
-    document.getElementById('sc-saved').textContent = props.length;
-    renderTours();
-  } catch(e){ alert('Failed: '+e.message); }
-}
-window.openTourAdd = openTourAdd;
-window.startTour = startTour;
-async function rateTour(id, r) {
-  var t = tours.find(function(x){ return x.id === id; });
-  if (!t) return;
-  t.rating = r;
-  renderTours();
-  try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id), { rating: r }); } catch(e){}
-}
-window.rateTour = rateTour;
-
-function handleModalStar(el) {
-  var id = el.dataset.tid;
-  var r = parseInt(el.dataset.s);
-  var row = document.getElementById('modal-stars-row');
-  if (row) {
-    row.querySelectorAll('.star').forEach(function(s, i) { s.classList.toggle('on', i < r); });
-  }
-  var lbl = document.getElementById('modal-star-lbl');
-  if (lbl) lbl.textContent = r + ' of 5 stars';
-  rateTour(id, r);
-}
-window.handleModalStar = handleModalStar;
-
-function rateTourAndRefresh(id, r, el) {
-  // Update all stars for this tour immediately
-  document.querySelectorAll('.tour-star-' + id).forEach((s, i) => {
-    s.classList.toggle('on', i < r);
-  });
-  // Update label
-  var lbl = document.getElementById('star-label-' + id);
-  if (lbl) lbl.textContent = r + ' of 5 stars';
-  // Save
-  rateTour(id, r);
-}
-window.rateTourAndRefresh = rateTourAndRefresh;
-window.saveTourAsProp = saveTourAsProp;
-
-function openTourDetail(id) {
-  const t = tours.find(x => x.id === id); if (!t) return;
-  let activeRoom = ROOMS[0];
-  function renderRoomBody() {
-    const rd = (t.rooms||{})[activeRoom] || {};
-    const qs = ROOM_QS[activeRoom] || ['Any observations?', ['Great','Good','Okay','Concern']];
-    return `
-      <div style="margin-bottom:10px;">
-        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;">${qs[0]}</div>
-        <div class="mc-opts">${qs[1].map(o => `<button class="mc-opt ${rd.mc===o?'sel':''}" onclick="setRoomMC('${id}','${activeRoom.replace(/'/g,"\\'")}','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
-      </div>
-      <div><label class="flabel">Notes</label><textarea placeholder="Anything specific to note..." oninput="setRoomNote('${id}','${activeRoom.replace(/'/g,"\\'")}',this.value)">${rd.notes||''}</textarea></div>`;
-  }
-  function renderFull() {
-    document.getElementById('tour-detail-body').innerHTML = `
-      <div class="mhdr">
-        <div><div class="mtitle">${t.address}</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">${t.price||''}${t.bedbath?' · '+t.bedbath:''} · ${t.date}</div></div>
-        <button class="xbtn" onclick="closeM('tour-detail-modal')">✕</button>
-      </div>
-      <div style="background:var(--surface2);border-radius:var(--r-sm);padding:14px 16px;text-align:center;">
-        <div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Overall Rating</div>
-        <div id="modal-stars-row" style="display:flex;justify-content:center;">
-          ${[1,2,3,4,5].map(s=>`<span class="star ${s<=(t.rating||0)?'on':''}" data-tid="${id}" data-s="${s}" onclick="handleModalStar(this)" style="font-size:36px;padding:5px;-webkit-tap-highlight-color:transparent;cursor:pointer;">★</span>`).join('')}
-        </div>
-        <div id="modal-star-lbl" style="font-size:12px;color:var(--text3);margin-top:6px;">${t.rating ? t.rating+' of 5 stars' : 'Tap a star to rate'}</div>
-      </div>
-      <div>
-        <div style="font-size:9.5px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;">Rooms</div>
-        <div class="room-tabs" style="margin-bottom:10px;">${ROOMS.map(r => `<span class="rtab ${r===activeRoom?'active':''}" onclick="window.switchRoom('${r}')">${r}</span>`).join('')}</div>
-        <div style="font-size:9.5px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:5px;">Systems</div>
-        <div class="room-tabs">${SYSTEMS.map(r => `<span class="rtab ${r===activeRoom?'active':''}" onclick="window.switchRoom('${r}')">${r}</span>`).join('')}</div>
-      </div>
-      <div id="room-body">${renderRoomBody()}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn" onclick="closeM('tour-detail-modal')">Done</button>
-        ${!t.saved?`<button class="btn btn-g" onclick="saveTourAsProp('${id}');closeM('tour-detail-modal')">Save to Tracker</button>`:'<span class="pill pill-g" style="padding:7px 14px;">✓ Saved</span>'}
-        <button class="btn" style="background:#FEE2E2;color:#DC2626;border-color:#FCA5A5;" onclick="deleteTourFromDetail('${id}')">🗑 Delete</button>
-      </div>`;
-    window.switchRoom = function(r) { activeRoom = r; document.querySelectorAll('.rtab').forEach(x => x.classList.toggle('active', x.textContent === r)); document.getElementById('room-body').innerHTML = renderRoomBody(); };
-    window.setRoomMC = async function(tid, room, val, el) { const tt = tours.find(x => x.id === tid); if (!tt) return; if (!tt.rooms) tt.rooms = {}; if (!tt.rooms[room]) tt.rooms[room] = {}; tt.rooms[room].mc = val; document.querySelectorAll('.mc-opt').forEach(x => x.classList.remove('sel')); el.classList.add('sel'); try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', tid), { rooms: tt.rooms }); } catch(e){} renderTours(); };
-    window.setRoomNote = async function(tid, room, val) { const tt = tours.find(x => x.id === tid); if (!tt) return; if (!tt.rooms) tt.rooms = {}; if (!tt.rooms[room]) tt.rooms[room] = {}; tt.rooms[room].notes = val; clearTimeout(window._rnt); window._rnt = setTimeout(async () => { try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', tid), { rooms: tt.rooms }); } catch(e){} }, 500); };
-  }
-  renderFull();
-  document.getElementById('tour-detail-modal').style.display = 'flex';
-}
-window.openTourDetail = openTourDetail;
-
-async function deleteTourFromDetail(id) {
-  var t = tours.find(function(x){ return x.id === id; });
-  var name = t ? t.address : 'this tour';
-  if (!confirm('Delete tour for ' + name + '?')) return;
-  try {
-    await fb.deleteDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id));
-    tours = tours.filter(function(x){ return x.id !== id; });
-    document.getElementById('sc-tour').textContent = tours.length || '';
-    closeM('tour-detail-modal');
-    renderTours();
-  } catch(e) { alert('Failed: ' + e.message); }
-}
-window.deleteTourFromDetail = deleteTourFromDetail;
-
-// ─── AGENT BACKEND ───
-let allBuyers = [];
-let myBuyers = [];
-
-function isTeamLeader() {
-  const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
-  if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
-  // Also true if the agent's profile has isAdmin flag
-  var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === userProfile?.agentId; });
-  return !!(agentEntry && agentEntry.isAdmin);
-}
-
-function canAccessBuyer(buyer) {
-  if (!buyer) return false;
-  if (!isAgent && !isLender) return false;
-  if (isTeamLeader()) return true;
-  // Agent access: buyer assigned to this agent OR co-agent
-  if (isAgent && buyer.agentId === userProfile.agentId) return true;
-  if (isAgent && buyer.coAgentId && buyer.coAgentId === userProfile.agentId) return true;
-  // Lender access: buyer assigned to this lender
-  if (isLender && (buyer.lenderId === userProfile.lenderId || (!buyer.lenderId && userProfile.lenderId === 'tom'))) return true;
-  return false;
-}
-
-async function deleteKnownBuyerSubcollections(uid) {
-  const subcollections = ['properties', 'tours', 'messages', 'documents'];
-  for (const sub of subcollections) {
-    try {
-      const snap = await fb.getDocs(fb.collection(fb.db, 'users', uid, sub));
-      await Promise.all(snap.docs.map(d => fb.deleteDoc(fb.doc(fb.db, 'users', uid, sub, d.id))));
-    } catch (e) {
-      console.warn('Could not delete subcollection', sub, e);
-    }
-  }
-}
-
-async function loadBuyersForAgent() {
-  try {
-    let q;
-    if (isTeamLeader()) {
-      q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'));
-    } else if (isLender && !isAgent) {
-      // Pure lender — see only their assigned clients
-      var lid = userProfile.lenderId || 'tom';
-      q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'), fb.where('lenderId', '==', lid));
-    } else {
-      q = fb.query(
-        fb.collection(fb.db, 'users'),
-        fb.where('role', '==', 'buyer'),
-        fb.where('agentId', '==', userProfile.agentId)
-      );
-    }
-    const snap = await fb.getDocs(q);
-    allBuyers = [];
-    snap.forEach(d => allBuyers.push({ uid: d.id, ...d.data() }));
-    // Also load clients where this agent is co-agent (second query, merge)
-    if (isAgent && !isTeamLeader()) {
-      try {
-        var coQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('coAgentId','==',userProfile.agentId));
-        var coSnap = await fb.getDocs(coQ);
-        coSnap.forEach(d => {
-          if (!allBuyers.find(function(b){ return b.uid === d.id; })) {
-            allBuyers.push({ uid: d.id, ...d.data() });
-          }
-        });
-      } catch(e) { console.log('coAgent query err:', e.message); }
-    }
-    // Keep myBuyers in sync so dashboard has data immediately on first load
-    myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
-  } catch(e) { console.error('loadBuyers', e); }
-}
-async function renderBuyers() {
-  if (!isAgent) return;
-  if (!allBuyers.length) await loadBuyersForAgent();
-  const search = (document.getElementById('buyer-search')?.value || '').toLowerCase();
-  const teamLeader = isTeamLeader();
-  const manageBtn = document.getElementById('manage-team-btn');
-  if (manageBtn) manageBtn.style.display = teamLeader ? 'inline-flex' : 'none';
-
-  myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
-  if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
-
-  const total = myBuyers.length;
-  const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
-  const closed = myBuyers.filter(b => (b.currentStep||1) === 11).length;
-  const newThisMonth = myBuyers.filter(b => { try { const d = b.createdAt?.toDate?.() || new Date(b.createdAt); return d > new Date(Date.now()-30*86400000); } catch { return false; } }).length;
-  document.getElementById('agent-stats').innerHTML = `
-    <div class="dstat"><div class="dnum">${total}</div><div class="dlbl">${teamLeader?'Team Buyers':'My Buyers'}</div></div>
-    <div class="dstat"><div class="dnum">${inProcess}</div><div class="dlbl">In Process</div></div>
-    <div class="dstat"><div class="dnum">${closed}</div><div class="dlbl">Closed</div></div>
-    <div class="dstat"><div class="dnum">${newThisMonth}</div><div class="dlbl">New (30d)</div></div>`;
-
-  document.getElementById('buyer-list').innerHTML = myBuyers.length ? myBuyers.map(b => {
-    const initials = ((b.firstName||'')[0]||'')+((b.lastName||'')[0]||'');
-    const step = TIMELINE_STEPS[(b.currentStep||1)-1];
-    const agent = DEFAULT_AGENTS.find(a => a.id === b.agentId);
-    const agentLine = teamLeader && agent ? `<div class="buyer-meta">Assigned to ${agent.name}</div>` : '';
-    const coAgent = DEFAULT_AGENTS.find(a => a.id === b.coAgentId);
-    const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
-    const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
-    const isPending = b.pending === true;
-    const stepInfo = isPending
-      ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>'
-      : '<div style="font-size:11px;color:var(--text3);">Step '+(b.currentStep||1)+' of 11</div><span class="pill pill-b">'+(step?step.name:'')+'</span>';
-    return `<div class="buyer-row" onclick="openBuyerDetail('${b.uid}')">
-      <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
-      <div style="flex:1;min-width:0;">
-        <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
-        <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
-        ${agentLine}${coAgentLine}
-        ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; ctBtns+='</div>'; } return ctBtns; })()}
-      </div>
-      <div style="text-align:right;display:flex;align-items:center;gap:8px;">
-        <div>
-          ${stepInfo}
-          ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No buyer timeline set</div>':''}
-          ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No seller timeline set</div>':''}
-        </div>
-        <button class="btn btn-sm" onclick="event.stopPropagation(); deleteBuyer('${b.uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
-      </div>
-    </div>`;
-  }).join('') : '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px;">No buyers found. Use "+ Invite Buyer" to add one or share a signup link.</div>';
-}
-window.renderBuyers = renderBuyers;
-
-// ─── WATCH ALL AGENT CHAT ROOMS FOR UNREAD ───
-var agentUnreadListeners = [];
-var agentUnreadCounts = {};
-
-function watchAllAgentChats() {
-  agentUnreadListeners.forEach(function(fn){ try{fn();}catch(e){} });
-  agentUnreadListeners = [];
-  agentUnreadCounts = {};
-  if (!myBuyers || !myBuyers.length) return;
-
-  var agentEntry = DEFAULT_AGENTS.find(function(a){
-    return a.email && a.email.toLowerCase() === ((userProfile&&userProfile.email)||'').toLowerCase();
-  });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
-  var lastSeen = 0;
-  try { lastSeen = parseInt(localStorage.getItem('lastSeen_'+currentUser.uid)||'0'); } catch(e){}
-
-  myBuyers.forEach(function(b) {
-    var roomId = 'chat_'+agentShortId+'_'+b.uid;
-    var chatRef = fb.ref(fb.rtdb, 'chats/'+roomId+'/messages');
-    var listener = fb.onChildAdded(chatRef, function(snapshot) {
-      var msg = snapshot.val(); if (!msg) return;
-      if (msg.role === 'buyer' && msg.ts > lastSeen) {
-        agentUnreadCounts[b.uid] = (agentUnreadCounts[b.uid]||0) + 1;
-        updateAgentUnreadBadge();
-      }
-    });
-    agentUnreadListeners.push(listener);
-  });
-}
-window.watchAllAgentChats = watchAllAgentChats;
-
-function updateAgentUnreadBadge() {
-  var total = Object.values(agentUnreadCounts).reduce(function(a,b){return a+b;},0);
-  // Tab badge
-  var tabBadge = document.getElementById('agent-chat-badge');
-  if (tabBadge) { tabBadge.style.display = total>0?'inline':'none'; tabBadge.textContent = total>9?'9+':String(total); }
-  // Nav button badge
-  var navBadge = document.getElementById('agent-nav-badge');
-  if (navBadge) { navBadge.style.display = total>0?'inline':'none'; navBadge.textContent = total>9?'9+':String(total); }
-  // Re-render inbox list to show per-buyer highlights
-  var inboxList = document.getElementById('agent-inbox-list');
-  if (inboxList && inboxList.style.display !== 'none') renderAgentInbox();
-}
-window.updateAgentUnreadBadge = updateAgentUnreadBadge;
-
-function clearAgentUnreadForBuyer(buyerUid) {
-  delete agentUnreadCounts[buyerUid];
-  try { localStorage.setItem('lastSeen_'+currentUser.uid, String(Date.now())); } catch(e){}
-  updateAgentUnreadBadge();
-}
-window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
-
-
-function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel');
-  [bb,cb,pb,ptb,otb,stb,dtb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp,otp,stp,dtp].forEach(function(p){ if(p) p.style.display='none'; });
-  if (tab === 'chat') {
-    if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
-    if (ci) ci.style.display='flex';
-    if (!myBuyers || !myBuyers.length) {
-      loadBuyersForAgent().then(function(){ renderAgentInbox(); });
-    } else {
-      renderAgentInbox();
-    }
-    var badge = document.getElementById('agent-chat-badge');
-    if (badge) badge.style.display='none';
-  } else if (tab === 'profile') {
-    if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
-    if (pp) {
-      pp.style.display='flex';
-      var editor = document.getElementById('agent-profile-editor');
-      if (editor) { editor.style.display='flex'; renderAgentProfileEditor(); }
-      if (isLender) {
-        var lenderNote = document.getElementById('lender-profile-note');
-        if (!lenderNote) {
-          lenderNote = document.createElement('div');
-          lenderNote.id = 'lender-profile-note';
-          lenderNote.className = 'notice';
-          lenderNote.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);font-size:12px;';
-          lenderNote.textContent = '🏦 You are assigned as both agent and lender. This profile photo and bio will appear on both the Your Agent and Your Lender cards for your clients.';
-          pp.insertBefore(lenderNote, pp.firstChild);
-        }
-      }
-    }
-  } else if (tab==='showings') {
-    if (stb) { stb.style.background='var(--green)'; stb.style.color='#fff'; }
-    if (stp) stp.style.display='flex';
-    renderShowingInbox();
-  } else if (tab==='deals') {
-    if (dtb) { dtb.style.background='var(--green)'; dtb.style.color='#fff'; }
-    if (dtp) dtp.style.display='flex';
-    renderDealTracker();
-  } else if (tab==='profile') {
-    if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
-    if (pp) pp.style.display='flex';
-    renderAgentProfileEditor();
-  } else if (tab==='offers') {
-    if (otb) { otb.style.background='var(--green)'; otb.style.color='#fff'; }
-    if (otp) otp.style.display='flex';
-    renderOfferManager();
-  } else if (tab==='partners') {
-    if (ptb) { ptb.style.background='var(--green)'; ptb.style.color='#fff'; }
-    if (ptp) ptp.style.display='flex';
-    if (!agentPartners.length) { loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderAgentPartnersEditor(); }); } else { renderAgentPartnersEditor(); }
-  } else {
-    if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
-    if (bp) bp.style.display='flex';
-    var editor = document.getElementById('agent-profile-editor');
-    if (editor) editor.style.display='none';
-  }
-}
-window.switchAgentTab = switchAgentTab;
-
-function renderAgentInbox() {
-  var container = document.getElementById('agent-inbox-buyers');
-  if (!container) return;
-  if (!myBuyers || !myBuyers.length) {
-    container.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:13px;text-align:center;">No clients yet.</div>';
-    return;
-  }
-  container.innerHTML = myBuyers.map(function(b) {
-    var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
-    var step = b.currentStep ? 'Step '+b.currentStep : 'Not started';
-    var uid = b.uid||''; var name = ((b.firstName||'')+' '+(b.lastName||'')).trim(); var ph = b.phone||'';
-    var unread = agentUnreadCounts[uid] || 0;
-    var hasUnread = unread > 0;
-    var borderColor = hasUnread ? '#E24B4A' : 'var(--border)';
-    var bgColor = hasUnread ? '#FEF2F2' : 'var(--surface)';
-    return '<button onclick="openAgentInboxChat(\''+uid+'\',\''+name+'\',\''+ph+'\')" '
-      +'style="width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border:0.5px solid '+borderColor+';border-radius:var(--r);background:'+bgColor+';cursor:pointer;font-family:inherit;text-align:left;">'
-      +'<div style="width:42px;height:42px;border-radius:50%;background:'+(hasUnread?'#E24B4A':'var(--green-lt)')+';color:'+(hasUnread?'#fff':'var(--green-dk)')+';display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;flex-shrink:0;">'+initials+'</div>'
-      +'<div style="flex:1;min-width:0;"><div style="font-weight:'+(hasUnread?'600':'500')+';font-size:13.5px;color:'+(hasUnread?'#991B1B':'var(--text)')+';">'+name+'</div>'
-      +'<div style="font-size:11.5px;color:var(--text3);">'+(hasUnread?'<strong style=color:#E24B4A>'+unread+' new message'+(unread>1?'s':'')+'</strong>':step)+'</div></div>'
-      +(hasUnread?'<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:12px;font-weight:700;flex-shrink:0;">'+unread+'</span>':'<span style="font-size:18px;color:var(--text3);">\u203a</span>')
-      +'</button>';
-  }).join('');
+).join('');
 }
 window.renderAgentInbox = renderAgentInbox;
 
