@@ -1183,12 +1183,46 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- AGENT DASHBOARD -->
 <div class="page" id="page-agent-dash">
-  <div id="ad-welcome" style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
+  <!-- Dashboard header -->
+  <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('profile')" style="position:absolute;top:-4px;right:0;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);padding:4px;" title="My Profile">⚙️</button>
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
     <div>
       <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="ad-greeting">Good morning</div>
       <div style="font-size:12.5px;color:var(--text2);" id="ad-sub">Here's your day at a glance</div>
+    </div>
+  </div>
+
+  <!-- Stat banner -->
+  <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
+    <!-- Top stat line -->
+    <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:6px 18px;border-bottom:0.5px solid var(--border);">
+      <span id="ad-stat-clients" style="font-size:13px;font-weight:500;color:var(--text);">— clients</span>
+      <span style="color:var(--border2);">·</span>
+      <span id="ad-stat-tasks" style="font-size:13px;font-weight:500;color:var(--text);">— tasks today</span>
+      <span style="color:var(--border2);">·</span>
+      <span id="ad-stat-deals" style="font-size:13px;font-weight:500;color:var(--text);">— open deals</span>
+      <span style="color:var(--border2);">·</span>
+      <span id="ad-stat-appt" style="font-size:13px;color:var(--text2);">No upcoming appts</span>
+    </div>
+    <!-- Detail row -->
+    <div style="padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 20px;background:var(--surface2);">
+      <span id="ad-stat-saved" style="font-size:12px;color:var(--text2);">🏠 — saved homes</span>
+      <span id="ad-stat-showings" style="font-size:12px;color:var(--text2);">📅 — showings this week</span>
+      <span id="ad-stat-pending" style="font-size:12px;color:var(--text2);">⏳ — pending invites</span>
+    </div>
+  </div>
+
+  <!-- Today's Tasks -->
+  <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
+    <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:13px;font-weight:600;">Today's Tasks</div>
+      <button onclick="go('agent-todo',document.querySelector('[data-pg=agent-todo]'))" style="font-size:11px;color:var(--green-dk);background:none;border:none;cursor:pointer;font-weight:500;">See all →</button>
+    </div>
+    <div id="ad-today-tasks" style="padding:8px 0;"></div>
+    <div style="padding:10px 16px;border-top:0.5px solid var(--border);display:flex;gap:8px;">
+      <input type="text" id="ad-quick-task" placeholder="Add a task..." style="flex:1;border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 10px;font-family:inherit;font-size:13px;background:var(--bg);" onkeydown="if(event.key==='Enter')dashAddTask()"/>
+      <button onclick="dashAddTask()" class="btn btn-g" style="padding:7px 14px;font-size:13px;">Add</button>
     </div>
   </div>
 
@@ -1278,7 +1312,7 @@ textarea{resize:vertical;min-height:68px;}
       <button onclick="go('agent',document.querySelector('[data-pg=agent]'))" style="background:none;border:none;font-size:12px;color:var(--green-dk);font-weight:500;cursor:pointer;padding:0;">View All →</button>
     </div>
     <div id="ad-pipeline" style="display:flex;flex-direction:column;gap:6px;">
-      <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Loading clients...</div>
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Loading...</div>
     </div>
   </div>
 </div>
@@ -6756,36 +6790,151 @@ var _todos = [];
 // ─── AGENT DASHBOARD ───
 async function renderAgentDashboard() {
   if (!isAgent) return;
+
+  // Greeting
   var hour = new Date().getHours();
   var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   var firstName = (userProfile && userProfile.firstName) || 'Tom';
   var initials = ((userProfile&&userProfile.firstName||'')[0]||'T') + ((userProfile&&userProfile.lastName||'')[0]||'');
   var el;
-  el = document.getElementById('ad-greeting'); if (el) el.textContent = greeting + ', ' + firstName;
+  el = document.getElementById('ad-greeting'); if (el) el.textContent = greeting + ', ' + firstName + '!';
   el = document.getElementById('ad-avatar'); if (el) el.textContent = initials.toUpperCase();
   var today = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
   el = document.getElementById('ad-sub'); if (el) el.textContent = today;
-  if (!allBuyers || !allBuyers.length) await loadBuyersForAgent();
-  var active = myBuyers.filter(function(b){ return !b.pending; });
-  var pending = myBuyers.filter(function(b){ return b.pending; });
+
+  // Load clients if needed
+  if (!myBuyers || !myBuyers.length) {
+    try { await loadBuyersForAgent(); } catch(e) {}
+  }
+  var active = (myBuyers||[]).filter(function(b){ return !b.pending; });
+  var pending = (myBuyers||[]).filter(function(b){ return b.pending; });
+
+  // ── Stat banner ──
+  el = document.getElementById('ad-stat-clients');
+  if (el) el.textContent = active.length + ' client' + (active.length !== 1 ? 's' : '');
+
+  // Tasks due today
+  var todayStr = new Date().toISOString().split('T')[0];
+  var todayTasks = (_todos||[]).filter(function(t){ return !t.done && (!t.date || t.date <= todayStr); });
+  el = document.getElementById('ad-stat-tasks');
+  if (el) {
+    if (todayTasks.length === 0) { el.textContent = 'All clear today ✓'; el.style.color = 'var(--green-dk)'; }
+    else { el.textContent = todayTasks.length + ' task' + (todayTasks.length !== 1 ? 's' : '') + ' today'; el.style.color = todayTasks.length > 3 ? 'var(--red-dk)' : 'var(--text)'; }
+  }
+  // Also update old tile counts
   el = document.getElementById('ad-clients-count');
   if (el) el.textContent = active.length + ' active' + (pending.length ? ' · ' + pending.length + ' pending' : '');
-  var dealsEl = document.getElementById('ad-deals-count');
-  if (dealsEl && _deals && _deals.length) {
-    var openDeals = _deals.filter(function(d){ return d.status!=='Closed'&&d.status!=='Fallen Through'; });
-    dealsEl.textContent = openDeals.length + ' open · ' + _deals.length + ' total';
-  }
   el = document.getElementById('ad-todo-count');
-  if (el) {
-    var activeTodos = _todos.filter(function(t){ return !t.done; }).length;
-    el.textContent = activeTodos > 0 ? activeTodos + ' open task' + (activeTodos !== 1 ? 's' : '') : 'All clear';
-  }
-  if (el) el.textContent = totalUnread > 0 ? totalUnread + ' unread message' + (totalUnread !== 1 ? 's' : '') : 'No unread';
-  if (el) { el.textContent = totalUnread || ''; el.style.display = totalUnread > 0 ? 'block' : 'none'; }
+  if (el) el.textContent = todayTasks.length > 0 ? todayTasks.length + ' open task' + (todayTasks.length !== 1 ? 's' : '') : 'All clear';
+
+  // Open deals
+  var openDeals = (_deals||[]).filter(function(d){ return d.status!=='Closed'&&d.status!=='Fallen Through'; });
+  el = document.getElementById('ad-stat-deals');
+  if (el) el.textContent = openDeals.length + ' open deal' + (openDeals.length !== 1 ? 's' : '');
+  el = document.getElementById('ad-deals-count');
+  if (el && _deals && _deals.length) el.textContent = openDeals.length + ' open · ' + _deals.length + ' total';
+
+  // Next appointment
+  try {
+    var agentId = userProfile.agentId || 'tom';
+    var apptSnap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'appointments'));
+    var appts = [];
+    apptSnap.forEach(function(d){ appts.push(d.data()); });
+    var now = Date.now();
+    var upcoming = appts.filter(function(a){ return new Date(a.date).getTime() > now; })
+      .sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
+    el = document.getElementById('ad-stat-appt');
+    if (el) {
+      if (upcoming.length) {
+        var next = upcoming[0];
+        var dt = new Date(next.date);
+        var dayStr = dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+        el.textContent = '📅 Next: ' + next.type + ' — ' + dayStr + ' ' + next.timeStr;
+        el.style.color = 'var(--text)';
+      } else {
+        el.textContent = 'No upcoming appointments';
+      }
+    }
+  } catch(e) {}
+
+  // Saved homes across all clients
+  var savedCount = 0;
+  (myBuyers||[]).forEach(function(b){ if (b.savedCount) savedCount += b.savedCount; });
+  el = document.getElementById('ad-stat-saved');
+  if (el) el.textContent = '🏠 ' + savedCount + ' saved home' + (savedCount !== 1 ? 's' : '') + ' across clients';
+
+  // Showings this week (from _todos with appt- prefix this week)
+  var weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
+  var weekEndStr = weekEnd.toISOString().split('T')[0];
+  var showingsCount = (_todos||[]).filter(function(t){ return t.id && t.id.startsWith('appt-') && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
+  el = document.getElementById('ad-stat-showings');
+  if (el) el.textContent = '📅 ' + showingsCount + ' appointment' + (showingsCount !== 1 ? 's' : '') + ' this week';
+
+  // Pending invites
+  el = document.getElementById('ad-stat-pending');
+  if (el) el.textContent = '⏳ ' + pending.length + ' pending invite' + (pending.length !== 1 ? 's' : '');
+
+  // ── Today's Tasks panel ──
+  renderDashTasks();
+
+  // ── Pipeline ──
   renderAdPipeline(active);
   populatePAClientDropdown();
 }
 window.renderAgentDashboard = renderAgentDashboard;
+
+// ─── Dashboard today's tasks ───
+function renderDashTasks() {
+  var el = document.getElementById('ad-today-tasks');
+  if (!el) return;
+  var todayStr = new Date().toISOString().split('T')[0];
+  var todayTasks = (_todos||[]).filter(function(t){ return !t.done && (!t.date || t.date <= todayStr); }).slice(0,5);
+  var doneTasks = (_todos||[]).filter(function(t){ return t.done; }).slice(0,2);
+  if (!window._todoMap) window._todoMap = {};
+  if (!todayTasks.length && !doneTasks.length) {
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--green-dk);font-size:13px;font-weight:500;">All clear — nothing due today</div>';
+    return;
+  }
+  var out = '';
+  todayTasks.forEach(function(t) {
+    var sid = t.id.replace(/[^a-zA-Z0-9_]/g,'_');
+    window._todoMap[sid] = t.id;
+    out += '<div class="dash-task-row" style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:0.5px solid var(--border);">'
+      + '<div class="dash-chk" data-sid="' + sid + '" style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border2);flex-shrink:0;cursor:pointer;background:var(--surface);"></div>'
+      + '<div style="flex:1;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + partnerEsc(t.text) + '</div>'
+      + (t.date ? '<div style="font-size:11px;color:var(--text3);flex-shrink:0;">' + t.date + '</div>' : '')
+      + '</div>';
+  });
+  doneTasks.forEach(function(t) {
+    out += '<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;opacity:0.45;">'
+      + '<div style="width:18px;height:18px;border-radius:4px;flex-shrink:0;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;">&#10003;</div>'
+      + '<div style="flex:1;font-size:13px;text-decoration:line-through;color:var(--text2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + partnerEsc(t.text) + '</div>'
+      + '</div>';
+  });
+  el.innerHTML = out;
+  // Wire up checkboxes via event delegation
+  el.querySelectorAll('.dash-chk').forEach(function(chk) {
+    chk.addEventListener('click', function() {
+      todoToggle(this.getAttribute('data-sid'));
+      setTimeout(renderDashTasks, 300);
+    });
+  });
+}
+window.renderDashTasks = renderDashTasks;
+
+async function dashAddTask() {
+  var input = document.getElementById('ad-quick-task');
+  if (!input || !input.value.trim()) return;
+  var text = input.value.trim();
+  input.value = '';
+  var todayStr = new Date().toISOString().split('T')[0];
+  _todos.unshift({ id: Date.now()+'_d', text: text, date: todayStr, done: false, createdAt: Date.now() });
+  await todoSave();
+  renderDashTasks();
+  renderAgentDashboard();
+}
+window.dashAddTask = dashAddTask;
+
 
 function renderAdPipeline(buyers) {
   var container = document.getElementById('ad-pipeline');
