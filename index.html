@@ -594,6 +594,7 @@ textarea{resize:vertical;min-height:68px;}
       <div>
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏠 Buying — Under Contract</div>
         <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-buyer-headline">Under Contract</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:3px;" id="txn-buyer-address"></div>
       </div>
       <button onclick="downloadICS('buyer')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
     </div>
@@ -685,6 +686,7 @@ textarea{resize:vertical;min-height:68px;}
       <div>
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;margin-bottom:3px;">🏡 Selling — Under Contract</div>
         <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;" id="txn-seller-headline">Under Contract</div>
+        <div style="font-size:12px;opacity:0.85;margin-top:3px;" id="txn-seller-address"></div>
       </div>
       <button onclick="downloadICS('seller')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:6px 12px;font-size:11.5px;cursor:pointer;font-family:inherit;white-space:nowrap;">📅 Calendar</button>
     </div>
@@ -7859,6 +7861,8 @@ function renderTxnTimeline() {
         var dc = Math.ceil((closing-today)/86400000);
         headline.textContent = dc > 0 ? dc+' days to closing' : dc===0 ? 'Closing Today! 🎉' : 'Closed!';
       }
+      var buyerAddrEl = document.getElementById('txn-buyer-address');
+      if (buyerAddrEl) buyerAddrEl.textContent = (userProfile && userProfile.propertyAddress) || '';
       if (buyerList) buyerList.innerHTML = BUYER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, buyerDates, today, 'buyer'); }).join('');
     } else {
       buyerCard.style.display = 'none';
@@ -7901,6 +7905,8 @@ function renderTxnTimeline() {
         var sdc = Math.ceil((sClosing-today)/86400000);
         sHeadline.textContent = sdc > 0 ? sdc+' days to closing' : sdc===0 ? 'Closing Today! 🎉' : 'Closed!';
       }
+      var sellerAddrEl = document.getElementById('txn-seller-address');
+      if (sellerAddrEl) sellerAddrEl.textContent = (userProfile && userProfile.propertyAddress) || '';
       if (sellerList) sellerList.innerHTML = SELLER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, sellerDates, today, 'seller'); }).join('');
     } else {
       sellerCard.style.display = 'none';
