@@ -1047,27 +1047,35 @@ textarea{resize:vertical;min-height:68px;}
 
 <div class="page" id="page-agent-todo">
   <div class="ph"><div class="pt">To-Do List</div></div>
-  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-    <button class="todo-chip" onclick="todoQuickAdd('Call client — ')">📞 Call client</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Follow up with ')">💬 Follow up with</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Respond to ')">↩️ Respond to</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Schedule showing for ')">📅 Schedule showing</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Send update to ')">📣 Send update to</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Submit offer for ')">📝 Submit offer</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Order inspection for ')">📋 Order inspection</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Check loan status for ')">🏦 Check loan status</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Request documents from ')">📄 Request documents</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Confirm closing date for ')">🔑 Confirm closing</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Send email to ')">✉️ Send email</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Prepare listing for ')">🏠 Prepare listing</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Review net sheet for ')">💰 Review net sheet</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Research comps for ')">🔍 Research comps</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Prepare CMA for ')">📊 Prepare CMA</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Negotiate offer for ')">🤝 Negotiate offer</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Set up appointment with ')">🗓️ Set up appointment</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Schedule walk-through for ')">🏡 Schedule walk-through</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Urgent — ')">⚠️ Urgent</button>
-    <button class="todo-chip" onclick="todoQuickAdd('Reminder — ')">📌 Reminder</button>
+  <!-- Quick-add chips — collapsed by default -->
+  <div style="margin-bottom:12px;">
+    <button onclick="var p=document.getElementById('todo-chips-panel');var a=document.getElementById('todo-chips-arrow');var open=p.style.display!=='none';p.style.display=open?'none':'flex';a.textContent=open?'▸':'▾';" style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:7px 12px;font-size:12.5px;font-weight:500;color:var(--text2);cursor:pointer;font-family:inherit;width:100%;">
+      <span style="font-size:13px;">⚡</span>
+      <span>Quick Add</span>
+      <span id="todo-chips-arrow" style="margin-left:auto;font-size:11px;">▸</span>
+    </button>
+    <div id="todo-chips-panel" style="display:none;flex-wrap:wrap;gap:6px;padding:10px 0 4px;">
+      <button class="todo-chip" onclick="todoQuickAdd('Call client — ')">📞 Call client</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Follow up with ')">💬 Follow up with</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Respond to ')">↩️ Respond to</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Schedule showing for ')">📅 Schedule showing</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Send update to ')">📣 Send update to</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Submit offer for ')">📝 Submit offer</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Order inspection for ')">📋 Order inspection</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Check loan status for ')">🏦 Check loan status</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Request documents from ')">📄 Request documents</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Confirm closing date for ')">🔑 Confirm closing</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Send email to ')">✉️ Send email</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Prepare listing for ')">🏠 Prepare listing</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Review net sheet for ')">💰 Review net sheet</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Research comps for ')">🔍 Research comps</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Prepare CMA for ')">📊 Prepare CMA</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Negotiate offer for ')">🤝 Negotiate offer</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Set up appointment with ')">🗓️ Set up appointment</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Schedule walk-through for ')">🏡 Schedule walk-through</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Urgent — ')">⚠️ Urgent</button>
+      <button class="todo-chip" onclick="todoQuickAdd('Reminder — ')">📌 Reminder</button>
+    </div>
   </div>
   <div class="card" style="display:flex;flex-direction:column;gap:10px;">
     <div style="display:flex;gap:8px;align-items:flex-start;">
@@ -6791,7 +6799,8 @@ async function todoAdd() {
 window.todoAdd = todoAdd;
 
 async function todoToggle(id) {
-  var t = _todos.find(function(x){ return x.id === id; });
+  var realId = (window._todoMap && window._todoMap[id]) || id;
+  var t = _todos.find(function(x){ return x.id === realId; });
   if (!t) return;
   t.done = !t.done;
   if (t.done) t.doneAt = Date.now();
@@ -6808,7 +6817,8 @@ async function todoToggle(id) {
 window.todoToggle = todoToggle;
 
 async function todoDelete(id) {
-  _todos = _todos.filter(function(t){ return t.id !== id; });
+  var realId = (window._todoMap && window._todoMap[id]) || id;
+  _todos = _todos.filter(function(t){ return t.id !== realId; });
   await todoSave();
   todoRender();
 }
@@ -6854,6 +6864,11 @@ function todoRender() {
   var today = new Date(); today.setHours(0,0,0,0);
   var active = _todos.filter(function(t){ return !t.done; });
   var done = _todos.filter(function(t){ return t.done; });
+  window._todoMap = {};
+  _todos.forEach(function(t){
+    var sid = t.id.replace(/[^a-zA-Z0-9_]/g, '_');
+    window._todoMap[sid] = t.id;
+  });
   var html = active.map(function(t){ return todoItemHTML(t, today); }).join('');
   if (done.length) {
     html += '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;padding:12px 0 6px;font-weight:600;">Completed</div>';
@@ -6880,8 +6895,8 @@ function todoItemHTML(t, today) {
   var calBtn = (t.date && !t.done)
     ? '<button data-sid="' + sid + '" onclick="todoDownloadICS(this.getAttribute(String.fromCharCode(100,97,116,97,45,115,105,100)))" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;" title="Add to calendar">&#128197;</button>'
     : '';
-  var delBtn = '<button data-sid="' + sid + '" onclick="todoDelete(this.getAttribute(String.fromCharCode(100,97,116,97,45,115,105,100)))" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>';
-  var chk = '<div data-sid="' + sid + '" onclick="todoToggle(this.getAttribute(String.fromCharCode(100,97,116,97,45,115,105,100)))" style="width:20px;height:20px;border-radius:4px;border:1.5px solid ' + chkBorder + ';background:' + chkBg + ';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">' + (t.done ? '&#10003;' : '') + '</div>';
+  var delBtn = '<button onclick="todoDelete(\''+sid+'\')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>';
+  var chk = '<div onclick="todoToggle(\''+sid+'\')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid ' + chkBorder + ';background:' + chkBg + ';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">' + (t.done ? '&#10003;' : '') + '</div>';
   var dateRow = dateStr ? '<div style="font-size:11.5px;color:' + (isOverdue ? '#E24B4A' : 'var(--text3)') + ';margin-top:3px;">' + (isOverdue ? '&#9888; Overdue &middot; ' : '') + dateStr + '</div>' : '';
   return '<div style="background:' + bg + ';border:1px solid var(--border);border-left:' + border + ';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
     + chk
