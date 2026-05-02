@@ -1090,17 +1090,7 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Quick launch grid -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
-    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">👥</span>
-      <span style="font-size:13px;font-weight:600;">Clients</span>
-      <span style="font-size:11px;opacity:0.85;" id="ad-clients-count">Loading...</span>
-    </button>
-
-      <span style="font-size:24px;">💬</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Messages</span>
-      <span style="font-size:11px;color:var(--text2);" id="ad-msg-count">No unread</span>
-      <span id="ad-msg-badge" style="display:none;position:absolute;top:10px;right:10px;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;"></span>
-    </button>
+    
 
     <button onclick="go('agent-todo',document.querySelector('[data-pg=agent-todo]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">✅</span>
@@ -3989,34 +3979,6 @@ async function buyerUpdateStep() {
 window.buyerUpdateStep = buyerUpdateStep;
 
 
-async function setJourneyType(type) {
-  ['both','buyer-only','seller-only'].forEach(function(t) {
-    var id = t==='both'?'jt-both':t==='buyer-only'?'jt-buyer':'jt-seller';
-    var b = document.getElementById(id); if (!b) return;
-    b.style.background = t===type ? 'var(--green)' : 'var(--surface2)';
-    b.style.color = t===type ? '#fff' : 'var(--text2)';
-  });
-  try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{journeyType:type});
-    userProfile.journeyType = type;
-    var buyTab = document.getElementById('dash-tab-buy');
-    var sellTab = document.getElementById('dash-tab-sell');
-    if (type === 'seller-only') {
-      if (buyTab) buyTab.style.display='none';
-      if (sellTab) sellTab.style.display='';
-      switchDashJourney('selling');
-    } else if (type === 'buyer-only') {
-      if (sellTab) sellTab.style.display='none';
-      if (buyTab) buyTab.style.display='';
-      switchDashJourney('buying');
-    } else {
-      if (buyTab) buyTab.style.display='';
-      if (sellTab) sellTab.style.display='';
-    }
-    renderHome();
-  } catch(e) { console.log('setJourneyType:', e.message); }
-}
-window.setJourneyType = setJourneyType;
 
 function switchDashJourney(tab) {
   var bb = document.getElementById('dash-tab-buy');
@@ -5605,111 +5567,338 @@ function renderHome() {
   var agentFirst = (currentAgent()&&currentAgent().firstName) || 'Agent';
   if (chatLabel) chatLabel.textContent = 'Chat with ' + agentFirst;
 
-  var jType = (userProfile && userProfile.journeyType) || 'both';
-  var isBuying = jType !== 'seller-only';
-  var isSelling = jType === 'both' || jType === 'seller-only';
+  renderTxnTimeline();
 
-  var buyStep = (userProfile && userProfile.currentStep) || 1;
-  var sellStep = (userProfile && userProfile.currentSellerStep) || 1;
-  var buyStepName = (TIMELINE_STEPS[buyStep-1]||{}).name || 'Initial Consultation';
-  var sellStepName = (SELLER_STEPS[sellStep-1]||{}).title || 'Initial Consultation';
-
-  // Update nav visibility based on journey type
-  var sellerNavBtn = document.querySelector('[data-pg="sellertrail"]');
-  var buyerNavBtn = document.querySelector('[data-pg="guide"]');
-  if (sellerNavBtn) sellerNavBtn.style.display = isSelling ? '' : 'none';
-  if (buyerNavBtn) buyerNavBtn.style.display = isBuying ? '' : 'none';
-
-  // Journey cards with inline step editing
   var journeys = document.getElementById('home-journeys');
   if (!journeys) return;
 
-  var buyOptions = TIMELINE_STEPS.map(function(s) {
-    return '<option value="' + s.id + '"' + (s.id===buyStep?' selected':'') + '>Step ' + s.id + ' — ' + s.name + '</option>';
-  }).join('');
-  var sellOptions = SELLER_STEPS.map(function(s,i) {
-    return '<option value="' + (i+1) + '"' + (i+1===sellStep?' selected':'') + '>Step ' + (i+1) + ' — ' + s.title + '</option>';
-  }).join('');
-
-  var buyPct = Math.round(((buyStep-1)/10)*100);
-  var sellPct = Math.round(((sellStep-1)/12)*100);
-
   var cards = '';
 
-  // Journey type toggle
-  cards += '<div class="card" style="padding:12px 14px;">'
-    + '<div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">I am a</div>'
-    + '<div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">'
-    + '<button onclick="setJourneyType(\'buyer-only\')" style="flex:1;padding:8px;font-size:12px;font-weight:500;background:' + (jType==='buyer-only'?'var(--green)':'var(--surface2)') + ';color:' + (jType==='buyer-only'?'#fff':'var(--text2)') + ';border:none;cursor:pointer;">Buyer Only</button>'
-    + '<button onclick="setJourneyType(\'both\')" style="flex:1;padding:8px;font-size:12px;font-weight:500;background:' + (jType==='both'?'var(--green)':'var(--surface2)') + ';color:' + (jType==='both'?'#fff':'var(--text2)') + ';border:none;cursor:pointer;border-left:1px solid var(--border);border-right:1px solid var(--border);">Buyer &amp; Seller</button>'
-    + '<button onclick="setJourneyType(\'seller-only\')" style="flex:1;padding:8px;font-size:12px;font-weight:500;background:' + (jType==='seller-only'?'#D97706':'var(--surface2)') + ';color:' + (jType==='seller-only'?'#fff':'var(--text2)') + ';border:none;cursor:pointer;">Seller Only</button>'
+  // journey data
+  var buyStep = (userProfile && userProfile.currentStep) || 1;
+  var buyStepName = (TIMELINE_STEPS[buyStep-1]||{}).name || 'Initial Consultation';
+  var buyPct = Math.round(((buyStep-1)/10)*100);
+  var buyerDates = (userProfile && userProfile.buyerContractDates)
+    || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType !== 'seller' ? userProfile.contractDates : null);
+  var buyerHasDates = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
+  var sellerDates = (userProfile && userProfile.sellerContractDates)
+    || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType === 'seller' ? userProfile.contractDates : null);
+  var sellerHasDates = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
+  var sellStep = (userProfile && userProfile.currentSellerStep) || 0;
+  var mortDates = userProfile && userProfile.mortgageContractDates;
+  var mortHasDates = mortDates && Object.keys(mortDates).some(function(k){ return mortDates[k]; });
+  var mortStep = (userProfile && userProfile.currentMortgageStep) || 0;
+
+  // ── BUYING + SELLING SECTION ──
+  cards += '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">';
+
+  // Header with toggle buttons
+  cards += '<div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">'
+    + '<div>'
+    + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.75;color:#fff;margin-bottom:2px;">Your Journey</div>'
+    + '<div style="font-family:\'Fraunces\',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:-0.3px;" id="home-trail-label">Home Buyers Trail</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:6px;">'
+    + '<button id="home-trail-btn-buying" onclick="homeTrailTab(\'buying\')" style="background:rgba(255,255,255,0.92);color:var(--green-dk);border:none;border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;">Buying</button>'
+    + '<button id="home-trail-btn-selling" onclick="homeTrailTab(\'selling\')" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.5);border-radius:20px;padding:5px 13px;font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;">Selling</button>'
     + '</div></div>';
 
-  // Buying journey card
-  if (isBuying) {
-    cards += '<div class="card" style="border-left:3px solid var(--green);">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
-      + '<div style="font-size:10px;font-weight:500;color:var(--green-dk);text-transform:uppercase;letter-spacing:0.08em;">Buying Journey</div>'
-      + '<button onclick="go(\'guide\',document.querySelector(\'[data-pg=guide]\'))" style="background:none;border:none;font-size:12px;color:var(--green-dk);cursor:pointer;font-weight:500;padding:0;">View Trail \u2192</button>'
+  // ── Buyer timeline (if under contract) ──
+  if (buyerHasDates) {
+    var today = new Date(); today.setHours(0,0,0,0);
+    var closing = buyerDates.closingDate ? new Date(buyerDates.closingDate+'T12:00:00') : null;
+    var dc = closing ? Math.ceil((closing-today)/86400000) : null;
+    var headline = dc !== null ? (dc > 0 ? dc+' days to closing' : dc===0 ? 'Closing Today!' : 'Closed!') : 'Under Contract';
+    cards += '<div id="home-buyer-timeline" style="border-bottom:0.5px solid var(--border);">';
+    cards += '<div style="background:var(--green-lt);padding:9px 16px;display:flex;align-items:center;justify-content:space-between;">'
+      + '<div style="font-size:12.5px;font-weight:500;color:var(--green-dk);">Under Contract — '+headline+'</div>'
+      + '<button onclick="downloadICS(\'buyer\')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:20px;padding:4px 10px;cursor:pointer;font-family:inherit;">Cal</button>'
+      + '</div>';
+    var isCash = (userProfile && userProfile.buyerIsCash) === true;
+    var bFields = isCash
+      ? BUYER_CONTRACT_FIELDS.filter(function(f){ return f.key!=='financingDeadline'&&f.key!=='appraisalDeadline'; })
+      : BUYER_CONTRACT_FIELDS;
+    bFields.forEach(function(f) {
+      if (!buyerDates[f.key]) return;
+      var d = new Date(buyerDates[f.key]+'T12:00:00');
+      var diff = Math.ceil((d-today)/86400000);
+      var isPast = diff<0, isToday = diff===0;
+      var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var tag = isPast
+        ? '<span style="font-size:10px;color:var(--text3);">Done</span>'
+        : isToday
+        ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
+        : '<span style="font-size:10px;color:var(--text3);">'+diff+'d</span>';
+      var bg = isPast?'var(--surface2)':isToday?'#FEF3C7':'var(--surface)';
+      cards += '<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:'+bg+';border-bottom:0.5px solid var(--border);">'
+        +'<span style="font-size:14px;flex-shrink:0;">'+f.icon+'</span>'
+        +'<span style="flex:1;font-size:12px;color:var(--text);">'+f.label+'</span>'
+        +'<span style="font-size:11px;color:var(--text3);margin-right:6px;">'+dateStr+'</span>'
+        +tag+'</div>';
+    });
+    cards += '</div>';
+  }
+
+  // ── Buyer trail map ──
+  cards += '<div id="home-buyer-trail" style="padding:14px 16px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+    + '<div id="home-trail-map" style="min-width:320px;"></div>'
+    + '</div>';
+  cards += '<div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">'
+    + '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
+    + '<span style="font-size:11.5px;color:var(--text2);">'+buyStepName+'</span>'
+    + '<span style="font-size:11px;color:var(--green-dk);font-weight:500;">Step '+buyStep+' of 11</span>'
+    + '</div>'
+    + '<div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden;">'
+    + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+Math.max(5,buyPct)+'%;transition:width 0.4s;"></div>'
+    + '</div></div>';
+
+  // ── Seller trail (hidden, toggled by button) ──
+  cards += '<div id="home-seller-trail" style="display:none;">';
+
+  if (sellerHasDates) {
+    var stoday = new Date(); stoday.setHours(0,0,0,0);
+    var sclosing = sellerDates.closingDate ? new Date(sellerDates.closingDate+'T12:00:00') : null;
+    var sdc = sclosing ? Math.ceil((sclosing-stoday)/86400000) : null;
+    var sheadline = sdc !== null ? (sdc > 0 ? sdc+' days to closing' : sdc===0 ? 'Closing Today!' : 'Closed!') : 'Under Contract';
+    cards += '<div style="border-bottom:0.5px solid var(--border);">';
+    cards += '<div style="background:#FEF3C7;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;">'
+      + '<div style="font-size:12.5px;font-weight:500;color:#92400E;">Under Contract — '+sheadline+'</div>'
+      + '<button onclick="downloadICS(\'seller\')" style="font-size:11px;background:#D97706;color:#fff;border:none;border-radius:20px;padding:4px 10px;cursor:pointer;font-family:inherit;">Cal</button>'
+      + '</div>';
+    SELLER_CONTRACT_FIELDS.forEach(function(f) {
+      if (!sellerDates[f.key]) return;
+      var d = new Date(sellerDates[f.key]+'T12:00:00');
+      var diff = Math.ceil((d-stoday)/86400000);
+      var isPast = diff<0, isToday = diff===0;
+      var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      var tag = isPast
+        ? '<span style="font-size:10px;color:var(--text3);">Done</span>'
+        : isToday
+        ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
+        : '<span style="font-size:10px;color:var(--text3);">'+diff+'d</span>';
+      var bg = isPast?'var(--surface2)':isToday?'#FEF3C7':'var(--surface)';
+      cards += '<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:'+bg+';border-bottom:0.5px solid var(--border);">'
+        +'<span style="font-size:14px;flex-shrink:0;">'+f.icon+'</span>'
+        +'<span style="flex:1;font-size:12px;color:var(--text);">'+f.label+'</span>'
+        +'<span style="font-size:11px;color:var(--text3);margin-right:6px;">'+dateStr+'</span>'
+        +tag+'</div>';
+    });
+    cards += '</div>';
+  }
+
+  cards += '<div style="padding:14px 16px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+    + '<div id="home-seller-trail-map" style="min-width:320px;"></div>'
+    + '</div>';
+
+  if (sellStep > 0) {
+    var sellStepName = (SELLER_STEPS[sellStep-1]||{}).title || 'Initial Consultation';
+    var sellPct = Math.round(((sellStep-1)/12)*100);
+    cards += '<div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">'
+      + '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
+      + '<span style="font-size:11.5px;color:var(--text2);">'+sellStepName+'</span>'
+      + '<span style="font-size:11px;color:#D97706;font-weight:500;">Step '+sellStep+' of 13</span>'
       + '</div>'
-      + '<div style="font-weight:500;font-size:15px;margin-bottom:10px;">' + buyStepName + '</div>'
-      + '<div style="background:var(--surface2);border-radius:20px;height:6px;overflow:hidden;margin-bottom:10px;">'
-      + '<div style="background:var(--green);height:100%;border-radius:20px;width:' + Math.max(6,buyPct) + '%;"></div></div>'
-      + '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Step ' + buyStep + ' of 11 \u00b7 ' + buyPct + '% complete</div>'
-      + '<label style="font-size:11px;font-weight:500;color:var(--text3);display:block;margin-bottom:4px;">Update my step</label>'
-      + '<div style="display:flex;gap:8px;">'
-      + '<select onchange="homeUpdateBuyStep(this.value)" style="flex:1;font-size:13px;padding:8px 10px;">' + buyOptions + '</select>'
+      + '<div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden;">'
+      + '<div style="background:#D97706;height:100%;border-radius:20px;width:'+Math.max(5,sellPct)+'%;transition:width 0.4s;"></div>'
       + '</div></div>';
   }
 
-  // Selling journey card
-  if (isSelling) {
-    cards += '<div class="card" style="border-left:3px solid #D97706;">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
-      + '<div style="font-size:10px;font-weight:500;color:#92400E;text-transform:uppercase;letter-spacing:0.08em;">Selling Journey</div>'
-      + '<button onclick="go(\'sellertrail\',document.querySelector(\'[data-pg=sellertrail]\'))" style="background:none;border:none;font-size:12px;color:#D97706;cursor:pointer;font-weight:500;padding:0;">View Trail \u2192</button>'
-      + '</div>'
-      + '<div style="font-weight:500;font-size:15px;margin-bottom:10px;">' + sellStepName + '</div>'
-      + '<div style="background:#FEF3C7;border-radius:20px;height:6px;overflow:hidden;margin-bottom:10px;">'
-      + '<div style="background:#D97706;height:100%;border-radius:20px;width:' + Math.max(6,sellPct) + '%;"></div></div>'
-      + '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Step ' + sellStep + ' of 13 \u00b7 ' + sellPct + '% complete</div>'
-      + '<label style="font-size:11px;font-weight:500;color:var(--text3);display:block;margin-bottom:4px;">Update my step</label>'
-      + '<div style="display:flex;gap:8px;">'
-      + '<select onchange="homeUpdateSellStep(this.value)" style="flex:1;font-size:13px;padding:8px 10px;">' + sellOptions + '</select>'
-      + '</div></div>';
+  cards += '</div>'; // end home-seller-trail
+  cards += '</div>'; // end buying+selling card
+
+  // ── MORTGAGE SECTION ──
+  if (mortStep > 0 || mortHasDates) {
+    cards += '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">';
+    cards += '<div style="background:linear-gradient(135deg,#185FA5,#378ADD);padding:14px 16px;">'
+      + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;opacity:0.75;color:#fff;margin-bottom:2px;">Your Journey</div>'
+      + '<div style="font-family:\'Fraunces\',serif;font-size:18px;font-weight:300;color:#fff;letter-spacing:-0.3px;">Mortgage Trail</div>'
+      + '</div>';
+
+    if (mortHasDates) {
+      var mtoday = new Date(); mtoday.setHours(0,0,0,0);
+      var mclosing = mortDates.closingDate ? new Date(mortDates.closingDate+'T12:00:00') : null;
+      var mdc = mclosing ? Math.ceil((mclosing-mtoday)/86400000) : null;
+      var mheadline = mdc !== null ? (mdc > 0 ? mdc+' days to closing' : mdc===0 ? 'Closing Today!' : 'Closed!') : 'In Progress';
+      cards += '<div style="border-bottom:0.5px solid var(--border);">';
+      cards += '<div style="background:var(--blue-lt);padding:9px 16px;">'
+        + '<div style="font-size:12.5px;font-weight:500;color:var(--blue-dk);">Mortgage — '+mheadline+'</div>'
+        + '</div>';
+      MORTGAGE_CONTRACT_FIELDS.forEach(function(f) {
+        if (!mortDates[f.key]) return;
+        var d = new Date(mortDates[f.key]+'T12:00:00');
+        var diff = Math.ceil((d-mtoday)/86400000);
+        var isPast = diff<0, isToday = diff===0;
+        var dateStr = d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        var tag = isPast
+          ? '<span style="font-size:10px;color:var(--text3);">Done</span>'
+          : isToday
+          ? '<span style="font-size:10px;background:var(--blue-lt);color:var(--blue-dk);border-radius:10px;padding:2px 7px;font-weight:600;">Today</span>'
+          : '<span style="font-size:10px;color:var(--text3);">'+diff+'d</span>';
+        var bg = isPast?'var(--surface2)':isToday?'var(--blue-lt)':'var(--surface)';
+        cards += '<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:'+bg+';border-bottom:0.5px solid var(--border);">'
+          +'<span style="font-size:14px;flex-shrink:0;">'+f.icon+'</span>'
+          +'<span style="flex:1;font-size:12px;color:var(--text);">'+f.label+'</span>'
+          +'<span style="font-size:11px;color:var(--text3);margin-right:6px;">'+dateStr+'</span>'
+          +tag+'</div>';
+      });
+      cards += '</div>';
+    }
+
+    cards += '<div style="padding:14px 16px 10px;overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+      + '<div id="home-mortgage-trail-map" style="min-width:320px;"></div>'
+      + '</div>';
+
+    if (mortStep > 0) {
+      var mortStepObj = MJ_STEPS[mortStep-1];
+      var mortStepName = mortStepObj ? mortStepObj.title.replace(/^Step \d+ — /,'') : 'Pre-Approval';
+      var mortPct = Math.round(((mortStep-1)/10)*100);
+      cards += '<div style="padding:10px 16px 14px;border-top:0.5px solid var(--border);background:var(--surface2);">'
+        + '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
+        + '<span style="font-size:11.5px;color:var(--text2);">'+mortStepName+'</span>'
+        + '<span style="font-size:11px;color:var(--blue-dk);font-weight:500;">Step '+mortStep+' of 11</span>'
+        + '</div>'
+        + '<div style="background:var(--border);border-radius:20px;height:5px;overflow:hidden;">'
+        + '<div style="background:var(--blue);height:100%;border-radius:20px;width:'+Math.max(5,mortPct)+'%;transition:width 0.4s;"></div>'
+        + '</div></div>';
+    }
+    cards += '</div>';
   }
 
   journeys.innerHTML = cards;
 
-  // Update home chat label
+  setTimeout(function(){
+    renderHomeTrailMap();
+    renderHomeSellerTrailMap();
+    if (mortStep > 0 || mortHasDates) renderHomeMortgageTrailMap();
+  }, 80);
+
+  var sellerNavBtn = document.querySelector('[data-pg="sellertrail"]');
+  var buyerNavBtn  = document.querySelector('[data-pg="guide"]');
+  if (sellerNavBtn) sellerNavBtn.style.display = '';
+  if (buyerNavBtn)  buyerNavBtn.style.display  = '';
+
   var savedBadge = document.getElementById('home-saved-badge');
-  if (savedBadge) savedBadge.textContent = props.length ? '(' + props.length + ')' : '';
+  if (savedBadge) savedBadge.textContent = props.length ? '('+props.length+')' : '';
 }
+// ─── Home trail toggle ───
+function homeTrailTab(tab) {
+  var buyerTrail  = document.getElementById('home-buyer-trail');
+  var sellerTrail = document.getElementById('home-seller-trail');
+  var label       = document.getElementById('home-trail-label');
+  var btnBuying   = document.getElementById('home-trail-btn-buying');
+  var btnSelling  = document.getElementById('home-trail-btn-selling');
+  if (tab === 'selling') {
+    if (buyerTrail)  buyerTrail.style.display  = 'none';
+    if (sellerTrail) { sellerTrail.style.display = 'block'; renderHomeSellerTrailMap(); }
+    if (label) label.textContent = 'Home Sellers Trail';
+    if (btnBuying)  { btnBuying.style.background='rgba(255,255,255,0.2)'; btnBuying.style.color='#fff'; btnBuying.style.border='1px solid rgba(255,255,255,0.5)'; }
+    if (btnSelling) { btnSelling.style.background='rgba(255,255,255,0.92)'; btnSelling.style.color='var(--green-dk)'; btnSelling.style.border='none'; }
+  } else {
+    if (buyerTrail)  buyerTrail.style.display  = 'block';
+    if (sellerTrail) sellerTrail.style.display = 'none';
+    if (label) label.textContent = 'Home Buyers Trail';
+    if (btnBuying)  { btnBuying.style.background='rgba(255,255,255,0.92)'; btnBuying.style.color='var(--green-dk)'; btnBuying.style.border='none'; }
+    if (btnSelling) { btnSelling.style.background='rgba(255,255,255,0.2)'; btnSelling.style.color='#fff'; btnSelling.style.border='1px solid rgba(255,255,255,0.5)'; }
+  }
+}
+window.homeTrailTab = homeTrailTab;
+
+// ─── Mini trail renderer (shared by buyer/seller/mortgage on home page) ───
+function _renderMiniTrail(container, stages, cur, colorName, onClickFn) {
+  if (!container) return;
+  var mob = window.innerWidth <= 700;
+  var r = mob ? 22 : 20, stageW = mob ? 68 : 64, gap = mob ? 8 : 10;
+  var svgH = mob ? 122 : 112, cy0 = mob ? 36 : 34, cy1 = mob ? 80 : 72;
+  var totalW = stages.length * (stageW + gap) + 10;
+  var palettes = {
+    green:{main:'#1D9E75',lt:'#9FE1CB',dk:'#0F6E56',activeShadow:'#E1F5EE'},
+    amber:{main:'#D97706',lt:'#F5C97A',dk:'#92400E',activeShadow:'#FEF3C7'},
+    blue: {main:'#378ADD',lt:'#93C5FD',dk:'#185FA5',activeShadow:'#E6F1FB'},
+  };
+  var c = palettes[colorName] || palettes.green;
+  var cxFn = function(i){ return 5 + i*(stageW+gap)+stageW/2; };
+  var cyFn = function(i){ return i%2===0 ? cy0 : cy1; };
+  var svg = '<svg viewBox="0 0 '+totalW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" style="display:block;width:'+totalW+'px;min-width:'+totalW+'px;height:'+svgH+'px;">';
+  svg += '<path d="';
+  stages.forEach(function(s,i){ svg += (i===0?'M ':'L ')+cxFn(i)+' '+cyFn(i)+' '; });
+  svg += '" fill="none" stroke="#e0e0d8" stroke-width="2" stroke-dasharray="5,4"/>';
+  var donePath = '';
+  stages.forEach(function(s,i){ if(s.id<=cur) donePath+=(donePath===''?'M ':'L ')+cxFn(i)+' '+cyFn(i)+' '; });
+  if(donePath) svg+='<path d="'+donePath+'" fill="none" stroke="'+c.main+'" stroke-width="2"/>';
+  stages.forEach(function(s,i){
+    var x=cxFn(i), y=cyFn(i);
+    var done=s.id<cur, active=s.id===cur;
+    var fill=done?c.main:active?'#fff':c.activeShadow;
+    var stroke=(done||active)?c.main:'#ddd';
+    var sw=active?2.5:1.5;
+    var foSize=r*2;
+    var labelY=y+(y<(mob?58:52)?(r+13):-(r+4));
+    var labelSz=mob?8:7.5;
+    svg+='<g onclick="window._htClick('+i+')" style="cursor:pointer;-webkit-tap-highlight-color:transparent;">';
+    svg+='<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"/>';
+    if(active) svg+='<circle cx="'+x+'" cy="'+y+'" r="'+(r+5)+'" fill="none" stroke="'+c.lt+'" stroke-width="1.5" opacity="0.6"/>';
+    if(done){
+      svg+='<text x="'+x+'" y="'+(y+5)+'" text-anchor="middle" font-size="'+(mob?12:11)+'" fill="#fff">&#10003;</text>';
+    } else {
+      var emoji=s.emoji||s.icon||String(s.id);
+      svg+='<foreignObject x="'+(x-r)+'" y="'+(y-r)+'" width="'+foSize+'" height="'+foSize+'"><div xmlns="http://www.w3.org/1999/xhtml" style="width:'+foSize+'px;height:'+foSize+'px;display:flex;align-items:center;justify-content:center;font-size:'+(mob?13:12)+'px;line-height:1;">'+emoji+'</div></foreignObject>';
+    }
+    var lt=(s.label||s.title||'').split(' ')[0];
+    svg+='<text x="'+x+'" y="'+labelY+'" text-anchor="middle" font-size="'+labelSz+'" fill="'+(active?c.dk:'#999')+'" font-weight="'+(active?'600':'400')+'">'+lt+'</text>';
+    svg+='</g>';
+  });
+  svg+='</svg>';
+  container.innerHTML=svg;
+  container._htStages=stages;
+  container._htClickFn=onClickFn;
+  window._htClick=function(idx){
+    // Find the container that was just interacted with
+    // by checking all trail maps - call the one that matches
+    var maps = ['home-trail-map','home-seller-trail-map','home-mortgage-trail-map'];
+    maps.forEach(function(id){
+      var ct = document.getElementById(id);
+      if(ct && ct._htStages && ct._htStages[idx]!==undefined && ct._htClickFn){
+        ct._htClickFn(ct._htStages[idx].id, idx);
+      }
+    });
+  };
+}
+window._renderMiniTrail = _renderMiniTrail;
+
+function renderHomeTrailMap() {
+  var map=document.getElementById('home-trail-map'); if(!map) return;
+  var cur=(userProfile&&userProfile.currentStep)||1;
+  var stages=TRAIL_STAGES.map(function(s){ return {id:s.id,emoji:s.emoji,label:s.short||s.name.split(' ')[0]}; });
+  map._htClickFn=function(id){ openStep(id); };
+  map._htStages=stages;
+  _renderMiniTrail(map,stages,cur,'green',function(id){ openStep(id); });
+}
+window.renderHomeTrailMap = renderHomeTrailMap;
+
+function renderHomeSellerTrailMap() {
+  var map=document.getElementById('home-seller-trail-map'); if(!map) return;
+  var cur=(userProfile&&userProfile.currentSellerStep)||1;
+  var stages=SELLER_STEPS.map(function(s,i){ return {id:i+1,emoji:s.icon,label:s.title.split(' ')[0]}; });
+  map._htClickFn=function(id,idx){ showSellerStepEdu(idx); };
+  map._htStages=stages;
+  _renderMiniTrail(map,stages,cur,'amber',function(id,idx){ showSellerStepEdu(idx); });
+}
+window.renderHomeSellerTrailMap = renderHomeSellerTrailMap;
+
+function renderHomeMortgageTrailMap() {
+  var map=document.getElementById('home-mortgage-trail-map'); if(!map) return;
+  var cur=(userProfile&&userProfile.currentMortgageStep)||0;
+  var stages=MJ_STEPS.map(function(s,i){ return {id:i+1,emoji:s.icon,label:s.title.replace(/^Step \d+ — /,'').split(' ')[0]}; });
+  map._htClickFn=function(id,idx){ showMJStepEdu(idx); };
+  map._htStages=stages;
+  _renderMiniTrail(map,stages,cur,'blue',function(id,idx){ showMJStepEdu(idx); });
+}
+window.renderHomeMortgageTrailMap = renderHomeMortgageTrailMap;
+
 window.renderHome = renderHome;
 
 // Inline step updates from home page
-async function homeUpdateBuyStep(val) {
-  var newStep = parseInt(val); if (!newStep) return;
-  try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{currentStep:newStep,lastStepUpdate:fb.serverTimestamp()});
-    userProfile.currentStep = newStep;
-    renderTimeline(); renderTrailMap();
-    // Show quick confirmation
-    var el = document.querySelector('#home-journeys .card[style*="green"]');
-    if (el) { el.style.borderColor='var(--green)'; }
-  } catch(e) { alert('Update failed: '+e.message); }
-}
-window.homeUpdateBuyStep = homeUpdateBuyStep;
 
-async function homeUpdateSellStep(val) {
-  var newStep = parseInt(val); if (!newStep) return;
-  try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{currentSellerStep:newStep,lastStepUpdate:fb.serverTimestamp()});
-    userProfile.currentSellerStep = newStep;
-    renderSellerTimeline(); renderSellerTrail();
-  } catch(e) { alert('Update failed: '+e.message); }
-}
-window.homeUpdateSellStep = homeUpdateSellStep;
 
 function renderDash() {
   const t = props.length, tr = props.filter(p => p.rating >= 4).length, avg = t ? +(props.reduce((s,p) => s + (p.rating||0), 0)/t).toFixed(1) : 0, ms = props.filter(p => (p.tags||[]).includes('mustsee')).length;
@@ -6310,11 +6499,6 @@ async function renderAgentDashboard() {
     var activeTodos = _todos.filter(function(t){ return !t.done; }).length;
     el.textContent = activeTodos > 0 ? activeTodos + ' open task' + (activeTodos !== 1 ? 's' : '') : 'All clear';
   }
-  var totalUnread = Object.values(agentUnreadCounts || {}).reduce(function(a,b){ return a+b; }, 0);
-  el = document.getElementById('ad-msg-count');
-  if (el) el.textContent = totalUnread > 0 ? totalUnread + ' unread message' + (totalUnread !== 1 ? 's' : '') : 'No unread';
-  el = document.getElementById('ad-msg-badge');
-  if (el) { el.textContent = totalUnread || ''; el.style.display = totalUnread > 0 ? 'block' : 'none'; }
   renderAdPipeline(active);
   populatePAClientDropdown();
 }
