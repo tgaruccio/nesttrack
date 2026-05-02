@@ -4655,16 +4655,62 @@ async function emailNetSheet() {
     var emailFld = document.getElementById('ns-email');
     if (wrap) wrap.style.display = 'flex';
     if (sel && sel.options.length <= 1 && myBuyers && myBuyers.length) {
+      var clientsWithEmail = myBuyers.filter(function(b){ return b.email; });
       sel.innerHTML = '<option value="">-- Select client --</option>'
-        + myBuyers.filter(function(b){ return !b.pending && b.email; }).map(function(b){
-            return '<option value="'+b.email+'">'+(((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email)+'</option>';
+        + '<option value="__all__">📤 Send to ALL clients (' + clientsWithEmail.length + ')</option>'
+        + clientsWithEmail.map(function(b){
+            var name = (((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email);
+            var tag = b.pending ? ' (invite pending)' : '';
+            return '<option value="'+b.email+'">'+name+tag+'</option>';
           }).join('');
-      sel.onchange = function(){ if(emailFld) emailFld.value = sel.value; };
+      sel.onchange = function(){
+        if (sel.value === '__all__') {
+          if (emailFld) emailFld.value = '__all__';
+        } else {
+          if (emailFld) emailFld.value = sel.value;
+        }
+      };
     }
   }
   var email = (document.getElementById('ns-email')||{}).value||'';
   var status = document.getElementById('ns-email-status');
   if (!email) { alert('Enter an email address.'); return; }
+
+  // Handle "Send to All" — loop through all clients with email
+  if (email === '__all__') {
+    var allClients = (myBuyers||[]).filter(function(b){ return b.email; });
+    if (!allClients.length) { alert('No clients with email addresses found.'); return; }
+    if (!confirm('Send net sheet to all ' + allClients.length + ' clients?')) return;
+    // Send to each client sequentially
+    (async function() {
+      var price = parseFloat(document.getElementById('ns-price').value)||0;
+      var net = document.getElementById('ns-net') ? document.getElementById('ns-net').textContent : '';
+      if (!price || !net) { alert('Calculate the net sheet first.'); return; }
+      if (status) { status.textContent = 'Sending to all clients...'; status.style.display = 'block'; status.style.color = 'var(--text2)'; }
+      var sent = 0, failed = 0;
+      for (var ci = 0; ci < allClients.length; ci++) {
+        var bc = allClients[ci];
+        try {
+          var agentName = (assignedAgent && assignedAgent.name) || 'Tom Garuccio';
+          var breakdown = document.getElementById('ns-breakdown');
+          var rows = '';
+          if (breakdown) {
+            var divs = breakdown.querySelectorAll('div');
+            divs.forEach(function(d) {
+              var spans = d.querySelectorAll('span');
+              if (spans.length === 2) rows += '<tr><td style="padding:6px 12px;font-size:13px;color:#444;">' + spans[0].textContent + '</td><td style="padding:6px 12px;font-size:13px;font-weight:600;text-align:right;">' + spans[1].textContent + '</td></tr>';
+            });
+          }
+          var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;"><div style="background:#D97706;padding:24px 28px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Net Sheet Estimate</div><div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;">Prepared by ' + agentName + '</div></div><div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><div style="background:#FEF3C7;border-radius:8px;padding:18px;text-align:center;margin-bottom:20px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#92400E;margin-bottom:6px;">Estimated Net Proceeds</div><div style="font-size:38px;font-weight:300;color:#92400E;">' + net + '</div></div><table style="width:100%;border-collapse:collapse;">' + rows + '</table><p style="font-size:11px;color:#888;margin-top:16px;">This is an estimate. Contact ' + agentName + ' for a precise net sheet.</p></div></div>';
+          await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:bc.email, subject:'Your Net Sheet Estimate from '+agentName, html:emailHtml})});
+          sent++;
+          if (status) status.textContent = 'Sending... (' + sent + '/' + allClients.length + ')';
+        } catch(e) { failed++; }
+      }
+      if (status) { status.textContent = '✓ Sent to ' + sent + ' client' + (sent!==1?'s':'') + (failed?' · '+failed+' failed':''); status.style.color = sent > 0 ? 'var(--green-dk)' : '#E24B4A'; }
+    })();
+    return;
+  }
 
   var price = parseFloat(document.getElementById('ns-price').value)||0;
   var net = document.getElementById('ns-net') ? document.getElementById('ns-net').textContent : '';
@@ -4698,17 +4744,19 @@ async function emailNetSheet() {
     + '<p style="font-size:11px;color:#888;margin-top:16px;">This is an estimate based on typical Northeast Ohio closing costs. Actual amounts may vary. Contact ' + agentName + ' for a precise net sheet.</p>'
     + '</div></div>';
 
-  try {
-    if (status) { status.textContent = 'Sending...'; status.style.display = 'block'; status.style.color = 'var(--text2)'; }
-    await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-      body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: html })
-    });
-    if (status) { status.textContent = '✓ Net sheet sent to ' + email; status.style.color = 'var(--green-dk)'; }
-  } catch(e) {
-    if (status) { status.textContent = 'Failed to send. Try again.'; status.style.color = '#E24B4A'; }
-  }
+  showEmailPreview(email, 'Net Sheet Estimate from ' + agentName, html, async function() {
+    try {
+      if (status) { status.textContent = 'Sending...'; status.style.display = 'block'; status.style.color = 'var(--text2)'; }
+      await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: html })
+      });
+      if (status) { status.textContent = '✓ Net sheet sent to ' + email; status.style.color = 'var(--green-dk)'; }
+    } catch(e) {
+      if (status) { status.textContent = 'Failed to send. Try again.'; status.style.color = '#E24B4A'; }
+    }
+  });
 }
 window.emailNetSheet = emailNetSheet;
 
@@ -5469,7 +5517,12 @@ async function sendReferrals() {
     var payload = {to:buyer.email, subject:agentFirst+' sent you some referral recommendations', html:emailHtml};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
     if (ae && ae!==buyer.email) payload.cc = ae;
-    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
+    showEmailPreview(clientEmail, payload.subject, emailHtml, async function() {
+      try {
+        await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
+        var status = document.getElementById('ref-status'); if(status){status.textContent='✓ Sent!';status.style.color='var(--green-dk)';status.style.display='block';}
+      } catch(e) { var status = document.getElementById('ref-status'); if(status){status.textContent='Failed.';status.style.color='#E24B4A';status.style.display='block';} }
+    });
     var status = document.getElementById('ref-status');
     if (status) { status.textContent = 'Referrals sent to '+clientFirst+'!'; status.style.display='block'; }
     setTimeout(function(){ closeM('referral-modal'); if(btn) btn.disabled=false; }, 1800);
@@ -5877,6 +5930,32 @@ function renderHome() {
   var savedBadge = document.getElementById('home-saved-badge');
   if (savedBadge) savedBadge.textContent = props.length ? '('+props.length+')' : '';
 }
+
+// ─── Shared email preview system ───
+var _epoCallback = null;
+
+function showEmailPreview(toLabel, subject, emailHtml, onApprove) {
+  _epoCallback = onApprove;
+  var toEl = document.getElementById('epo-to');
+  var subjEl = document.getElementById('epo-subject');
+  var bodyEl = document.getElementById('epo-body');
+  if (toEl) toEl.textContent = 'To: ' + toLabel;
+  if (subjEl) subjEl.textContent = subject;
+  if (bodyEl) bodyEl.innerHTML = emailHtml;
+  var overlay = document.getElementById('email-preview-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+window.showEmailPreview = showEmailPreview;
+
+async function _epoApprove() {
+  document.getElementById('email-preview-overlay').style.display = 'none';
+  if (_epoCallback) {
+    await _epoCallback();
+    _epoCallback = null;
+  }
+}
+window._epoApprove = _epoApprove;
+
 window.renderHome = renderHome;
 
 // ─── Home page inline step popups ───
@@ -6680,16 +6759,18 @@ async function sendPreApprovalEmail() {
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
     + '<p style="font-size:12px;color:#888;margin:0;">Sent by '+agentName+' · The Garuccio Group</p>'
     + '</div></div>';
-  if (status) { status.textContent = 'Sending...'; status.style.display='block'; status.style.background='var(--surface2)'; status.style.color='var(--text2)'; }
-  try {
-    await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:html}) });
-    if (status) { status.textContent='✓ Pre-approval email sent to '+toEmail; status.style.background='var(--green-lt)'; status.style.color='var(--green-dk)'; }
-    if (manual) manual.value='';
-    if (noteEl) noteEl.value='';
-    if (sel) sel.value='';
-  } catch(e) {
-    if (status) { status.textContent='Failed to send. Try again.'; status.style.background='var(--red-lt)'; status.style.color='var(--red-dk)'; }
-  }
+  showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function() {
+    try {
+      if (status) { status.textContent = 'Sending...'; status.style.display='block'; status.style.background='var(--surface2)'; status.style.color='var(--text2)'; }
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:html}) });
+      if (status) { status.textContent='✓ Pre-approval email sent to '+toEmail; status.style.background='var(--green-lt)'; status.style.color='var(--green-dk)'; }
+      if (manual) manual.value='';
+      if (noteEl) noteEl.value='';
+      if (sel) sel.value='';
+    } catch(e) {
+      if (status) { status.textContent='Failed to send. Try again.'; status.style.background='var(--red-lt)'; status.style.color='var(--red-dk)'; }
+    }
+  });
 }
 window.sendPreApprovalEmail = sendPreApprovalEmail;
 
@@ -11296,11 +11377,13 @@ async function emailComparisonToClient(listingId) {
     +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
     +'<div style="font-size:12px;color:#888;">Sent via Nest Track</div>'
     +'</div></div>';
-  try {
-    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:emailHtml})});
-    alert('Comparison emailed to '+clientFirst+'!');
-  } catch(e) { alert('Failed to send: '+e.message); }
+  showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function() {
+    try {
+      await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:emailHtml})});
+      alert('Comparison emailed to '+clientFirst+'!');
+    } catch(e) { alert('Failed to send: '+e.message); }
+  });
 }
 window.emailComparisonToClient = emailComparisonToClient;
 
@@ -11586,11 +11669,10 @@ async function saveAppt() {
   if (sendEmail && clientEmail) {
     // Show email preview for agent approval
     _pendingApptData = apptRecord;
-    var preview = document.getElementById('appt-email-preview');
-    if (preview) preview.innerHTML = emailHtml;
     closeApptModal();
-    var emailOverlay = document.getElementById('appt-email-overlay');
-    if (emailOverlay) emailOverlay.style.display = 'flex';
+    showEmailPreview(apptRecord.clientEmail || apptRecord.clientName, apptRecord._emailSubject, emailHtml, async function() {
+      await sendApptEmail(true);
+    });
   } else {
     // Save without email
     await _commitAppt(apptRecord, false);
@@ -11994,7 +12076,9 @@ async function saveManualShowing() {
         +'</div></div>';
       var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml };
       if (agentEmail) payload.cc = agentEmail;
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      showEmailPreview(buyer.email, payload.subject, emailHtml, async function() {
+        await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      });
     }
 
     closeManualShowingModal();
@@ -13024,5 +13108,29 @@ window.repairDealTrackerData = repairDealTrackerData;
   </div>
 </div>
 
+
+  <!-- Shared Email Preview Modal -->
+  <div id="email-preview-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:2000;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
+    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:520px;margin:20px auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);position:sticky;top:0;background:var(--surface);border-radius:var(--r) var(--r) 0 0;z-index:1;">
+        <div>
+          <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">Review Email</div>
+          <div id="epo-to" style="font-size:12px;color:var(--text3);margin-top:2px;"></div>
+        </div>
+        <button onclick="document.getElementById('email-preview-overlay').style.display='none'" style="background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;padding:0;line-height:1;">&#215;</button>
+      </div>
+      <div style="padding:14px 18px;background:var(--surface2);border-bottom:0.5px solid var(--border);">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:3px;">Subject</div>
+        <div id="epo-subject" style="font-size:13px;color:var(--text);font-weight:500;"></div>
+      </div>
+      <div style="padding:16px 18px;max-height:55vh;overflow-y:auto;">
+        <div id="epo-body" style="border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;"></div>
+      </div>
+      <div style="padding:14px 18px;border-top:0.5px solid var(--border);display:flex;gap:8px;">
+        <button onclick="document.getElementById('email-preview-overlay').style.display='none'" class="btn" style="flex:1;">Cancel</button>
+        <button onclick="_epoApprove()" class="btn btn-g" style="flex:2;">&#10003; Approve &amp; Send</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
