@@ -2051,7 +2051,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- Appointment Modal -->
-  <div id="appt-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;padding:16px;">
+  <div id="appt-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
     <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);">
         <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">New Appointment</div>
@@ -11815,27 +11815,33 @@ async function sendApptEmail(doSend) {
 window.sendApptEmail = sendApptEmail;
 
 async function _commitAppt(appt, sendEmail) {
+  var agentId = appt.agentId || userProfile.agentId || 'tom';
+
+  // 1. Save to Firestore FIRST — this must succeed before anything else
+  var ref;
   try {
-    var agentId = appt.agentId || userProfile.agentId||'tom';
-
-    // 1. Save to Firestore
-    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'appointments'), {
-      clientUid:  appt.clientUid,
-      clientName: appt.clientName,
-      clientEmail:appt.clientEmail,
-      type:       appt.type,
-      date:       appt.date,
-      dateStr:    appt.dateStr,
-      timeStr:    appt.timeStr,
-      address:    appt.address||'',
-      notes:      appt.notes||'',
-      agentName:  appt.agentName||'',
-      agentEmail: appt.agentEmail||'',
-      emailSent:  sendEmail,
-      createdAt:  fb.serverTimestamp(),
+    ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'appointments'), {
+      clientUid:   appt.clientUid,
+      clientName:  appt.clientName,
+      clientEmail: appt.clientEmail,
+      type:        appt.type,
+      date:        appt.date,
+      dateStr:     appt.dateStr,
+      timeStr:     appt.timeStr,
+      address:     appt.address||'',
+      notes:       appt.notes||'',
+      agentName:   appt.agentName||'',
+      agentEmail:  appt.agentEmail||'',
+      emailSent:   sendEmail,
+      createdAt:   fb.serverTimestamp(),
     });
+  } catch(e) {
+    alert('Failed to save appointment: '+e.message);
+    return;
+  }
 
-    // 2. Add to agent To-Do list (fires on the day of the appointment)
+  // 2. Add to To-Do list
+  try {
     var todoText = appt.type+' — '+appt.clientName+(appt.address?' @ '+appt.address:'')+'  '+appt.timeStr;
     _todos.unshift({
       id: 'appt-'+ref.id,
@@ -11847,15 +11853,15 @@ async function _commitAppt(appt, sendEmail) {
       apptId: ref.id,
     });
     await todoSave();
+  } catch(e) { console.log('Todo save err:', e.message); }
 
-    // 3. Generate ICS calendar file for download
+  // 3. Generate ICS — wrapped separately so it never crashes the save
+  try {
     var dt = new Date(appt.date);
-    var dtEnd = new Date(dt.getTime() + 60*60*1000); // 1 hour duration
+    var dtEnd = new Date(dt.getTime() + 60*60*1000);
     function icsDate(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
-    var icsParts = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//NestTrack//EN',
+    var icsContent = [
+      'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//EN',
       'BEGIN:VEVENT',
       'UID:appt-'+ref.id+'@nesttrack',
       'DTSTAMP:'+icsDate(new Date()),
@@ -11863,38 +11869,33 @@ async function _commitAppt(appt, sendEmail) {
       'DTEND:'+icsDate(dtEnd),
       'SUMMARY:'+appt.type+' - '+appt.clientName,
       appt.address ? 'LOCATION:'+appt.address : '',
-      'END:VEVENT',
-      'END:VCALENDAR'
-    ].filter(Boolean);
-    var icsContent = icsParts.join(String.fromCharCode(10));
-    var blob = new Blob([icsContent],{type:'text/calendar'});
+      'END:VEVENT','END:VCALENDAR'
+    ].filter(Boolean).join('\r\n');
+    var blob = new Blob([icsContent],{type:'text/calendar;charset=utf-8'});
+    var icsUrl = URL.createObjectURL(blob);
     var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = (appt.type+'-'+appt.clientName).replace(/s+/g,'-')+'.ics';
+    a.href = icsUrl;
+    a.download = (appt.type+'-'+appt.clientName).replace(/\s+/g,'-')+'.ics';
+    document.body.appendChild(a);
     a.click();
+    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(icsUrl); }, 1000);
+  } catch(e) { console.log('ICS generation err:', e.message); }
 
-    // 4. Send confirmation email if approved
-    if (sendEmail && appt.clientEmail) {
-      var payload = {
-        to: appt.clientEmail,
-        subject: appt._emailSubject,
-        html: appt._emailHtml
-      };
+  // 4. Send email if approved
+  if (sendEmail && appt.clientEmail) {
+    try {
+      var payload = { to: appt.clientEmail, subject: appt._emailSubject, html: appt._emailHtml };
       if (appt.agentEmail) payload.cc = appt.agentEmail;
       await fetch(PROXY_URL, {
         method:'POST',
         headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify(payload)
       });
-    }
-
-    // 5. Refresh appointments list
-    renderApptList();
-    alert('Appointment saved for '+appt.clientName+'!'+(sendEmail&&appt.clientEmail?' Email sent.':' (No email sent.)'));
-
-  } catch(e) {
-    alert('Failed to save appointment: '+e.message);
+    } catch(e) { console.log('Email send err:', e.message); }
   }
+
+  // 5. Refresh list — no alert, just refresh smoothly
+  renderApptList();
 }
 window._commitAppt = _commitAppt;
 
