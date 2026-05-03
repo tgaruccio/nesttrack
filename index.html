@@ -1,4 +1,77 @@
-<!DOCTYPE html>
+<nav class="sidebar" id="sidebar">
+  <div style="padding:16px 12px 8px;display:flex;flex-direction:column;gap:2px;">
+
+    <!-- AGENT: Home button -->
+    <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
+
+      <!-- Agent Dashboard (their home) -->
+      <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this);closeSidebar()" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:4px;"></span></button>
+
+      <!-- Agent Tools — expanded -->
+      <div style="margin-top:8px;">
+        <div style="padding:4px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);">Agent Tools</div>
+        <button class="nb" data-pg="agent" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers');closeSidebar()">👥 Command Center</button>
+        <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this);closeSidebar()">✅ To-Do List <span id="todo-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:4px;"></span></button>
+        <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this);closeSidebar()">✍️ Listing Generator</button>
+        <button class="nb" data-pg="netsheet" onclick="go('netsheet',this);closeSidebar()">💵 Net Sheet</button>
+        <button class="nb" data-pg="mortgage" onclick="go('mortgage',this);closeSidebar()">💰 Mortgage Calc</button>
+        <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this);closeSidebar()">📧 Send Pre-Approval</button>
+        <button class="nb" data-pg="agent" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings');closeSidebar()">📅 Showings / Appts</button>
+        <button class="nb" data-pg="agent" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('offers');closeSidebar()">📋 Offer Manager</button>
+        <button class="nb" data-pg="agent" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('deals');closeSidebar()">🏠 Deal Tracker</button>
+        <button class="nb" onclick="openReferralModal();closeSidebar()">🤝 Send Referrals</button>
+        <button class="nb" data-pg="partners" onclick="go('partners',this);closeSidebar()">⭐ Preferred Partners</button>
+      </div>
+
+      <!-- Client Preview — collapsed by default -->
+      <div style="margin-top:8px;">
+        <button onclick="toggleNavSection('nav-client-preview')" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:none;border:none;cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);font-family:inherit;">
+          <span>Client View</span><span id="nav-client-preview-arrow">▸</span>
+        </button>
+        <div id="nav-client-preview" style="display:none;flex-direction:column;gap:2px;">
+          <button class="nb" data-pg="home" onclick="go('home',this);closeSidebar()">🏠 Home</button>
+          <button class="nb" data-pg="guide" onclick="go('guide',this);closeSidebar()">🗺 The Home Buyers Trail</button>
+          <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this);closeSidebar()">🏦 The Mortgage Trail</button>
+          <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this);closeSidebar()">🏡 The Home Sellers Trail</button>
+          <button class="nb" data-pg="youragent" onclick="go('youragent',this);closeSidebar()">👤 Your Team</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CLIENT: Simple clean nav (shown when not agent) -->
+    <div id="client-nav-section" style="display:flex;flex-direction:column;gap:2px;">
+
+      <div style="padding:4px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);">Start Here</div>
+      <button class="nb" data-pg="home" onclick="go('home',this);closeSidebar()">🏠 Home</button>
+
+      <div style="padding:4px 8px;margin-top:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);">Your Journey</div>
+      <button class="nb" data-pg="guide" onclick="go('guide',this);closeSidebar()">🗺 The Home Buyers Trail</button>
+      <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this);closeSidebar()">🏦 The Mortgage Trail</button>
+      <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this);closeSidebar()">🏡 The Home Sellers Trail</button>
+      <button class="nb" data-pg="youragent" onclick="go('youragent',this);closeSidebar()">👤 Your Team</button>
+
+      <div style="padding:4px 8px;margin-top:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);">Discover</div>
+      <button class="nb" data-pg="idx" onclick="go('idx',this);closeSidebar()">🔍 Search Homes <span style="font-size:10px;background:var(--green);color:#fff;border-radius:8px;padding:1px 6px;margin-left:4px;">Live</span></button>
+
+      <div style="padding:4px 8px;margin-top:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);">Home Search</div>
+      <button class="nb" data-pg="tour" onclick="go('tour',this);closeSidebar()">🚶 Tour Mode <span id="tour-count-badge" style="font-size:10px;color:var(--text3);"></span></button>
+      <button class="nb" data-pg="saved" onclick="go('saved',this);closeSidebar()">🏠 Saved Homes <span id="saved-count-badge" style="font-size:10px;color:var(--text3);"></span></button>
+
+      <div style="padding:4px 8px;margin-top:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:var(--text3);">Buyer Tools</div>
+      <button class="nb" data-pg="mortgage" onclick="go('mortgage',this);closeSidebar()">💰 Mortgage Calc</button>
+      <button class="nb" data-pg="photo" onclick="go('photo',this);closeSidebar()">📸 Property Photo Analyzer</button>
+      <button class="nb" data-pg="school" onclick="go('school',this);closeSidebar()">🏫 School Districts</button>
+      <button class="nb" data-pg="commute" onclick="go('commute',this);closeSidebar()">🚗 Commute Calculator</button>
+      <button class="nb" data-pg="valuation" onclick="go('valuation',this);closeSidebar()">📊 Home Valuation</button>
+      <button class="nb" data-pg="offer" onclick="go('offer',this);closeSidebar()">💡 Offer Strategy</button>
+      <button class="nb" data-pg="neighborhood" onclick="go('neighborhood',this);closeSidebar()">🏘 Neighborhood Intel</button>
+      <button class="nb" data-pg="movinglist" onclick="go('movinglist',this);closeSidebar()">📦 Moving Checklist</button>
+
+    </div>
+
+  </div>
+</nav>TYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -1197,7 +1270,7 @@ textarea{resize:vertical;min-height:68px;}
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
     <!-- Top stat line -->
     <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:6px 18px;border-bottom:0.5px solid var(--border);">
-      <span id="ad-stat-clients" style="font-size:13px;font-weight:500;color:var(--text);">— clients</span>
+      <span id="ad-stat-clients" style="font-size:13px;font-weight:500;color:var(--text);">Loading... clients</span>
       <span style="color:var(--border2);">·</span>
       <span id="ad-stat-tasks" style="font-size:13px;font-weight:500;color:var(--text);">— tasks today</span>
       <span style="color:var(--border2);">·</span>
@@ -1219,7 +1292,7 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:13px;font-weight:600;">Today's Tasks</div>
       <button onclick="go('agent-todo',document.querySelector('[data-pg=agent-todo]'))" style="font-size:11px;color:var(--green-dk);background:none;border:none;cursor:pointer;font-weight:500;">See all →</button>
     </div>
-    <div id="ad-today-tasks" style="padding:8px 0;"></div>
+    <div id="ad-today-tasks" style="padding:8px 0;"><div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">Loading...</div></div>
     <div style="padding:10px 16px;border-top:0.5px solid var(--border);display:flex;gap:8px;">
       <input type="text" id="ad-quick-task" placeholder="Add a task..." style="flex:1;border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 10px;font-family:inherit;font-size:13px;background:var(--bg);" onkeydown="if(event.key==='Enter')dashAddTask()"/>
       <button onclick="dashAddTask()" class="btn btn-g" style="padding:7px 14px;font-size:13px;">Add</button>
@@ -3397,7 +3470,9 @@ async function showApp() {
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
   // Show agent backend nav if agent
-  var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
+  var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';
+  var _cns=document.getElementById('client-nav-section');if(_cns)_cns.style.display=(isAgent||isLender)?'none':'flex';
+  var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   const mtb = document.getElementById('manage-team-btn');
   if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
   updateAgentRefs();
@@ -6025,6 +6100,17 @@ window._epoApprove = _epoApprove;
 
 window.renderHome = renderHome;
 
+function toggleNavSection(id) {
+  var panel = document.getElementById(id);
+  var arrow = document.getElementById(id+'-arrow');
+  if (!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'flex';
+  if (arrow) arrow.textContent = isOpen ? '▸' : '▾';
+}
+window.toggleNavSection = toggleNavSection;
+
+
 // ─── Shared tool dropdown population ───
 function _populateToolDropdown(selId) {
   var sel = document.getElementById(selId);
@@ -6863,12 +6949,15 @@ async function renderAgentDashboard() {
   el = document.getElementById('ad-stat-saved');
   if (el) el.textContent = '🏠 ' + savedCount + ' saved home' + (savedCount !== 1 ? 's' : '') + ' across clients';
 
-  // Showings this week (from _todos with appt- prefix this week)
+  // Appts + showings this week
   var weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
   var weekEndStr = weekEnd.toISOString().split('T')[0];
-  var showingsCount = (_todos||[]).filter(function(t){ return t.id && t.id.startsWith('appt-') && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
+  var apptCount = (_todos||[]).filter(function(t){ return t.id && t.id.startsWith('appt-') && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
+  // Add manual showings from _todos with showing- prefix
+  var showingCount = (_todos||[]).filter(function(t){ return t.id && (t.id.startsWith('showing-') || (t.text && t.text.toLowerCase().indexOf('showing') !== -1)) && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
+  var totalApptShowings = apptCount + showingCount;
   el = document.getElementById('ad-stat-showings');
-  if (el) el.textContent = '📅 ' + showingsCount + ' appointment' + (showingsCount !== 1 ? 's' : '') + ' this week';
+  if (el) el.textContent = '📅 ' + totalApptShowings + ' showing' + (totalApptShowings !== 1 ? 's' : '') + ' & appt' + (totalApptShowings !== 1 ? 's' : '') + ' this week';
 
   // Pending invites
   el = document.getElementById('ad-stat-pending');
