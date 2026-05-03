@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nest Track — Free Access for Agents</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #1D9E75;
+    --green-dk: #157A5A;
+    --green-lt: #f0fdf4;
+    --text: #1a1a1a;
+    --text2: #555;
+    --text3: #888;
+    --border: #e8e8e8;
+    --surface: #fff;
+    --bg: #fafaf8;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: #fff;
+    padding: 60px 24px 52px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 40px;
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--green);
+    letter-spacing: -0.3px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+  }
+
+  .tom-photo {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--green), var(--green-dk));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-size: 32px; font-weight: 300;
+    color: #fff;
+    margin: 0 auto 20px;
+    box-shadow: 0 8px 32px rgba(29,158,117,0.25);
+  }
+
+  .tom-name {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 400;
+    letter-spacing: -0.4px;
+    margin-bottom: 4px;
+  }
+
+  .tom-title {
+    font-size: 14px;
+    color: var(--text3);
+    margin-bottom: 28px;
+  }
+
+  .hero-headline {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 300;
+    line-height: 1.25;
+    letter-spacing: -0.8px;
+    max-width: 640px;
+    margin: 0 auto 16px;
+    color: var(--text);
+  }
+
+  .hero-headline em {
+    font-style: italic;
+    color: var(--green);
+  }
+
+  .hero-sub {
+    font-size: 16px;
+    color: var(--text2);
+    line-height: 1.65;
+    max-width: 480px;
+    margin: 0 auto 36px;
+  }
+
+  .hero-cta {
+    display: inline-block;
+    background: var(--green);
+    color: #fff;
+    text-decoration: none;
+    padding: 14px 32px;
+    border-radius: 100px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 20px rgba(29,158,117,0.3);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .hero-cta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(29,158,117,0.4);
+  }
+
+  .free-badge {
+    display: inline-block;
+    background: var(--green-lt);
+    color: var(--green-dk);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 5px 12px;
+    border-radius: 100px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(29,158,117,0.2);
+  }
+
+  /* ── VIDEO SECTION ── */
+  .section {
+    padding: 60px 24px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--green);
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(22px, 3.5vw, 30px);
+    font-weight: 300;
+    letter-spacing: -0.4px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .section-sub {
+    font-size: 14px;
+    color: var(--text3);
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .video-wrap {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 16px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.12);
+    background: #111;
+  }
+
+  .video-wrap iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    border: none;
+  }
+
+  .video-caption {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 14px;
+  }
+
+  /* ── VALUE PROPS ── */
+  .props-section {
+    background: #fff;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .props-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0;
+  }
+
+  .prop {
+    padding: 32px 28px;
+    border-right: 1px solid var(--border);
+  }
+
+  .prop:last-child { border-right: none; }
+
+  .prop-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .prop-title {
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    font-weight: 400;
+    margin-bottom: 6px;
+    letter-spacing: -0.2px;
+  }
+
+  .prop-text {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.65;
+  }
+
+  /* ── QUOTE ── */
+  .quote-section {
+    padding: 60px 24px;
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .quote-text {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(18px, 3vw, 24px);
+    font-weight: 300;
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  .quote-attr {
+    font-size: 13px;
+    color: var(--text3);
+  }
+
+  .quote-attr strong {
+    color: var(--text2);
+    font-weight: 500;
+  }
+
+  /* ── FORM ── */
+  .form-section {
+    background: #fff;
+    border-top: 1px solid var(--border);
+    padding: 64px 24px;
+  }
+
+  .form-wrap {
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .form-title {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(24px, 4vw, 34px);
+    font-weight: 300;
+    letter-spacing: -0.5px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .form-sub {
+    font-size: 14px;
+    color: var(--text3);
+    text-align: center;
+    margin-bottom: 36px;
+    line-height: 1.6;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    margin-bottom: 6px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--text);
+    background: var(--bg);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  .form-input:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(29,158,117,0.12);
+    background: #fff;
+  }
+
+  .form-input::placeholder { color: #bbb; }
+
+  .form-btn {
+    width: 100%;
+    padding: 15px;
+    background: var(--green);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    box-shadow: 0 4px 20px rgba(29,158,117,0.3);
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    letter-spacing: 0.01em;
+  }
+
+  .form-btn:hover {
+    background: var(--green-dk);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(29,158,117,0.4);
+  }
+
+  .form-btn:disabled {
+    opacity: 0.6;
+    transform: none;
+    cursor: not-allowed;
+  }
+
+  .form-note {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+
+  .form-success {
+    display: none;
+    text-align: center;
+    padding: 40px 20px;
+  }
+
+  .form-success-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .form-success-title {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 300;
+    margin-bottom: 10px;
+  }
+
+  .form-success-text {
+    font-size: 14px;
+    color: var(--text2);
+    line-height: 1.65;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    padding: 32px 24px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+  }
+
+  .footer-logo {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    color: var(--green);
+    margin-bottom: 6px;
+  }
+
+  .footer-text {
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero > * {
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .hero > *:nth-child(1) { animation-delay: 0.05s; }
+  .hero > *:nth-child(2) { animation-delay: 0.1s; }
+  .hero > *:nth-child(3) { animation-delay: 0.15s; }
+  .hero > *:nth-child(4) { animation-delay: 0.2s; }
+  .hero > *:nth-child(5) { animation-delay: 0.25s; }
+  .hero > *:nth-child(6) { animation-delay: 0.3s; }
+  .hero > *:nth-child(7) { animation-delay: 0.35s; }
+
+  /* ── MOBILE ── */
+  @media (max-width: 600px) {
+    .hero { padding: 48px 20px 44px; }
+    .props-grid { grid-template-columns: 1fr; }
+    .prop { border-right: none; border-bottom: 1px solid var(--border); }
+    .prop:last-child { border-bottom: none; }
+    .section { padding: 48px 20px; }
+    .form-section { padding: 48px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Nest Track
+  </div>
+
+  <div class="tom-photo">TG</div>
+
+  <div class="tom-name">Tom Garuccio</div>
+  <div class="tom-title">REALTOR® · The Garuccio Group at Real Brokerage · Mortgage Officer</div>
+
+  <div class="free-badge">Free for agents in my network</div>
+
+  <h1 class="hero-headline">
+    The platform that gives your clients<br>
+    <em>an experience they'll never forget</em>
+  </h1>
+
+  <p class="hero-sub">
+    I built Nest Track for my clients — and I'm giving it to agents in my network completely free. Watch the overview and request your access below.
+  </p>
+
+  <a href="#request" class="hero-cta">Request Free Access →</a>
+</div>
+
+<!-- VIDEO -->
+<div class="section">
+  <div class="section-label">See It In Action</div>
+  <h2 class="section-title">Two minutes. See what your clients would experience.</h2>
+  <p class="section-sub">A quick walkthrough of the client journey and agent tools.</p>
+
+  <div class="video-wrap">
+    <iframe src="https://www.loom.com/embed/6904e6ee47984dd5bd8d83f773ef1a99?hide_owner=true&hide_share=true&hide_title=true&hideEmbedTopBar=true" allowfullscreen></iframe>
+  </div>
+  <p class="video-caption">Can't watch now? <a href="https://www.loom.com/share/6904e6ee47984dd5bd8d83f773ef1a99" target="_blank" style="color:var(--green);">Open in Loom →</a></p>
+</div>
+
+<!-- VALUE PROPS -->
+<div class="props-section">
+  <div class="props-grid" style="max-width:900px;margin:0 auto;">
+    <div class="prop">
+      <span class="prop-icon">🏠</span>
+      <div class="prop-title">A guided client journey</div>
+      <p class="prop-text">Clients see exactly where they are in the process — every step, every milestone, every deadline. No more "what's happening with my offer?"</p>
+    </div>
+    <div class="prop">
+      <span class="prop-icon">📋</span>
+      <div class="prop-title">Everything in one place</div>
+      <p class="prop-text">Manage clients, deals, offers, appointments, and tasks from a single dashboard. Less chasing, more closing.</p>
+    </div>
+    <div class="prop">
+      <span class="prop-icon">🤝</span>
+      <div class="prop-title">Relationships that last</div>
+      <p class="prop-text">When clients feel taken care of, they refer you. Nest Track makes every transaction feel effortless — for them and for you.</p>
+    </div>
+  </div>
+</div>
+
+<!-- QUOTE -->
+<div class="quote-section">
+  <p class="quote-text">"I built this because my clients deserve more than a text update. They deserve to feel like they're in good hands every single day of the transaction."</p>
+  <p class="quote-attr">— <strong>Tom Garuccio</strong>, The Garuccio Group</p>
+</div>
+
+<!-- FORM -->
+<div class="form-section" id="request">
+  <div class="form-wrap">
+    <h2 class="form-title">Want in? Let's connect.</h2>
+    <p class="form-sub">Fill out the form below and Tom will personally review your request and reach out with your free access.</p>
+
+    <div id="form-container">
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" id="f-name" class="form-input" placeholder="Jane Smith" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email Address *</label>
+        <input type="email" id="f-email" class="form-input" placeholder="jane@brokerage.com" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input type="tel" id="f-phone" class="form-input" placeholder="(440) 555-0100"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Brokerage *</label>
+        <input type="text" id="f-brokerage" class="form-input" placeholder="Real Brokerage, Keller Williams..." required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">How do you know Tom?</label>
+        <input type="text" id="f-how" class="form-input" placeholder="Met at an event, referred by..., Real Brokerage..."/>
+      </div>
+
+      <button class="form-btn" id="submit-btn" onclick="submitForm()">Request Free Access →</button>
+      <p class="form-note">Tom reviews every request personally.<br>You'll hear back within 24 hours.</p>
+      <div id="form-error" style="display:none;text-align:center;font-size:13px;color:#E24B4A;margin-top:12px;"></div>
+    </div>
+
+    <div class="form-success" id="form-success">
+      <div class="form-success-icon">✅</div>
+      <div class="form-success-title">Request received!</div>
+      <p class="form-success-text">Thanks for reaching out. Tom will review your request and get back to you within 24 hours with your free access.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Nest Track</div>
+  <p class="footer-text">Built by Tom Garuccio · The Garuccio Group at Real Brokerage<br>
+    <a href="tel:4407547449" style="color:var(--green);text-decoration:none;">440-754-7449</a> ·
+    <a href="mailto:Tom@GaruccioGroup.com" style="color:var(--green);text-decoration:none;">Tom@GaruccioGroup.com</a>
+  </p>
+</footer>
+
+<script>
+const PROXY_URL = 'https://app.tom-b52.workers.dev';
+const NOTIFY_EMAIL = 'Tom@GaruccioGroup.com';
+
+async function submitForm() {
+  var name     = document.getElementById('f-name').value.trim();
+  var email    = document.getElementById('f-email').value.trim();
+  var phone    = document.getElementById('f-phone').value.trim();
+  var brokerage = document.getElementById('f-brokerage').value.trim();
+  var how      = document.getElementById('f-how').value.trim();
+  var errEl    = document.getElementById('form-error');
+  var btn      = document.getElementById('submit-btn');
+
+  errEl.style.display = 'none';
+
+  if (!name || !email || !brokerage) {
+    errEl.textContent = 'Please fill in your name, email, and brokerage.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.textContent = 'Please enter a valid email address.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
+    + '<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
+    + '<div style="font-size:20px;font-weight:300;color:#fff;">New Nest Track Access Request</div>'
+    + '</div>'
+    + '<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    + '<table style="width:100%;border-collapse:collapse;">'
+    + '<tr><td style="padding:8px 0;font-size:13px;color:#666;width:120px;">Name</td><td style="padding:8px 0;font-size:14px;font-weight:600;">' + name + '</td></tr>'
+    + '<tr><td style="padding:8px 0;font-size:13px;color:#666;">Email</td><td style="padding:8px 0;font-size:14px;font-weight:600;">' + email + '</td></tr>'
+    + (phone ? '<tr><td style="padding:8px 0;font-size:13px;color:#666;">Phone</td><td style="padding:8px 0;font-size:14px;font-weight:600;">' + phone + '</td></tr>' : '')
+    + '<tr><td style="padding:8px 0;font-size:13px;color:#666;">Brokerage</td><td style="padding:8px 0;font-size:14px;font-weight:600;">' + brokerage + '</td></tr>'
+    + (how ? '<tr><td style="padding:8px 0;font-size:13px;color:#666;">How they know you</td><td style="padding:8px 0;font-size:14px;">' + how + '</td></tr>' : '')
+    + '</table>'
+    + '<div style="margin-top:20px;padding:12px 14px;background:#f0fdf4;border-radius:6px;">'
+    + '<div style="font-size:12px;color:#065F46;">Reply directly to this email to reach them.</div>'
+    + '</div>'
+    + '</div></div>';
+
+  try {
+    await fetch(PROXY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+      body: JSON.stringify({
+        to: NOTIFY_EMAIL,
+        subject: '🏠 New Nest Track Access Request — ' + name,
+        html: emailHtml,
+        from: 'Nest Track <notifications@mail.garucciogroup.com>'
+      })
+    });
+
+    // Show success
+    document.getElementById('form-container').style.display = 'none';
+    document.getElementById('form-success').style.display = 'block';
+
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Request Free Access →';
+    errEl.textContent = 'Something went wrong. Please email Tom@GaruccioGroup.com directly.';
+    errEl.style.display = 'block';
+  }
+}
+
+// Allow Enter key on last field
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.activeElement.classList.contains('form-input')) {
+    submitForm();
+  }
+});
+</script>
+
+</body>
+</html>
