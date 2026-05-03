@@ -11171,6 +11171,11 @@ async function confirmSendOffer(listingId, offerId) {
         +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address||'')+'</strong> has been forwarded to the seller for review.</p>'
+        +'<div style="margin-top:20px;padding:14px 16px;background:#f0fdf4;border-radius:8px;border-left:4px solid #1D9E75;">'
+        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:5px;">&#127968; Powered by Nest Track</div>'
+        +'<div style="font-size:13px;color:#065F46;line-height:1.5;margin-bottom:8px;">The platform built for real estate agents. Free for agents in Tom Garuccio\'s network.</div>'
+        +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;">Watch Overview &#8594;</a>'
+        +'</div>'
         +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
         +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
         +'</div></div>';
@@ -11498,6 +11503,31 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
+
+    // Compliance email to buyer agent — offer has been presented to seller's client
+    if (o.agentEmail) {
+      var compHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
+        +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
+        +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Presented to Seller</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">Compliance Confirmation — Nest Track</div>'
+        +'</div>'
+        +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
+        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">This confirms your offer of <strong>'+(o.offerPrice||'')+'</strong> on <strong>'+partnerEsc(listingData.address||'')+'</strong> has been presented to the seller for review.</p>'
+        +'<div style="background:#f0fdf4;border-radius:6px;padding:12px 14px;margin-bottom:16px;">'
+        +'<div style="font-size:12px;font-weight:600;color:#065F46;">&#10003; Presented on: '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</div>'
+        +'</div>'
+        +'<div style="margin-top:20px;padding:14px 16px;background:#f0fdf4;border-radius:8px;border-left:4px solid #1D9E75;">'
+        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:5px;">&#127968; Powered by Nest Track</div>'
+        +'<div style="font-size:13px;color:#065F46;line-height:1.5;margin-bottom:8px;">The platform built for real estate agents. Free for agents in Tom Garuccio\'s network.</div>'
+        +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;">Watch Overview &#8594;</a>'
+        +'</div>'
+        +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+        +'<div style="font-size:13px;color:#888;">Sent via Nest Track</div>'
+        +'</div></div>';
+      await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Presented to Seller — '+partnerEsc(listingData.address||''), html:compHtml})});
+    }
   } catch(e) { console.log('autoSendOfferToClient error:', e.message); }
 }
 window.autoSendOfferToClient = autoSendOfferToClient;
