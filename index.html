@@ -11171,10 +11171,11 @@ async function confirmSendOffer(listingId, offerId) {
         +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address||'')+'</strong> has been forwarded to the seller for review.</p>'
-        +'<div style="margin-top:20px;padding:14px 16px;background:#f0fdf4;border-radius:8px;border-left:4px solid #1D9E75;">'
-        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:5px;">&#127968; Powered by Nest Track</div>'
-        +'<div style="font-size:13px;color:#065F46;line-height:1.5;margin-bottom:8px;">The platform built for real estate agents. Free for agents in Tom Garuccio\'s network.</div>'
-        +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;">Watch Overview &#8594;</a>'
+        +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
+        +'<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
+        +'<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
+        +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a>'
+        +'<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
         +'</div>'
         +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
         +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
@@ -11354,6 +11355,31 @@ async function submitPublicOffer(listingId) {
     }
     await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count
+    // Immediate confirmation to buyer agent
+    if (data.agentEmail) {
+      try {
+        var subHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
+          +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
+          +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Successfully Submitted</div>'
+          +'<div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">'+partnerEsc(data.address||'')+'</div>'
+          +'</div>'
+          +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+          +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(data.agentName||'there')+',</p>'
+          +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(data.offerPrice||'')+'</strong> has been successfully submitted to the listing agent for review.</p>'
+          +'<p style="font-size:13px;color:#666;margin:0 0 14px;">You will receive a separate confirmation once the offer has been presented to the seller.</p>'
+          +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
+          +'<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
+          +'<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
+          +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a>'
+          +'<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
+          +'</div>'
+          +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+          +'<div style="font-size:13px;color:#888;">Sent via Nest Track</div>'
+          +'</div></div>';
+        await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+          body:JSON.stringify({to:data.agentEmail, subject:'Offer Submitted — '+partnerEsc(data.address||''), html:subHtml})});
+      } catch(emailErr) { console.log('submit confirm err:', emailErr.message); }
+    }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
       offerCount: fb.increment(1)
     });
@@ -11517,10 +11543,11 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
         +'<div style="background:#f0fdf4;border-radius:6px;padding:12px 14px;margin-bottom:16px;">'
         +'<div style="font-size:12px;font-weight:600;color:#065F46;">&#10003; Presented on: '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</div>'
         +'</div>'
-        +'<div style="margin-top:20px;padding:14px 16px;background:#f0fdf4;border-radius:8px;border-left:4px solid #1D9E75;">'
-        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:5px;">&#127968; Powered by Nest Track</div>'
-        +'<div style="font-size:13px;color:#065F46;line-height:1.5;margin-bottom:8px;">The platform built for real estate agents. Free for agents in Tom Garuccio\'s network.</div>'
-        +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;">Watch Overview &#8594;</a>'
+        +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
+        +'<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
+        +'<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
+        +'<a href="NEST_TRACK_VIDEO_URL" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a>'
+        +'<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
         +'</div>'
         +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
         +'<div style="font-size:13px;color:#888;">Sent via Nest Track</div>'
