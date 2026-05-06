@@ -6028,6 +6028,133 @@ window._epoApprove = _epoApprove;
 
 window.renderHome = renderHome;
 
+// ─── Send Client Update (───
+var _suUid = null;
+var SU_TEMPLATES = {
+  'buy-consult':     {label:'Initial Consult Scheduled',     hasDate:true},
+  'buy-preapproval': {label:'Pre-Approval Received',         hasDate:false},
+  'buy-showing':     {label:'Showing Scheduled',             hasDate:true},
+  'buy-offer':       {label:'Offer Submitted',               hasDate:false},
+  'buy-earnest':     {label:'Earnest Money Received',        hasDate:false},
+  'buy-inspection':  {label:'Inspection Scheduled',          hasDate:true},
+  'buy-walkthrough': {label:'Final Walkthrough Scheduled',   hasDate:true},
+  'buy-closing':     {label:'Closing Scheduled',             hasDate:true},
+  'buy-closed':      {label:'Congratulations — You\'re a Homeowner!', hasDate:false},
+  'sell-photos':     {label:'Listing Photos Scheduled',      hasDate:true},
+  'sell-listed':     {label:'Your Home is Listed!',          hasDate:false},
+  'sell-showing':    {label:'Showing on Your Home',          hasDate:true},
+  'sell-offer':      {label:'Offer Received',                hasDate:false},
+  'sell-accepted':   {label:'Offer Accepted — Under Contract!', hasDate:false},
+  'sell-inspection': {label:'Buyer Inspection Scheduled',    hasDate:true},
+  'sell-closing':    {label:'Closing Scheduled',             hasDate:true},
+  'sell-closed':     {label:'Congratulations — Your Home is Sold!', hasDate:false},
+  'gen-checkin':     {label:'Quick Check-In',                hasDate:false},
+  'gen-docs':        {label:'Documents Need Attention',      hasDate:false},
+  'gen-waiting':     {label:'Waiting on Update',             hasDate:false},
+  'gen-custom':      {label:'Custom Message',                hasDate:false}
+};
+function getSUBody(val, first, dateStr, note) {
+  var d = dateStr ? ' on <strong>' + dateStr + '</strong>' : '';
+  var n = note ? '<br><br>' + note : '';
+  var bodies = {
+    'buy-consult':     'Hi ' + first + ',<br><br>Your initial consultation is scheduled' + d + '. This is the first step in your home buying journey — we\'ll go over everything you need to know, answer your questions, and map out your path to homeownership.' + n,
+    'buy-preapproval': 'Hi ' + first + ',<br><br>Great news — your pre-approval has been received! This is a big step forward and puts you in a strong position as we start searching for your home.' + n,
+    'buy-showing':     'Hi ' + first + ',<br><br>You have a showing scheduled' + d + '. Get ready to walk through and picture yourself in the space. I\'ll be in touch with any details beforehand.' + n,
+    'buy-offer':       'Hi ' + first + ',<br><br>Your offer has been submitted! Now we wait for the seller\'s response. I\'ll reach out as soon as we hear back.' + n,
+    'buy-earnest':     'Hi ' + first + ',<br><br>Your earnest money deposit has been received and confirmed. This is a great milestone — we\'re officially moving forward!' + n,
+    'buy-inspection':  'Hi ' + first + ',<br><br>Your home inspection is scheduled' + d + '. Plan on about 2–3 hours. I\'ll be there with you and we\'ll walk through everything the inspector finds.' + n,
+    'buy-walkthrough': 'Hi ' + first + ',<br><br>Your final walkthrough is scheduled' + d + '. This is your last chance to walk through the home before closing and make sure everything is in order. We\'re almost there!' + n,
+    'buy-closing':     'Hi ' + first + ',<br><br>Your closing is officially scheduled' + d + '. This is the finish line — you\'re almost a homeowner! I\'ll send you everything you need to bring beforehand.' + n,
+    'buy-closed':      'Hi ' + first + ',<br><br>Congratulations! 🎉 You are officially a homeowner. It has been such a pleasure guiding you through this journey. Welcome home — you deserve it!' + n,
+    'sell-photos':     'Hi ' + first + ',<br><br>Your listing photos are scheduled' + d + '. Make sure the home is clean and ready to shine — great photos make a huge difference.' + n,
+    'sell-listed':     'Hi ' + first + ',<br><br>Your home is officially live on the market! Buyers can now see your listing and schedule showings. I\'ll keep you updated on activity as it comes in.' + n,
+    'sell-showing':    'Hi ' + first + ',<br><br>A buyer has scheduled a showing on your home' + d + '. Please make sure the home is available and looking its best.' + n,
+    'sell-offer':      'Hi ' + first + ',<br><br>We have received an offer on your home! I\'m reviewing the details now and will reach out shortly to walk you through everything.' + n,
+    'sell-accepted':   'Hi ' + first + ',<br><br>Your offer has been accepted and you are officially under contract! This is a huge milestone. I\'ll keep you updated on every step from here to closing.' + n,
+    'sell-inspection': 'Hi ' + first + ',<br><br>The buyer\'s inspection is scheduled' + d + '. Please ensure the home is accessible. I\'ll follow up with any findings.' + n,
+    'sell-closing':    'Hi ' + first + ',<br><br>Closing is officially scheduled' + d + '. The finish line is in sight! I\'ll be in touch with everything you need to bring.' + n,
+    'sell-closed':     'Hi ' + first + ',<br><br>Congratulations! 🎉 Your home is officially sold. It has been an honor helping you through this process.' + n,
+    'gen-checkin':     'Hi ' + first + ',<br><br>Just wanted to check in and let you know things are moving along. I\'m on top of everything on my end. Don\'t hesitate to reach out with any questions.' + n,
+    'gen-docs':        'Hi ' + first + ',<br><br>There are some documents that need your attention. Please review and sign at your earliest convenience.' + n,
+    'gen-waiting':     'Hi ' + first + ',<br><br>Just a quick update — we are currently waiting to hear back. I\'ll reach out as soon as I have news. Thanks for your patience!' + n
+  };
+  return bodies[val] || note || '';
+}
+function openSendUpdate(uid) {
+  _suUid = uid;
+  var sel = document.getElementById('su-template');
+  if (sel) sel.value = 'buy-consult';
+  var dateEl = document.getElementById('su-date');
+  if (dateEl) dateEl.value = '';
+  var noteEl = document.getElementById('su-note');
+  if (noteEl) noteEl.value = '';
+  var custEl = document.getElementById('su-custom');
+  if (custEl) custEl.value = '';
+  suTemplateChanged();
+  var overlay = document.getElementById('send-update-overlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+window.openSendUpdate = openSendUpdate;
+function closeSendUpdate() {
+  var overlay = document.getElementById('send-update-overlay');
+  if (overlay) overlay.style.display = 'none';
+  _suUid = null;
+}
+window.closeSendUpdate = closeSendUpdate;
+function suTemplateChanged() {
+  var val = document.getElementById('su-template').value;
+  var tmpl = SU_TEMPLATES[val];
+  var dateRow = document.getElementById('su-date-row');
+  var customRow = document.getElementById('su-custom-row');
+  if (dateRow) dateRow.style.display = (tmpl && tmpl.hasDate) ? 'block' : 'none';
+  if (customRow) customRow.style.display = val === 'gen-custom' ? 'block' : 'none';
+}
+window.suTemplateChanged = suTemplateChanged;
+async function previewSendUpdate() {
+  if (!_suUid) return;
+  var val = document.getElementById('su-template').value;
+  var tmpl = SU_TEMPLATES[val];
+  if (!tmpl) return;
+  var dateVal = document.getElementById('su-date').value;
+  var note = document.getElementById('su-note').value.trim();
+  var custom = document.getElementById('su-custom').value.trim();
+  var dateStr = dateVal ? new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : '';
+  var b = (myBuyers||[]).find(function(x){ return x.uid === _suUid; });
+  if (!b || !b.email) { alert('Client not found or missing email.'); return; }
+  var first = b.firstName || 'there';
+  var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === (b.agentId||'tom'); });
+  var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+  var agentPhone = agentObj ? agentObj.phone : '440-754-7449';
+  var agentEmail2 = agentObj ? agentObj.email : 'Tom@GaruccioGroup.com';
+  var bodyText = val === 'gen-custom' ? custom : getSUBody(val, first, dateStr, note);
+  if (!bodyText.trim()) { alert('Please enter your message.'); return; }
+  var subject = 'Update from ' + agentName + ' — ' + tmpl.label;
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    + '<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    + '<div style="font-size:22px;font-weight:300;color:#fff;">Nest Track Update</div>'
+    + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">' + tmpl.label + '</div>'
+    + '</div>'
+    + '<div style="background:#fff;padding:26px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    + '<p style="font-size:14px;color:#444;line-height:1.75;margin:0 0 18px;">' + bodyText + '</p>'
+    + '<div style="background:#f9f9f7;border-radius:8px;padding:14px 16px;margin-top:18px;">'
+    + '<div style="font-size:14px;font-weight:600;color:#1a1a1a;">' + agentName + '</div>'
+    + '<div style="font-size:12px;color:#666;margin-top:2px;">' + agentPhone + ' · ' + agentEmail2 + '</div>'
+    + '<a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:10px;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;">Open Nest Track →</a>'
+    + '</div></div></div>';
+  closeSendUpdate();
+  showEmailPreview(b.email, subject, emailHtml, async function() {
+    try {
+      await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-Action':'email'},
+        body: JSON.stringify({to: b.email, subject: subject, html: emailHtml})
+      });
+    } catch(e) { console.log('Send update err:', e.message); }
+  });
+}
+window.previewSendUpdate = previewSendUpdate;
+
+
 function toggleNavSection(id) {
   var panel = document.getElementById(id);
   var arrow = document.getElementById(id+'-arrow');
@@ -7309,7 +7436,8 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
-          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button>
+          <button onclick="openSendUpdate('${uid}')" style="font-size:11px;font-weight:600;background:var(--green-lt);color:var(--green-dk);border:1px solid rgba(29,158,117,0.3);border-radius:8px;padding:3px 10px;cursor:pointer;">📨 Send Update</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
           ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
@@ -7486,9 +7614,8 @@ async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
   if (newStep !== 0) {
     var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
-    var choice = await stepEmailPrompt('Move buyer to "'+stepName+'"?');
-    if (choice === 'cancel') return;
-    window._pendingStepEmailChoice = choice;
+    // Step saves silently — use Send Update button for emails
+    window._pendingStepEmailChoice = 'nosend';
   }
   try {
     var buyerJourneyPatch = { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -7679,9 +7806,8 @@ async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   if (newStep !== 0) {
     var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
-    var choice = await stepEmailPrompt('Move seller to "'+sName+'"?');
-    if (choice === 'cancel') return;
-    window._pendingStepEmailChoice = choice;
+    // Step saves silently
+    window._pendingStepEmailChoice = 'nosend';
   }
   try {
     var sellerJourneyPatch = { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -13472,6 +13598,63 @@ window.repairDealTrackerData = repairDealTrackerData;
       <div style="padding:14px 18px;border-top:0.5px solid var(--border);display:flex;gap:8px;">
         <button onclick="document.getElementById('email-preview-overlay').style.display='none'" class="btn" style="flex:1;">Cancel</button>
         <button onclick="_epoApprove()" class="btn btn-g" style="flex:2;">&#10003; Approve &amp; Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send Update Modal -->
+  <div id="send-update-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);position:sticky;top:0;background:var(--surface);">
+        <div style="font-size:15px;font-weight:600;">Send Client Update</div>
+        <button onclick="closeSendUpdate()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">&#215;</button>
+      </div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px;">
+        <div>
+          <label class="flabel">Select Update</label>
+          <select id="su-template" onchange="suTemplateChanged()" style="width:100%;font-size:13px;">
+            <optgroup label="Buying Journey">
+              <option value="buy-consult">Initial Consult Scheduled</option>
+              <option value="buy-preapproval">Pre-Approval Received</option>
+              <option value="buy-showing">Showing Scheduled</option>
+              <option value="buy-offer">Offer Submitted</option>
+              <option value="buy-earnest">Earnest Money Received</option>
+              <option value="buy-inspection">Inspection Scheduled</option>
+              <option value="buy-walkthrough">Final Walkthrough Scheduled</option>
+              <option value="buy-closing">Closing Scheduled</option>
+              <option value="buy-closed">Congratulations - You're a Homeowner!</option>
+            </optgroup>
+            <optgroup label="Selling Journey">
+              <option value="sell-photos">Listing Photos Scheduled</option>
+              <option value="sell-listed">Your Home is Listed!</option>
+              <option value="sell-showing">Showing Scheduled on Your Home</option>
+              <option value="sell-offer">Offer Received</option>
+              <option value="sell-accepted">Offer Accepted - Under Contract!</option>
+              <option value="sell-inspection">Buyer Inspection Scheduled</option>
+              <option value="sell-closing">Closing Scheduled</option>
+              <option value="sell-closed">Congratulations - Your Home is Sold!</option>
+            </optgroup>
+            <optgroup label="General">
+              <option value="gen-checkin">Quick Check-In</option>
+              <option value="gen-docs">Documents Need Your Attention</option>
+              <option value="gen-waiting">Waiting on Update</option>
+              <option value="gen-custom">Custom Message...</option>
+            </optgroup>
+          </select>
+        </div>
+        <div id="su-date-row" style="display:none;">
+          <label class="flabel">Date</label>
+          <input type="date" id="su-date" style="width:100%;box-sizing:border-box;"/>
+        </div>
+        <div>
+          <label class="flabel">Additional Note <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+          <textarea id="su-note" rows="3" placeholder="Any extra details for the client..." style="width:100%;box-sizing:border-box;resize:none;font-size:13px;"></textarea>
+        </div>
+        <div id="su-custom-row" style="display:none;">
+          <label class="flabel">Custom Message</label>
+          <textarea id="su-custom" rows="4" placeholder="Write your own update..." style="width:100%;box-sizing:border-box;resize:none;font-size:13px;"></textarea>
+        </div>
+        <button class="btn btn-g" onclick="previewSendUpdate()" style="justify-content:center;">Preview Email →</button>
       </div>
     </div>
   </div>
