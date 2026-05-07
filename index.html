@@ -2512,31 +2512,34 @@ textarea{resize:vertical;min-height:68px;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTime
-// ─── API PROXY ───
-// Set your Cloudflare Worker URL here after deploying it
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+import { getStorage, ref as storageRef, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
-// ── Early hash check — runs before Firebase loads ──
-// If this is a public offer link, hide login screen immediately
-(function() {
-  var hash = window.location.hash;
-  // Handle agent invite link
-  if (hash && /^#agent-invite=[A-Z0-9]+$/i.test(hash)) {
-    var agentCode = hash.split('=')[1];
-    window._agentInviteCode = agentCode;
-    window.history.replaceState(null,'',location.pathname);
-  }
-  if (hash && /^#offer=[A-Z0-9]+$/i.test(hash)) {
-    var loginEl = document.getElementById('login-screen');
-    var appEl   = document.getElementById('app');
-    var offerEl = document.getElementById('page-offer-submit');
-    if (offerEl) {
-      offerEl.style.display = 'block';
-      var inner = document.getElementById('offer-submit-inner');
-      if (inner) inner.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#888;font-family:Georgia,serif;">Loading offer page...</div>';
-    }
-  }
-})();
+const firebaseConfig = {
+  apiKey: "AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY",
+  authDomain: "buyers-880bc.firebaseapp.com",
+  projectId: "buyers-880bc",
+  databaseURL: "https://buyers-880bc-default-rtdb.firebaseio.com",
+  storageBucket: "buyers-880bc.firebasestorage.app",
+  messagingSenderId: "681324344980",
+  appId: "1:681324344980:web:1a7ae6a9d592b96ec26681",
+  measurementId: "G-R250MQH4N5"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const rtdb = getDatabase(fbApp);
+const storage = getStorage(fbApp);
+
+// Expose for non-module code
+window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment };
+
+window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<script>
 const PROXY_URL = 'https://app.tom-b52.workers.dev';
 const VAPID_PUBLIC_KEY = 'BJTQOfGIrF82EPPDKZtqpSThXhxubKuNn90euj7F5iqTBQFn_EBIqSkXMQytYc7O2MePh0cJnZzY8r5UrdeJAGU';
 const GOOGLE_PLACES_KEY = ''; // Optional: add your Google Places API key for address autocomplete
@@ -13474,7 +13477,7 @@ function getClientStatus(b) {
 window.getClientStatus = getClientStatus;
 function setCRMFilter(filter) {
   window._crmFilter = filter;
-  ['all','active','pipeline','nurture','closed'].forEach(function(f) {
+  ['all','active','pipeline','nurture','cold','past','closed'].forEach(function(f) {
     var btn = document.getElementById('crm-tab-'+f);
     if (!btn) return;
     btn.style.background = f === filter ? 'var(--green)' : 'var(--surface)';
@@ -13484,23 +13487,6 @@ function setCRMFilter(filter) {
   renderBuyers();
 }
 window.setCRMFilter = setCRMFilter;
-async function saveClientStatus(uid, status) {
-  try {
-    await fb.updateDoc(fb.doc(fb.db,'users',uid), {crmStatus: status});
-    var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
-    if (b) b.crmStatus = status;
-    // Visual feedback
-    var sel = event && event.target;
-    if (sel) {
-      sel.style.borderColor = 'var(--green)';
-      setTimeout(function(){ if(sel) sel.style.borderColor = ''; }, 1500);
-    }
-    renderBuyers();
-  } catch(e) {
-    alert('Could not save status: ' + e.message);
-  }
-}
-window.saveClientStatus = saveClientStatus;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
