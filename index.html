@@ -2074,17 +2074,13 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Client</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
-  </div>
-  <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
-    <button onclick="setCRMFilter('all')" id="crm-tab-all" style="flex:1;padding:7px 3px;font-size:11px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">All</button>
-    <button onclick="setCRMFilter('active')" id="crm-tab-active" style="flex:1;padding:7px 3px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Active</button>
-    <button onclick="setCRMFilter('pipeline')" id="crm-tab-pipeline" style="flex:1;padding:7px 3px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Pipeline</button>
-    <button onclick="setCRMFilter('nurture')" id="crm-tab-nurture" style="flex:1;padding:7px 3px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Nurture</button>
-    <button onclick="setCRMFilter('cold')" id="crm-tab-cold" style="flex:1;padding:7px 3px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Cold</button>
-    <button onclick="setCRMFilter('past')" id="crm-tab-past" style="flex:1;padding:7px 3px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Past</button>
-    <button onclick="setCRMFilter('closed')" id="crm-tab-closed" style="flex:1;padding:7px 3px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Closed</button>
-  </div>
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+    <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
+      <button onclick="setCRMFilter('all')" id="crm-tab-all" style="flex:1;padding:7px 4px;font-size:11.5px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">All</button>
+      <button onclick="setCRMFilter('active')" id="crm-tab-active" style="flex:1;padding:7px 4px;font-size:11.5px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Active</button>
+      <button onclick="setCRMFilter('pipeline')" id="crm-tab-pipeline" style="flex:1;padding:7px 4px;font-size:11.5px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Pipeline</button>
+      <button onclick="setCRMFilter('nurture')" id="crm-tab-nurture" style="flex:1;padding:7px 4px;font-size:11.5px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Nurture</button>
+      <button onclick="setCRMFilter('closed')" id="crm-tab-closed" style="flex:1;padding:7px 4px;font-size:11.5px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Closed</button>
+    </div>
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
   </div>
   <div class="dstats" id="agent-stats"></div>
@@ -6549,7 +6545,7 @@ async function renderBuyers() {
 
   myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
-  if (_crmFilter && _crmFilter !== 'all') { myBuyers = myBuyers.filter(function(b){ return getClientStatus(b) === _crmFilter; }); }
+  if (window._crmFilter && window._crmFilter !== 'all') { myBuyers = myBuyers.filter(function(b){ return getClientStatus(b) === window._crmFilter; }); }
 
   const total = myBuyers.length;
   const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
@@ -6570,6 +6566,8 @@ async function renderBuyers() {
     const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
     const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
+    var _cs = getClientStatus(b); var _csc = {active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',closed:'#888'}; var _csb = {active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',closed:'#f5f5f5'};
+    const statusPill = isPending ? '' : '<span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px;background:'+(_csb[_cs]||'#f5f5f5')+';color:'+(_csc[_cs]||'#888')+';margin-right:4px;">'+_cs.charAt(0).toUpperCase()+_cs.slice(1)+'</span>';
     const stepInfo = isPending
       ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>'
       : '<div style="font-size:11px;color:var(--text3);">Step '+(b.currentStep||1)+' of 11</div><span class="pill pill-b">'+(step?step.name:'')+'</span>';
@@ -6578,13 +6576,12 @@ async function renderBuyers() {
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
-        ${(()=>{ var st=getClientStatus(b); var _csc={active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',cold:'#6366F1',past:'#059669',closed:'#888'}; var _csb={active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',cold:'#eef2ff',past:'#ecfdf5',closed:'#f5f5f5'}; var _csl={active:'Active',pipeline:'Pipeline',nurture:'Nurture',cold:'Cold',past:'Past Client',closed:'Closed'}; return '<span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:'+(_csb[st]||'#f5f5f5')+';color:'+(_csc[st]||'#888')+';">'+(_csl[st]||st)+'</span>'; })()
         ${agentLine}${coAgentLine}
         ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; ctBtns+='</div>'; } return ctBtns; })()}
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
-          ${stepInfo}
+          ${statusPill}${stepInfo}
           ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No buyer timeline set</div>':''}
           ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No seller timeline set</div>':''}
         </div>
@@ -7330,19 +7327,11 @@ async function openBuyerDetail(uid, scrollTo) {
       <button class="xbtn" onclick="closeM('buyer-modal')" style="position:relative;z-index:10;margin-top:env(safe-area-inset-top,0px);">✕</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:0;padding-bottom:16px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
-      <div style="font-size:12px;font-weight:700;color:var(--text3);">CRM Status</div>
-      <select onchange="saveClientStatus('${uid}',this.value)" style="font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;margin-bottom:12px;width:100%;">
-        <option value="auto" ${(!b.crmStatus||b.crmStatus==='auto')?'selected':''}>Auto</option>
-        <option value="pipeline" ${b.crmStatus==='pipeline'?'selected':''}>Pipeline</option>
-        <option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option>
-        <option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option>
-        <option value="cold" ${b.crmStatus==='cold'?'selected':''}>Cold</option>
-        <option value="past" ${b.crmStatus==='past'?'selected':''}>Past Client</option>
-        <option value="closed" ${b.crmStatus==='closed'?'selected':''}>Closed</option>
-      </select>
-      <div style="font-size:12px;font-weight:700;color:var(--text3);">Journey Type</div>
-      <select onchange="setJourneyType('${uid}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">
+    <div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);">CRM Status</div>
+      <select onchange="saveClientStatus('${uid}',this.value)" style="font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;margin-bottom:12px;width:100%;"><option value="auto" ${(!b.crmStatus||b.crmStatus==='auto')?'selected':''}>Auto</option><option value="pipeline" ${b.crmStatus==='pipeline'?'selected':''}>Pipeline</option><option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option><option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option><option value="closed" ${b.crmStatus==='closed'?'selected':''}>Closed</option></select>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);">Journey Type</div>
+      <select onchange="setJourneyType('${uid}',this.value)" style="font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;width:100%;">
         <option value="buyer" ${(b.journeyType||'buyer')==='buyer'?'selected':''}>🏠 Buyer Only</option>
         <option value="seller" ${b.journeyType==='seller'?'selected':''}>🏡 Seller Only</option>
         <option value="both" ${b.journeyType==='both'?'selected':''}>🏠🏡 Buyer + Seller</option>
@@ -13364,7 +13353,8 @@ async function repairDealTrackerData() {
 }
 window.repairDealTrackerData = repairDealTrackerData;
 
-// ─── CRM STATUS ───
+// ─── CRM Status ───
+window._crmFilter = 'all';
 function getClientStatus(b) {
   if (b.crmStatus && b.crmStatus !== 'auto') return b.crmStatus;
   var buyStep = b.currentStep || 0;
@@ -13375,11 +13365,9 @@ function getClientStatus(b) {
   return 'pipeline';
 }
 window.getClientStatus = getClientStatus;
-
-var _crmFilter = 'all';
 function setCRMFilter(filter) {
-  _crmFilter = filter;
-  ['all','active','pipeline','nurture','cold','past','closed'].forEach(function(f) {
+  window._crmFilter = filter;
+  ['all','active','pipeline','nurture','closed'].forEach(function(f) {
     var btn = document.getElementById('crm-tab-'+f);
     if (!btn) return;
     btn.style.background = f === filter ? 'var(--green)' : 'var(--surface)';
@@ -13389,12 +13377,12 @@ function setCRMFilter(filter) {
   renderBuyers();
 }
 window.setCRMFilter = setCRMFilter;
-
 async function saveClientStatus(uid, status) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',uid), {crmStatus: status});
     var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
     if (b) b.crmStatus = status;
+    // Visual feedback
     var sel = event && event.target;
     if (sel) {
       sel.style.borderColor = 'var(--green)';
