@@ -2494,7 +2494,33 @@ textarea{resize:vertical;min-height:68px;}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-impor
+import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+import { getStorage, ref as storageRef, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY",
+  authDomain: "buyers-880bc.firebaseapp.com",
+  projectId: "buyers-880bc",
+  databaseURL: "https://buyers-880bc-default-rtdb.firebaseio.com",
+  storageBucket: "buyers-880bc.firebasestorage.app",
+  messagingSenderId: "681324344980",
+  appId: "1:681324344980:web:1a7ae6a9d592b96ec26681",
+  measurementId: "G-R250MQH4N5"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const rtdb = getDatabase(fbApp);
+const storage = getStorage(fbApp);
+
+// Expose for non-module code
+window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment };
+
+window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<script>
 // ─── API PROXY ───
 // Set your Cloudflare Worker URL here after deploying it
 
@@ -6519,9 +6545,7 @@ async function renderBuyers() {
 
   myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
-  if (window._crmFilter && window._crmFilter !== 'all') {
-    myBuyers = myBuyers.filter(function(b) { return getClientStatus(b) === window._crmFilter; });
-  }
+  if (window._crmFilter && window._crmFilter !== 'all') { myBuyers = myBuyers.filter(function(b){ return getClientStatus(b) === window._crmFilter; }); }
 
   const total = myBuyers.length;
   const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
@@ -6542,10 +6566,8 @@ async function renderBuyers() {
     const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
     const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
-    const _cs = getClientStatus(b);
-    const _csColors = {active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',closed:'#888'};
-    const _csBg = {active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',closed:'#f5f5f5'};
-    const statusPill = isPending ? '' : '<span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px;background:'+(_csBg[_cs]||'#f5f5f5')+';color:'+(_csColors[_cs]||'#888')+';margin-right:4px;">'+_cs.charAt(0).toUpperCase()+_cs.slice(1)+'</span>';
+    var _cs = getClientStatus(b); var _csc = {active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',closed:'#888'}; var _csb = {active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',closed:'#f5f5f5'};
+    const statusPill = isPending ? '' : '<span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px;background:'+(_csb[_cs]||'#f5f5f5')+';color:'+(_csc[_cs]||'#888')+';margin-right:4px;">'+_cs.charAt(0).toUpperCase()+_cs.slice(1)+'</span>';
     const stepInfo = isPending
       ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>'
       : '<div style="font-size:11px;color:var(--text3);">Step '+(b.currentStep||1)+' of 11</div><span class="pill pill-b">'+(step?step.name:'')+'</span>';
@@ -12099,44 +12121,6 @@ async function renderApptList() {
 }
 window.renderApptList = renderApptList;
 
-// ─── CRM Status Filter ───
-window._crmFilter = 'all';
-
-function getClientStatus(b) {
-  if (b.crmStatus && b.crmStatus !== 'auto') return b.crmStatus;
-  var buyStep = b.currentStep || 0;
-  var sellStep = b.currentSellerStep || 0;
-  var mortStep = b.currentMortgageStep || 0;
-  if (buyStep >= 11 || sellStep >= 13 || mortStep >= 9) return 'closed';
-  if (Math.max(buyStep, sellStep, mortStep) > 0) return 'active';
-  return 'pipeline';
-}
-window.getClientStatus = getClientStatus;
-
-function setCRMFilter(filter) {
-  window._crmFilter = filter;
-  ['all','active','pipeline','nurture','closed'].forEach(function(f) {
-    var btn = document.getElementById('crm-tab-'+f);
-    if (!btn) return;
-    btn.style.background = f === filter ? 'var(--green)' : 'var(--surface)';
-    btn.style.color = f === filter ? '#fff' : 'var(--text2)';
-    btn.style.fontWeight = f === filter ? '600' : '500';
-  });
-  renderBuyers();
-}
-window.setCRMFilter = setCRMFilter;
-
-async function saveClientStatus(uid, status) {
-  try {
-    var agentId = userProfile.agentId || 'tom';
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'buyers',uid), {crmStatus: status});
-    var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
-    if (b) b.crmStatus = status;
-  } catch(e) {}
-}
-window.saveClientStatus = saveClientStatus;
-
-
 async function deleteAppt(docId, clientName, todoId) {
   if (!confirm('Remove appointment for '+clientName+'?')) return;
   try {
@@ -13368,31 +13352,40 @@ async function repairDealTrackerData() {
   alert('Done. Updated ' + updates.length + ', deleted ' + deletes.length + '. Re-set any Closed deals manually.');
 }
 window.repairDealTrackerData = repairDealTrackerData;
-Type === 'both') d.dealType = 'buyer';
-    if (!d.dealType) d.dealType = 'buyer';
-    var key = [d.clientUid||'', d.dealType, (d.address||'').trim().toLowerCase(), (d.clientName||'').trim().toLowerCase()].join('|');
-    if (!d.clientUid && !d.address) key = 'id|' + d.id;
-    if (seen[key]) { deletes.push(d.id); return; }
-    seen[key] = true;
-    var patch = {};
-    if (item.d.dealType === 'both') patch.dealType = 'buyer';
-    if (d.manuallyClosed !== true) {
-      var cleanStatus = d.dealType === 'seller' ? 'On Market' : 'Active';
-      if (d.status !== cleanStatus) patch.status = cleanStatus;
-    }
-    if (Object.keys(patch).length) updates.push({ id: d.id, patch: patch });
-  });
-  var msg = 'PREVIEW:\nDelete ' + deletes.length + ' duplicate(s).\nReset status on ' + updates.length + ' deal(s).\n\nProceed?';
-  if (!confirm(msg)) return;
-  for (var i = 0; i < updates.length; i++) await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
-  for (var j = 0; j < deletes.length; j++) await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
-  _dealsLoaded = false;
-  await loadDeals();
-  _dealTrackerRendering = false;
-  renderDealTracker();
-  alert('Done. Updated ' + updates.length + ', deleted ' + deletes.length + '. Re-set any Closed deals manually.');
+
+// ─── CRM Status ───
+window._crmFilter = 'all';
+function getClientStatus(b) {
+  if (b.crmStatus && b.crmStatus !== 'auto') return b.crmStatus;
+  var buyStep = b.currentStep || 0;
+  var sellStep = b.currentSellerStep || 0;
+  var mortStep = b.currentMortgageStep || 0;
+  if (buyStep >= 11 || sellStep >= 13 || mortStep >= 9) return 'closed';
+  if (Math.max(buyStep, sellStep, mortStep) > 0) return 'active';
+  return 'pipeline';
 }
-window.repairDealTrackerData = repairDealTrackerData;
+window.getClientStatus = getClientStatus;
+function setCRMFilter(filter) {
+  window._crmFilter = filter;
+  ['all','active','pipeline','nurture','closed'].forEach(function(f) {
+    var btn = document.getElementById('crm-tab-'+f);
+    if (!btn) return;
+    btn.style.background = f === filter ? 'var(--green)' : 'var(--surface)';
+    btn.style.color = f === filter ? '#fff' : 'var(--text2)';
+    btn.style.fontWeight = f === filter ? '600' : '500';
+  });
+  renderBuyers();
+}
+window.setCRMFilter = setCRMFilter;
+async function saveClientStatus(uid, status) {
+  try {
+    var agentId = userProfile.agentId || 'tom';
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'buyers',uid), {crmStatus: status});
+    var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
+    if (b) b.crmStatus = status;
+  } catch(e) {}
+}
+window.saveClientStatus = saveClientStatus;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
