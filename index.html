@@ -2556,7 +2556,7 @@ function setupPlacesAC(inputId) {
       const place = ac.getPlace();
       if (place && place.formatted_address) input.value = place.formatted_address;
     });
-  } catch(e) { console.log('Places AC:', e.message); }
+  } catch(e) { }
 }
 
 async function claudeAPI(body) {
@@ -2900,7 +2900,6 @@ window.addEventListener('message', function(e) {
 });
 
 window.addEventListener('firebase-ready', () => {
-  console.log('Firebase ready');
   // Listen for Chime iframe height updates
   window.addEventListener('message', e => {
     try {
@@ -2971,7 +2970,7 @@ async function signUp() {
       try {
         const invDoc = await fb.getDoc(fb.doc(fb.db, 'invites', invite));
         if (invDoc.exists()) { inviteData = invDoc.data(); agentId = inviteData.agentId || selectedAgent; }
-      } catch (x) { console.log('Invite lookup failed', x); }
+      } catch (x) { }
     }
     var journeyType = (inviteData && inviteData.journeyType) || 'buyer';
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), {
@@ -2993,7 +2992,7 @@ async function signUp() {
       pendingSnaps.forEach(async function(d) {
         await fb.deleteDoc(fb.doc(fb.db, 'users', d.id));
       });
-    } catch(x) { console.log('Pending email cleanup:', x); }
+    } catch(x) { }
 
     if (invite && inviteData) {
       try {
@@ -3015,7 +3014,7 @@ async function signUp() {
           }
           await fb.deleteDoc(fb.doc(fb.db, 'users', pendingUid));
         }
-      } catch (x) { console.log('Pending cleanup:', x); }
+      } catch (x) { }
     }
   } catch (e) {
     err.textContent = e.code === 'auth/email-already-in-use' ? 'An account with this email already exists' : (e.message || 'Sign-up failed');
@@ -3058,7 +3057,7 @@ async function loadTeamAgents() {
         DEFAULT_AGENTS.splice(i, 1);
       }
     }
-  } catch(e) { console.log('loadTeamAgents:', e.message); }
+  } catch(e) { }
   populateAgentDropdown();
 }
 
@@ -3075,7 +3074,7 @@ async function syncHardcodedAgentsToFirestore() {
           syncedAt: new Date().toISOString()
         });
       }
-    } catch(e) { console.log('syncAgent', a.id, e.message); }
+    } catch(e) { }
   }
 }
 
@@ -3172,7 +3171,7 @@ async function loadAssignedAgentProfile() {
           calendly: ldata.calendly || assignedLender.calendly || '',
         });
       });
-    } catch(e) { console.log('lender profile load:', e.message); }
+    } catch(e) { }
   } catch(e) { console.warn('Could not load assigned agent profile', e); }
 }
 
@@ -3444,7 +3443,6 @@ async function showApp() {
     if (startLabel) startLabel.style.display = 'none';
     setTimeout(function() {
       go('agent-dash', agentBtn);
-      watchAllAgentChats();
       // Re-render after data loads (mobile needs more time)
       setTimeout(renderAgentDashboard, 1500);
     }, 100);
@@ -4054,7 +4052,7 @@ async function fetchMortgageRates(){
     if(r.ok){var t=await r.text();var l=t.trim().split('\n');var last=l[l.length-1].split(',');var v=parseFloat(last[1]);if(!isNaN(v)){currentRates.rate30=v;currentRates.date=last[0];}}
     var r2=await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE15US',{mode:'cors'});
     if(r2.ok){var t2=await r2.text();var l2=t2.trim().split('\n');var last2=l2[l2.length-1].split(',');var v2=parseFloat(last2[1]);if(!isNaN(v2))currentRates.rate15=v2;}
-  }catch(e){console.log('rates:',e.message);}
+  }catch(e){}
   var e30=document.getElementById('rate-30');var e15=document.getElementById('rate-15');var ed=document.getElementById('rate-date');
   if(e30)e30.textContent=currentRates.rate30.toFixed(2)+'%';
   if(e15)e15.textContent=currentRates.rate15.toFixed(2)+'%';
@@ -4241,34 +4239,7 @@ async function buyerUpdateStep() {
 window.buyerUpdateStep = buyerUpdateStep;
 
 
-async function setJourneyType(type) {
-  ['both','buyer-only','seller-only'].forEach(function(t) {
-    var id = t==='both'?'jt-both':t==='buyer-only'?'jt-buyer':'jt-seller';
-    var b = document.getElementById(id); if (!b) return;
-    b.style.background = t===type ? 'var(--green)' : 'var(--surface2)';
-    b.style.color = t===type ? '#fff' : 'var(--text2)';
-  });
-  try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{journeyType:type});
-    userProfile.journeyType = type;
-    var buyTab = document.getElementById('dash-tab-buy');
-    var sellTab = document.getElementById('dash-tab-sell');
-    if (type === 'seller-only') {
-      if (buyTab) buyTab.style.display='none';
-      if (sellTab) sellTab.style.display='';
-      switchDashJourney('selling');
-    } else if (type === 'buyer-only') {
-      if (sellTab) sellTab.style.display='none';
-      if (buyTab) buyTab.style.display='';
-      switchDashJourney('buying');
-    } else {
-      if (buyTab) buyTab.style.display='';
-      if (sellTab) sellTab.style.display='';
-    }
-    renderHome();
-  } catch(e) { console.log('setJourneyType:', e.message); }
-}
-window.setJourneyType = setJourneyType;
+async 
 
 function switchDashJourney(tab) {
   var bb = document.getElementById('dash-tab-buy');
@@ -4455,7 +4426,7 @@ async function sendClientEmail(uid, subject, bodyHtml) {
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
       body: JSON.stringify({ to: email, subject: subject, html: bodyHtml })
     });
-  } catch(e) { console.log('Client email failed:', e.message); }
+  } catch(e) { }
 }
 window.sendClientEmail = sendClientEmail;
 
@@ -4666,10 +4637,9 @@ async function sendStepEmail(uid, stepNum, type) {
           headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
           body: JSON.stringify(stepPayload)
         });
-        console.log('Step email sent:', type, stepNum, client.email);
-      } catch(e) { console.log('Step email send err:', e.message); }
+      } catch(e) { }
     });
-  } catch(e) { console.log('Step email failed:', e.message); }
+  } catch(e) { }
 }
 window.sendStepEmail = sendStepEmail;
 
@@ -4711,8 +4681,7 @@ async function sendContractDatesEmail(uid, type, dates) {
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
       body: JSON.stringify(datesPayload)
     });
-    console.log('Contract dates email sent:', type, client.email);
-  } catch(e) { console.log('Contract dates email failed:', e.message); }
+  } catch(e) { }
 }
 window.sendContractDatesEmail = sendContractDatesEmail;
 
@@ -5770,7 +5739,7 @@ function sendChatMessage() {
         sendPushToAgentByShortId(agentShortId, notifTitle, text.substring(0,80));
       }
     }
-  }).catch(function(e){ console.log('Failed to send:', e.message); });
+  }).catch(function(e){ });
 }
 window.sendChatMessage = sendChatMessage;
 
@@ -6071,7 +6040,7 @@ async function previewSendUpdate(){
   showEmailPreview(b.email,subj,ehtml,async function(){
     try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:b.email,subject:subj,html:ehtml})});
     if(doCC){try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:ccEmail.trim(),subject:'Update: '+(b.firstName||'')+' '+(b.lastName||'')+' — '+tmpl.label,html:agentHtml})});}catch(e){}}
-    if(doACC){try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:aae,subject:'Client Update: '+(b.firstName||'')+' '+(b.lastName||'')+' — '+tmpl.label,html:ehtml})});}catch(e){}}}catch(e){console.log('send update err:',e.message);}
+    if(doACC){try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:aae,subject:'Client Update: '+(b.firstName||'')+' '+(b.lastName||'')+' — '+tmpl.label,html:ehtml})});}catch(e){}}}catch(e){}
   });
 }
 window.previewSendUpdate=previewSendUpdate;
@@ -6088,8 +6057,7 @@ function clearMortgageDates(uid){if(!confirm('Clear all mortgage dates?'))return
 window.clearMortgageDates=clearMortgageDates;
 
 // ─── Agent dashboard extras ───
-async function dashAddTask(){var input=document.getElementById('ad-quick-task');if(!input||!input.value.trim())return;var text=input.value.trim();input.value='';var ts=new Date().toISOString().split('T')[0];_todos.unshift({id:Date.now()+'_d',text:text,date:ts,done:false,createdAt:Date.now()});await todoSave();renderDashTasks();}
-window.dashAddTask=dashAddTask;
+async 
 
 
 function toggleNavSection(id) {
@@ -6586,7 +6554,7 @@ async function loadBuyersForAgent() {
             allBuyers.push({ uid: d.id, ...d.data() });
           }
         });
-      } catch(e) { console.log('coAgent query err:', e.message); }
+      } catch(e) { }
     }
     // Keep myBuyers in sync so dashboard has data immediately on first load
     myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
@@ -6681,12 +6649,9 @@ window.watchAllAgentChats = watchAllAgentChats;
 function updateAgentUnreadBadge() {
   var total = Object.values(agentUnreadCounts).reduce(function(a,b){return a+b;},0);
   // Tab badge
-  var tabBadge = document.getElementById('agent-chat-badge');
-  if (tabBadge) { tabBadge.style.display = total>0?'inline':'none'; tabBadge.textContent = total>9?'9+':String(total); }
+    if (tabBadge) { tabBadge.style.display = total>0?'inline':'none'; tabBadge.textContent = total>9?'9+':String(total); }
   // Nav button badge
-  var navBadge = document.getElementById('agent-nav-badge');
-  if (navBadge) { navBadge.style.display = total>0?'inline':'none'; navBadge.textContent = total>9?'9+':String(total); }
-  // Re-render inbox list to show per-buyer highlights
+    // Re-render inbox list to show per-buyer highlights
   var inboxList = document.getElementById('agent-inbox-list');
   if (inboxList && inboxList.style.display !== 'none') renderAgentInbox();
 }
@@ -6713,8 +6678,7 @@ function switchAgentTab(tab) {
     } else {
       renderAgentInbox();
     }
-    var badge = document.getElementById('agent-chat-badge');
-    if (badge) badge.style.display='none';
+        if (badge) badge.style.display='none';
   } else if (tab === 'profile') {
     if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
     if (pp) {
@@ -6859,7 +6823,7 @@ function sendAgentChatMessage() {
       sendPushToUser(buyerUid, 'New message from '+agentName, text.substring(0,80));
     }
   })
-  .catch(function(e){ console.log('Agent send failed:',e.message); });
+  .catch(function(e){ });
 }
 window.sendAgentChatMessage = sendAgentChatMessage;
 
@@ -7128,7 +7092,7 @@ async function todoLoad() {
       var active = _todos.filter(function(t){ return !t.done; }).length;
       el.textContent = active > 0 ? active + ' open task' + (active !== 1 ? 's' : '') : 'All clear';
     }
-  } catch(e) { console.log('todoLoad:', e.message); }
+  } catch(e) { }
 }
 window.todoLoad = todoLoad;
 
@@ -7176,7 +7140,7 @@ async function todoSave() {
   try {
     await fb.setDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid), { items: _todos, updatedAt: Date.now() });
     todoUpdateBadge();
-  } catch(e) { console.log('todoSave:', e.message); }
+  } catch(e) { }
 }
 
 function todoUpdateBadge() {
@@ -7897,8 +7861,7 @@ async function fireZapierWebhook(agentId, clientData) {
       headers: { 'Content-Type': 'application/json', 'X-Action': 'webhook', 'X-Webhook-Url': webhookUrl },
       body: JSON.stringify(payload)
     });
-    console.log('Zapier webhook fired for', clientData.email);
-  } catch(e) { console.log('Zapier webhook err:', e.message); }
+  } catch(e) { }
 }
 window.fireZapierWebhook = fireZapierWebhook;
 
@@ -8007,7 +7970,7 @@ async function createInvite() {
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
         body: JSON.stringify(emailPayload)
       });
-    } catch(emailErr) { console.log('Email failed:', emailErr); }
+    } catch(emailErr) { }
 
     resultEl.style.display = 'block';
     resultEl.innerHTML = '<div class="card" style="background:var(--green-lt);border-color:var(--green-md);color:var(--green-dk);">'
@@ -8154,7 +8117,7 @@ async function removeAgent(id) {
   var i = DEFAULT_AGENTS.findIndex(function(a){ return a.id === id; });
   if (i >= 0) DEFAULT_AGENTS.splice(i, 1);
   renderTeam();
-  try { await fb.deleteDoc(fb.doc(fb.db, 'team_agents', id)); } catch(e) { console.log('removeAgent:', e.message); }
+  try { await fb.deleteDoc(fb.doc(fb.db, 'team_agents', id)); } catch(e) { }
   populateAgentDropdown();
   alert(ag.name + ' removed from team.');
 }
@@ -8344,7 +8307,7 @@ async function saveContractDates() {
         Object.assign(linkedDeals[di], dealUpdate);
         await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
       }
-    } catch(syncErr){ console.log('Deal date sync err:', syncErr.message); }
+    } catch(syncErr){ }
     // Always reopen client profile after saving dates
     var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
     var _scrollTo = (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) ? 'titleco' : null;
@@ -8590,7 +8553,7 @@ const TRAIL_STAGES = [
 function renderTrailMap() {
   const cur = (userProfile && userProfile.currentStep) || 1;
   const map = document.getElementById('trail-map');
-  if (!map) { console.log('trail-map not found'); return; }
+  if (!map) { return; }
 
   // Mobile-first sizing
   const mob = window.innerWidth <= 700;
@@ -9535,7 +9498,7 @@ async function autofillValFromURL() {
     var d = await claudeAPI({model:'claude-sonnet-4-5',max_tokens:150,messages:[{role:'user',content:prompt}]});
     var addr = d.content[0].text.trim();
     if (addrEl && addr && addr.length > 5) { addrEl.value = addr; }
-  } catch(e) { console.log('autofill error:', e); }
+  } catch(e) { }
   if (btn) { btn.textContent = 'Auto-Fill'; btn.disabled = false; }
 }
 window.autofillValFromURL = autofillValFromURL;
@@ -10080,11 +10043,10 @@ if ('serviceWorker' in navigator) {
   // Register real /sw.js file (required for iOS Safari push support)
   navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg) {
     swRegistration = reg;
-    console.log('Nest Track SW registered from /sw.js');
     reg.pushManager.getSubscription().then(function(sub) {
       if (sub) { pushSubscription = sub; savePushSubscription(sub); }
     });
-  }).catch(function(e) { console.log('SW reg failed:', e.message); });
+  }).catch(function(e) { });
 }
 
 // ─── PUSH SUBSCRIPTION ───
@@ -10104,9 +10066,7 @@ async function subscribeToPush() {
     });
     pushSubscription = sub;
     await savePushSubscription(sub);
-    console.log('Push subscription active');
   } catch(e) {
-    console.log('Push subscribe failed:', e.message);
   }
 }
 
@@ -10122,7 +10082,7 @@ async function savePushSubscription(sub) {
     }
     // Always save under Firebase UID
     await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), data);
-  } catch(e) { console.log('Save push sub failed:', e.message); }
+  } catch(e) { }
 }
 
 async function requestNotificationPermission() {
@@ -10150,8 +10110,8 @@ async function sendPushToUser(uid, title, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'push' },
       body: JSON.stringify({ subscriptions: [sub], title: title, body: body, url: '/' })
-    }).catch(function(e){ console.log('push fetch failed:', e.message); });
-  } catch(e) { console.log('sendPushToUser:', e.message); }
+    }).catch(function(e){ });
+  } catch(e) { }
   // Never throw — push failure should not break chat
 }
 window.sendPushToUser = sendPushToUser;
@@ -10167,8 +10127,8 @@ async function sendPushToAgentByShortId(agentShortId, title, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'push' },
       body: JSON.stringify({ subscriptions: [sub], title: title, body: body, url: '/' })
-    }).catch(function(e){ console.log('agent push failed:', e.message); });
-  } catch(e) { console.log('sendPushToAgentByShortId:', e.message); }
+    }).catch(function(e){ });
+  } catch(e) { }
 }
 window.sendPushToAgentByShortId = sendPushToAgentByShortId;
 
@@ -10317,7 +10277,7 @@ async function loadListings() {
     ));
     _listings = [];
     snap.forEach(function(d){ _listings.push(Object.assign({id:d.id},d.data())); });
-  } catch(e) { console.log('loadListings:',e.message); _listings = []; }
+  } catch(e) { _listings = []; }
 }
 window.loadListings = loadListings;
 
@@ -10480,7 +10440,7 @@ async function saveListing(existingId) {
       var { uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js');
       var snapshot = await uploadBytes(sRef, photoFile);
       photoUrl = await getDownloadURL(snapshot.ref);
-    } catch(photoErr) { console.log('Photo upload failed:', photoErr.message); }
+    } catch(photoErr) { }
   }
   var clientUid = document.getElementById('lm-client').value;
   var deadline = document.getElementById('lm-deadline').value;
@@ -10587,7 +10547,7 @@ async function purgeOldListings() {
               try {
                 pdfDelPromises.push(
                   fb.deleteObject(fb.storageRef(fb.storage, od.data().pdfPath))
-                  .catch(function(e){ console.log('PDF delete skipped:', e.message); })
+                  .catch(function(e){ })
                 );
                 // Clear pdfPath and pdfUrl on the offer doc
                 pdfDelPromises.push(
@@ -10614,7 +10574,6 @@ async function purgeOldListings() {
 
     return { fullDeleted: fullDeleted, pdfsDeleted: pdfsDeleted };
   } catch(e) {
-    console.log('purgeOldListings error:', e.message);
     return { fullDeleted: 0, pdfsDeleted: 0 };
   }
 }
@@ -10626,7 +10585,6 @@ async function runSilentPurge() {
   try {
     var result = await purgeOldListings();
     if (result.fullDeleted > 0 || result.pdfsDeleted > 0) {
-      console.log('Auto-purge: ' + result.fullDeleted + ' listing(s) deleted, ' + result.pdfsDeleted + ' PDF set(s) cleared.');
     }
   } catch(e) {}
 }
@@ -11398,7 +11356,7 @@ async function submitPublicOffer(listingId) {
         var snap = await uploadBytes(pdfSRef, pdfFile);
         data.pdfPath = pdfPath;
         data.pdfUrl  = await getDownloadURL(snap.ref);
-      } catch(pdfErr) { console.log('PDF upload failed:', pdfErr.message); }
+      } catch(pdfErr) { }
     }
     await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count
@@ -11412,7 +11370,7 @@ async function submitPublicOffer(listingId) {
         var newSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('submittedAt','desc')));
         if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
       }
-    } catch(asErr){ console.log('Auto-send err:',asErr.message); }
+    } catch(asErr){ }
     // Notify listing agent that offer was received
     try {
       var lData = (await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId))).data();
@@ -11456,7 +11414,7 @@ async function submitPublicOffer(listingId) {
               html:alertHtml})});
         }
       }
-    } catch(alertErr){ console.log('Agent alert err:',alertErr.message); }
+    } catch(alertErr){ }
     // Replace entire inner with success screen
     var inner = document.getElementById('offer-submit-inner');
     if (inner) {
@@ -11553,7 +11511,7 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
       body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
     if (o.agentEmail) { try { var cpHtml='<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;"><div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;"><div style="font-size:20px;font-weight:300;color:#fff;">Offer Presented to Seller</div></div><div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><p style="font-size:14px;color:#444;">Hi '+partnerEsc(o.agentName||'there')+',</p><p style="font-size:14px;color:#444;">Your offer on <strong>'+partnerEsc(listingData.address||'')+'</strong> has been presented to the seller for review.</p><div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;"><div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div><div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly.</div><a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a></div></div></div>'; await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:o.agentEmail,subject:'Offer Presented to Seller — '+partnerEsc(listingData.address||''),html:cpHtml})}); } catch(e){} }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
-  } catch(e) { console.log('autoSendOfferToClient error:', e.message); }
+  } catch(e) { }
 }
 window.autoSendOfferToClient = autoSendOfferToClient;
 
@@ -11738,26 +11696,19 @@ async function fetchShowingTimeEvents() {
       var a2Snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId));
       if (a2Snap.exists()) stUrl = a2Snap.data().showingTimeUrl;
     }
-  } catch(e) { console.log('ST: Firestore error', e.message); }
-
-  console.log('ST: URL found =', stUrl || 'NONE');
+  } catch(e) { }
   if (!stUrl) return [];
 
   try {
-    console.log('ST: Calling Worker at', PROXY_URL);
     var res = await fetch(PROXY_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json','X-Action':'fetch-showings'},
       body:JSON.stringify({url:stUrl})
     });
-    console.log('ST: Worker response status =', res.status);
     var data = await res.json();
-    console.log('ST: Worker response =', JSON.stringify(data).substring(0,200));
     if (data.error) throw new Error(data.error);
-    console.log('ST: Events count =', (data.events||[]).length);
     return data.events || [];
   } catch(e) {
-    console.log('ST: Fetch error =', e.message);
     return [];
   }
 }
@@ -11811,7 +11762,7 @@ async function renderShowingInbox() {
       return t >= now - 3600000 && t <= cutoff;
     });
     manualShowings.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
-  } catch(me){ console.log('manualShowings load err:', me.message); }
+  } catch(me){ }
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
     +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'
@@ -11848,7 +11799,7 @@ async function renderShowingInbox() {
     var agentId2 = userProfile.agentId||'tom';
     var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agentId2,'showingAssignments'));
     asnSnap.forEach(function(d){ _showingAssignments[d.id] = d.data(); });
-  } catch(ae){ console.log('Load assignments err:', ae.message); }
+  } catch(ae){ }
 
   html += events.map(function(ev, i) {
     var dt = ev.start ? new Date(ev.start) : null;
@@ -12063,7 +12014,7 @@ async function _commitAppt(appt, sendEmail) {
       apptId: ref.id,
     });
     await todoSave();
-  } catch(e) { console.log('Todo save err:', e.message); }
+  } catch(e) { }
 
   // 3. Generate ICS — wrapped separately so it never crashes the save
   try {
@@ -12089,7 +12040,7 @@ async function _commitAppt(appt, sendEmail) {
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(icsUrl); }, 1000);
-  } catch(e) { console.log('ICS generation err:', e.message); }
+  } catch(e) { }
 
   // 4. Send email if approved
   if (sendEmail && appt.clientEmail) {
@@ -12101,7 +12052,7 @@ async function _commitAppt(appt, sendEmail) {
         headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify(payload)
       });
-    } catch(e) { console.log('Email send err:', e.message); }
+    } catch(e) { }
   }
 
   // 5. Refresh list — no alert, just refresh smoothly
@@ -12275,7 +12226,7 @@ async function assignShowing(idx) {
         start: ev.start||'',
         assignedAt: fb.serverTimestamp(),
       });
-    } catch(ae){ console.log('Assignment save err:', ae.message); }
+    } catch(ae){ }
     // 5. Update status
     if (statusEl) {
       statusEl.style.display='block';
@@ -12529,7 +12480,7 @@ async function loadDeals() {
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
     _dealsLoaded = true;
-  } catch(e) { console.log('loadDeals error:', e.message); }
+  } catch(e) { }
 }
 window.loadDeals = loadDeals;
 
@@ -12560,7 +12511,7 @@ async function renderDealTracker() {
 
   if (!_dealsLoaded) {
     el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
-    try { await loadDeals(); } catch(e) { console.log('loadDeals err:',e.message); _dealsLoaded = true; }
+    try { await loadDeals(); } catch(e) { _dealsLoaded = true; }
     if (myVersion !== _dealRenderVersion) return;
   }
 
@@ -12798,7 +12749,7 @@ async function updateDealStatus(dealId, status) {
   var agentId = userProfile.agentId||'tom';
   try {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), {status:status});
-  } catch(e) { console.log('updateDealStatus err:', e.message); }
+  } catch(e) { }
   filterDeals(_activeFilter);
 }
 window.updateDealStatus = updateDealStatus;
@@ -13154,9 +13105,9 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
           body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:emailHtml})});
-      } catch(e) { console.log('Task email send err:', e.message); }
+      } catch(e) { }
     });
-  } catch(e) { console.log('Task email err:', e.message); }
+  } catch(e) { }
 }
 window.sendTaskCompleteEmail = sendTaskCompleteEmail;
 
@@ -13182,7 +13133,7 @@ async function addToDealTracker(uid, dealType) {
         });
         existing = _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
       }
-    } catch(e) { console.log('FS check err:', e.message); }
+    } catch(e) { }
   }
   if (existing) {
     closeM('buyer-modal');
