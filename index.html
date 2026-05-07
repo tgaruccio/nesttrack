@@ -2578,17 +2578,47 @@ textarea{resize:vertical;min-height:68px;}
       <div><label class="flabel">Tag to Step <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
         <select id="av-step">
           <option value="">— General library (no tag) —</option>
-          <option value="1">Step 1 — Initial Consultation</option>
-          <option value="2">Step 2 — Pre-Approval</option>
-          <option value="3">Step 3 — Touring Homes</option>
-          <option value="4">Step 4 — Writing Offers</option>
-          <option value="5">Step 5 — Under Contract</option>
-          <option value="6">Step 6 — Loan Application</option>
-          <option value="7">Step 7 — Home Inspection</option>
-          <option value="8">Step 8 — Appraisal</option>
-          <option value="9">Step 9 — Final Walk-Through</option>
-          <option value="10">Step 10 — Review Docs</option>
-          <option value="11">Step 11 — Closing Day</option>
+          <optgroup label="🏠 Buyer Steps">
+            <option value="buyer-1">Buyer Step 1 — Initial Consultation</option>
+            <option value="buyer-2">Buyer Step 2 — Pre-Approval</option>
+            <option value="buyer-3">Buyer Step 3 — Touring Homes</option>
+            <option value="buyer-4">Buyer Step 4 — Writing Offers</option>
+            <option value="buyer-5">Buyer Step 5 — Under Contract</option>
+            <option value="buyer-6">Buyer Step 6 — Loan Application</option>
+            <option value="buyer-7">Buyer Step 7 — Home Inspection</option>
+            <option value="buyer-8">Buyer Step 8 — Appraisal</option>
+            <option value="buyer-9">Buyer Step 9 — Final Walk-Through</option>
+            <option value="buyer-10">Buyer Step 10 — Review Docs</option>
+            <option value="buyer-11">Buyer Step 11 — Closing Day 🎉</option>
+          </optgroup>
+          <optgroup label="🏡 Seller Steps">
+            <option value="seller-1">Seller Step 1 — Initial Consultation</option>
+            <option value="seller-2">Seller Step 2 — Home Prep</option>
+            <option value="seller-3">Seller Step 3 — Pricing Strategy</option>
+            <option value="seller-4">Seller Step 4 — Media Day</option>
+            <option value="seller-5">Seller Step 5 — Listing Creation</option>
+            <option value="seller-6">Seller Step 6 — Go Live</option>
+            <option value="seller-7">Seller Step 7 — Marketing Push</option>
+            <option value="seller-8">Seller Step 8 — Showings &amp; Feedback</option>
+            <option value="seller-9">Seller Step 9 — Offers &amp; Negotiation</option>
+            <option value="seller-10">Seller Step 10 — Inspection</option>
+            <option value="seller-11">Seller Step 11 — Appraisal</option>
+            <option value="seller-12">Seller Step 12 — Final Numbers</option>
+            <option value="seller-13">Seller Step 13 — Closing Day 🎉</option>
+          </optgroup>
+          <optgroup label="🏦 Mortgage Steps">
+            <option value="mortgage-1">Mortgage Step 1 — Talk to Tom</option>
+            <option value="mortgage-2">Mortgage Step 2 — Pre-Qual vs Pre-Approval</option>
+            <option value="mortgage-3">Mortgage Step 3 — Documents</option>
+            <option value="mortgage-4">Mortgage Step 4 — Credit Score</option>
+            <option value="mortgage-5">Mortgage Step 5 — Loan Type</option>
+            <option value="mortgage-6">Mortgage Step 6 — Down Payment</option>
+            <option value="mortgage-7">Mortgage Step 7 — Rate Lock</option>
+            <option value="mortgage-8">Mortgage Step 8 — Loan Estimate</option>
+            <option value="mortgage-9">Mortgage Step 9 — Underwriting</option>
+            <option value="mortgage-10">Mortgage Step 10 — Clear to Close</option>
+            <option value="mortgage-11">Mortgage Step 11 — Closing Day 🎉</option>
+          </optgroup>
         </select>
       </div>
     </div>
@@ -4790,7 +4820,7 @@ async function sendStepEmail(uid, stepNum, type) {
         });
         console.log('Step email sent:', type, stepNum, client.email);
       } catch(e) { console.log('Step email send err:', e.message); }
-    });
+    }, stepNum, type);
   } catch(e) { console.log('Step email failed:', e.message); }
 }
 window.sendStepEmail = sendStepEmail;
@@ -14019,7 +14049,7 @@ function _injectVideoIntoEmail(url, title) {
 
 // Override showEmailPreview to store base html and reset video panel
 var _origShowEmailPreview = showEmailPreview;
-function showEmailPreview(toLabel, subject, emailHtml, onApprove) {
+function showEmailPreview(toLabel, subject, emailHtml, onApprove, stepNum, stepType) {
   _epoBaseHtml = emailHtml;
   // Reset video panel
   var toggle = document.getElementById('epo-video-toggle');
@@ -14030,6 +14060,41 @@ function showEmailPreview(toLabel, subject, emailHtml, onApprove) {
   if (panel) panel.style.display = 'none';
   if (urlEl) urlEl.value = '';
   if (prevEl) { prevEl.style.display='none'; prevEl.innerHTML=''; }
+
+  // Populate dropdown
+  var sel = document.getElementById('epo-video-select');
+  if (sel) {
+    sel.innerHTML = '<option value="">— Pick from your library —</option>'
+      + _agentVideos.map(function(v){
+          return '<option value="'+v.url+'|'+encodeURIComponent(v.title||'')+'">'+partnerEsc(v.title||v.url.substring(0,40))+(v.step?' ('+v.step+')':'')+'</option>';
+        }).join('');
+  }
+
+  // Auto-select video tagged to this step
+  if (stepNum && stepType) {
+    var stepKey = stepType + '-' + stepNum;
+    var matched = _agentVideos.find(function(v){ return v.step === stepKey; });
+    if (matched && sel) {
+      // Pre-select in dropdown
+      var matchVal = matched.url + '|' + encodeURIComponent(matched.title||'');
+      // Add option if not present (library may have loaded after select was built)
+      var found = false;
+      for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === matchVal) { sel.options[i].selected = true; found = true; break; } }
+      if (!found) {
+        var opt = document.createElement('option');
+        opt.value = matchVal; opt.selected = true;
+        opt.textContent = partnerEsc(matched.title||matched.url.substring(0,40));
+        sel.appendChild(opt);
+      }
+      if (urlEl) urlEl.value = matched.url;
+      // Pre-load preview but DON'T inject into email yet — toggle is still off
+      if (prevEl) {
+        var th = videoThumbnailHtml(matched.url, matched.title||'Your video');
+        if (th) { prevEl.innerHTML = '<div style="margin-bottom:6px;font-size:11px;font-weight:600;color:var(--green-dk);">✓ Video ready — toggle above to include it</div>'+th; prevEl.style.display='block'; }
+      }
+    }
+  }
+
   _epoCallback = onApprove;
   var toEl = document.getElementById('epo-to');
   var subjEl = document.getElementById('epo-subject');
