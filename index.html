@@ -2071,7 +2071,9 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-    <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Client</button>
+    <button class="btn btn-g btn-sm" onclick="openAddContactModal()">+ Add Contact</button>
+    <button class="btn btn-sm" onclick="openImportModal()">⬆ Import CSV</button>
+    <button class="btn btn-sm" onclick="exportContactsCSV()">⬇ Export CSV</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
   </div>
@@ -2431,21 +2433,30 @@ textarea{resize:vertical;min-height:68px;}
 <!-- INVITE MODAL -->
 <div class="mo" id="invite-modal" style="display:none;">
   <div class="mbox" style="max-width:460px;">
-    <div class="mhdr"><div class="mtitle">Invite Client</div><button class="xbtn" onclick="closeM('invite-modal')">✕</button></div>
-    <div class="notice">Client appears in your list immediately and gets an email with their signup link.</div>
+    <div class="mhdr"><div class="mtitle">Add Contact</div><button class="xbtn" onclick="closeM('invite-modal')">✕</button></div>
+    <div class="notice" style="background:var(--green-lt);color:var(--green-dk);">Contact is added to your list immediately. No email is sent — invite them to the portal when you're ready.</div>
     <div class="fg2">
       <div><label class="flabel">First Name</label><input type="text" id="inv-first" placeholder="Sarah"/></div>
       <div><label class="flabel">Last Name</label><input type="text" id="inv-last" placeholder="Mitchell"/></div>
     </div>
-    <div><label class="flabel">Email</label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
-    <div><label class="flabel">Phone (optional)</label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
-    <div id="inv-address-wrap"><label class="flabel">Listing Address <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/><div style="font-size:11px;color:var(--text3);margin-top:2px;">Add now or set later from the client profile</div></div>
+    <div><label class="flabel">Email <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
+    <div><label class="flabel">Phone <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
+    <div id="inv-address-wrap"><label class="flabel">Property Address <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/></div>
+    <div><label class="flabel">CRM Status</label>
+      <select id="inv-crm-status">
+        <option value="pipeline">Pipeline</option>
+        <option value="active">Active</option>
+        <option value="nurture">Nurture</option>
+        <option value="cold">Cold</option>
+        <option value="past">Past Client</option>
+      </select>
+    </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
     <div id="invite-result" style="display:none;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
       <button class="btn" onclick="closeM('invite-modal')">Cancel</button>
-      <button class="btn btn-g" onclick="createInvite()">Invite Client</button>
+      <button class="btn btn-g" onclick="createContact()">Add Contact</button>
     </div>
   </div>
 </div>
@@ -2492,6 +2503,54 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- BUYER DETAIL MODAL -->
 <div class="mo" id="buyer-modal" style="display:none;overflow-y:auto;-webkit-overflow-scrolling:touch;align-items:flex-start;padding-top:16px;"><div class="mbox" id="buyer-modal-body" style="max-width:720px;max-height:90vh;overflow-y:auto;"></div></div>
+
+<!-- IMPORT CSV MODAL -->
+<div class="mo" id="import-modal" style="display:none;">
+  <div class="mbox" style="max-width:520px;">
+    <div class="mhdr"><div class="mtitle">Import Contacts from CSV</div><button class="xbtn" onclick="closeM('import-modal')">✕</button></div>
+    <div class="notice">CSV should have columns: <strong>firstName, lastName, email, phone, crmStatus, journeyType</strong>. Extra columns are ignored.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div>
+        <label class="flabel">Upload CSV File</label>
+        <input type="file" id="import-csv-file" accept=".csv" style="font-size:13px;" onchange="previewCSV(event)"/>
+      </div>
+      <a href="#" onclick="downloadCSVTemplate();return false;" style="font-size:12px;color:var(--green-dk);">⬇ Download template CSV</a>
+      <div id="import-preview" style="display:none;flex-direction:column;gap:8px;">
+        <div id="import-preview-info" style="font-size:13px;font-weight:500;"></div>
+        <div id="import-conflicts-wrap" style="display:none;">
+          <div style="font-size:12px;font-weight:600;color:var(--amber-dk);margin-bottom:6px;">⚠️ Duplicate emails found — review before importing:</div>
+          <div id="import-conflicts-list" style="max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;"></div>
+        </div>
+        <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-sm);">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;" id="import-preview-table"></table>
+        </div>
+      </div>
+      <div id="import-status" style="display:none;font-size:13px;font-weight:500;"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <button class="btn" onclick="closeM('import-modal')">Cancel</button>
+      <button class="btn btn-g" id="import-confirm-btn" onclick="confirmImport()" style="display:none;">Import Contacts</button>
+    </div>
+  </div>
+</div>
+
+<!-- INVITE TO PORTAL MODAL -->
+<div class="mo" id="portal-invite-modal" style="display:none;">
+  <div class="mbox" style="max-width:460px;">
+    <div class="mhdr"><div class="mtitle">Invite to Portal</div><button class="xbtn" onclick="closeM('portal-invite-modal')">✕</button></div>
+    <div class="notice">This sends <span id="pi-name"></span> an email with their signup link for Nest Track.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div><label class="flabel">Personal Note <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+        <textarea id="pi-note" rows="2" placeholder="Hi Sarah, here's your link to get started!" style="font-size:14px;"></textarea>
+      </div>
+      <div id="pi-no-email-warn" style="display:none;" class="warn">No email on file — add one to the contact first.</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <button class="btn" onclick="closeM('portal-invite-modal')">Cancel</button>
+      <button class="btn btn-g" id="pi-send-btn" onclick="sendPortalInvite()">Send Invite</button>
+    </div>
+  </div>
+</div>
 
 <!-- FIREBASE + APP SCRIPT -->
 <script type="module">
@@ -7328,6 +7387,7 @@ async function openBuyerDetail(uid, scrollTo) {
         <div>
           <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
+          ${!b.portalAccess ? `<button onclick="openPortalInviteModal('${uid}')" style="margin-top:5px;background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">✉ Invite to Portal</button>` : `<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">✓ Portal Access</span>`}
           ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
       </div>
@@ -13405,6 +13465,304 @@ async function saveClientStatus(uid, status) {
   } catch(e) { alert('Could not save status: ' + e.message); }
 }
 window.saveClientStatus = saveClientStatus;
+
+// ─── ADD CONTACT (no email sent) ───
+function openAddContactModal() {
+  ['inv-first','inv-last','inv-email','inv-phone','inv-address'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  var crmSel = document.getElementById('inv-crm-status');
+  if (crmSel) crmSel.value = 'pipeline';
+  var inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
+  document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){
+    return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>';
+  }).join('');
+  var invLenderSel = document.getElementById('inv-lender');
+  if (invLenderSel) invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){
+    return '<option value="'+l.id+'">'+l.name+(l.role?' — '+l.role:'')+'</option>';
+  }).join('');
+  document.getElementById('invite-result').style.display = 'none';
+  document.getElementById('invite-modal').style.display = 'flex';
+}
+window.openAddContactModal = openAddContactModal;
+
+async function createContact() {
+  var first = document.getElementById('inv-first').value.trim();
+  var last  = document.getElementById('inv-last').value.trim();
+  var email = document.getElementById('inv-email').value.trim();
+  var phone = (document.getElementById('inv-phone')||{}).value || '';
+  var address = (document.getElementById('inv-address')||{}).value || '';
+  var agentId = document.getElementById('inv-agent').value;
+  var lenderId = document.getElementById('inv-lender').value || 'none';
+  var crmStatus = (document.getElementById('inv-crm-status')||{}).value || 'pipeline';
+  var resultEl = document.getElementById('invite-result');
+  if (!first) { alert('First name is required.'); return; }
+
+  // Generate a unique contact ID
+  var contactId = 'contact_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
+  var data = {
+    firstName: first, lastName: last, email: email, phone: phone,
+    agentId: agentId, lenderId: lenderId, role: 'buyer',
+    journeyType: 'buyer', crmStatus: crmStatus,
+    currentStep: 0, currentSellerStep: 0,
+    portalAccess: false, // no portal account yet
+    isContact: true,
+    propertyAddress: address || null,
+    createdAt: fb.serverTimestamp(),
+    lastActive: fb.serverTimestamp(),
+  };
+
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'users', contactId), data);
+    // Fire Zapier webhook (non-blocking)
+    fireZapierWebhook(agentId, data).catch(function(){});
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div class="card" style="background:var(--green-lt);border-color:var(--green-md);color:var(--green-dk);">'
+      + '<div style="font-weight:600;font-size:14px;margin-bottom:4px;">✓ '+first+' added!</div>'
+      + '<div style="font-size:12px;">Contact saved. Use "Invite to Portal" from their profile when ready.</div>'
+      + '</div>';
+    await loadBuyersForAgent();
+    renderBuyers();
+    setTimeout(function(){ closeM('invite-modal'); }, 1500);
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+window.createContact = createContact;
+
+// ─── PORTAL INVITE (from client card) ───
+var _portalInviteUid = null;
+function openPortalInviteModal(uid) {
+  _portalInviteUid = uid;
+  var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
+  var nameEl = document.getElementById('pi-name');
+  var warnEl = document.getElementById('pi-no-email-warn');
+  var sendBtn = document.getElementById('pi-send-btn');
+  var noteEl = document.getElementById('pi-note');
+  if (nameEl) nameEl.textContent = b ? (b.firstName+' '+b.lastName).trim() : 'this contact';
+  if (noteEl) noteEl.value = '';
+  var hasEmail = b && b.email;
+  if (warnEl) warnEl.style.display = hasEmail ? 'none' : 'block';
+  if (sendBtn) sendBtn.disabled = !hasEmail;
+  document.getElementById('portal-invite-modal').style.display = 'flex';
+}
+window.openPortalInviteModal = openPortalInviteModal;
+
+async function sendPortalInvite() {
+  var uid = _portalInviteUid;
+  var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
+  if (!b || !b.email) { alert('No email on file.'); return; }
+
+  var code = Math.random().toString(36).substring(2,8).toUpperCase();
+  var link = location.origin + location.pathname + '#invite=' + code;
+  var note = (document.getElementById('pi-note')||{}).value || '';
+  var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === b.agentId; });
+  var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+  var first = b.firstName || 'there';
+
+  // Save invite code to Firestore
+  await fb.setDoc(fb.doc(fb.db, 'invites', code), {
+    firstName: b.firstName, lastName: b.lastName, email: b.email,
+    agentId: b.agentId, journeyType: b.journeyType || 'buyer',
+    contactUid: uid, // link back to existing contact record
+    invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false
+  });
+
+  // Mark contact as invited
+  await fb.updateDoc(fb.doc(fb.db, 'users', uid), { invitedAt: fb.serverTimestamp(), inviteCode: code });
+  if (b) { b.inviteCode = code; }
+
+  var ctaBtn = '<div style="text-align:center;margin:20px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:13px 34px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Open My Portal →</a></div>';
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:22px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">The Garuccio Group</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:17px;font-weight:300;margin:0 0 10px;">Hi '+first+',</p>'
+    +(note ? '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">'+note+'</p>' : '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your personal Nest Track portal is ready — everything you need for your home buying journey in one place.</p>')
+    +ctaBtn
+    +'<p style="font-size:11px;color:#bbb;text-align:center;word-break:break-all;">Or copy: '+link+'</p>'
+    +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
+    +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
+    +'</div></div>';
+
+  var payload = { to: b.email, subject: first+', your Nest Track portal is ready 🏠', html: emailHtml };
+  if (agentObj && agentObj.email) payload.cc = agentObj.email;
+
+  showEmailPreview(b.email, payload.subject, emailHtml, async function() {
+    try {
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      closeM('portal-invite-modal');
+      alert('Invite sent to '+b.email+'!');
+      renderBuyers();
+    } catch(e) { alert('Failed to send: '+e.message); }
+  });
+}
+window.sendPortalInvite = sendPortalInvite;
+
+// ─── BULK IMPORT CSV ───
+var _importRows = [];
+var _importConflicts = [];
+
+function openImportModal() {
+  _importRows = []; _importConflicts = [];
+  var fileEl = document.getElementById('import-csv-file');
+  if (fileEl) fileEl.value = '';
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-status').style.display = 'none';
+  document.getElementById('import-confirm-btn').style.display = 'none';
+  document.getElementById('import-modal').style.display = 'flex';
+}
+window.openImportModal = openImportModal;
+
+function downloadCSVTemplate() {
+  var csv = 'firstName,lastName,email,phone,crmStatus,journeyType\nSarah,Mitchell,sarah@email.com,440-555-0100,pipeline,buyer\nJohn,Smith,john@email.com,216-555-0200,active,both\n';
+  var blob = new Blob([csv], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'nesttrack-contacts-template.csv';
+  a.click();
+}
+window.downloadCSVTemplate = downloadCSVTemplate;
+
+function previewCSV(event) {
+  var file = event.target.files[0]; if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = e.target.result;
+    var lines = text.trim().split('\n').map(function(l){ return l.trim(); });
+    if (!lines.length) return;
+    var headers = lines[0].split(',').map(function(h){ return h.trim().toLowerCase().replace(/[^a-z]/g,''); });
+    _importRows = [];
+    for (var i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      var vals = lines[i].split(',').map(function(v){ return v.trim().replace(/^"|"$/g,''); });
+      var row = {};
+      headers.forEach(function(h, idx){ row[h] = vals[idx] || ''; });
+      if (!row.firstname && !row.email) continue; // skip empty rows
+      _importRows.push({
+        firstName: row.firstname || row.first || '',
+        lastName: row.lastname || row.last || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        crmStatus: row.crmstatus || row.crm || 'pipeline',
+        journeyType: row.journeytype || row.journey || 'buyer',
+      });
+    }
+    // Find conflicts
+    var existingEmails = (allBuyers||[]).map(function(b){ return (b.email||'').toLowerCase(); });
+    _importConflicts = _importRows.filter(function(r){ return r.email && existingEmails.includes(r.email.toLowerCase()); });
+
+    // Render preview
+    var previewEl = document.getElementById('import-preview');
+    var infoEl = document.getElementById('import-preview-info');
+    var conflictsWrap = document.getElementById('import-conflicts-wrap');
+    var conflictsList = document.getElementById('import-conflicts-list');
+    var tableEl = document.getElementById('import-preview-table');
+    var confirmBtn = document.getElementById('import-confirm-btn');
+
+    infoEl.textContent = _importRows.length + ' contact'+ (_importRows.length!==1?'s':'') +' found in CSV.';
+
+    if (_importConflicts.length) {
+      conflictsWrap.style.display = 'block';
+      conflictsList.innerHTML = _importConflicts.map(function(r){
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--amber-lt);border-radius:6px;font-size:12px;">'
+          +'<input type="checkbox" class="conflict-skip" data-email="'+r.email+'" checked style="flex-shrink:0;"/>'
+          +'<span><strong>'+r.firstName+' '+r.lastName+'</strong> ('+r.email+') — already exists. <label style="cursor:pointer;">Check to skip.</label></span>'
+          +'</div>';
+      }).join('');
+    } else {
+      conflictsWrap.style.display = 'none';
+    }
+
+    tableEl.innerHTML = '<tr style="background:var(--surface2);font-size:11px;color:var(--text3);">'
+      +'<th style="padding:6px 8px;text-align:left;">Name</th>'
+      +'<th style="padding:6px 8px;text-align:left;">Email</th>'
+      +'<th style="padding:6px 8px;text-align:left;">Phone</th>'
+      +'<th style="padding:6px 8px;text-align:left;">Status</th>'
+      +'</tr>'
+      + _importRows.slice(0,10).map(function(r){
+          return '<tr style="border-bottom:1px solid var(--border);">'
+            +'<td style="padding:5px 8px;font-size:12px;">'+r.firstName+' '+r.lastName+'</td>'
+            +'<td style="padding:5px 8px;font-size:12px;color:var(--text2);">'+r.email+'</td>'
+            +'<td style="padding:5px 8px;font-size:12px;color:var(--text2);">'+r.phone+'</td>'
+            +'<td style="padding:5px 8px;font-size:12px;">'+r.crmStatus+'</td>'
+            +'</tr>';
+        }).join('')
+      + (_importRows.length > 10 ? '<tr><td colspan="4" style="padding:6px 8px;font-size:11px;color:var(--text3);">...and '+ (_importRows.length-10) +' more</td></tr>' : '');
+
+    previewEl.style.display = 'flex';
+    confirmBtn.style.display = 'inline-flex';
+  };
+  reader.readAsText(file);
+}
+window.previewCSV = previewCSV;
+
+async function confirmImport() {
+  var btn = document.getElementById('import-confirm-btn');
+  var statusEl = document.getElementById('import-status');
+  btn.disabled = true; btn.textContent = 'Importing...';
+
+  // Get emails to skip (checked conflict checkboxes)
+  var skipEmails = [];
+  document.querySelectorAll('.conflict-skip:checked').forEach(function(cb){
+    skipEmails.push(cb.getAttribute('data-email').toLowerCase());
+  });
+
+  var toImport = _importRows.filter(function(r){ return !skipEmails.includes((r.email||'').toLowerCase()); });
+  var agentId = userProfile.agentId || 'tom';
+  var imported = 0, failed = 0;
+
+  for (var i = 0; i < toImport.length; i++) {
+    var r = toImport[i];
+    try {
+      var contactId = 'contact_' + Date.now() + '_' + Math.random().toString(36).substring(2,6);
+      await fb.setDoc(fb.doc(fb.db, 'users', contactId), {
+        firstName: r.firstName, lastName: r.lastName,
+        email: r.email, phone: r.phone,
+        agentId: agentId, lenderId: 'none', role: 'buyer',
+        journeyType: r.journeyType || 'buyer',
+        crmStatus: r.crmStatus || 'pipeline',
+        currentStep: 0, currentSellerStep: 0,
+        portalAccess: false, isContact: true,
+        createdAt: fb.serverTimestamp(),
+      });
+      imported++;
+    } catch(e) { failed++; }
+  }
+
+  await loadBuyersForAgent();
+  renderBuyers();
+  statusEl.style.display = 'block';
+  statusEl.style.color = 'var(--green-dk)';
+  statusEl.textContent = '✓ Imported ' + imported + ' contact' + (imported!==1?'s':'') + (failed?' · '+failed+' failed':'') + (skipEmails.length?' · '+skipEmails.length+' skipped':'') + '.';
+  btn.disabled = false; btn.textContent = 'Import Contacts';
+  setTimeout(function(){ closeM('import-modal'); }, 1800);
+}
+window.confirmImport = confirmImport;
+
+// ─── EXPORT CSV ───
+function exportContactsCSV() {
+  var list = myBuyers || allBuyers || [];
+  if (!list.length) { alert('No contacts to export.'); return; }
+  var rows = [['firstName','lastName','email','phone','crmStatus','journeyType','buyerStep','sellerStep','portalAccess','agentId']];
+  list.forEach(function(b) {
+    rows.push([
+      b.firstName||'', b.lastName||'', b.email||'', b.phone||'',
+      getClientStatus(b), b.journeyType||'buyer',
+      b.currentStep||0, b.currentSellerStep||0,
+      b.portalAccess ? 'yes' : 'no',
+      b.agentId||''
+    ]);
+  });
+  var csv = rows.map(function(r){ return r.map(function(v){ return '"'+String(v).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  var filterLabel = (window._crmFilter && window._crmFilter !== 'all') ? '-'+window._crmFilter : '';
+  a.download = 'nesttrack-contacts'+filterLabel+'-'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+window.exportContactsCSV = exportContactsCSV;
 </script>
 
 <!-- PUBLIC OFFER SUBMISSION PAGE — lives outside #app -->
