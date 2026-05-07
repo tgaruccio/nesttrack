@@ -506,7 +506,7 @@ textarea{resize:vertical;min-height:68px;}
   <!-- AGENT TOOLS — shown only for agents, at top -->
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
     <div class="ns" style="padding-top:6px;">Agent Tools</div>
-    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard</button>
+    <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Command Center</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
@@ -570,7 +570,7 @@ textarea{resize:vertical;min-height:68px;}
 <div class="main">
 
 <!-- HOME DASHBOARD -->
-<div class="page" id="page-home" style="flex-direction:column;gap:14px;">
+<div class="page" id="page-home">
 
   <!-- Welcome header -->
   <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;">
@@ -582,7 +582,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- ══ HOME BUYERS JOURNEY ══ -->
-  <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;">
+  <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Home Buyers Journey</div>
       <button onclick="go('guide',document.querySelector('[data-pg=guide]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
@@ -1182,7 +1182,7 @@ textarea{resize:vertical;min-height:68px;}
 
 
 <!-- AGENT DASHBOARD -->
-<div class="page" id="page-agent-dash" style="flex-direction:column;gap:14px;">
+<div class="page" id="page-agent-dash">
   <div style="display:flex;flex-direction:column;gap:14px;width:100%;">
   <!-- Dashboard header -->
   <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
@@ -2556,7 +2556,7 @@ function setupPlacesAC(inputId) {
       const place = ac.getPlace();
       if (place && place.formatted_address) input.value = place.formatted_address;
     });
-  } catch(e) { }
+  } catch(e) { console.log('Places AC:', e.message); }
 }
 
 async function claudeAPI(body) {
@@ -2900,6 +2900,7 @@ window.addEventListener('message', function(e) {
 });
 
 window.addEventListener('firebase-ready', () => {
+  console.log('Firebase ready');
   // Listen for Chime iframe height updates
   window.addEventListener('message', e => {
     try {
@@ -2970,7 +2971,7 @@ async function signUp() {
       try {
         const invDoc = await fb.getDoc(fb.doc(fb.db, 'invites', invite));
         if (invDoc.exists()) { inviteData = invDoc.data(); agentId = inviteData.agentId || selectedAgent; }
-      } catch (x) { }
+      } catch (x) { console.log('Invite lookup failed', x); }
     }
     var journeyType = (inviteData && inviteData.journeyType) || 'buyer';
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), {
@@ -2992,7 +2993,7 @@ async function signUp() {
       pendingSnaps.forEach(async function(d) {
         await fb.deleteDoc(fb.doc(fb.db, 'users', d.id));
       });
-    } catch(x) { }
+    } catch(x) { console.log('Pending email cleanup:', x); }
 
     if (invite && inviteData) {
       try {
@@ -3014,7 +3015,7 @@ async function signUp() {
           }
           await fb.deleteDoc(fb.doc(fb.db, 'users', pendingUid));
         }
-      } catch (x) { }
+      } catch (x) { console.log('Pending cleanup:', x); }
     }
   } catch (e) {
     err.textContent = e.code === 'auth/email-already-in-use' ? 'An account with this email already exists' : (e.message || 'Sign-up failed');
@@ -3057,7 +3058,7 @@ async function loadTeamAgents() {
         DEFAULT_AGENTS.splice(i, 1);
       }
     }
-  } catch(e) { }
+  } catch(e) { console.log('loadTeamAgents:', e.message); }
   populateAgentDropdown();
 }
 
@@ -3074,7 +3075,7 @@ async function syncHardcodedAgentsToFirestore() {
           syncedAt: new Date().toISOString()
         });
       }
-    } catch(e) { }
+    } catch(e) { console.log('syncAgent', a.id, e.message); }
   }
 }
 
@@ -3171,7 +3172,7 @@ async function loadAssignedAgentProfile() {
           calendly: ldata.calendly || assignedLender.calendly || '',
         });
       });
-    } catch(e) { }
+    } catch(e) { console.log('lender profile load:', e.message); }
   } catch(e) { console.warn('Could not load assigned agent profile', e); }
 }
 
@@ -3443,6 +3444,7 @@ async function showApp() {
     if (startLabel) startLabel.style.display = 'none';
     setTimeout(function() {
       go('agent-dash', agentBtn);
+      watchAllAgentChats();
       // Re-render after data loads (mobile needs more time)
       setTimeout(renderAgentDashboard, 1500);
     }, 100);
@@ -4052,7 +4054,7 @@ async function fetchMortgageRates(){
     if(r.ok){var t=await r.text();var l=t.trim().split('\n');var last=l[l.length-1].split(',');var v=parseFloat(last[1]);if(!isNaN(v)){currentRates.rate30=v;currentRates.date=last[0];}}
     var r2=await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE15US',{mode:'cors'});
     if(r2.ok){var t2=await r2.text();var l2=t2.trim().split('\n');var last2=l2[l2.length-1].split(',');var v2=parseFloat(last2[1]);if(!isNaN(v2))currentRates.rate15=v2;}
-  }catch(e){}
+  }catch(e){console.log('rates:',e.message);}
   var e30=document.getElementById('rate-30');var e15=document.getElementById('rate-15');var ed=document.getElementById('rate-date');
   if(e30)e30.textContent=currentRates.rate30.toFixed(2)+'%';
   if(e15)e15.textContent=currentRates.rate15.toFixed(2)+'%';
@@ -4239,7 +4241,34 @@ async function buyerUpdateStep() {
 window.buyerUpdateStep = buyerUpdateStep;
 
 
-async 
+async function setJourneyType(type) {
+  ['both','buyer-only','seller-only'].forEach(function(t) {
+    var id = t==='both'?'jt-both':t==='buyer-only'?'jt-buyer':'jt-seller';
+    var b = document.getElementById(id); if (!b) return;
+    b.style.background = t===type ? 'var(--green)' : 'var(--surface2)';
+    b.style.color = t===type ? '#fff' : 'var(--text2)';
+  });
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{journeyType:type});
+    userProfile.journeyType = type;
+    var buyTab = document.getElementById('dash-tab-buy');
+    var sellTab = document.getElementById('dash-tab-sell');
+    if (type === 'seller-only') {
+      if (buyTab) buyTab.style.display='none';
+      if (sellTab) sellTab.style.display='';
+      switchDashJourney('selling');
+    } else if (type === 'buyer-only') {
+      if (sellTab) sellTab.style.display='none';
+      if (buyTab) buyTab.style.display='';
+      switchDashJourney('buying');
+    } else {
+      if (buyTab) buyTab.style.display='';
+      if (sellTab) sellTab.style.display='';
+    }
+    renderHome();
+  } catch(e) { console.log('setJourneyType:', e.message); }
+}
+window.setJourneyType = setJourneyType;
 
 function switchDashJourney(tab) {
   var bb = document.getElementById('dash-tab-buy');
@@ -4426,7 +4455,7 @@ async function sendClientEmail(uid, subject, bodyHtml) {
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
       body: JSON.stringify({ to: email, subject: subject, html: bodyHtml })
     });
-  } catch(e) { }
+  } catch(e) { console.log('Client email failed:', e.message); }
 }
 window.sendClientEmail = sendClientEmail;
 
@@ -4637,9 +4666,10 @@ async function sendStepEmail(uid, stepNum, type) {
           headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
           body: JSON.stringify(stepPayload)
         });
-      } catch(e) { }
+        console.log('Step email sent:', type, stepNum, client.email);
+      } catch(e) { console.log('Step email send err:', e.message); }
     });
-  } catch(e) { }
+  } catch(e) { console.log('Step email failed:', e.message); }
 }
 window.sendStepEmail = sendStepEmail;
 
@@ -4681,7 +4711,8 @@ async function sendContractDatesEmail(uid, type, dates) {
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
       body: JSON.stringify(datesPayload)
     });
-  } catch(e) { }
+    console.log('Contract dates email sent:', type, client.email);
+  } catch(e) { console.log('Contract dates email failed:', e.message); }
 }
 window.sendContractDatesEmail = sendContractDatesEmail;
 
@@ -5739,7 +5770,7 @@ function sendChatMessage() {
         sendPushToAgentByShortId(agentShortId, notifTitle, text.substring(0,80));
       }
     }
-  }).catch(function(e){ });
+  }).catch(function(e){ console.log('Failed to send:', e.message); });
 }
 window.sendChatMessage = sendChatMessage;
 
@@ -5996,69 +6027,6 @@ async function _epoApprove() {
 window._epoApprove = _epoApprove;
 
 window.renderHome = renderHome;
-
-// ─── Send Update ───
-var _suUid = null;
-var SU_TEMPLATES = {
-  'buy-consult':{label:'Initial Consult Scheduled',hasDate:true},'buy-preapproval':{label:'Pre-Approval Received',hasDate:false},'buy-showing':{label:'Showing Scheduled',hasDate:true},'buy-offer':{label:'Offer Submitted',hasDate:false},'buy-offer-accepted':{label:'Offer Accepted — Under Contract!',hasDate:false},'buy-earnest':{label:'Earnest Money Received',hasDate:false},'buy-inspection':{label:'Inspection Scheduled',hasDate:true},'buy-appraisal-sched':{label:'Appraisal Scheduled',hasDate:true},'buy-appraisal':{label:'Appraisal Completed',hasDate:false},'buy-walkthrough':{label:'Final Walkthrough Scheduled',hasDate:true},'buy-closing':{label:'Closing Scheduled',hasDate:true},'buy-closed':{label:"Congratulations — You're a Homeowner!",hasDate:false},
-  'sell-photos':{label:'Listing Photos Scheduled',hasDate:true},'sell-listed':{label:'Your Home is Listed!',hasDate:false},'sell-showing':{label:'Showing on Your Home',hasDate:true},'sell-offer':{label:'Offer Received',hasDate:false},'sell-accepted':{label:'Offer Accepted — Under Contract!',hasDate:false},'sell-inspection':{label:'Buyer Inspection Scheduled',hasDate:true},'sell-appraisal-sched':{label:'Appraisal Scheduled',hasDate:true},'sell-appraisal':{label:'Appraisal Completed',hasDate:false},'sell-closing':{label:'Closing Scheduled',hasDate:true},'sell-closed':{label:'Congratulations — Your Home is Sold!',hasDate:false},
-  'mort-consult':{label:'Initial Consult Scheduled',hasDate:true},'mort-preapproval':{label:'Pre-Approval Issued',hasDate:false},'mort-application':{label:'Loan Application Submitted',hasDate:false},'mort-le':{label:'Loan Estimate Delivered',hasDate:false},'mort-appraisal-sched':{label:'Appraisal Scheduled',hasDate:true},'mort-appraisal':{label:'Appraisal Completed',hasDate:false},'mort-underwriting':{label:'In Underwriting',hasDate:false},'mort-conditional':{label:'Conditional Approval Received',hasDate:false},'mort-ctc':{label:'Clear to Close!',hasDate:false},'mort-closing':{label:'Closing Confirmed',hasDate:true},
-  'gen-checkin':{label:'Quick Check-In',hasDate:false},'gen-docs':{label:'Documents Need Attention',hasDate:false},'gen-waiting':{label:'Waiting on Update',hasDate:false},'gen-custom':{label:'Custom Message',hasDate:false}
-};
-function getSUBody(val,first,dateStr,note){
-  var d=dateStr?' on <strong>'+dateStr+'</strong>':'',n=note?'<br><br>'+note:'';
-  var A='https://app.garucciogroup.com';
-  var tl=function(c,bg,txt){return '<br><br><div style="margin-top:12px;padding:12px;background:'+bg+';border-radius:8px;border-left:3px solid '+c+';"><div style="font-size:12px;font-weight:600;color:'+c+';margin-bottom:6px;">'+txt+':</div><a href="'+A+'" style="display:inline-block;margin-top:4px;background:'+c+';color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Nest Track →</a></div>';};
-  var b={'buy-consult':'Hi '+first+',<br><br>Your initial consultation is scheduled'+d+'. This is where we will go over your goals and the full buying process.'+n,'buy-preapproval':'Hi '+first+',<br><br>Your pre-approval has been received! This puts you in a strong position to make offers.'+n,'buy-showing':'Hi '+first+',<br><br>You have a showing scheduled'+d+'. I\'ll be in touch with details beforehand.'+n,'buy-offer':'Hi '+first+',<br><br>Your offer has been submitted! I\'ll reach out as soon as we hear back.'+n,'buy-offer-accepted':'Hi '+first+',<br><br>Your offer has been accepted — you are officially under contract!'+n+tl('#1D9E75','#f0fdf4','Track your journey'),'buy-earnest':'Hi '+first+',<br><br>Your earnest money deposit has been received and confirmed.'+n,'buy-inspection':'Hi '+first+',<br><br>Your home inspection is scheduled'+d+'. Plan on about 2–3 hours.'+n+tl('#1D9E75','#f0fdf4','Photo Analyzer'),'buy-appraisal-sched':'Hi '+first+',<br><br>The appraisal has been scheduled'+d+'.<br><br>An appraisal is when the lender sends an independent appraiser to confirm the home\'s value matches the loan amount. The appraiser will do a walkthrough and review recent comparable sales.'+n,'buy-appraisal':'Hi '+first+',<br><br>The appraisal has been completed. I will follow up shortly.'+n,'buy-walkthrough':'Hi '+first+',<br><br>Your final walkthrough is scheduled'+d+'. This is your last chance to walk through before closing.'+n+tl('#1D9E75','#f0fdf4','Moving Checklist'),'buy-closing':'Hi '+first+',<br><br>Your closing is officially scheduled'+d+'. Almost there!'+n+tl('#1D9E75','#f0fdf4','Helpful tools'),'buy-closed':'Hi '+first+',<br><br>Congratulations! 🎉 You are officially a homeowner. Welcome home!'+n,'sell-photos':'Hi '+first+',<br><br>Your listing photos are scheduled'+d+'. Make sure the home is clean and ready.'+n+tl('#D97706','#fef9f0','Photo Checklist + Home Prep'),'sell-listed':'Hi '+first+',<br><br>Your home is officially live on the market!'+n,'sell-showing':'Hi '+first+',<br><br>A buyer has scheduled a showing on your home'+d+'.'+n,'sell-offer':'Hi '+first+',<br><br>We have received an offer on your home! I\'m reviewing now.'+n+tl('#D97706','#fef9f0','Net Sheet Calculator'),'sell-accepted':'Hi '+first+',<br><br>Your offer has been accepted — officially under contract!'+n+tl('#D97706','#fef9f0','Net Sheet Calculator'),'sell-inspection':'Hi '+first+',<br><br>The buyer\'s inspection is scheduled'+d+'.'+n,'sell-appraisal-sched':'Hi '+first+',<br><br>The buyer\'s appraisal has been scheduled'+d+'. An appraiser will visit to confirm the home\'s value. Please ensure the home is accessible.'+n,'sell-appraisal':'Hi '+first+',<br><br>The buyer\'s appraisal has been completed. I will follow up shortly.'+n,'sell-closing':'Hi '+first+',<br><br>Closing is officially scheduled'+d+'!'+n+tl('#D97706','#fef9f0','Net Sheet Calculator'),'sell-closed':'Hi '+first+',<br><br>Congratulations! 🎉 Your home is officially sold.'+n,'mort-consult':'Hi '+first+',<br><br>Your mortgage consultation is scheduled'+d+'.'+n,'mort-preapproval':'Hi '+first+',<br><br>Your pre-approval has been issued! This confirms the loan amount you qualify for.'+n,'mort-application':'Hi '+first+',<br><br>Your loan application has been submitted. Watch for your Loan Estimate within 3 business days.'+n,'mort-le':'Hi '+first+',<br><br>Your Loan Estimate has been delivered. Please review your interest rate, monthly payment, and closing costs carefully.'+n+tl('#1D9E75','#f0fdf4','Mortgage Calculator'),'mort-appraisal-sched':'Hi '+first+',<br><br>The appraisal has been scheduled'+d+'. An independent appraiser will visit to confirm the home\'s value.'+n,'mort-appraisal':'Hi '+first+',<br><br>The appraisal has been completed. I will follow up shortly.'+n,'mort-underwriting':'Hi '+first+',<br><br>Your file is in underwriting. Stay available for document requests. No major financial changes right now.'+n,'mort-conditional':'Hi '+first+',<br><br>Your loan has received conditional approval. A few minor items remain.'+n,'mort-ctc':'Hi '+first+',<br><br>Clear to Close — your loan is fully approved and you are ready to sign!'+n,'mort-closing':'Hi '+first+',<br><br>Your closing has been confirmed'+d+'. Review your Closing Disclosure carefully when it arrives.'+n,'gen-checkin':'Hi '+first+',<br><br>Just checking in — things are moving along. Don\'t hesitate to reach out.'+n,'gen-docs':'Hi '+first+',<br><br>There are some documents that need your attention.'+n,'gen-waiting':'Hi '+first+',<br><br>Just a quick update — we are waiting to hear back. I\'ll reach out as soon as I have news.'+n};
-  return b[val]||note||'';
-}
-function openSendUpdate(uid){_suUid=uid;var s=document.getElementById('su-template');if(s)s.value='buy-consult';['su-date','su-note','su-custom','su-link'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});var cb=document.getElementById('su-cc-agent');if(cb)cb.checked=false;suCCAgentChanged();suTemplateChanged();var o=document.getElementById('send-update-overlay');if(o)o.style.display='flex';}
-window.openSendUpdate=openSendUpdate;
-function closeSendUpdate(){var o=document.getElementById('send-update-overlay');if(o)o.style.display='none';_suUid=null;}
-window.closeSendUpdate=closeSendUpdate;
-function suCCAgentChanged(){var cb=document.getElementById('su-cc-agent'),r=document.getElementById('su-cc-agent-row');if(r)r.style.display=(cb&&cb.checked)?'block':'none';}
-window.suCCAgentChanged=suCCAgentChanged;
-function suTemplateChanged(){var v=document.getElementById('su-template').value,t=SU_TEMPLATES[v],d=document.getElementById('su-date-row'),c=document.getElementById('su-custom-row');if(d)d.style.display=(t&&t.hasDate)?'block':'none';if(c)c.style.display=(v==='gen-custom')?'block':'none';}
-window.suTemplateChanged=suTemplateChanged;
-async function previewSendUpdate(){
-  if(!_suUid)return;
-  var val=document.getElementById('su-template').value,tmpl=SU_TEMPLATES[val];if(!tmpl)return;
-  var dv=document.getElementById('su-date').value,note=(document.getElementById('su-note')||{}).value||'',custom=(document.getElementById('su-custom')||{}).value||'',link=((document.getElementById('su-link')||{}).value||'').trim();
-  var ds=dv?new Date(dv+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}):'';
-  var b=(myBuyers||[]).find(function(x){return x.uid===_suUid;});if(!b||!b.email){alert('Client not found.');return;}
-  var first=b.firstName||'there',ao=DEFAULT_AGENTS.find(function(a){return a.id===(b.agentId||'tom');}),an=ao?ao.name:'Tom Garuccio',ap=ao?ao.phone:'440-754-7449',ae=ao?ao.email:'Tom@GaruccioGroup.com';
-  var body=val==='gen-custom'?custom:getSUBody(val,first,ds,note);
-  if(link)body+='<br><br><a href="'+link+'" target="_blank" style="display:inline-block;background:#f0fdf4;color:#065F46;text-decoration:none;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid #6ee7b7;">📄 View Document →</a>';
-  if(!body.trim()){alert('Please enter your message.');return;}
-  var subj='Update from '+an+' — '+tmpl.label;
-  var ehtml='<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;"><div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Nest Track Update</div><div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">'+tmpl.label+'</div></div><div style="background:#fff;padding:26px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><p style="font-size:14px;color:#444;line-height:1.75;margin:0 0 18px;">'+body+'</p><div style="background:#f9f9f7;border-radius:8px;padding:14px 16px;"><div style="font-size:14px;font-weight:600;">'+an+'</div><div style="font-size:12px;color:#666;margin-top:2px;">'+ap+' · '+ae+'</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:10px;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;">Open Nest Track →</a></div></div></div>';
-  var ccCb=document.getElementById('su-cc-agent'),ccEmail=(document.getElementById('su-agent-email')||{}).value||'',doCC=ccCb&&ccCb.checked&&ccEmail.trim();
-  var aao=DEFAULT_AGENTS.find(function(a){return a.id===(b.agentId||'tom');}),aae=aao?aao.email:null,doACC=aae&&aae!==b.email;
-  var promo='<hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/><div style="padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;"><div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div><div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly.</div><a href="https://app.garucciogroup.com/invite.html" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a></div>';
-  var agentHtml=ehtml.replace('</div></div>',promo+'</div></div>');
-  closeSendUpdate();
-  showEmailPreview(b.email,subj,ehtml,async function(){
-    try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:b.email,subject:subj,html:ehtml})});
-    if(doCC){try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:ccEmail.trim(),subject:'Update: '+(b.firstName||'')+' '+(b.lastName||'')+' — '+tmpl.label,html:agentHtml})});}catch(e){}}
-    if(doACC){try{await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:aae,subject:'Client Update: '+(b.firstName||'')+' '+(b.lastName||'')+' — '+tmpl.label,html:ehtml})});}catch(e){}}}catch(e){}
-  });
-}
-window.previewSendUpdate=previewSendUpdate;
-
-// ─── Mortgage dates ───
-var _mdUid=null;
-function openMortgageDates(uid){_mdUid=uid;var b=(myBuyers||[]).find(function(x){return x.uid===uid;}),dates=(b&&b.mortgageDates)||{};['application','le','appraisal','ratelock','ctc','closing'].forEach(function(k){var e=document.getElementById('mort-date-'+k);if(e)e.value=dates[k]||'';});var o=document.getElementById('mortgage-dates-overlay');if(o)o.style.display='flex';}
-window.openMortgageDates=openMortgageDates;
-function closeMortgageDates(){var o=document.getElementById('mortgage-dates-overlay');if(o)o.style.display='none';_mdUid=null;}
-window.closeMortgageDates=closeMortgageDates;
-async function saveMortgageDates(){if(!_mdUid)return;var dates={};['application','le','appraisal','ratelock','ctc','closing'].forEach(function(k){var e=document.getElementById('mort-date-'+k);if(e&&e.value)dates[k]=e.value;});try{var aid=userProfile.agentId||'tom';await fb.updateDoc(fb.doc(fb.db,'agents',aid,'buyers',_mdUid),{mortgageDates:dates});var b=(myBuyers||[]).find(function(x){return x.uid===_mdUid;});if(b)b.mortgageDates=dates;closeMortgageDates();openBuyer(_mdUid);}catch(e){alert('Failed: '+e.message);}}
-window.saveMortgageDates=saveMortgageDates;
-function clearMortgageDates(uid){if(!confirm('Clear all mortgage dates?'))return;fb.updateDoc(fb.doc(fb.db,'agents',userProfile.agentId||'tom','buyers',uid),{mortgageDates:{}}).then(function(){var b=(myBuyers||[]).find(function(x){return x.uid===uid;});if(b)b.mortgageDates={};openBuyer(uid);}).catch(function(e){alert(e.message);});}
-window.clearMortgageDates=clearMortgageDates;
-
-// ─── Agent dashboard extras ───
-async 
-
 
 function toggleNavSection(id) {
   var panel = document.getElementById(id);
@@ -6554,7 +6522,7 @@ async function loadBuyersForAgent() {
             allBuyers.push({ uid: d.id, ...d.data() });
           }
         });
-      } catch(e) { }
+      } catch(e) { console.log('coAgent query err:', e.message); }
     }
     // Keep myBuyers in sync so dashboard has data immediately on first load
     myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
@@ -6649,9 +6617,12 @@ window.watchAllAgentChats = watchAllAgentChats;
 function updateAgentUnreadBadge() {
   var total = Object.values(agentUnreadCounts).reduce(function(a,b){return a+b;},0);
   // Tab badge
-    if (tabBadge) { tabBadge.style.display = total>0?'inline':'none'; tabBadge.textContent = total>9?'9+':String(total); }
+  var tabBadge = document.getElementById('agent-chat-badge');
+  if (tabBadge) { tabBadge.style.display = total>0?'inline':'none'; tabBadge.textContent = total>9?'9+':String(total); }
   // Nav button badge
-    // Re-render inbox list to show per-buyer highlights
+  var navBadge = document.getElementById('agent-nav-badge');
+  if (navBadge) { navBadge.style.display = total>0?'inline':'none'; navBadge.textContent = total>9?'9+':String(total); }
+  // Re-render inbox list to show per-buyer highlights
   var inboxList = document.getElementById('agent-inbox-list');
   if (inboxList && inboxList.style.display !== 'none') renderAgentInbox();
 }
@@ -6678,7 +6649,8 @@ function switchAgentTab(tab) {
     } else {
       renderAgentInbox();
     }
-        if (badge) badge.style.display='none';
+    var badge = document.getElementById('agent-chat-badge');
+    if (badge) badge.style.display='none';
   } else if (tab === 'profile') {
     if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
     if (pp) {
@@ -6823,7 +6795,7 @@ function sendAgentChatMessage() {
       sendPushToUser(buyerUid, 'New message from '+agentName, text.substring(0,80));
     }
   })
-  .catch(function(e){ });
+  .catch(function(e){ console.log('Agent send failed:',e.message); });
 }
 window.sendAgentChatMessage = sendAgentChatMessage;
 
@@ -7092,7 +7064,7 @@ async function todoLoad() {
       var active = _todos.filter(function(t){ return !t.done; }).length;
       el.textContent = active > 0 ? active + ' open task' + (active !== 1 ? 's' : '') : 'All clear';
     }
-  } catch(e) { }
+  } catch(e) { console.log('todoLoad:', e.message); }
 }
 window.todoLoad = todoLoad;
 
@@ -7140,7 +7112,7 @@ async function todoSave() {
   try {
     await fb.setDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid), { items: _todos, updatedAt: Date.now() });
     todoUpdateBadge();
-  } catch(e) { }
+  } catch(e) { console.log('todoSave:', e.message); }
 }
 
 function todoUpdateBadge() {
@@ -7337,8 +7309,7 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
-          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button>
-          <button onclick="openSendUpdate('${uid}')" style="font-size:11px;font-weight:600;background:var(--green-lt);color:var(--green-dk);border:1px solid rgba(29,158,117,0.3);border-radius:8px;padding:3px 10px;cursor:pointer;">📨 Send Update</button></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
           ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
@@ -7373,7 +7344,7 @@ async function openBuyerDetail(uid, scrollTo) {
         <div>
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Mortgage Step</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-mortgage-step-${uid}" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} - ${s.title.replace(/^Step \d+ \u2014 /,'').replace(/^Step \d+ - /,'')}</option>`).join('')}</select>
+            <select id="bd-mortgage-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} - ${s.title.replace(/^Step \d+ - /,'')}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setMortgageStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','mortgage')">Dates</button>
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
@@ -7468,25 +7439,6 @@ async function openBuyerDetail(uid, scrollTo) {
         </div>
       </div>
     </details>
-    <!-- Mortgage Section -->
-    <details style="border-top:1px solid var(--border);">
-      <summary style="padding:12px 0;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;outline:none;">
-        <div style="font-size:14px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' — '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not started'}</span></span></div>
-        <span style="font-size:10px;color:var(--text3);">tap to toggle</span>
-      </summary>
-      <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
-        <div>
-          <div style="font-size:18px;font-weight:300;font-family:'Fraunces',serif;">${(b.currentMortgageStep||0)>0?((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not started'}${(b.currentMortgageStep||0)>0?' <span style="font-size:12px;color:var(--text3);font-family:inherit;">— Step '+(b.currentMortgageStep)+' of '+MJ_STEPS.length+'</span>':''}</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-            <select id="bd-mortgage-step-${uid}" style="flex:1;max-width:240px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} — ${s.title.replace(/^Step \d+ — /,'')}</option>`).join('')}</select>
-            <button class="btn btn-sm btn-g" onclick="setMortgageStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openMortgageDates('${uid}')">Dates</button>
-            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearMortgageDates('${uid}')">✕</button>
-          </div>
-        </div>
-        <div id="bd-timeline-mortgage-${uid}" style="margin-top:4px;"></div>
-      </div>
-    </details>
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:14px;">
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
       <button class="btn" onclick="aiBuyerSummary('${uid}')">AI Summary</button>
@@ -7534,7 +7486,9 @@ async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
   if (newStep !== 0) {
     var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
-    window._pendingStepEmailChoice = 'nosend';
+    var choice = await stepEmailPrompt('Move buyer to "'+stepName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
   }
   try {
     var buyerJourneyPatch = { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -7725,7 +7679,9 @@ async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   if (newStep !== 0) {
     var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
-    window._pendingStepEmailChoice = 'nosend';
+    var choice = await stepEmailPrompt('Move seller to "'+sName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
   }
   try {
     var sellerJourneyPatch = { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -7861,7 +7817,8 @@ async function fireZapierWebhook(agentId, clientData) {
       headers: { 'Content-Type': 'application/json', 'X-Action': 'webhook', 'X-Webhook-Url': webhookUrl },
       body: JSON.stringify(payload)
     });
-  } catch(e) { }
+    console.log('Zapier webhook fired for', clientData.email);
+  } catch(e) { console.log('Zapier webhook err:', e.message); }
 }
 window.fireZapierWebhook = fireZapierWebhook;
 
@@ -7970,7 +7927,7 @@ async function createInvite() {
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
         body: JSON.stringify(emailPayload)
       });
-    } catch(emailErr) { }
+    } catch(emailErr) { console.log('Email failed:', emailErr); }
 
     resultEl.style.display = 'block';
     resultEl.innerHTML = '<div class="card" style="background:var(--green-lt);border-color:var(--green-md);color:var(--green-dk);">'
@@ -8117,7 +8074,7 @@ async function removeAgent(id) {
   var i = DEFAULT_AGENTS.findIndex(function(a){ return a.id === id; });
   if (i >= 0) DEFAULT_AGENTS.splice(i, 1);
   renderTeam();
-  try { await fb.deleteDoc(fb.doc(fb.db, 'team_agents', id)); } catch(e) { }
+  try { await fb.deleteDoc(fb.doc(fb.db, 'team_agents', id)); } catch(e) { console.log('removeAgent:', e.message); }
   populateAgentDropdown();
   alert(ag.name + ' removed from team.');
 }
@@ -8307,7 +8264,7 @@ async function saveContractDates() {
         Object.assign(linkedDeals[di], dealUpdate);
         await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
       }
-    } catch(syncErr){ }
+    } catch(syncErr){ console.log('Deal date sync err:', syncErr.message); }
     // Always reopen client profile after saving dates
     var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
     var _scrollTo = (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) ? 'titleco' : null;
@@ -8553,7 +8510,7 @@ const TRAIL_STAGES = [
 function renderTrailMap() {
   const cur = (userProfile && userProfile.currentStep) || 1;
   const map = document.getElementById('trail-map');
-  if (!map) { return; }
+  if (!map) { console.log('trail-map not found'); return; }
 
   // Mobile-first sizing
   const mob = window.innerWidth <= 700;
@@ -8809,15 +8766,43 @@ const SELLER_STEPS = [
 ];
 
 const MJ_STEPS = [
-  { icon:'💬', title:'Step 1 — Initial Consult', body:'We sit down to understand your goals, timeline, and financial picture. This is where I learn what you need and explain the entire mortgage process so there are no surprises.', tip:'📞 Call or text Tom: 440-754-7449', highlight:true },
-  { icon:'✅', title:'Step 2 — Pre-Approval', body:'I pull your credit, review your income and assets, and issue a real pre-approval letter. This tells you exactly what you can afford and makes your offers stronger.', tip:'Pre-approvals are free and usually issued same day.' },
-  { icon:'📄', title:'Step 3 — Loan Application', body:'Once you are under contract, you officially apply for the mortgage. I will need updated financials — W-2s, pay stubs, bank statements, and tax returns.', tip:'Avoid major financial changes — no new credit, no large deposits, no job changes.' },
-  { icon:'📬', title:'Step 4 — Loan Estimate', body:'Within 3 business days of your application, I send you a Loan Estimate showing your interest rate, monthly payment, and all closing costs. Review every line.', tip:'Compare Section D (Total Loan Costs) carefully. This protects you from surprises at closing.' },
-  { icon:'🏠', title:'Step 5 — Appraisal', body:'The lender orders an independent appraisal to confirm the home is worth what you are borrowing. An appraiser visits the property and reviews recent comparable sales.', tip:'If the appraisal comes in low, we have options — negotiate, dispute, or bring extra cash.' },
-  { icon:'🔍', title:'Step 6 — Underwriting', body:'The underwriter verifies your income, employment, assets, and property value. They may request additional documents. Respond quickly — every day counts.', tip:'Stay available and respond to document requests immediately.' },
-  { icon:'🔒', title:'Step 7 — Conditional Approval', body:'The underwriter has approved your file with conditions — typically minor items. Once satisfied, you move to final approval.', tip:'Conditional approval is very common. Just a few loose ends to tie up.' },
-  { icon:'🎯', title:'Step 8 — Clear to Close', body:'All conditions are satisfied, the loan is fully approved, and you are ready to sign. I will confirm your final numbers and schedule your closing.', tip:'You will receive your Closing Disclosure 3 business days before closing.', highlight:true },
-  { icon:'🎉', title:'Step 9 — Closing Day', body:'You sign the final documents, the loan funds, the deed is recorded, and you get the keys.', tip:'Bring: photo ID, any documents I requested, and your excitement!', highlight:true, action:{label:'Start Pre-Approval →', url:'https://1660690.my1003app.com/2784866/register?time=1775863969580'} },
+  { icon:'💬', title:'Step 1 — Talk to Tom First',
+    body:'Before you fill out anything, call Tom. Since he handles the mortgage side, one conversation gets the financing picture clear. He\'ll tell you exactly what to expect and whether now is the right time.',
+    tip:'📞 Call or text Tom: 440-754-7449',
+    highlight:true },
+  { icon:'📋', title:'Step 2 — Pre-Qualification vs. Pre-Approval',
+    body:'Pre-qualification is a rough estimate based on self-reported info. Pre-approval is verified — Tom pulls your credit, reviews your income and assets, and issues a real letter that sellers respect.',
+    tip:'Tom issues pre-approvals directly — same day in most cases.' },
+  { icon:'📄', title:'Step 3 — Documents You\'ll Need',
+    body:'Gather these before you apply: W-2s (last 2 years), pay stubs (last 30 days), bank statements (last 2 months), tax returns (last 2 years), photo ID. If self-employed, also 2 years of business returns.',
+    tip:'Pro tip: Have these in a folder on your phone — it makes the process 3x faster.' },
+  { icon:'🔢', title:'Step 4 — Understanding Your Credit Score',
+    body:'Your credit score determines your interest rate. 740+ = best rates. 700–739 = very good. 640–699 = acceptable but costs more. Below 640 = Tom can advise on improving before applying.',
+    tip:'Check your credit free at annualcreditreport.com. Don\'t open new credit cards before closing.' },
+  { icon:'📊', title:'Step 5 — Choosing Your Loan Type',
+    body:'Conventional (most common, 3–20% down), FHA (3.5% down, flexible credit), VA (0% down for veterans), USDA (0% down, rural areas). Tom will match you to the right loan for your situation.',
+    tip:'Tom can walk through the loan options available for your situation.' },
+  { icon:'📉', title:'Step 6 — Down Payment Reality Check',
+    body:'20% down eliminates PMI. Under 20% means PMI (usually $50–$200/mo). FHA requires 3.5%. Conventional can be as low as 3%. Your mortgage calculator shows exactly what each scenario costs monthly.',
+    tip:null,
+    action:{label:'Open Mortgage Calculator', page:'mortgage'} },
+  { icon:'🔒', title:'Step 7 — Interest Rates & Locking',
+    body:'Rates change daily. Once under contract, Tom will advise you when to lock your rate. A rate lock (typically 30–60 days) protects you from market swings between contract and closing.',
+    tip:'Even 0.25% rate difference on a $400k loan = ~$60/month = $21,000 over 30 years.' },
+  { icon:'📬', title:'Step 8 — Loan Estimate (LE)',
+    body:'Within 3 business days of your application, Tom sends a Loan Estimate — a standardized form showing your interest rate, monthly payment, and all closing costs. Review it carefully.',
+    tip:'Compare Section D (Total Loan Costs) across any lenders you\'re evaluating.' },
+  { icon:'🔍', title:'Step 9 — Underwriting',
+    body:'The underwriter verifies everything — income, employment, assets, property value. They may ask for additional documents ("conditions"). Respond quickly — every day matters on your closing timeline.',
+    tip:'Don\'t switch jobs, buy a car, or make large deposits during underwriting. Seriously.' },
+  { icon:'✅', title:'Step 10 — Clear to Close (CTC)',
+    body:'"Clear to Close" is the best phrase in real estate. It means underwriting approved everything and you\'re ready to sign. Tom will confirm your final numbers and schedule your closing.',
+    tip:'You\'ll get your Closing Disclosure 3 business days before closing. Review every line.' },
+  { icon:'🎉', title:'Step 11 — Closing Day',
+    body:'You sign the final documents, your loan funds, the deed is recorded, and you get the keys. Tom is there with you. The mortgage process stays clear from pre-approval through closing.',
+    tip:'Bring: photo ID, any remaining documents Tom requests, and your excitement!',
+    highlight:true,
+    action:{label:'Start Pre-Approval →', url:'https://1660690.my1003app.com/2784866/register?time=1775863969580'} },
 ];
 
 
@@ -9498,7 +9483,7 @@ async function autofillValFromURL() {
     var d = await claudeAPI({model:'claude-sonnet-4-5',max_tokens:150,messages:[{role:'user',content:prompt}]});
     var addr = d.content[0].text.trim();
     if (addrEl && addr && addr.length > 5) { addrEl.value = addr; }
-  } catch(e) { }
+  } catch(e) { console.log('autofill error:', e); }
   if (btn) { btn.textContent = 'Auto-Fill'; btn.disabled = false; }
 }
 window.autofillValFromURL = autofillValFromURL;
@@ -10043,10 +10028,11 @@ if ('serviceWorker' in navigator) {
   // Register real /sw.js file (required for iOS Safari push support)
   navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg) {
     swRegistration = reg;
+    console.log('Nest Track SW registered from /sw.js');
     reg.pushManager.getSubscription().then(function(sub) {
       if (sub) { pushSubscription = sub; savePushSubscription(sub); }
     });
-  }).catch(function(e) { });
+  }).catch(function(e) { console.log('SW reg failed:', e.message); });
 }
 
 // ─── PUSH SUBSCRIPTION ───
@@ -10066,7 +10052,9 @@ async function subscribeToPush() {
     });
     pushSubscription = sub;
     await savePushSubscription(sub);
+    console.log('Push subscription active');
   } catch(e) {
+    console.log('Push subscribe failed:', e.message);
   }
 }
 
@@ -10082,7 +10070,7 @@ async function savePushSubscription(sub) {
     }
     // Always save under Firebase UID
     await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), data);
-  } catch(e) { }
+  } catch(e) { console.log('Save push sub failed:', e.message); }
 }
 
 async function requestNotificationPermission() {
@@ -10110,8 +10098,8 @@ async function sendPushToUser(uid, title, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'push' },
       body: JSON.stringify({ subscriptions: [sub], title: title, body: body, url: '/' })
-    }).catch(function(e){ });
-  } catch(e) { }
+    }).catch(function(e){ console.log('push fetch failed:', e.message); });
+  } catch(e) { console.log('sendPushToUser:', e.message); }
   // Never throw — push failure should not break chat
 }
 window.sendPushToUser = sendPushToUser;
@@ -10127,8 +10115,8 @@ async function sendPushToAgentByShortId(agentShortId, title, body) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'push' },
       body: JSON.stringify({ subscriptions: [sub], title: title, body: body, url: '/' })
-    }).catch(function(e){ });
-  } catch(e) { }
+    }).catch(function(e){ console.log('agent push failed:', e.message); });
+  } catch(e) { console.log('sendPushToAgentByShortId:', e.message); }
 }
 window.sendPushToAgentByShortId = sendPushToAgentByShortId;
 
@@ -10277,7 +10265,7 @@ async function loadListings() {
     ));
     _listings = [];
     snap.forEach(function(d){ _listings.push(Object.assign({id:d.id},d.data())); });
-  } catch(e) { _listings = []; }
+  } catch(e) { console.log('loadListings:',e.message); _listings = []; }
 }
 window.loadListings = loadListings;
 
@@ -10440,7 +10428,7 @@ async function saveListing(existingId) {
       var { uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js');
       var snapshot = await uploadBytes(sRef, photoFile);
       photoUrl = await getDownloadURL(snapshot.ref);
-    } catch(photoErr) { }
+    } catch(photoErr) { console.log('Photo upload failed:', photoErr.message); }
   }
   var clientUid = document.getElementById('lm-client').value;
   var deadline = document.getElementById('lm-deadline').value;
@@ -10547,7 +10535,7 @@ async function purgeOldListings() {
               try {
                 pdfDelPromises.push(
                   fb.deleteObject(fb.storageRef(fb.storage, od.data().pdfPath))
-                  .catch(function(e){ })
+                  .catch(function(e){ console.log('PDF delete skipped:', e.message); })
                 );
                 // Clear pdfPath and pdfUrl on the offer doc
                 pdfDelPromises.push(
@@ -10574,6 +10562,7 @@ async function purgeOldListings() {
 
     return { fullDeleted: fullDeleted, pdfsDeleted: pdfsDeleted };
   } catch(e) {
+    console.log('purgeOldListings error:', e.message);
     return { fullDeleted: 0, pdfsDeleted: 0 };
   }
 }
@@ -10585,6 +10574,7 @@ async function runSilentPurge() {
   try {
     var result = await purgeOldListings();
     if (result.fullDeleted > 0 || result.pdfsDeleted > 0) {
+      console.log('Auto-purge: ' + result.fullDeleted + ' listing(s) deleted, ' + result.pdfsDeleted + ' PDF set(s) cleared.');
     }
   } catch(e) {}
 }
@@ -11181,7 +11171,6 @@ async function confirmSendOffer(listingId, offerId) {
         +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address||'')+'</strong> has been forwarded to the seller for review.</p>'
-        +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;"><div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div><div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly.</div><a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a></div>'
         +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
         +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
         +'</div></div>';
@@ -11356,11 +11345,10 @@ async function submitPublicOffer(listingId) {
         var snap = await uploadBytes(pdfSRef, pdfFile);
         data.pdfPath = pdfPath;
         data.pdfUrl  = await getDownloadURL(snap.ref);
-      } catch(pdfErr) { }
+      } catch(pdfErr) { console.log('PDF upload failed:', pdfErr.message); }
     }
     await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count
-    if (data.agentEmail) { try { var scHtml='<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;"><div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;"><div style="font-size:20px;font-weight:300;color:#fff;">Offer Successfully Submitted</div></div><div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><p style="font-size:14px;color:#444;">Hi '+partnerEsc(data.agentName||'there')+',</p><p style="font-size:14px;color:#444;">Your offer has been successfully submitted to the listing agent for review.</p><div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;"><div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div><div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly.</div><a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a></div></div></div>'; await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:data.agentEmail,subject:'Offer Submitted — '+partnerEsc(data.address||''),html:scHtml})}); } catch(e){} }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
       offerCount: fb.increment(1)
     });
@@ -11370,7 +11358,7 @@ async function submitPublicOffer(listingId) {
         var newSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('submittedAt','desc')));
         if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
       }
-    } catch(asErr){ }
+    } catch(asErr){ console.log('Auto-send err:',asErr.message); }
     // Notify listing agent that offer was received
     try {
       var lData = (await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId))).data();
@@ -11414,7 +11402,7 @@ async function submitPublicOffer(listingId) {
               html:alertHtml})});
         }
       }
-    } catch(alertErr){ }
+    } catch(alertErr){ console.log('Agent alert err:',alertErr.message); }
     // Replace entire inner with success screen
     var inner = document.getElementById('offer-submit-inner');
     if (inner) {
@@ -11509,9 +11497,8 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
       +'</div></div>';
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
-    if (o.agentEmail) { try { var cpHtml='<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;"><div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;"><div style="font-size:20px;font-weight:300;color:#fff;">Offer Presented to Seller</div></div><div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><p style="font-size:14px;color:#444;">Hi '+partnerEsc(o.agentName||'there')+',</p><p style="font-size:14px;color:#444;">Your offer on <strong>'+partnerEsc(listingData.address||'')+'</strong> has been presented to the seller for review.</p><div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;"><div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div><div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly.</div><a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a></div></div></div>'; await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:o.agentEmail,subject:'Offer Presented to Seller — '+partnerEsc(listingData.address||''),html:cpHtml})}); } catch(e){} }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
-  } catch(e) { }
+  } catch(e) { console.log('autoSendOfferToClient error:', e.message); }
 }
 window.autoSendOfferToClient = autoSendOfferToClient;
 
@@ -11696,19 +11683,26 @@ async function fetchShowingTimeEvents() {
       var a2Snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId));
       if (a2Snap.exists()) stUrl = a2Snap.data().showingTimeUrl;
     }
-  } catch(e) { }
+  } catch(e) { console.log('ST: Firestore error', e.message); }
+
+  console.log('ST: URL found =', stUrl || 'NONE');
   if (!stUrl) return [];
 
   try {
+    console.log('ST: Calling Worker at', PROXY_URL);
     var res = await fetch(PROXY_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json','X-Action':'fetch-showings'},
       body:JSON.stringify({url:stUrl})
     });
+    console.log('ST: Worker response status =', res.status);
     var data = await res.json();
+    console.log('ST: Worker response =', JSON.stringify(data).substring(0,200));
     if (data.error) throw new Error(data.error);
+    console.log('ST: Events count =', (data.events||[]).length);
     return data.events || [];
   } catch(e) {
+    console.log('ST: Fetch error =', e.message);
     return [];
   }
 }
@@ -11762,7 +11756,7 @@ async function renderShowingInbox() {
       return t >= now - 3600000 && t <= cutoff;
     });
     manualShowings.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
-  } catch(me){ }
+  } catch(me){ console.log('manualShowings load err:', me.message); }
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
     +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'
@@ -11799,7 +11793,7 @@ async function renderShowingInbox() {
     var agentId2 = userProfile.agentId||'tom';
     var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agentId2,'showingAssignments'));
     asnSnap.forEach(function(d){ _showingAssignments[d.id] = d.data(); });
-  } catch(ae){ }
+  } catch(ae){ console.log('Load assignments err:', ae.message); }
 
   html += events.map(function(ev, i) {
     var dt = ev.start ? new Date(ev.start) : null;
@@ -12014,7 +12008,7 @@ async function _commitAppt(appt, sendEmail) {
       apptId: ref.id,
     });
     await todoSave();
-  } catch(e) { }
+  } catch(e) { console.log('Todo save err:', e.message); }
 
   // 3. Generate ICS — wrapped separately so it never crashes the save
   try {
@@ -12040,7 +12034,7 @@ async function _commitAppt(appt, sendEmail) {
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(icsUrl); }, 1000);
-  } catch(e) { }
+  } catch(e) { console.log('ICS generation err:', e.message); }
 
   // 4. Send email if approved
   if (sendEmail && appt.clientEmail) {
@@ -12052,7 +12046,7 @@ async function _commitAppt(appt, sendEmail) {
         headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify(payload)
       });
-    } catch(e) { }
+    } catch(e) { console.log('Email send err:', e.message); }
   }
 
   // 5. Refresh list — no alert, just refresh smoothly
@@ -12226,7 +12220,7 @@ async function assignShowing(idx) {
         start: ev.start||'',
         assignedAt: fb.serverTimestamp(),
       });
-    } catch(ae){ }
+    } catch(ae){ console.log('Assignment save err:', ae.message); }
     // 5. Update status
     if (statusEl) {
       statusEl.style.display='block';
@@ -12480,7 +12474,7 @@ async function loadDeals() {
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
     _dealsLoaded = true;
-  } catch(e) { }
+  } catch(e) { console.log('loadDeals error:', e.message); }
 }
 window.loadDeals = loadDeals;
 
@@ -12511,7 +12505,7 @@ async function renderDealTracker() {
 
   if (!_dealsLoaded) {
     el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading deals...</div>';
-    try { await loadDeals(); } catch(e) { _dealsLoaded = true; }
+    try { await loadDeals(); } catch(e) { console.log('loadDeals err:',e.message); _dealsLoaded = true; }
     if (myVersion !== _dealRenderVersion) return;
   }
 
@@ -12749,7 +12743,7 @@ async function updateDealStatus(dealId, status) {
   var agentId = userProfile.agentId||'tom';
   try {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), {status:status});
-  } catch(e) { }
+  } catch(e) { console.log('updateDealStatus err:', e.message); }
   filterDeals(_activeFilter);
 }
 window.updateDealStatus = updateDealStatus;
@@ -13105,9 +13099,9 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
           body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:emailHtml})});
-      } catch(e) { }
+      } catch(e) { console.log('Task email send err:', e.message); }
     });
-  } catch(e) { }
+  } catch(e) { console.log('Task email err:', e.message); }
 }
 window.sendTaskCompleteEmail = sendTaskCompleteEmail;
 
@@ -13133,7 +13127,7 @@ async function addToDealTracker(uid, dealType) {
         });
         existing = _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
       }
-    } catch(e) { }
+    } catch(e) { console.log('FS check err:', e.message); }
   }
   if (existing) {
     closeM('buyer-modal');
@@ -13421,93 +13415,6 @@ window.repairDealTrackerData = repairDealTrackerData;
       <div style="padding:14px 18px;border-top:0.5px solid var(--border);display:flex;gap:8px;">
         <button onclick="document.getElementById('email-preview-overlay').style.display='none'" class="btn" style="flex:1;">Cancel</button>
         <button onclick="_epoApprove()" class="btn btn-g" style="flex:2;">&#10003; Approve &amp; Send</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="mortgage-dates-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:440px;max-height:90vh;overflow-y:auto;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);position:sticky;top:0;background:var(--surface);">
-        <div><div style="font-size:15px;font-weight:600;">Mortgage Timeline</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Set key mortgage dates</div></div>
-        <button onclick="closeMortgageDates()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">&#215;</button>
-      </div>
-      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px;">
-        <div><label class="flabel">Application Date</label><input type="date" id="mort-date-application" style="width:100%;box-sizing:border-box;"/></div>
-        <div><label class="flabel">Loan Estimate Deadline</label><input type="date" id="mort-date-le" style="width:100%;box-sizing:border-box;"/></div>
-        <div><label class="flabel">Appraisal Date</label><input type="date" id="mort-date-appraisal" style="width:100%;box-sizing:border-box;"/></div>
-        <div><label class="flabel">Rate Lock Expiration</label><input type="date" id="mort-date-ratelock" style="width:100%;box-sizing:border-box;"/></div>
-        <div><label class="flabel">Clear to Close Date</label><input type="date" id="mort-date-ctc" style="width:100%;box-sizing:border-box;"/></div>
-        <div><label class="flabel">Closing Date</label><input type="date" id="mort-date-closing" style="width:100%;box-sizing:border-box;"/></div>
-        <div style="display:flex;gap:8px;"><button class="btn btn-g" onclick="saveMortgageDates()" style="flex:1;">Save Dates</button><button class="btn" onclick="closeMortgageDates()">Cancel</button></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Send Update Modal -->
-  <div id="send-update-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);position:sticky;top:0;background:var(--surface);">
-        <div style="font-size:15px;font-weight:600;">Send Client Update</div>
-        <button onclick="closeSendUpdate()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">&#215;</button>
-      </div>
-      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px;">
-        <div><label class="flabel">Select Update</label>
-          <select id="su-template" onchange="suTemplateChanged()" style="width:100%;font-size:13px;">
-            <optgroup label="Buying Journey">
-              <option value="buy-consult">Initial Consult Scheduled</option>
-              <option value="buy-preapproval">Pre-Approval Received</option>
-              <option value="buy-showing">Showing Scheduled</option>
-              <option value="buy-offer">Offer Submitted</option>
-              <option value="buy-offer-accepted">Offer Accepted - Under Contract!</option>
-              <option value="buy-earnest">Earnest Money Received</option>
-              <option value="buy-inspection">Inspection Scheduled</option>
-              <option value="buy-appraisal-sched">Appraisal Scheduled</option>
-              <option value="buy-appraisal">Appraisal Completed</option>
-              <option value="buy-walkthrough">Final Walkthrough Scheduled</option>
-              <option value="buy-closing">Closing Scheduled</option>
-              <option value="buy-closed">Congratulations - You're a Homeowner!</option>
-            </optgroup>
-            <optgroup label="Selling Journey">
-              <option value="sell-photos">Listing Photos Scheduled</option>
-              <option value="sell-listed">Your Home is Listed!</option>
-              <option value="sell-showing">Showing Scheduled on Your Home</option>
-              <option value="sell-offer">Offer Received</option>
-              <option value="sell-accepted">Offer Accepted - Under Contract!</option>
-              <option value="sell-inspection">Buyer Inspection Scheduled</option>
-              <option value="sell-appraisal-sched">Appraisal Scheduled</option>
-              <option value="sell-appraisal">Appraisal Completed</option>
-              <option value="sell-closing">Closing Scheduled</option>
-              <option value="sell-closed">Congratulations - Your Home is Sold!</option>
-            </optgroup>
-            <optgroup label="Mortgage Journey">
-              <option value="mort-consult">Initial Consult Scheduled</option>
-              <option value="mort-preapproval">Pre-Approval Issued</option>
-              <option value="mort-application">Loan Application Submitted</option>
-              <option value="mort-le">Loan Estimate Delivered</option>
-              <option value="mort-appraisal-sched">Appraisal Scheduled</option>
-              <option value="mort-appraisal">Appraisal Completed</option>
-              <option value="mort-underwriting">In Underwriting</option>
-              <option value="mort-conditional">Conditional Approval Received</option>
-              <option value="mort-ctc">Clear to Close!</option>
-              <option value="mort-closing">Closing Confirmed</option>
-            </optgroup>
-            <optgroup label="General">
-              <option value="gen-checkin">Quick Check-In</option>
-              <option value="gen-docs">Documents Need Your Attention</option>
-              <option value="gen-waiting">Waiting on Update</option>
-              <option value="gen-custom">Custom Message...</option>
-            </optgroup>
-          </select>
-        </div>
-        <div id="su-date-row" style="display:none;"><label class="flabel">Date</label><input type="date" id="su-date" style="width:100%;box-sizing:border-box;"/></div>
-        <div><label class="flabel">Additional Note (optional)</label><textarea id="su-note" rows="3" placeholder="Any extra details..." style="width:100%;box-sizing:border-box;resize:none;font-size:13px;"></textarea></div>
-        <div id="su-custom-row" style="display:none;"><label class="flabel">Custom Message</label><textarea id="su-custom" rows="4" placeholder="Write your own update..." style="width:100%;box-sizing:border-box;resize:none;font-size:13px;"></textarea></div>
-        <div><label class="flabel">Include a Link (optional)</label><input type="text" id="su-link" placeholder="https://..." style="width:100%;box-sizing:border-box;font-size:13px;"/></div>
-        <div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px;display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="su-cc-agent" onchange="suCCAgentChanged()" style="width:16px;height:16px;cursor:pointer;"/><label for="su-cc-agent" style="font-size:13px;font-weight:500;cursor:pointer;">CC Other Agent</label></div>
-          <div id="su-cc-agent-row" style="display:none;"><input type="email" id="su-agent-email" placeholder="other agent email..." style="width:100%;box-sizing:border-box;font-size:13px;"/><div style="font-size:11px;color:var(--text3);margin-top:4px;">They'll get the same update + a Nest Track intro. Client won't see it.</div></div>
-        </div>
-        <button class="btn btn-g" onclick="previewSendUpdate()" style="justify-content:center;">Preview Email →</button>
       </div>
     </div>
   </div>
