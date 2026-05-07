@@ -6582,7 +6582,7 @@ async function renderBuyers() {
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
-        ${(()=>{ var _cs=getClientStatus(b); var _csc={active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',cold:'#6366F1',past:'#059669',closed:'#888'}; var _csb={active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',cold:'#eef2ff',past:'#ecfdf5',closed:'#f5f5f5'}; var _csl={active:'Active',pipeline:'Pipeline',nurture:'Nurture',cold:'Cold',past:'Past Client',closed:'Closed'}; return '<span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:'+(_csb[_cs]||'#f5f5f5')+';color:'+(_csc[_cs]||'#888')+';">'+(_csl[_cs]||_cs)+'</span>'; })()
+        <div>${crmStatusPill(b)}</div>
         ${agentLine}${coAgentLine}
         ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; ctBtns+='</div>'; } return ctBtns; })()}
       </div>
@@ -13362,6 +13362,15 @@ window.repairDealTrackerData = repairDealTrackerData;
 
 // ─── CRM ───
 window._crmFilter = 'all';
+
+function crmStatusPill(b) {
+  var cs = getClientStatus(b);
+  var colors = {active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',cold:'#6366F1',past:'#059669',closed:'#888'};
+  var bgs = {active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',cold:'#eef2ff',past:'#ecfdf5',closed:'#f5f5f5'};
+  var labels = {active:'Active',pipeline:'Pipeline',nurture:'Nurture',cold:'Cold',past:'Past Client',closed:'Closed'};
+  return '<span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:'+(bgs[cs]||'#f5f5f5')+';color:'+(colors[cs]||'#888')+'">'+(labels[cs]||cs)+'</span>';
+}
+window.crmStatusPill = crmStatusPill;
 
 function getClientStatus(b) {
   if (b.crmStatus && b.crmStatus !== 'auto') return b.crmStatus;
