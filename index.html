@@ -570,7 +570,7 @@ textarea{resize:vertical;min-height:68px;}
 <div class="main">
 
 <!-- HOME DASHBOARD -->
-<div class="page" id="page-home" style="flex-direction:column;gap:14px;">
+<div class="page" id="page-home">
 
   <!-- Welcome header -->
   <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;">
@@ -582,7 +582,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- ══ HOME BUYERS JOURNEY ══ -->
-  <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;">
+  <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Home Buyers Journey</div>
       <button onclick="go('guide',document.querySelector('[data-pg=guide]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
@@ -629,7 +629,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- ══ MORTGAGE JOURNEY ══ -->
-  <div id="home-mort-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;display:none;">
+  <div id="home-mort-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;display:none;">
     <div style="background:linear-gradient(135deg,#185FA5,#378ADD);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Mortgage Journey</div>
       <button onclick="go('mortgagejourney',document.querySelector('[data-pg=mortgagejourney]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
@@ -674,7 +674,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- ══ HOME SELLERS JOURNEY ══ -->
-  <div id="home-sell-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;display:none;">
+  <div id="home-sell-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;display:none;">
     <div style="background:linear-gradient(135deg,#92400E,#D97706);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Home Sellers Journey</div>
       <button onclick="go('sellertrail',document.querySelector('[data-pg=sellertrail]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
@@ -1182,7 +1182,7 @@ textarea{resize:vertical;min-height:68px;}
 
 
 <!-- AGENT DASHBOARD -->
-<div class="page" id="page-agent-dash" style="flex-direction:column;gap:14px;">
+<div class="page" id="page-agent-dash">
   <div style="display:flex;flex-direction:column;gap:14px;width:100%;">
   <!-- Dashboard header -->
   <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
@@ -6028,172 +6028,6 @@ window._epoApprove = _epoApprove;
 
 window.renderHome = renderHome;
 
-// ─── Send Client Update (───
-var _suUid = null;
-var SU_TEMPLATES = {
-  'buy-consult':     {label:'Initial Consult Scheduled',     hasDate:true},
-  'buy-preapproval': {label:'Pre-Approval Received',         hasDate:false},
-  'buy-showing':     {label:'Showing Scheduled',             hasDate:true},
-  'buy-offer':       {label:'Offer Submitted',               hasDate:false},
-  'buy-earnest':     {label:'Earnest Money Received',        hasDate:false},
-  'buy-inspection':  {label:'Inspection Scheduled',          hasDate:true},
-  'buy-walkthrough': {label:'Final Walkthrough Scheduled',   hasDate:true},
-  'buy-closing':     {label:'Closing Scheduled',             hasDate:true},
-  'buy-closed':      {label:'Congratulations — You\'re a Homeowner!', hasDate:false},
-  'sell-photos':     {label:'Listing Photos Scheduled',      hasDate:true},
-  'sell-listed':     {label:'Your Home is Listed!',          hasDate:false},
-  'sell-showing':    {label:'Showing on Your Home',          hasDate:true},
-  'sell-offer':      {label:'Offer Received',                hasDate:false},
-  'sell-accepted':   {label:'Offer Accepted — Under Contract!', hasDate:false},
-  'sell-inspection': {label:'Buyer Inspection Scheduled',    hasDate:true},
-  'sell-closing':    {label:'Closing Scheduled',             hasDate:true},
-  'sell-closed':     {label:'Congratulations — Your Home is Sold!', hasDate:false},
-  'gen-checkin':     {label:'Quick Check-In',                hasDate:false},
-  'gen-docs':        {label:'Documents Need Attention',      hasDate:false},
-  'gen-waiting':     {label:'Waiting on Update',             hasDate:false},
-  'gen-custom':      {label:'Custom Message',                hasDate:false},
-  'buy-offer-accepted': {label:'Offer Accepted — Under Contract!', hasDate:false},
-  'buy-appraisal-sched':  {label:'Appraisal Scheduled',              hasDate:true},
-  'buy-appraisal':      {label:'Appraisal Completed',              hasDate:false},
-  'sell-appraisal-sched': {label:'Appraisal Scheduled',              hasDate:true},
-  'sell-appraisal':     {label:'Appraisal Completed',              hasDate:false}
-};
-function getSUBody(val, first, dateStr, note) {
-  var d = dateStr ? ' on <strong>' + dateStr + '</strong>' : '';
-  var n = note ? '<br><br>' + note : '';
-  var bodies = {
-    'buy-consult':     'Hi ' + first + ',<br><br>Your initial consultation is scheduled' + d + '. This is the first step in your home buying journey — we\'ll go over everything you need to know, answer your questions, and map out your path to homeownership.' + n,
-    'buy-preapproval': 'Hi ' + first + ',<br><br>Great news — your pre-approval has been received! This is a big step forward and puts you in a strong position as we start searching for your home.' + n,
-    'buy-showing':     'Hi ' + first + ',<br><br>You have a showing scheduled' + d + '. Get ready to walk through and picture yourself in the space. I\'ll be in touch with any details beforehand.' + n,
-    'buy-offer':       'Hi ' + first + ',<br><br>Your offer has been submitted! Now we wait for the seller\'s response. I\'ll reach out as soon as we hear back.' + n,
-    'buy-earnest':     'Hi ' + first + ',<br><br>Your earnest money deposit has been received and confirmed. This is a great milestone — we\'re officially moving forward!' + n,
-    'buy-inspection':  'Hi ' + first + ',<br><br>Your home inspection is scheduled' + d + '. Plan on about 2–3 hours. I\'ll be there with you and we\'ll walk through everything the inspector finds.' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border-left:3px solid #1D9E75;"><div style="font-size:12px;font-weight:600;color:#065F46;margin-bottom:6px;">\ud83d\udcf8 Tip: snap photos during the inspection:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Photo Analyzer \u2192</a></div>',
-    'buy-walkthrough': 'Hi ' + first + ',<br><br>Your final walkthrough is scheduled' + d + '. This is your last chance to walk through the home before closing and make sure everything is in order. We\'re almost there!' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border-left:3px solid #1D9E75;"><div style="font-size:12px;font-weight:600;color:#065F46;margin-bottom:6px;">\ud83d\udce6 Start planning your move:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Moving Checklist \u2192</a></div>',
-    'buy-closing':     'Hi ' + first + ',<br><br>Your closing is officially scheduled' + d + '. This is the finish line — you\'re almost a homeowner! I\'ll send you everything you need to bring beforehand.' + n,
-    'buy-closed':      'Hi ' + first + ',<br><br>Congratulations! 🎉 You are officially a homeowner. It has been such a pleasure guiding you through this journey. Welcome home — you deserve it!' + n,
-    'sell-photos':     'Hi ' + first + ',<br><br>Your listing photos are scheduled' + d + '. Make sure the home is clean and ready to shine — great photos make a huge difference.' + n,
-    'sell-listed':     'Hi ' + first + ',<br><br>Your home is officially live on the market! Buyers can now see your listing and schedule showings. I\'ll keep you updated on activity as it comes in.' + n,
-    'sell-showing':    'Hi ' + first + ',<br><br>A buyer has scheduled a showing on your home' + d + '. Please make sure the home is available and looking its best.' + n,
-    'sell-offer':      'Hi ' + first + ',<br><br>We have received an offer on your home! I\'m reviewing the details now and will reach out shortly to walk you through everything.' + n,
-    'sell-accepted':   'Hi ' + first + ',<br><br>Your offer has been accepted and you are officially under contract! This is a huge milestone. I\'ll keep you updated on every step from here to closing.' + n,
-    'sell-inspection': 'Hi ' + first + ',<br><br>The buyer\'s inspection is scheduled' + d + '. Please ensure the home is accessible. I\'ll follow up with any findings.' + n,
-    'sell-closing':    'Hi ' + first + ',<br><br>Closing is officially scheduled' + d + '. The finish line is in sight! I\'ll be in touch with everything you need to bring.' + n,
-    'sell-closed':     'Hi ' + first + ',<br><br>Congratulations! 🎉 Your home is officially sold. It has been an honor helping you through this process.' + n,
-    'gen-checkin':     'Hi ' + first + ',<br><br>Just wanted to check in and let you know things are moving along. I\'m on top of everything on my end. Don\'t hesitate to reach out with any questions.' + n,
-    'gen-docs':        'Hi ' + first + ',<br><br>There are some documents that need your attention. Please review and sign at your earliest convenience.' + n,
-    'gen-waiting':     'Hi ' + first + ',<br><br>Just a quick update — we are currently waiting to hear back. I\'ll reach out as soon as I have news. Thanks for your patience!' + n,
-    'buy-offer-accepted': 'Hi ' + first + ',<br><br>Your offer has been accepted — you are officially under contract! This is a huge milestone and we are so excited for you.<br><br>Here is what happens next: inspections, appraisal, loan finalization, and closing. I will guide you through every step.' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border-left:3px solid #1D9E75;"><div style="font-size:12px;font-weight:600;color:#065F46;margin-bottom:8px;">\ud83d\udee0 Open the app to track your journey:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Nest Track \u2192</a></div>',
-    'buy-appraisal-sched': 'Hi ' + first + ',<br><br>The appraisal on your home has been scheduled' + d + '.<br><br>An appraisal is when the lender sends an independent, licensed appraiser to the property to confirm the home\'s value matches what you are borrowing. This protects both you and the lender and is a standard part of the loan process. The appraiser will do a walkthrough and review recent comparable sales in the area.' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border-left:3px solid #1D9E75;"><div style="font-size:12px;font-weight:600;color:#065F46;margin-bottom:6px;">Track your full journey:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Nest Track →</a></div>',
-    'buy-appraisal':      'Hi ' + first + ',<br><br>The appraisal on your home has been completed. I will be sharing the results with you shortly and walking you through what it means for your transaction.' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border-left:3px solid #1D9E75;"><div style="font-size:12px;font-weight:600;color:#065F46;margin-bottom:8px;">\ud83d\udee0 Track your full journey:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Nest Track \u2192</a></div>',
-    'sell-appraisal-sched': 'Hi ' + first + ',<br><br>The buyer\'s appraisal has been scheduled' + d + '.<br><br>An appraisal is when the lender sends an independent, licensed appraiser to confirm the home\'s value supports the buyer\'s loan amount. The appraiser will schedule a walkthrough of your home. Please ensure the property is accessible and presentable. This is a normal step in the process and usually takes less than an hour.' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#fef9f0;border-radius:8px;border-left:3px solid #D97706;"><div style="font-size:12px;font-weight:600;color:#92400E;margin-bottom:6px;">See your estimated net proceeds:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#D97706;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Net Sheet →</a></div>',
-    'sell-appraisal':     'Hi ' + first + ',<br><br>The buyer\'s appraisal has been completed. I will be reviewing the results and will reach out shortly to walk you through the details and next steps.' + n + '<br><br><div style="margin-top:12px;padding:12px;background:#fef9f0;border-radius:8px;border-left:3px solid #D97706;"><div style="font-size:12px;font-weight:600;color:#92400E;margin-bottom:8px;">\ud83d\udcb5 See your estimated net proceeds:</div><a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:4px;background:#D97706;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;">Open Net Sheet \u2192</a></div>'
-  };
-  return bodies[val] || note || '';
-}
-function openSendUpdate(uid) {
-  _suUid = uid;
-  var sel = document.getElementById('su-template');
-  if (sel) sel.value = 'buy-consult';
-  var dateEl = document.getElementById('su-date');
-  if (dateEl) dateEl.value = '';
-  var noteEl = document.getElementById('su-note');
-  if (noteEl) noteEl.value = '';
-  var custEl = document.getElementById('su-custom');
-  if (custEl) custEl.value = '';
-  suTemplateChanged();
-  var overlay = document.getElementById('send-update-overlay');
-  if (overlay) overlay.style.display = 'flex';
-}
-window.openSendUpdate = openSendUpdate;
-function closeSendUpdate() {
-  var overlay = document.getElementById('send-update-overlay');
-  if (overlay) overlay.style.display = 'none';
-  _suUid = null;
-}
-window.closeSendUpdate = closeSendUpdate;
-function suCCAgentChanged() {
-  var cb = document.getElementById('su-cc-agent');
-  var row = document.getElementById('su-cc-agent-row');
-  if (row) row.style.display = (cb && cb.checked) ? 'block' : 'none';
-}
-window.suCCAgentChanged = suCCAgentChanged;
-function suTemplateChanged() {
-  var val = document.getElementById('su-template').value;
-  var tmpl = SU_TEMPLATES[val];
-  var dateRow = document.getElementById('su-date-row');
-  var customRow = document.getElementById('su-custom-row');
-  if (dateRow) dateRow.style.display = (tmpl && tmpl.hasDate) ? 'block' : 'none';
-  if (customRow) customRow.style.display = val === 'gen-custom' ? 'block' : 'none';
-}
-window.suTemplateChanged = suTemplateChanged;
-async function previewSendUpdate() {
-  if (!_suUid) return;
-  var val = document.getElementById('su-template').value;
-  var tmpl = SU_TEMPLATES[val];
-  if (!tmpl) return;
-  var dateVal = document.getElementById('su-date').value;
-  var note = document.getElementById('su-note').value.trim();
-  var custom = document.getElementById('su-custom').value.trim();
-  var dateStr = dateVal ? new Date(dateVal + 'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : '';
-  var b = (myBuyers||[]).find(function(x){ return x.uid === _suUid; });
-  if (!b || !b.email) { alert('Client not found or missing email.'); return; }
-  var first = b.firstName || 'there';
-  var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === (b.agentId||'tom'); });
-  var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
-  var agentPhone = agentObj ? agentObj.phone : '440-754-7449';
-  var agentEmail2 = agentObj ? agentObj.email : 'Tom@GaruccioGroup.com';
-  var linkVal = (document.getElementById('su-link') || {}).value ? document.getElementById('su-link').value.trim() : '';
-  var bodyText = val === 'gen-custom' ? custom : getSUBody(val, first, dateStr, note);
-  if (linkVal) bodyText += '<br><br><div style="margin-top:10px;"><a href="' + linkVal + '" target="_blank" style="display:inline-block;background:#f0fdf4;color:#065F46;text-decoration:none;padding:7px 14px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid #6ee7b7;">📄 View Document →</a></div>';
-  if (!bodyText.trim()) { alert('Please enter your message.'); return; }
-  var subject = 'Update from ' + agentName + ' — ' + tmpl.label;
-  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
-    + '<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
-    + '<div style="font-size:22px;font-weight:300;color:#fff;">Nest Track Update</div>'
-    + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">' + tmpl.label + '</div>'
-    + '</div>'
-    + '<div style="background:#fff;padding:26px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
-    + '<p style="font-size:14px;color:#444;line-height:1.75;margin:0 0 18px;">' + bodyText + '</p>'
-    + '<div style="background:#f9f9f7;border-radius:8px;padding:14px 16px;margin-top:18px;">'
-    + '<div style="font-size:14px;font-weight:600;color:#1a1a1a;">' + agentName + '</div>'
-    + '<div style="font-size:12px;color:#666;margin-top:2px;">' + agentPhone + ' · ' + agentEmail2 + '</div>'
-    + '<a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:10px;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;">Open Nest Track →</a>'
-    + '</div></div></div>';
-  var ccCb = document.getElementById('su-cc-agent');
-  var ccEmail = (document.getElementById('su-agent-email')||{}).value ? document.getElementById('su-agent-email').value.trim() : '';
-  var doCC = ccCb && ccCb.checked && ccEmail;
-  var promoBlock = '<hr style="border:none;border-top:1px solid #f0f0f0;margin:16px 0;"/>'
-    + '<div style="padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
-    + '<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
-    + '<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
-    + '<a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free →</a>'
-    + '<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
-    + '</div>';
-  var agentHtml = emailHtml.replace('</div></div>', promoBlock + '</div></div>');
-  closeSendUpdate();
-  showEmailPreview(b.email, subject, emailHtml, async function() {
-    try {
-      await fetch(PROXY_URL, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','X-Action':'email'},
-        body: JSON.stringify({to: b.email, subject: subject, html: emailHtml})
-      });
-      if (doCC) {
-        try {
-          var agentSubj = 'Update: ' + (b.firstName||'') + ' ' + (b.lastName||'') + ' — ' + tmpl.label;
-          await fetch(PROXY_URL, {
-            method: 'POST',
-            headers: {'Content-Type':'application/json','X-Action':'email'},
-            body: JSON.stringify({to: ccEmail, subject: agentSubj, html: agentHtml})
-          });
-        } catch(e) { console.log('Agent CC err:', e.message); }
-      }
-    } catch(e) { console.log('Send update err:', e.message); }
-  });
-}
-window.previewSendUpdate = previewSendUpdate;
-
-
 function toggleNavSection(id) {
   var panel = document.getElementById(id);
   var arrow = document.getElementById(id+'-arrow');
@@ -7475,8 +7309,7 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
-          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button>
-          <button onclick="openSendUpdate('${uid}')" style="font-size:11px;font-weight:600;background:var(--green-lt);color:var(--green-dk);border:1px solid rgba(29,158,117,0.3);border-radius:8px;padding:3px 10px;cursor:pointer;">📨 Send Update</button></div>
+          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
           ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
@@ -7653,8 +7486,9 @@ async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
   if (newStep !== 0) {
     var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
-    // Step saves silently — use Send Update button for emails
-    window._pendingStepEmailChoice = 'nosend';
+    var choice = await stepEmailPrompt('Move buyer to "'+stepName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
   }
   try {
     var buyerJourneyPatch = { currentStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -7845,8 +7679,9 @@ async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   if (newStep !== 0) {
     var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
-    // Step saves silently
-    window._pendingStepEmailChoice = 'nosend';
+    var choice = await stepEmailPrompt('Move seller to "'+sName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
   }
   try {
     var sellerJourneyPatch = { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() };
@@ -11336,12 +11171,6 @@ async function confirmSendOffer(listingId, offerId) {
         +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
         +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address||'')+'</strong> has been forwarded to the seller for review.</p>'
-        +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
-        +'<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
-        +'<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
-        +'<a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a>'
-        +'<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
-        +'</div>'
         +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
         +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
         +'</div></div>';
@@ -11520,31 +11349,6 @@ async function submitPublicOffer(listingId) {
     }
     await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count
-    // Immediate confirmation to buyer agent
-    if (data.agentEmail) {
-      try {
-        var subHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
-          +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
-          +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Successfully Submitted</div>'
-          +'<div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">'+partnerEsc(data.address||'')+'</div>'
-          +'</div>'
-          +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
-          +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(data.agentName||'there')+',</p>'
-          +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(data.offerPrice||'')+'</strong> has been successfully submitted to the listing agent for review.</p>'
-          +'<p style="font-size:13px;color:#666;margin:0 0 14px;">You will receive a separate confirmation once the offer has been presented to the seller.</p>'
-          +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
-          +'<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
-          +'<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
-          +'<a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a>'
-          +'<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
-          +'</div>'
-          +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
-          +'<div style="font-size:13px;color:#888;">Sent via Nest Track</div>'
-          +'</div></div>';
-        await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-          body:JSON.stringify({to:data.agentEmail, subject:'Offer Submitted — '+partnerEsc(data.address||''), html:subHtml})});
-      } catch(emailErr) { console.log('submit confirm err:', emailErr.message); }
-    }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
       offerCount: fb.increment(1)
     });
@@ -11694,32 +11498,6 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
-
-    // Compliance email to buyer agent — offer has been presented to seller's client
-    if (o.agentEmail) {
-      var compHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
-        +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
-        +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Presented to Seller</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">Compliance Confirmation — Nest Track</div>'
-        +'</div>'
-        +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
-        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
-        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">This confirms your offer of <strong>'+(o.offerPrice||'')+'</strong> on <strong>'+partnerEsc(listingData.address||'')+'</strong> has been presented to the seller for review.</p>'
-        +'<div style="background:#f0fdf4;border-radius:6px;padding:12px 14px;margin-bottom:16px;">'
-        +'<div style="font-size:12px;font-weight:600;color:#065F46;">&#10003; Presented on: '+new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})+'</div>'
-        +'</div>'
-        +'<div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border-radius:6px;border-left:3px solid #1D9E75;">'
-        +'<div style="font-size:11px;font-weight:600;color:#065F46;margin-bottom:4px;">&#127968; Nest Track</div>'
-        +'<div style="font-size:12px;color:#065F46;line-height:1.5;margin-bottom:8px;">Nest Track guides your clients through every step of their journey while giving agents the tools to manage deals effortlessly — delivering an unmatched experience on both sides of the transaction.</div>'
-        +'<a href="https://app.garucciogroup.com/invite.html" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:600;">Get it free &#8594;</a>'
-        +'<div style="font-size:10px;color:#065F46;margin-top:5px;opacity:0.8;">Watch a 2-min overview</div>'
-        +'</div>'
-        +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
-        +'<div style="font-size:13px;color:#888;">Sent via Nest Track</div>'
-        +'</div></div>';
-      await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:o.agentEmail, subject:'Offer Presented to Seller — '+partnerEsc(listingData.address||''), html:compHtml})});
-    }
   } catch(e) { console.log('autoSendOfferToClient error:', e.message); }
 }
 window.autoSendOfferToClient = autoSendOfferToClient;
@@ -13637,82 +13415,6 @@ window.repairDealTrackerData = repairDealTrackerData;
       <div style="padding:14px 18px;border-top:0.5px solid var(--border);display:flex;gap:8px;">
         <button onclick="document.getElementById('email-preview-overlay').style.display='none'" class="btn" style="flex:1;">Cancel</button>
         <button onclick="_epoApprove()" class="btn btn-g" style="flex:2;">&#10003; Approve &amp; Send</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Send Update Modal -->
-  <div id="send-update-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;align-items:center;justify-content:center;padding:16px;">
-    <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:0.5px solid var(--border);position:sticky;top:0;background:var(--surface);">
-        <div style="font-size:15px;font-weight:600;">Send Client Update</div>
-        <button onclick="closeSendUpdate()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text3);">&#215;</button>
-      </div>
-      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px;">
-        <div>
-          <label class="flabel">Select Update</label>
-          <select id="su-template" onchange="suTemplateChanged()" style="width:100%;font-size:13px;">
-            <optgroup label="Buying Journey">
-              <option value="buy-consult">Initial Consult Scheduled</option>
-              <option value="buy-preapproval">Pre-Approval Received</option>
-              <option value="buy-showing">Showing Scheduled</option>
-              <option value="buy-offer">Offer Submitted</option>
-              <option value="buy-offer-accepted">Offer Accepted - Under Contract!</option>
-              <option value="buy-earnest">Earnest Money Received</option>
-              <option value="buy-inspection">Inspection Scheduled</option>
-              <option value="buy-appraisal-sched">Appraisal Scheduled</option>
-              <option value="buy-appraisal">Appraisal Completed</option>
-              <option value="buy-walkthrough">Final Walkthrough Scheduled</option>
-              <option value="buy-closing">Closing Scheduled</option>
-              <option value="buy-closed">Congratulations - You're a Homeowner!</option>
-            </optgroup>
-            <optgroup label="Selling Journey">
-              <option value="sell-photos">Listing Photos Scheduled</option>
-              <option value="sell-listed">Your Home is Listed!</option>
-              <option value="sell-showing">Showing Scheduled on Your Home</option>
-              <option value="sell-offer">Offer Received</option>
-              <option value="sell-accepted">Offer Accepted - Under Contract!</option>
-              <option value="sell-inspection">Buyer Inspection Scheduled</option>
-              <option value="sell-appraisal-sched">Appraisal Scheduled</option>
-              <option value="sell-appraisal">Appraisal Completed</option>
-              <option value="sell-closing">Closing Scheduled</option>
-              <option value="sell-closed">Congratulations - Your Home is Sold!</option>
-            </optgroup>
-            <optgroup label="General">
-              <option value="gen-checkin">Quick Check-In</option>
-              <option value="gen-docs">Documents Need Your Attention</option>
-              <option value="gen-waiting">Waiting on Update</option>
-              <option value="gen-custom">Custom Message...</option>
-            </optgroup>
-          </select>
-        </div>
-        <div id="su-date-row" style="display:none;">
-          <label class="flabel">Date</label>
-          <input type="date" id="su-date" style="width:100%;box-sizing:border-box;"/>
-        </div>
-        <div>
-          <label class="flabel">Additional Note <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
-          <textarea id="su-note" rows="3" placeholder="Any extra details for the client..." style="width:100%;box-sizing:border-box;resize:none;font-size:13px;"></textarea>
-        </div>
-        <div id="su-custom-row" style="display:none;">
-          <label class="flabel">Custom Message</label>
-          <textarea id="su-custom" rows="4" placeholder="Write your own update..." style="width:100%;box-sizing:border-box;resize:none;font-size:13px;"></textarea>
-        </div>
-        <div>
-          <label class="flabel">Include a Link <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
-          <input type="text" id="su-link" placeholder="https://... e.g. Google Drive doc" style="width:100%;box-sizing:border-box;font-size:13px;"/>
-        </div>
-        <div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px;display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <input type="checkbox" id="su-cc-agent" onchange="suCCAgentChanged()" style="width:16px;height:16px;cursor:pointer;"/>
-            <label for="su-cc-agent" style="font-size:13px;font-weight:500;cursor:pointer;">CC Other Agent</label>
-          </div>
-          <div id="su-cc-agent-row" style="display:none;">
-            <input type="email" id="su-agent-email" placeholder="other agent email..." style="width:100%;box-sizing:border-box;font-size:13px;"/>
-            <div style="font-size:11px;color:var(--text3);margin-top:4px;">They’ll get the same update + a Nest Track intro. Client won’t see it.</div>
-          </div>
-        </div>
-        <button class="btn btn-g" onclick="previewSendUpdate()" style="justify-content:center;">Preview Email →</button>
       </div>
     </div>
   </div>
