@@ -2074,6 +2074,13 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-g btn-sm" onclick="openInviteModal()">+ Invite Client</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
+    <div id="crm-status-tabs" style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;flex-shrink:0;">
+      <button onclick="setCRMFilter('all')" id="crm-tab-all" style="flex:1;padding:7px 4px;font-size:12px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">All</button>
+      <button onclick="setCRMFilter('active')" id="crm-tab-active" style="flex:1;padding:7px 4px;font-size:12px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Active</button>
+      <button onclick="setCRMFilter('pipeline')" id="crm-tab-pipeline" style="flex:1;padding:7px 4px;font-size:12px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Pipeline</button>
+      <button onclick="setCRMFilter('nurture')" id="crm-tab-nurture" style="flex:1;padding:7px 4px;font-size:12px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Nurture</button>
+      <button onclick="setCRMFilter('closed')" id="crm-tab-closed" style="flex:1;padding:7px 4px;font-size:12px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Closed</button>
+    </div>
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
   </div>
   <div class="dstats" id="agent-stats"></div>
@@ -2486,34 +2493,7 @@ textarea{resize:vertical;min-height:68px;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
-import { getStorage, ref as storageRef, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY",
-  authDomain: "buyers-880bc.firebaseapp.com",
-  projectId: "buyers-880bc",
-  databaseURL: "https://buyers-880bc-default-rtdb.firebaseio.com",
-  storageBucket: "buyers-880bc.firebasestorage.app",
-  messagingSenderId: "681324344980",
-  appId: "1:681324344980:web:1a7ae6a9d592b96ec26681",
-  measurementId: "G-R250MQH4N5"
-};
-
-const fbApp = initializeApp(firebaseConfig);
-const auth = getAuth(fbApp);
-const db = getFirestore(fbApp);
-const rtdb = getDatabase(fbApp);
-const storage = getStorage(fbApp);
-
-// Expose for non-module code
-window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment };
-
-window.dispatchEvent(new Event('firebase-ready'));
-</script>
-
-<script>
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/fire
 // ─── API PROXY ───
 // Set your Cloudflare Worker URL here after deploying it
 
@@ -6028,6 +6008,56 @@ window._epoApprove = _epoApprove;
 
 window.renderHome = renderHome;
 
+// ─── CRM Status ───
+var _crmFilter = 'all';
+
+function getClientStatus(b) {
+  // If manually set, use that
+  if (b.crmStatus && b.crmStatus !== 'auto') return b.crmStatus;
+  // Auto-calculate based on steps
+  var buyStep = b.currentStep || 0;
+  var sellStep = b.currentSellerStep || 0;
+  var mortStep = b.currentMortgageStep || 0;
+  var maxStep = Math.max(buyStep, sellStep, mortStep);
+  // Closed: buyer step 11, seller step 13, mortgage step 9
+  if (buyStep >= 11 || sellStep >= 13 || mortStep >= 9) return 'closed';
+  // Active: any step > 0
+  if (maxStep > 0) return 'active';
+  // Pipeline: invited but no steps
+  return 'pipeline';
+}
+
+function setCRMFilter(filter) {
+  _crmFilter = filter;
+  // Update tab styles
+  ['all','active','pipeline','nurture','closed'].forEach(function(f) {
+    var btn = document.getElementById('crm-tab-'+f);
+    if (!btn) return;
+    if (f === filter) {
+      btn.style.background = 'var(--green)';
+      btn.style.color = '#fff';
+      btn.style.fontWeight = '600';
+    } else {
+      btn.style.background = 'var(--surface)';
+      btn.style.color = 'var(--text2)';
+      btn.style.fontWeight = '500';
+    }
+  });
+  renderBuyers();
+}
+window.setCRMFilter = setCRMFilter;
+
+async function saveClientStatus(uid, status) {
+  try {
+    var agentId = userProfile.agentId || 'tom';
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'buyers',uid), {crmStatus: status});
+    var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
+    if (b) b.crmStatus = status;
+  } catch(e) {}
+}
+window.saveClientStatus = saveClientStatus;
+
+
 function toggleNavSection(id) {
   var panel = document.getElementById(id);
   var arrow = document.getElementById(id+'-arrow');
@@ -6538,6 +6568,10 @@ async function renderBuyers() {
 
   myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
+  // CRM status filter
+  if (_crmFilter && _crmFilter !== 'all') {
+    myBuyers = myBuyers.filter(b => getClientStatus(b) === _crmFilter);
+  }
 
   const total = myBuyers.length;
   const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
@@ -6558,6 +6592,10 @@ async function renderBuyers() {
     const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
     const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
+    const clientStatus = getClientStatus(b);
+    const statusColors = {active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',closed:'#6B7280'};
+    const statusBg = {active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',closed:'#f9f9f7'};
+    const statusBadge = isPending ? '' : `<span style="display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;background:${statusBg[clientStatus]};color:${statusColors[clientStatus]};border:1px solid ${statusColors[clientStatus]}30;margin-right:4px;">${clientStatus.charAt(0).toUpperCase()+clientStatus.slice(1)}</span>`;
     const stepInfo = isPending
       ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>'
       : '<div style="font-size:11px;color:var(--text3);">Step '+(b.currentStep||1)+' of 11</div><span class="pill pill-b">'+(step?step.name:'')+'</span>';
@@ -6571,7 +6609,7 @@ async function renderBuyers() {
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
-          ${stepInfo}
+          ${statusBadge}${stepInfo}
           ${((b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No buyer timeline set</div>':''}
           ${((b.currentSellerStep||0)>=9&&!b.sellerContractDates)?'<div style="font-size:10px;color:#D97706;font-weight:600;margin-top:3px;">&#128203; No seller timeline set</div>':''}
         </div>
@@ -7318,7 +7356,7 @@ async function openBuyerDetail(uid, scrollTo) {
     </div>
     <div style="display:flex;flex-direction:column;gap:0;padding-bottom:16px;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
-      <div style="font-size:12px;font-weight:700;color:var(--text3);">Journey Type</div>
+      <div style="font-size:12px;font-weight:700;color:var(--text3);">CRM Status</div><select onchange="saveClientStatus('${uid}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;margin-bottom:8px;width:100%;"><option value="auto" ${(!b.crmStatus||b.crmStatus==='auto')?'selected':''}>Auto</option><option value="pipeline" ${b.crmStatus==='pipeline'?'selected':''}>Pipeline</option><option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option><option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option><option value="closed" ${b.crmStatus==='closed'?'selected':''}>Closed</option></select><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Journey Type</div>
       <select onchange="setJourneyType('${uid}',this.value)" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">
         <option value="buyer" ${(b.journeyType||'buyer')==='buyer'?'selected':''}>🏠 Buyer Only</option>
         <option value="seller" ${b.journeyType==='seller'?'selected':''}>🏡 Seller Only</option>
@@ -13315,6 +13353,32 @@ async function repairDealTrackerData() {
   });
   allDocs.forEach(function(item) {
     var d = Object.assign({ id: item.id }, item.d);
+    if (d.dealType === 'both') d.dealType = 'buyer';
+    if (!d.dealType) d.dealType = 'buyer';
+    var key = [d.clientUid||'', d.dealType, (d.address||'').trim().toLowerCase(), (d.clientName||'').trim().toLowerCase()].join('|');
+    if (!d.clientUid && !d.address) key = 'id|' + d.id;
+    if (seen[key]) { deletes.push(d.id); return; }
+    seen[key] = true;
+    var patch = {};
+    if (item.d.dealType === 'both') patch.dealType = 'buyer';
+    if (d.manuallyClosed !== true) {
+      var cleanStatus = d.dealType === 'seller' ? 'On Market' : 'Active';
+      if (d.status !== cleanStatus) patch.status = cleanStatus;
+    }
+    if (Object.keys(patch).length) updates.push({ id: d.id, patch: patch });
+  });
+  var msg = 'PREVIEW:\nDelete ' + deletes.length + ' duplicate(s).\nReset status on ' + updates.length + ' deal(s).\n\nProceed?';
+  if (!confirm(msg)) return;
+  for (var i = 0; i < updates.length; i++) await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
+  for (var j = 0; j < deletes.length; j++) await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
+  _dealsLoaded = false;
+  await loadDeals();
+  _dealTrackerRendering = false;
+  renderDealTracker();
+  alert('Done. Updated ' + updates.length + ', deleted ' + deletes.length + '. Re-set any Closed deals manually.');
+}
+window.repairDealTrackerData = repairDealTrackerData;
+, item.d);
     if (d.dealType === 'both') d.dealType = 'buyer';
     if (!d.dealType) d.dealType = 'buyer';
     var key = [d.clientUid||'', d.dealType, (d.address||'').trim().toLowerCase(), (d.clientName||'').trim().toLowerCase()].join('|');
