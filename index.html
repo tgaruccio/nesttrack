@@ -13379,8 +13379,7 @@ function setCRMFilter(filter) {
 window.setCRMFilter = setCRMFilter;
 async function saveClientStatus(uid, status) {
   try {
-    var agentId = (userProfile && userProfile.agentId) || 'tom';
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'buyers',uid), {crmStatus: status});
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), {crmStatus: status});
     var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
     if (b) b.crmStatus = status;
     // Visual feedback
