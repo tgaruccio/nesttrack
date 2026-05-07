@@ -2910,7 +2910,8 @@ window.addEventListener('message', function(e) {
   } catch(err) {}
 });
 
-window.addEventListener('firebase-ready', () => {
+function _firebaseInit() {
+  if (!window.fb) return;
   console.log('Firebase ready');
   // Listen for Chime iframe height updates
   window.addEventListener('message', e => {
@@ -2936,7 +2937,10 @@ window.addEventListener('firebase-ready', () => {
       showLogin();
     }
   });
-});
+}
+window.addEventListener('firebase-ready', _firebaseInit);
+// Fallback: if module already fired before this script registered the listener
+if (window.fb) _firebaseInit();;
 
 // ─── AUTH ───
 function loginTab(t, el) {
