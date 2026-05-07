@@ -4811,8 +4811,9 @@ async function sendStepEmail(uid, stepNum, type) {
     if (agentObj && agentObj.email) stepPayload.cc = agentObj.email;
     var coAgentStepObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.coAgentId; });
     if (coAgentStepObj && coAgentStepObj.email && coAgentStepObj.email !== stepPayload.cc) stepPayload.cc2 = coAgentStepObj.email;
-    showEmailPreview(client.email, subject, html, async function() {
+    showEmailPreview(client.email, subject, html, async function(finalHtml) {
       try {
+        stepPayload.html = finalHtml || stepPayload.html;
         await fetch(PROXY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
@@ -6158,9 +6159,15 @@ function renderHome() {
 var _epoCallback = null;
 
 async function _epoApprove() {
+  // If video toggle is on, capture the modified body HTML and update the base
+  var toggle = document.getElementById('epo-video-toggle');
+  var bodyEl = document.getElementById('epo-body');
+  if (toggle && toggle.checked && bodyEl) {
+    _epoBaseHtml = bodyEl.innerHTML;
+  }
   document.getElementById('email-preview-overlay').style.display = 'none';
   if (_epoCallback) {
-    await _epoCallback();
+    await _epoCallback(_epoBaseHtml);
     _epoCallback = null;
   }
 }
@@ -13988,14 +13995,30 @@ function toggleEmailVideoPanel() {
   if (on) {
     // Populate dropdown from agent library
     var sel = document.getElementById('epo-video-select');
+    var urlEl = document.getElementById('epo-video-url');
+    var existingUrl = urlEl ? urlEl.value.trim() : '';
     if (sel) {
       sel.innerHTML = '<option value="">— Pick from your library —</option>'
         + _agentVideos.map(function(v){
-            return '<option value="'+v.url+'|'+encodeURIComponent(v.title||'')+'">'+partnerEsc(v.title||v.url.substring(0,40))+(v.step?' (Step '+v.step+')':'')+'</option>';
+            return '<option value="'+v.url+'|'+encodeURIComponent(v.title||'')+'">'+partnerEsc(v.title||v.url.substring(0,40))+(v.step?' ('+v.step+')':'')+'</option>';
           }).join('');
+      // Re-select the auto-matched video if URL was pre-filled
+      if (existingUrl) {
+        for (var i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].value.split('|')[0] === existingUrl) {
+            sel.options[i].selected = true;
+            break;
+          }
+        }
+      }
+    }
+    // If URL already pre-filled (auto-match), inject it now
+    if (existingUrl) {
+      var matchedVideo = _agentVideos.find(function(v){ return v.url === existingUrl; });
+      var title = matchedVideo ? (matchedVideo.title||'') : '';
+      _injectVideoIntoEmail(existingUrl, title);
     }
   } else {
-    // Remove video from preview
     _restoreEpoBody();
   }
 }
