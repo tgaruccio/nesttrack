@@ -13379,11 +13379,20 @@ function setCRMFilter(filter) {
 window.setCRMFilter = setCRMFilter;
 async function saveClientStatus(uid, status) {
   try {
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = (userProfile && userProfile.agentId) || 'tom';
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'buyers',uid), {crmStatus: status});
     var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
     if (b) b.crmStatus = status;
-  } catch(e) {}
+    // Visual feedback
+    var sel = event && event.target;
+    if (sel) {
+      sel.style.borderColor = 'var(--green)';
+      setTimeout(function(){ if(sel) sel.style.borderColor = ''; }, 1500);
+    }
+    renderBuyers();
+  } catch(e) {
+    alert('Could not save status: ' + e.message);
+  }
 }
 window.saveClientStatus = saveClientStatus;
 </script>
