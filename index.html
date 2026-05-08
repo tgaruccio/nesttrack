@@ -2489,8 +2489,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div><label class="flabel">Email</label><input type="email" id="ta-email"/></div>
       <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn btn-g btn-sm" onclick="addAgent()">+ Add Agent</button>
-        <button class="btn btn-sm" onclick="sendAgentInvite()" style="background:#1D9E75;color:#fff;border-color:#1D9E75;">Send Invite Email</button>
+        <button class="btn btn-g btn-sm" onclick="addAgentAndInvite()">+ Add Agent & Send Invite</button>
       </div>
     </div>
   </div>
@@ -8398,32 +8397,80 @@ function dismissAgentWelcome() {
 window.dismissAgentWelcome = dismissAgentWelcome;
 
 
-async function addAgent() {
+async function addAgentAndInvite() {
   const name = document.getElementById('ta-name').value.trim();
   const phone = document.getElementById('ta-phone').value.trim();
   const email = document.getElementById('ta-email').value.trim();
-  if (!name || !email) { alert('Name and email are required'); return; }
+  if (!name || !email) { alert('Name and email are required.'); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12);
   const agentData = { id, name, role: 'REALTOR®', phone, email, addedAt: new Date().toISOString() };
 
-  // Add to local array
+  // Check duplicate
   const existing = DEFAULT_AGENTS.findIndex(a => a.id === id || a.email.toLowerCase() === email.toLowerCase());
-  if (existing >= 0) { alert('An agent with that name or email already exists'); return; }
-  DEFAULT_AGENTS.push(agentData);
+  if (existing >= 0) { alert('An agent with that name or email already exists.'); return; }
 
-  // Save to Firestore so it persists across refreshes
+  // Add to local array + Firestore
+  DEFAULT_AGENTS.push(agentData);
   try {
     await fb.setDoc(fb.doc(fb.db, 'team_agents', id), agentData);
-    document.getElementById('ta-name').value = '';
-    document.getElementById('ta-phone').value = '';
-    document.getElementById('ta-email').value = '';
-    renderTeam();
-    alert(name + ' added! They can now sign up or sign in with ' + email + ' and will get agent access automatically.');
   } catch(e) {
-    DEFAULT_AGENTS.pop(); // rollback
-    alert('Failed to save: ' + e.message);
+    DEFAULT_AGENTS.pop();
+    alert('Failed to save agent: ' + e.message);
+    return;
   }
+
+  // Clear form
+  document.getElementById('ta-name').value = '';
+  document.getElementById('ta-phone').value = '';
+  document.getElementById('ta-email').value = '';
+  renderTeam();
+  populateAgentDropdown();
+
+  // Build + show invite email preview
+  var code = 'AGT' + Math.random().toString(36).substr(2,8).toUpperCase();
+  var link = location.origin + location.pathname + '#agent-invite=' + code;
+  var first = name.split(' ')[0];
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
+      name, email: email.toLowerCase(), code,
+      invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false
+    });
+  } catch(e) { console.log('agentInvite store failed:', e.message); }
+
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:24px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">The Garuccio Group — Agent Platform</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join the Nest Track agent platform by Tom Garuccio. Nest Track is your all-in-one client management system — buyer and seller journey tracking, deal management, messaging, showings, and more.</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account.</p>'
+    +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Agent Account →</a></div>'
+    +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
+    +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 16px;"/>'
+    +'<div style="font-size:14px;font-weight:600;">Tom Garuccio</div>'
+    +'<div style="font-size:12px;color:#888;">The Garuccio Group · Tom@GaruccioGroup.com</div>'
+    +'</div></div>';
+
+  var subject = first + ', your Nest Track agent account is ready';
+  closeM('team-modal');
+  showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue) {
+    try {
+      var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
+      if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; }
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      alert(name + ' added and invite sent to ' + email + '!');
+    } catch(e) { alert('Agent added but invite email failed: ' + e.message); }
+  });
 }
+window.addAgentAndInvite = addAgentAndInvite;
+
+async function addAgent() {
+  // Legacy - redirects to new combined function
+  return addAgentAndInvite();
+}
+window.addAgent = addAgent;
 async function removeAgent(id) {
   var ag = DEFAULT_AGENTS.find(function(a){ return a.id === id; });
   if (!ag) return;
