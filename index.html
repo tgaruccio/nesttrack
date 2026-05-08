@@ -2607,15 +2607,15 @@ textarea{resize:vertical;min-height:68px;}
             <option value="seller-13">Seller Step 13 — Closing Day 🎉</option>
           </optgroup>
           <optgroup label="🏦 Mortgage Steps">
-            <option value="mortgage-1">Mortgage Step 1 — Talk to Tom</option>
-            <option value="mortgage-2">Mortgage Step 2 — Pre-Qual vs Pre-Approval</option>
-            <option value="mortgage-3">Mortgage Step 3 — Documents</option>
-            <option value="mortgage-4">Mortgage Step 4 — Credit Score</option>
-            <option value="mortgage-5">Mortgage Step 5 — Loan Type</option>
-            <option value="mortgage-6">Mortgage Step 6 — Down Payment</option>
-            <option value="mortgage-7">Mortgage Step 7 — Rate Lock</option>
-            <option value="mortgage-8">Mortgage Step 8 — Loan Estimate</option>
-            <option value="mortgage-9">Mortgage Step 9 — Underwriting</option>
+            <option value="mortgage-1">Mortgage Step 1 — Initial Consultation</option>
+            <option value="mortgage-2">Mortgage Step 2 — Pre-Approval</option>
+            <option value="mortgage-3">Mortgage Step 3 — Under Contract</option>
+            <option value="mortgage-4">Mortgage Step 4 — Loan Application</option>
+            <option value="mortgage-5">Mortgage Step 5 — Rate Lock</option>
+            <option value="mortgage-6">Mortgage Step 6 — Document Collection</option>
+            <option value="mortgage-7">Mortgage Step 7 — Appraisal</option>
+            <option value="mortgage-8">Mortgage Step 8 — Underwriting</option>
+            <option value="mortgage-9">Mortgage Step 9 — Closing Disclosure</option>
             <option value="mortgage-10">Mortgage Step 10 — Clear to Close</option>
             <option value="mortgage-11">Mortgage Step 11 — Closing Day 🎉</option>
           </optgroup>
@@ -4791,6 +4791,73 @@ var SELLER_STEP_EMAILS = {
   }}
 };
 
+var MORTGAGE_STEP_EMAILS = {
+  1: { subject: 'Your Mortgage Journey Starts Here 🏦',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your mortgage journey is officially underway. Tom has kicked things off with an initial consultation and will be guiding you every step of the way.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">If you have any questions, reach out to Tom directly at 440-754-7449.</p>';
+    }},
+  2: { subject: 'Pre-Approval Submitted 📋',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your pre-approval application is in. Tom is reviewing your file and will have your pre-approval letter ready — usually the same day.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">This letter is what puts you in a serious buying position with sellers.</p>';
+    }},
+  3: { subject: 'You\'re Under Contract — Mortgage Process Begins 🏠',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Congratulations — your offer was accepted and you\'re officially under contract! The mortgage process now moves into full gear.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Important: do not make any large purchases, open new credit accounts, or change jobs during this period. It can affect your loan approval.</p>';
+    }},
+  4: { subject: 'Loan Application Submitted 📄',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your formal loan application has been submitted. You\'ll receive a Loan Estimate within 3 business days — review every line and reach out to Tom with any questions.</p>';
+    }},
+  5: { subject: 'Your Interest Rate Has Been Locked 🔒',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Great news — your interest rate has been locked in. This protects you from any market movement between now and your closing date.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Tom will keep you posted as we move toward closing.</p>';
+    }},
+  6: { subject: 'Documents Needed — Please Respond Quickly 📁',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">We\'re in the document collection phase. Tom may be reaching out with specific items needed to complete your file.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Please respond to any document requests as quickly as possible — every day counts on your closing timeline.</p>';
+    }},
+  7: { subject: 'Appraisal Ordered 🏡',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">A licensed appraiser has been ordered to visit the property and confirm its value supports your loan amount. Tom will update you as soon as the results come in.</p>';
+    }},
+  8: { subject: 'Your File Is in Underwriting 🔍',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your complete mortgage file has been submitted to underwriting for final review. The underwriter will verify your income, employment, assets, and the appraisal.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">If they request additional documents ("conditions"), Tom will contact you immediately. Fast responses here keep your closing on track.</p>';
+    }},
+  9: { subject: 'Closing Disclosure Ready — Review Required 📬',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Your Closing Disclosure is ready. This document shows your final loan terms, monthly payment, and the exact amount you\'ll need to bring to closing. Please review it carefully.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Compare it to your original Loan Estimate — most numbers should match. Call Tom if anything looks different.</p>';
+    }},
+  10: { subject: 'Clear to Close — You\'re Almost There! 🎯',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">"Clear to Close" — those are the three best words in real estate. Underwriting has approved your full file. Tom is confirming your final numbers and scheduling your closing appointment.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">You\'re almost there!</p>';
+    }},
+  11: { subject: 'Congratulations — Closing Day is Here! 🎉',
+    body: function(first, agentName) {
+      return '<p style="font-size:16px;margin:0 0 14px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Today is closing day! You\'ll sign your final documents, the loan will fund, the deed will be recorded, and you\'ll get your keys.</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Tom is with you every step of the way. Congratulations on making this happen!</p>';
+    }},
+};
+
 async function sendStepEmail(uid, stepNum, type) {
   type = type || 'buyer';
   try {
@@ -4801,7 +4868,7 @@ async function sendStepEmail(uid, stepNum, type) {
     var first = client.firstName || 'there';
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
     var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
-    var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : BUYER_STEP_EMAILS;
+    var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : type === 'mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
     var tmpl = emailMap[stepNum];
     if (!tmpl) return;
     var subject = tmpl.subject;
@@ -8919,43 +8986,42 @@ const SELLER_STEPS = [
 ];
 
 const MJ_STEPS = [
-  { icon:'💬', title:'Step 1 — Talk to Tom First',
-    body:'Before you fill out anything, call Tom. Since he handles the mortgage side, one conversation gets the financing picture clear. He\'ll tell you exactly what to expect and whether now is the right time.',
+  { icon:'💬', title:'Step 1 — Initial Consultation',
+    body:'Tom reviews your goals, timeline, and financial picture. This is the starting point — one conversation sets the direction for everything that follows.',
     tip:'📞 Call or text Tom: 440-754-7449',
     highlight:true },
-  { icon:'📋', title:'Step 2 — Pre-Qualification vs. Pre-Approval',
-    body:'Pre-qualification is a rough estimate based on self-reported info. Pre-approval is verified — Tom pulls your credit, reviews your income and assets, and issues a real letter that sellers respect.',
-    tip:'Tom issues pre-approvals directly — same day in most cases.' },
-  { icon:'📄', title:'Step 3 — Documents You\'ll Need',
-    body:'Gather these before you apply: W-2s (last 2 years), pay stubs (last 30 days), bank statements (last 2 months), tax returns (last 2 years), photo ID. If self-employed, also 2 years of business returns.',
-    tip:'Pro tip: Have these in a folder on your phone — it makes the process 3x faster.' },
-  { icon:'🔢', title:'Step 4 — Understanding Your Credit Score',
-    body:'Your credit score determines your interest rate. 740+ = best rates. 700–739 = very good. 640–699 = acceptable but costs more. Below 640 = Tom can advise on improving before applying.',
-    tip:'Check your credit free at annualcreditreport.com. Don\'t open new credit cards before closing.' },
-  { icon:'📊', title:'Step 5 — Choosing Your Loan Type',
-    body:'Conventional (most common, 3–20% down), FHA (3.5% down, flexible credit), VA (0% down for veterans), USDA (0% down, rural areas). Tom will match you to the right loan for your situation.',
-    tip:'Tom can walk through the loan options available for your situation.' },
-  { icon:'📉', title:'Step 6 — Down Payment Reality Check',
-    body:'20% down eliminates PMI. Under 20% means PMI (usually $50–$200/mo). FHA requires 3.5%. Conventional can be as low as 3%. Your mortgage calculator shows exactly what each scenario costs monthly.',
-    tip:null,
-    action:{label:'Open Mortgage Calculator', page:'mortgage'} },
-  { icon:'🔒', title:'Step 7 — Interest Rates & Locking',
-    body:'Rates change daily. Once under contract, Tom will advise you when to lock your rate. A rate lock (typically 30–60 days) protects you from market swings between contract and closing.',
-    tip:'Even 0.25% rate difference on a $400k loan = ~$60/month = $21,000 over 30 years.' },
-  { icon:'📬', title:'Step 8 — Loan Estimate (LE)',
-    body:'Within 3 business days of your application, Tom sends a Loan Estimate — a standardized form showing your interest rate, monthly payment, and all closing costs. Review it carefully.',
-    tip:'Compare Section D (Total Loan Costs) across any lenders you\'re evaluating.' },
-  { icon:'🔍', title:'Step 9 — Underwriting',
-    body:'The underwriter verifies everything — income, employment, assets, property value. They may ask for additional documents ("conditions"). Respond quickly — every day matters on your closing timeline.',
-    tip:'Don\'t switch jobs, buy a car, or make large deposits during underwriting. Seriously.' },
-  { icon:'✅', title:'Step 10 — Clear to Close (CTC)',
-    body:'"Clear to Close" is the best phrase in real estate. It means underwriting approved everything and you\'re ready to sign. Tom will confirm your final numbers and schedule your closing.',
-    tip:'You\'ll get your Closing Disclosure 3 business days before closing. Review every line.' },
-  { icon:'🎉', title:'Step 11 — Closing Day',
-    body:'You sign the final documents, your loan funds, the deed is recorded, and you get the keys. Tom is there with you. The mortgage process stays clear from pre-approval through closing.',
-    tip:'Bring: photo ID, any remaining documents Tom requests, and your excitement!',
-    highlight:true,
+  { icon:'✅', title:'Step 2 — Pre-Approval',
+    body:'Tom pulls your credit, reviews income and assets, and issues your pre-approval letter. This is what puts you in a serious buying position — sellers require it before considering any offer.',
+    tip:'Tom issues pre-approvals directly — same day in most cases.',
     action:{label:'Start Pre-Approval →', url:'https://1660690.my1003app.com/2784866/register?time=1775863969580'} },
+  { icon:'🏠', title:'Step 3 — Under Contract',
+    body:'Your offer was accepted — congratulations! The mortgage process now kicks into full gear. Tom locks in your loan details and the clock starts on your closing timeline.',
+    tip:'Do not make any large purchases or open new credit accounts during this period.' },
+  { icon:'📋', title:'Step 4 — Loan Application',
+    body:'Tom submits your formal loan application. You will receive a Loan Estimate within 3 business days showing your rate, monthly payment, and all closing costs. Review every line.',
+    tip:'Compare the Loan Estimate carefully — ask Tom about anything that looks off.' },
+  { icon:'🔒', title:'Step 5 — Rate Lock',
+    body:'Tom advises you on the best time to lock your interest rate. A rate lock (typically 30–60 days) protects you from market movement between now and closing.',
+    tip:'Even a 0.25% rate difference on a $400k loan is ~$60/month over the life of the loan.' },
+  { icon:'📄', title:'Step 6 — Document Collection',
+    body:'Tom gathers everything underwriting needs: W-2s, pay stubs, bank statements, tax returns, and photo ID. Respond to any document requests quickly — every day counts on your timeline.',
+    tip:'Have all documents in a folder on your phone — it makes the process much faster.' },
+  { icon:'🔍', title:'Step 7 — Appraisal',
+    body:'A licensed appraiser visits the property to confirm its value supports your loan amount. Tom orders this and keeps you updated on the results.',
+    tip:'If the appraisal comes in low, Tom will walk you through your options.' },
+  { icon:'🏦', title:'Step 8 — Underwriting',
+    body:'The underwriter reviews your full file — income, employment, assets, and the appraisal. They may ask for additional documents ("conditions"). Tom handles communication and keeps things moving.',
+    tip:'Do not switch jobs, buy a car, or make large deposits during underwriting.' },
+  { icon:'📬', title:'Step 9 — Closing Disclosure',
+    body:'Three business days before closing, Tom sends your Closing Disclosure — a final breakdown of all loan costs, fees, and the exact amount you need to bring to the table. Review it carefully.',
+    tip:'Compare it to your original Loan Estimate. Most numbers should match.' },
+  { icon:'🎯', title:'Step 10 — Clear to Close',
+    body:'"Clear to Close" is the best phrase in real estate. Underwriting has approved everything. Tom confirms your final numbers, schedules closing, and walks you through what to bring.',
+    tip:'You\'re almost there — the hardest part is behind you.' },
+  { icon:'🎉', title:'Step 11 — Closing Day',
+    body:'You sign the final documents, the loan funds, the deed is recorded, and you get the keys. Tom is there with you from start to finish.',
+    tip:'Bring your photo ID, any final items Tom requests, and your excitement!',
+    highlight:true },
 ];
 
 
