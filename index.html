@@ -4889,11 +4889,13 @@ async function sendStepEmail(uid, stepNum, type) {
     showEmailPreview(client.email, subject, html, async function(finalHtml, ccValue) {
       try {
         stepPayload.html = finalHtml || stepPayload.html;
-        // Parse CC field - may have been edited by agent
+        // Parse CC field - listing agent gets separate email, everyone else gets CC'd
         var ccEmails = ccValue ? ccValue.split(',').map(function(e){ return e.trim(); }).filter(Boolean) : [];
-        if (ccEmails.length > 0) stepPayload.cc = ccEmails[0];
-        if (ccEmails.length > 1) stepPayload.cc2 = ccEmails[1];
-        if (ccEmails.length > 2) stepPayload.cc3 = ccEmails[2];
+        // Filter out listing agent from CC (they get separate promo email)
+        var ccForMain = ccEmails.filter(function(e){ return e !== laEmail; });
+        if (ccForMain.length > 0) stepPayload.cc = ccForMain[0];
+        if (ccForMain.length > 1) stepPayload.cc2 = ccForMain[1];
+        if (ccForMain.length > 2) stepPayload.cc3 = ccForMain[2];
 
         await fetch(PROXY_URL, {
           method: 'POST',
@@ -4904,6 +4906,8 @@ async function sendStepEmail(uid, stepNum, type) {
         // Mortgage: send separate promo email to listing agent if CC enabled and has email
         if (type === 'mortgage' && laEmail && ccEmails.includes(laEmail)) {
           var laName = client.mortLAName || 'there';
+          // Use finalHtml so video is included if agent added one
+          var laBodyContent = finalHtml || html;
           var promoHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
             + '<div style="background:#185FA5;padding:22px 26px;border-radius:10px 10px 0 0;">'
             + '<div style="font-size:22px;font-weight:300;color:#fff;">Mortgage Update</div>'
@@ -4911,8 +4915,8 @@ async function sendStepEmail(uid, stepNum, type) {
             + '</div>'
             + '<div style="background:#fff;padding:26px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
             + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Hi ' + laName + ',</p>'
-            + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">This is a mortgage status update for your buyer <strong>' + first + '</strong> — keeping you informed throughout the transaction.</p>'
-            + bodyHtml
+            + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">This is a mortgage status update for <strong>' + first + '</strong> — keeping you informed throughout the transaction.</p>'
+            + laBodyContent
             + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
             + '<div style="margin-top:16px;padding:16px 18px;background:#f0fdf4;border-radius:8px;border-left:4px solid #1D9E75;">'
             + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:6px;">🏠 Powered by Nest Track</div>'
