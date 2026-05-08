@@ -2998,10 +2998,10 @@ var agentPartners = [];
 // ─── DEFAULT TEAM ───
 const DEFAULT_AGENTS = [
   {id:'tom',name:'Tom Garuccio',role:'Team Leader',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',googleReviewUrl:'https://g.page/r/CYTaeIyFmCHoEBM/review',isDefault:true,isAdmin:true},
-  {id:'christine',name:'Christine Revay',role:'REALTOR®',phone:'440-376-4181',email:''},
-  {id:'taylor',name:'Taylor Kaczur',role:'REALTOR®',phone:'216-219-1954',email:''},
-  {id:'molly',name:'Molly Ebosh',role:'REALTOR®',phone:'440-281-4115',email:''},
-  {id:'brittney',name:'Brittney Dirskell',role:'REALTOR®',phone:'216-394-7087',email:''},
+  {id:'christine',name:'Christine Revay',role:'REALTOR®',phone:'440-376-4181',email:'Christine@GaruccioGroup.com'},
+  {id:'taylor',name:'Taylor Kaczur',role:'REALTOR®',phone:'216-219-1954',email:'Taylor@GaruccioGroup.com'},
+  {id:'molly',name:'Molly Ebosh',role:'REALTOR®',phone:'440-281-4115',email:'Molly@GaruccioGroup.com'},
+  {id:'brittney',name:'Brittney Dirskell',role:'REALTOR®',phone:'216-394-7087',email:'Brittney@GaruccioGroup.com'},
 ];
 
 const DEFAULT_LENDERS = [
@@ -7852,7 +7852,39 @@ async function setCoAgent(uid) {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { coAgentId: newCoId || null });
     var buyer = allBuyers.find(function(b){ return b.uid===uid; });
     if (buyer) buyer.coAgentId = newCoId || null;
-    alert(newCoId ? 'Co-agent assigned!' : 'Co-agent removed.');
+    if (!newCoId) { alert('Co-agent removed.'); return; }
+    // Send notification email to co-agent
+    var coAgentObj = DEFAULT_AGENTS.find(function(a){ return a.id === newCoId; });
+    if (!coAgentObj || !coAgentObj.email) { alert('Co-agent assigned! (No email on file for this agent.)'); return; }
+    var b = buyer;
+    var clientName = b ? ((b.firstName||'') + ' ' + (b.lastName||'')).trim() : 'a client';
+    var buyStep = b ? (b.currentStep||0) : 0;
+    var sellStep = b ? (b.currentSellerStep||0) : 0;
+    var mortStep = b ? (b.currentMortgageStep||0) : 0;
+    var statusLines = [];
+    if (buyStep > 0) statusLines.push('🏠 Buyer — Step ' + buyStep + ' of 11');
+    if (mortStep > 0) statusLines.push('🏦 Mortgage — Step ' + mortStep + ' of 11');
+    if (sellStep > 0) statusLines.push('🏡 Seller — Step ' + sellStep + ' of 13');
+    if (!statusLines.length) statusLines.push('No active journey yet — contact them to get started.');
+    var assignedAgentObj = DEFAULT_AGENTS.find(function(a){ return a.id === (b && b.agentId); });
+    var bodyHtml = '<p style="font-size:16px;margin:0 0 14px;">Hi ' + coAgentObj.name.split(' ')[0] + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">You\'ve been added as co-agent on <strong>' + clientName + '\'s</strong> file on Nest Track.</p>'
+      + '<div style="background:#f9fafb;border-radius:8px;padding:14px 16px;margin-bottom:16px;">'
+      + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:8px;">Current Status</div>'
+      + statusLines.map(function(l){ return '<div style="font-size:14px;color:#1a1a1a;margin-bottom:4px;">' + l + '</div>'; }).join('')
+      + (b && b.email ? '<div style="font-size:12px;color:#888;margin-top:8px;">📧 ' + b.email + (b.phone ? '  ·  📞 ' + b.phone : '') + '</div>' : '')
+      + (assignedAgentObj ? '<div style="font-size:12px;color:#888;margin-top:4px;">Lead agent: ' + assignedAgentObj.name + '</div>' : '')
+      + '</div>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Log in to Nest Track to view their full profile.</p>';
+    var subject = 'You\'ve been added as co-agent for ' + clientName + ' on Nest Track';
+    var emailHtml = nsEmailWrap('Tom Garuccio', subject, bodyHtml);
+    showEmailPreview(coAgentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
+      try {
+        var payload = { to: coAgentObj.email, subject: subject, html: finalHtml || emailHtml };
+        if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; if(_cc[1])payload.cc2=_cc[1]; }
+        await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      } catch(e) { console.log('Co-agent assignment email failed:', e.message); }
+    });
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.setCoAgent = setCoAgent;
