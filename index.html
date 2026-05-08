@@ -7562,17 +7562,22 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
           ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
+        ${(b.currentStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
+        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
+      </div>
+    </details>
+    <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
+      <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
+      <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
         <div>
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Mortgage Step</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-mortgage-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} - ${s.title.replace(/^Step \d+ - /,'')}</option>`).join('')}</select>
+            <select id="bd-mortgage-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} - ${s.title.replace(/^Step \d+ — /,'')}</option>`).join('')}</select>
             <button class="btn btn-sm btn-g" onclick="setMortgageStep('${uid}')">Save</button>
             <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','mortgage')">Dates</button>
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
           </div>
         </div>
-        ${(b.currentStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
-        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
         <div id="bd-timeline-mortgage"></div>
       </div>
     </details>
@@ -7935,16 +7940,22 @@ window.setSellerStep = setSellerStep;
 
 async function setMortgageStep(uid) {
   var newStep = parseInt(document.getElementById('bd-mortgage-step').value);
+  if (newStep !== 0) {
+    var stepObj = MJ_STEPS[newStep-1];
+    var stepName = stepObj ? stepObj.title.replace(/^Step \d+ — /,'') : 'Step '+newStep;
+    var choice = await stepEmailPrompt('Move mortgage to "'+stepName+'"?');
+    if (choice === 'cancel') return;
+    window._pendingStepEmailChoice = choice;
+  }
   try {
     var updateData = { currentMortgageStep: newStep, lastStepUpdate: fb.serverTimestamp() };
-    // If step reaches loan app submitted (step 2+) and no mortgage dates set yet, prompt
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), updateData);
     await loadBuyersForAgent();
     renderBuyers();
-    // Update the mortgage trail on client side
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
     if (buyer) buyer.currentMortgageStep = newStep;
-    alert('Mortgage step updated to Step ' + newStep);
+    if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') sendStepEmail(uid, newStep, 'mortgage');
+    window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.setMortgageStep = setMortgageStep;
