@@ -4967,13 +4967,13 @@ async function emailNetSheet() {
     + '<p style="font-size:11px;color:#888;margin-top:16px;">This is an estimate based on typical Northeast Ohio closing costs. Actual amounts may vary. Contact ' + agentName + ' for a precise net sheet.</p>'
     + '</div></div>';
 
-  showEmailPreview(email, 'Net Sheet Estimate from ' + agentName, html, async function() {
+  showEmailPreview(email, 'Net Sheet Estimate from ' + agentName, html, async function(finalHtml) {
     try {
       if (status) { status.textContent = 'Sending...'; status.style.display = 'block'; status.style.color = 'var(--text2)'; }
       await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: html })
+        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html })
       });
       if (status) { status.textContent = '✓ Net sheet sent to ' + email; status.style.color = 'var(--green-dk)'; }
     } catch(e) {
@@ -5740,8 +5740,9 @@ async function sendReferrals() {
     var payload = {to:buyer.email, subject:agentFirst+' sent you some referral recommendations', html:emailHtml};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
     if (ae && ae!==buyer.email) payload.cc = ae;
-    showEmailPreview(buyer.email, payload.subject, emailHtml, async function() {
+    showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml) {
       try {
+        payload.html = finalHtml || payload.html;
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
         var status = document.getElementById('ref-status'); if(status){status.textContent='✓ Sent!';status.style.color='var(--green-dk)';status.style.display='block';}
       } catch(e) { var status = document.getElementById('ref-status'); if(status){status.textContent='Failed.';status.style.color='#E24B4A';status.style.display='block';} }
@@ -6252,11 +6253,11 @@ async function emailMortCalc() {
     +'</table>'
     +'<p style="font-size:11px;color:#888;">This is an estimate. Contact '+agentName+' for an exact quote.</p>'
     +'</div></div>';
-  showEmailPreview(toLabel, 'Mortgage Payment Estimate from '+agentName, emailHtml, async function() {
+  showEmailPreview(toLabel, 'Mortgage Payment Estimate from '+agentName, emailHtml, async function(finalHtml) {
     var status = document.getElementById('mort-email-status');
     try {
       if (status) { status.textContent='Sending...'; status.style.display='block'; status.style.color='var(--text2)'; }
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:emailHtml}) });
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:finalHtml||emailHtml}) });
       if (status) { status.textContent='Sent to '+toLabel; status.style.color='var(--green-dk)'; }
     } catch(e) {
       if (status) { status.textContent='Failed to send.'; status.style.color='#E24B4A'; }
@@ -7186,10 +7187,10 @@ async function sendPreApprovalEmail() {
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
     + '<p style="font-size:12px;color:#888;margin:0;">Sent by '+agentName+' · The Garuccio Group</p>'
     + '</div></div>';
-  showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function() {
+  showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function(finalHtml) {
     try {
       if (status) { status.textContent = 'Sending...'; status.style.display='block'; status.style.background='var(--surface2)'; status.style.color='var(--text2)'; }
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:html}) });
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:finalHtml||html}) });
       if (status) { status.textContent='✓ Pre-approval email sent to '+toEmail; status.style.background='var(--green-lt)'; status.style.color='var(--green-dk)'; }
       if (manual) manual.value='';
       if (noteEl) noteEl.value='';
@@ -11807,10 +11808,10 @@ async function emailComparisonToClient(listingId) {
     +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
     +'<div style="font-size:12px;color:#888;">Sent via Nest Track</div>'
     +'</div></div>';
-  showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function() {
+  showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:emailHtml})});
+        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml})});
       alert('Comparison emailed to '+clientFirst+'!');
     } catch(e) { alert('Failed to send: '+e.message); }
   });
@@ -12103,7 +12104,8 @@ async function saveAppt() {
     // Show email preview for agent approval
     _pendingApptData = apptRecord;
     closeApptModal();
-    showEmailPreview(apptRecord.clientEmail || apptRecord.clientName, apptRecord._emailSubject, emailHtml, async function() {
+    showEmailPreview(apptRecord.clientEmail || apptRecord.clientName, apptRecord._emailSubject, emailHtml, async function(finalHtml) {
+      if (finalHtml) apptRecord._emailHtml = finalHtml;
       await sendApptEmail(true);
     });
   } else {
@@ -12510,7 +12512,8 @@ async function saveManualShowing() {
         +'</div></div>';
       var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml };
       if (agentEmail) payload.cc = agentEmail;
-      showEmailPreview(buyer.email, payload.subject, emailHtml, async function() {
+      showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml) {
+        payload.html = finalHtml || payload.html;
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       });
     }
@@ -13247,10 +13250,10 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
       +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
       +'<div style="font-size:13px;font-weight:600;">'+agentName+'</div>'
       +'</div></div>';
-    showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function() {
+    showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function(finalHtml) {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-          body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:emailHtml})});
+          body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:finalHtml||emailHtml})});
       } catch(e) { console.log('Task email send err:', e.message); }
     });
   } catch(e) { console.log('Task email err:', e.message); }
@@ -13661,8 +13664,9 @@ async function sendPortalInvite() {
   var payload = { to: b.email, subject: first+', your Nest Track portal is ready 🏠', html: emailHtml };
   if (agentObj && agentObj.email) payload.cc = agentObj.email;
 
-  showEmailPreview(b.email, payload.subject, emailHtml, async function() {
+  showEmailPreview(b.email, payload.subject, emailHtml, async function(finalHtml) {
     try {
+      payload.html = finalHtml || payload.html;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       closeM('portal-invite-modal');
       alert('Invite sent to '+b.email+'!');
