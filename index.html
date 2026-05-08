@@ -4876,20 +4876,59 @@ async function sendStepEmail(uid, stepNum, type) {
     var bodyHtml = tmpl.body(first, agentName);
     var html = nsEmailWrap(agentName, subject, bodyHtml);
     var stepPayload = { to: client.email, subject: subject, html: html };
-    if (agentObj && agentObj.email) stepPayload.cc = agentObj.email;
-    var coAgentStepObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.coAgentId; });
-    if (coAgentStepObj && coAgentStepObj.email && coAgentStepObj.email !== stepPayload.cc) stepPayload.cc2 = coAgentStepObj.email;
-    showEmailPreview(client.email, subject, html, async function(finalHtml) {
+
+    // Build CC prefill string for the email preview
+    var ccParts = [];
+    if (agentObj && agentObj.email) ccParts.push(agentObj.email);
+    var coAgentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.coAgentId; });
+    if (coAgentObj && coAgentObj.email && coAgentObj.email !== (agentObj && agentObj.email)) ccParts.push(coAgentObj.email);
+    // Mortgage: add listing agent if CC enabled
+    var laEmail = (type === 'mortgage' && client.mortLACCEnabled !== false) ? (client.mortLAEmail||'') : '';
+    if (laEmail) ccParts.push(laEmail);
+
+    showEmailPreview(client.email, subject, html, async function(finalHtml, ccValue) {
       try {
         stepPayload.html = finalHtml || stepPayload.html;
+        // Parse CC field - may have been edited by agent
+        var ccEmails = ccValue ? ccValue.split(',').map(function(e){ return e.trim(); }).filter(Boolean) : [];
+        if (ccEmails.length > 0) stepPayload.cc = ccEmails[0];
+        if (ccEmails.length > 1) stepPayload.cc2 = ccEmails[1];
+        if (ccEmails.length > 2) stepPayload.cc3 = ccEmails[2];
+
         await fetch(PROXY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
           body: JSON.stringify(stepPayload)
         });
+
+        // Mortgage: send separate promo email to listing agent if CC enabled and has email
+        if (type === 'mortgage' && laEmail && ccEmails.includes(laEmail)) {
+          var laName = client.mortLAName || 'there';
+          var promoHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+            + '<div style="background:#185FA5;padding:22px 26px;border-radius:10px 10px 0 0;">'
+            + '<div style="font-size:22px;font-weight:300;color:#fff;">Mortgage Update</div>'
+            + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">' + subject + '</div>'
+            + '</div>'
+            + '<div style="background:#fff;padding:26px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+            + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Hi ' + laName + ',</p>'
+            + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">This is a mortgage status update for your buyer <strong>' + first + '</strong> — keeping you informed throughout the transaction.</p>'
+            + bodyHtml
+            + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
+            + '<div style="margin-top:16px;padding:16px 18px;background:#f0fdf4;border-radius:8px;border-left:4px solid #1D9E75;">'
+            + '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:6px;">🏠 Powered by Nest Track</div>'
+            + '<div style="font-size:13px;color:#065F46;line-height:1.6;margin-bottom:10px;">A free platform for real estate agents — manage clients, transactions, and more. Free for agents in Tom Garuccio\'s network.</div>'
+            + '<a href="https://app.garucciogroup.com" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;">Learn More →</a>'
+            + '</div>'
+            + '</div></div>';
+          await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+            body: JSON.stringify({ to: laEmail, subject: subject + ' — ' + first, html: promoHtml })
+          });
+        }
         console.log('Step email sent:', type, stepNum, client.email);
       } catch(e) { console.log('Step email send err:', e.message); }
-    }, stepNum, type);
+    }, stepNum, type, ccParts.join(', '));
   } catch(e) { console.log('Step email failed:', e.message); }
 }
 window.sendStepEmail = sendStepEmail;
@@ -5035,7 +5074,7 @@ async function emailNetSheet() {
     + '<p style="font-size:11px;color:#888;margin-top:16px;">This is an estimate based on typical Northeast Ohio closing costs. Actual amounts may vary. Contact ' + agentName + ' for a precise net sheet.</p>'
     + '</div></div>';
 
-  showEmailPreview(email, 'Net Sheet Estimate from ' + agentName, html, async function(finalHtml) {
+  showEmailPreview(email, 'Net Sheet Estimate from ' + agentName, html, async function(finalHtml, ccValue) {
     try {
       if (status) { status.textContent = 'Sending...'; status.style.display = 'block'; status.style.color = 'var(--text2)'; }
       await fetch(PROXY_URL, {
@@ -5808,9 +5847,10 @@ async function sendReferrals() {
     var payload = {to:buyer.email, subject:agentFirst+' sent you some referral recommendations', html:emailHtml};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
     if (ae && ae!==buyer.email) payload.cc = ae;
-    showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml) {
+    showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         payload.html = finalHtml || payload.html;
+        if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; if(_cc[1])payload.cc2=_cc[1]; }
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
         var status = document.getElementById('ref-status'); if(status){status.textContent='✓ Sent!';status.style.color='var(--green-dk)';status.style.display='block';}
       } catch(e) { var status = document.getElementById('ref-status'); if(status){status.textContent='Failed.';status.style.color='#E24B4A';status.style.display='block';} }
@@ -6228,15 +6268,16 @@ function renderHome() {
 var _epoCallback = null;
 
 async function _epoApprove() {
-  // If video toggle is on, capture the modified body HTML and update the base
   var toggle = document.getElementById('epo-video-toggle');
   var bodyEl = document.getElementById('epo-body');
+  var ccEl = document.getElementById('epo-cc');
+  var ccValue = ccEl ? ccEl.value.trim() : '';
   if (toggle && toggle.checked && bodyEl) {
     _epoBaseHtml = bodyEl.innerHTML;
   }
   document.getElementById('email-preview-overlay').style.display = 'none';
   if (_epoCallback) {
-    await _epoCallback(_epoBaseHtml);
+    await _epoCallback(_epoBaseHtml, ccValue);
     _epoCallback = null;
   }
 }
@@ -6321,7 +6362,7 @@ async function emailMortCalc() {
     +'</table>'
     +'<p style="font-size:11px;color:#888;">This is an estimate. Contact '+agentName+' for an exact quote.</p>'
     +'</div></div>';
-  showEmailPreview(toLabel, 'Mortgage Payment Estimate from '+agentName, emailHtml, async function(finalHtml) {
+  showEmailPreview(toLabel, 'Mortgage Payment Estimate from '+agentName, emailHtml, async function(finalHtml, ccValue) {
     var status = document.getElementById('mort-email-status');
     try {
       if (status) { status.textContent='Sending...'; status.style.display='block'; status.style.color='var(--text2)'; }
@@ -7255,7 +7296,7 @@ async function sendPreApprovalEmail() {
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
     + '<p style="font-size:12px;color:#888;margin:0;">Sent by '+agentName+' · The Garuccio Group</p>'
     + '</div></div>';
-  showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function(finalHtml) {
+  showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function(finalHtml, ccValue) {
     try {
       if (status) { status.textContent = 'Sending...'; status.style.display='block'; status.style.background='var(--surface2)'; status.style.color='var(--text2)'; }
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:finalHtml||html}) });
@@ -7578,7 +7619,19 @@ async function openBuyerDetail(uid, scrollTo) {
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
           </div>
         </div>
-        <div id="bd-timeline-mortgage"></div>
+        <div id="bd-timeline-mortgage" style="margin-top:4px;"></div>
+        <div style="border-top:0.5px solid var(--border);padding-top:10px;margin-top:4px;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Listing Agent <span style="font-weight:400;text-transform:none;letter-spacing:0;">(CC on mortgage emails + receives promo)</span></div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <input type="text" id="bd-la-name-${uid}" placeholder="Agent Name" value="${b.mortLAName||''}" style="flex:1;font-size:13px;padding:6px 8px;" oninput="saveMortLAField('${uid}','mortLAName',this.value)"/>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="email" id="bd-la-email-${uid}" placeholder="agent@brokerage.com" value="${b.mortLAEmail||''}" style="flex:1;font-size:13px;padding:6px 8px;" oninput="saveMortLAField('${uid}','mortLAEmail',this.value)"/>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;cursor:pointer;">
+              <input type="checkbox" id="bd-la-cc-${uid}" ${b.mortLACCEnabled!==false?'checked':''} onchange="saveMortLAField('${uid}','mortLACCEnabled',this.checked)"/> CC on emails
+            </label>
+          </div>
+        </div>
       </div>
     </details>
     <details ${(b.currentSellerStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
@@ -7747,8 +7800,44 @@ async function setBuyerStep(uid) {
 }
 async function setBuyerAgent(uid) {
   if (!isTeamLeader()) { alert('Only the team leader can reassign buyers.'); return; }
-  const newAg = document.getElementById('bd-agent').value;
-  try { await fb.updateDoc(fb.doc(fb.db, 'users', uid), { agentId: newAg }); alert('Reassigned!'); await loadBuyersForAgent(); renderBuyers(); } catch(e) { alert('Failed: '+e.message); }
+  const newAgId = document.getElementById('bd-agent').value;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { agentId: newAgId });
+    await loadBuyersForAgent();
+    renderBuyers();
+    var b = allBuyers.find(function(x){ return x.uid === uid; });
+    var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === newAgId; });
+    if (!agentObj || !agentObj.email) { alert('Reassigned! (No email on file for this agent.)'); return; }
+    // Build agent notification email
+    var clientName = b ? ((b.firstName||'') + ' ' + (b.lastName||'')).trim() : 'a client';
+    var buyStep = b ? (b.currentStep||0) : 0;
+    var sellStep = b ? (b.currentSellerStep||0) : 0;
+    var mortStep = b ? (b.currentMortgageStep||0) : 0;
+    var statusLines = [];
+    if (buyStep > 0) statusLines.push('🏠 Buyer — Step ' + buyStep + ' of 11');
+    if (mortStep > 0) statusLines.push('🏦 Mortgage — Step ' + mortStep + ' of 11');
+    if (sellStep > 0) statusLines.push('🏡 Seller — Step ' + sellStep + ' of 13');
+    if (!statusLines.length) statusLines.push('No active journey yet — contact them to get started.');
+    var bodyHtml = '<p style="font-size:16px;margin:0 0 14px;">Hi ' + (agentObj.name.split(' ')[0]) + ',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;"><strong>' + clientName + '</strong> has been assigned to you on Nest Track.</p>'
+      + '<div style="background:#f9fafb;border-radius:8px;padding:14px 16px;margin-bottom:16px;">'
+      + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:8px;">Current Status</div>'
+      + statusLines.map(function(l){ return '<div style="font-size:14px;color:#1a1a1a;margin-bottom:4px;">' + l + '</div>'; }).join('')
+      + (b && b.email ? '<div style="font-size:12px;color:#888;margin-top:8px;">📧 ' + b.email + (b.phone ? '  ·  📞 ' + b.phone : '') + '</div>' : '')
+      + '</div>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Log in to Nest Track to view their full profile and pick up where they left off.</p>';
+    var subject = 'You\'ve been assigned ' + clientName + ' on Nest Track';
+    var emailHtml = nsEmailWrap('Tom Garuccio', subject, bodyHtml);
+    showEmailPreview(agentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
+      try {
+        await fetch(PROXY_URL, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json','X-Action':'email'},
+          body: JSON.stringify({ to: agentObj.email, subject: subject, html: finalHtml || emailHtml })
+        });
+      } catch(e) { console.log('Agent assignment email failed:', e.message); }
+    });
+  } catch(e) { alert('Failed: ' + e.message); }
 }
 async function setCoAgent(uid) {
   if (!canAccessBuyer(allBuyers.find(function(b){ return b.uid===uid; }))) { alert('No access.'); return; }
@@ -11887,7 +11976,7 @@ async function emailComparisonToClient(listingId) {
     +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
     +'<div style="font-size:12px;color:#888;">Sent via Nest Track</div>'
     +'</div></div>';
-  showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml) {
+  showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml, ccValue) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml})});
@@ -12183,7 +12272,7 @@ async function saveAppt() {
     // Show email preview for agent approval
     _pendingApptData = apptRecord;
     closeApptModal();
-    showEmailPreview(apptRecord.clientEmail || apptRecord.clientName, apptRecord._emailSubject, emailHtml, async function(finalHtml) {
+    showEmailPreview(apptRecord.clientEmail || apptRecord.clientName, apptRecord._emailSubject, emailHtml, async function(finalHtml, ccValue) {
       if (finalHtml) apptRecord._emailHtml = finalHtml;
       await sendApptEmail(true);
     });
@@ -12591,8 +12680,9 @@ async function saveManualShowing() {
         +'</div></div>';
       var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml };
       if (agentEmail) payload.cc = agentEmail;
-      showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml) {
+      showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
         payload.html = finalHtml || payload.html;
+        if (ccValue) { var _ccX=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_ccX[0])payload.cc=_ccX[0]; if(_ccX[1])payload.cc2=_ccX[1]; }
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       });
     }
@@ -13329,7 +13419,7 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
       +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
       +'<div style="font-size:13px;font-weight:600;">'+agentName+'</div>'
       +'</div></div>';
-    showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function(finalHtml) {
+    showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function(finalHtml, ccValue) {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
           body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:finalHtml||emailHtml})});
@@ -13621,6 +13711,18 @@ async function saveClientStatus(uid, status) {
 }
 window.saveClientStatus = saveClientStatus;
 
+// ─── LISTING AGENT FIELD (mortgage section) ───
+async function saveMortLAField(uid, field, value) {
+  try {
+    var patch = {};
+    patch[field] = value;
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), patch);
+    var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+    if (b) b[field] = value;
+  } catch(e) { console.log('saveMortLAField failed:', e.message); }
+}
+window.saveMortLAField = saveMortLAField;
+
 // ─── ADD CONTACT (no email sent) ───
 function openAddContactModal() {
   ['inv-first','inv-last','inv-email','inv-phone','inv-address'].forEach(function(id){
@@ -13743,7 +13845,7 @@ async function sendPortalInvite() {
   var payload = { to: b.email, subject: first+', your Nest Track portal is ready 🏠', html: emailHtml };
   if (agentObj && agentObj.email) payload.cc = agentObj.email;
 
-  showEmailPreview(b.email, payload.subject, emailHtml, async function(finalHtml) {
+  showEmailPreview(b.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
     try {
       payload.html = finalHtml || payload.html;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
@@ -14155,7 +14257,7 @@ function _injectVideoIntoEmail(url, title) {
 
 // Override showEmailPreview to store base html and reset video panel
 var _origShowEmailPreview = showEmailPreview;
-function showEmailPreview(toLabel, subject, emailHtml, onApprove, stepNum, stepType) {
+function showEmailPreview(toLabel, subject, emailHtml, onApprove, stepNum, stepType, ccPrefill) {
   _epoBaseHtml = emailHtml;
   // Reset video panel
   var toggle = document.getElementById('epo-video-toggle');
@@ -14200,6 +14302,10 @@ function showEmailPreview(toLabel, subject, emailHtml, onApprove, stepNum, stepT
       }
     }
   }
+
+  // Pre-fill CC field
+  var ccEl = document.getElementById('epo-cc');
+  if (ccEl) ccEl.value = ccPrefill || '';
 
   _epoCallback = onApprove;
   var toEl = document.getElementById('epo-to');
@@ -14274,6 +14380,10 @@ window.showEmailPreview = showEmailPreview;
         <div>
           <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:300;">Review Email</div>
           <div id="epo-to" style="font-size:12px;color:var(--text3);margin-top:2px;"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);flex-shrink:0;">CC</span>
+            <input type="text" id="epo-cc" placeholder="email@example.com, another@example.com" style="flex:1;font-size:12px;padding:4px 8px;border:0.5px solid var(--border);border-radius:var(--r-sm);background:var(--surface2);color:var(--text);font-family:inherit;"/>
+          </div>
         </div>
         <button onclick="document.getElementById('email-preview-overlay').style.display='none'" style="background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;padding:0;line-height:1;">&#215;</button>
       </div>
