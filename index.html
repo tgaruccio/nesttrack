@@ -13085,23 +13085,23 @@ async function addChecklistItem(dealId) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (!deal) return;
 
-  // Always fetch fresh from Firestore first to avoid losing prefilled items
-  // that may not be in deal.checklist in memory yet
-  try {
-    var agentId = userProfile.agentId||'tom';
-    var snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId));
-    if (snap.exists()) {
-      var fresh = snap.data();
-      deal.checklist = fresh.checklist || deal.checklist || [];
-    }
-  } catch(e) { console.log('addChecklistItem fetch:', e.message); }
+  // Use _mergedChecklist (prefills + custom) as the display list
+  // Append new item to it
+  var merged = (deal._mergedChecklist || deal.checklist || []).concat([{text:text, done:false}]);
+  deal._mergedChecklist = merged;
 
-  var checklist = (deal.checklist||[]).concat([{text:text,done:false}]);
-  deal.checklist = checklist;
-  var agentId2 = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',dealId),{checklist:checklist});
+  // Only save non-prefill items + prefill done-states back to Firestore as deal.checklist
+  var allPrefills = deal.dealType==='seller' ? (typeof ALL_SELLER_TASKS!=='undefined' ? ALL_SELLER_TASKS : []) : (typeof ALL_BUYER_TASKS!=='undefined' ? ALL_BUYER_TASKS : []);
+  var toSave = merged.filter(function(item){
+    // Save custom items always; save prefill items only if done (to track completion)
+    return !allPrefills.includes(item.text) || item.done;
+  });
+  deal.checklist = toSave;
+
+  var agentId = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:toSave});
   var el = document.getElementById('deal-checklist-'+dealId);
-  if (el) el.innerHTML = renderChecklist(dealId, checklist);
+  if (el) el.innerHTML = renderChecklist(dealId, merged);
 }
 window.addChecklistItem = addChecklistItem;
 
