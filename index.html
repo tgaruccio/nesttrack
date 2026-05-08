@@ -13084,10 +13084,22 @@ async function addChecklistItem(dealId) {
   inp.value = '';
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (!deal) return;
+
+  // Always fetch fresh from Firestore first to avoid losing prefilled items
+  // that may not be in deal.checklist in memory yet
+  try {
+    var agentId = userProfile.agentId||'tom';
+    var snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId));
+    if (snap.exists()) {
+      var fresh = snap.data();
+      deal.checklist = fresh.checklist || deal.checklist || [];
+    }
+  } catch(e) { console.log('addChecklistItem fetch:', e.message); }
+
   var checklist = (deal.checklist||[]).concat([{text:text,done:false}]);
   deal.checklist = checklist;
-  var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:checklist});
+  var agentId2 = userProfile.agentId||'tom';
+  await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',dealId),{checklist:checklist});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, checklist);
 }
