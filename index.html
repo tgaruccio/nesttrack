@@ -498,6 +498,15 @@ textarea{resize:vertical;min-height:68px;}
   <div class="tl-track" id="tl-track"></div>
 </div>
 
+<!-- CLIENT PREVIEW BANNER -->
+<div id="client-preview-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#1D9E75;color:#fff;padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-size:18px;">👁️</span>
+    <span>Client Preview Mode — you're seeing the app as a buyer would</span>
+  </div>
+  <button onclick="exitClientPreview()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap;">✕ Exit Preview</button>
+</div>
+
 <!-- SIDEBAR OVERLAY -->
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
@@ -520,6 +529,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
     <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
     <div class="ns">Client View</div>
+    <button class="nb" onclick="enterClientPreview()" style="color:var(--green-dk);font-weight:500;">👁️ Preview as Client</button>
   </div>
   <div class="ns" id="sidebar-start-label">Start Here</div>
   <button class="nb" data-pg="home" onclick="go('home',this)">🏠 Home</button>
@@ -3633,6 +3643,8 @@ async function showApp() {
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
+  // Hide buyer journey timeline bar for agents — they have no buyer journey
+  var _tlbar=document.getElementById('timeline-bar');if(_tlbar)_tlbar.style.display=isAgent?'none':'block';
   const mtb = document.getElementById('manage-team-btn');
   if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
   updateAgentRefs();
@@ -6897,6 +6909,123 @@ function toggleAdminShowAll() {
   loadBuyersForAgent().then(function(){ renderBuyers(); renderAgentDashboard(); });
 }
 window.toggleAdminShowAll = toggleAdminShowAll;
+
+// ─── CLIENT PREVIEW MODE ───
+// Lets an agent temporarily see the app as a buyer would.
+// Stores agent state and restores it cleanly on exit.
+var _previewMode = false;
+var _previewBuyerUid = null;
+
+async function enterClientPreview() {
+  if (_previewMode) return;
+  closeSidebar();
+
+  // Pick a client to preview as — show selector if multiple
+  if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
+  var clients = (myBuyers || []).filter(function(b){ return !b.pending; });
+  if (!clients.length) { alert('No active clients to preview. Add a client first.'); return; }
+
+  // Build a simple picker modal
+  var opts = clients.map(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email || b.uid;
+    return '<button onclick="window._startPreview(\''+b.uid+'\')" style="width:100%;text-align:left;padding:12px 16px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:8px;cursor:pointer;font-family:inherit;font-size:13px;display:flex;align-items:center;gap:12px;">'+
+      '<div style="width:36px;height:36px;border-radius:50%;background:var(--green-lt);color:var(--green-dk);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0;">'+((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase()+'</div>'+
+      '<div><div style="font-weight:500;">'+name+'</div><div style="font-size:11px;color:var(--text3);">'+((b.journeyType||'buyer')+' · '+(b.email||''))+'</div></div></button>';
+  }).join('');
+
+  var overlay = document.createElement('div');
+  overlay.id = 'preview-picker-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = '<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">'
+    + '<div style="font-weight:600;font-size:15px;">Preview as which client?</div>'
+    + '<button onclick="document.getElementById(\'preview-picker-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);">✕</button>'
+    + '</div>'
+    + '<div style="padding:16px 20px;">'+opts+'</div></div>';
+  document.body.appendChild(overlay);
+}
+
+window._startPreview = async function(buyerUid) {
+  var picker = document.getElementById('preview-picker-overlay');
+  if (picker) picker.remove();
+
+  // Load that client's profile
+  var snap = await fb.getDoc(fb.doc(fb.db, 'users', buyerUid));
+  if (!snap.exists()) { alert('Could not load client profile.'); return; }
+  var buyerProfile = snap.data();
+  buyerProfile.uid = buyerUid;
+
+  // Save agent state
+  window._previewSavedState = {
+    isAgent: isAgent,
+    isLender: isLender,
+    userProfile: JSON.parse(JSON.stringify(userProfile)),
+    assignedAgent: assignedAgent,
+    currentUser_uid_display: currentUser.uid
+  };
+
+  // Enter preview
+  _previewMode = true;
+  _previewBuyerUid = buyerUid;
+  isAgent = false;
+  isLender = false;
+  userProfile = buyerProfile;
+  assignedAgent = DEFAULT_AGENTS.find(function(a){ return a.id === buyerProfile.agentId; }) || DEFAULT_AGENTS[0];
+
+  // Show banner, hide agent UI, show buyer UI
+  var banner = document.getElementById('client-preview-banner');
+  if (banner) banner.style.display = 'flex';
+  var ats = document.getElementById('agent-tools-section');
+  if (ats) ats.style.display = 'none';
+  var tlbar = document.getElementById('timeline-bar');
+  if (tlbar) tlbar.style.display = 'block';
+  var startLabel = document.getElementById('sidebar-start-label');
+  if (startLabel) startLabel.style.display = '';
+  document.body.style.paddingTop = '46px'; // make room for banner
+
+  // Re-render as buyer
+  renderTimeline();
+  updateAgentRefs();
+  renderYourAgent();
+  renderYourLender();
+  await loadProperties();
+  await loadTours();
+  go('home', document.querySelector('[data-pg=home]'));
+  setTimeout(renderHome, 100);
+};
+window._startPreview = window._startPreview;
+
+function exitClientPreview() {
+  if (!_previewMode || !window._previewSavedState) return;
+
+  // Restore agent state
+  var saved = window._previewSavedState;
+  isAgent = saved.isAgent;
+  isLender = saved.isLender;
+  userProfile = saved.userProfile;
+  assignedAgent = saved.assignedAgent;
+  _previewMode = false;
+  _previewBuyerUid = null;
+  window._previewSavedState = null;
+
+  // Hide banner, restore agent UI
+  var banner = document.getElementById('client-preview-banner');
+  if (banner) banner.style.display = 'none';
+  var ats = document.getElementById('agent-tools-section');
+  if (ats) ats.style.display = 'flex';
+  var tlbar = document.getElementById('timeline-bar');
+  if (tlbar) tlbar.style.display = 'none';
+  document.body.style.paddingTop = '';
+
+  // Go back to agent dashboard
+  updateAgentRefs();
+  renderAgentProfileEditor();
+  var agentBtn = document.getElementById('agent-nav');
+  go('agent-dash', agentBtn);
+  setTimeout(renderAgentDashboard, 200);
+}
+window.enterClientPreview = enterClientPreview;
+window.exitClientPreview = exitClientPreview;
 
 async function loadBuyersForAgent() {
   try {
