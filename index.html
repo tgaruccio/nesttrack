@@ -2076,6 +2076,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-sm" onclick="exportContactsCSV()">⬇ Export CSV</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
+    <button class="btn btn-sm" id="admin-show-all-btn" onclick="toggleAdminShowAll()" style="display:none;">👤 My Clients Only</button>
   </div>
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
     <button onclick="setCRMFilter('all')" id="crm-tab-all" style="flex:1;padding:7px 4px;font-size:11px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">All</button>
@@ -6879,16 +6880,36 @@ async function deleteKnownBuyerSubcollections(uid) {
   }
 }
 
+// Admin toggle: when true, team leader sees ALL clients across the platform
+var _adminShowAll = false;
+window._adminShowAll = false;
+
+function toggleAdminShowAll() {
+  _adminShowAll = !_adminShowAll;
+  window._adminShowAll = _adminShowAll;
+  var btn = document.getElementById('admin-show-all-btn');
+  if (btn) {
+    btn.textContent = _adminShowAll ? '👥 All Clients (ON)' : '👤 My Clients Only';
+    btn.style.background = _adminShowAll ? '#1D9E75' : '';
+    btn.style.color = _adminShowAll ? '#fff' : '';
+    btn.style.borderColor = _adminShowAll ? '#1D9E75' : '';
+  }
+  loadBuyersForAgent().then(function(){ renderBuyers(); renderAgentDashboard(); });
+}
+window.toggleAdminShowAll = toggleAdminShowAll;
+
 async function loadBuyersForAgent() {
   try {
     let q;
-    if (isTeamLeader()) {
+    if (isTeamLeader() && _adminShowAll) {
+      // Admin "show all" mode — every buyer on the platform
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'));
     } else if (isLender && !isAgent) {
       // Pure lender — see only their assigned clients
       var lid = userProfile.lenderId || 'tom';
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'), fb.where('lenderId', '==', lid));
     } else {
+      // Normal mode: only clients explicitly assigned to this agent
       q = fb.query(
         fb.collection(fb.db, 'users'),
         fb.where('role', '==', 'buyer'),
@@ -6899,7 +6920,7 @@ async function loadBuyersForAgent() {
     allBuyers = [];
     snap.forEach(d => allBuyers.push({ uid: d.id, ...d.data() }));
     // Also load clients where this agent is co-agent (second query, merge)
-    if (isAgent && !isTeamLeader()) {
+    if (isAgent && !(isTeamLeader() && _adminShowAll)) {
       try {
         var coQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('coAgentId','==',userProfile.agentId));
         var coSnap = await fb.getDocs(coQ);
@@ -6910,8 +6931,11 @@ async function loadBuyersForAgent() {
         });
       } catch(e) { console.log('coAgent query err:', e.message); }
     }
-    // Keep myBuyers in sync so dashboard has data immediately on first load
-    myBuyers = allBuyers.filter(b => isTeamLeader() || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
+    // myBuyers always respects the current view mode
+    myBuyers = allBuyers.filter(function(b) {
+      if (isTeamLeader() && _adminShowAll) return true;
+      return b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId;
+    });
   } catch(e) { console.error('loadBuyers', e); }
 }
 async function renderBuyers() {
@@ -6922,7 +6946,19 @@ async function renderBuyers() {
   const manageBtn = document.getElementById('manage-team-btn');
   if (manageBtn) manageBtn.style.display = teamLeader ? 'inline-flex' : 'none';
 
-  myBuyers = allBuyers.filter(b => teamLeader || b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId);
+  // Update admin toggle button visibility
+  var adminToggleBtn = document.getElementById('admin-show-all-btn');
+  if (adminToggleBtn) {
+    adminToggleBtn.style.display = teamLeader ? 'inline-flex' : 'none';
+    adminToggleBtn.textContent = _adminShowAll ? '👥 All Clients (ON)' : '👤 My Clients Only';
+    adminToggleBtn.style.background = _adminShowAll ? '#1D9E75' : '';
+    adminToggleBtn.style.color = _adminShowAll ? '#fff' : '';
+    adminToggleBtn.style.borderColor = _adminShowAll ? '#1D9E75' : '';
+  }
+  myBuyers = allBuyers.filter(function(b) {
+    if (teamLeader && _adminShowAll) return true;
+    return b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId;
+  });
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
   if (window._crmFilter && window._crmFilter !== 'all') { myBuyers = myBuyers.filter(function(b){ return getClientStatus(b) === window._crmFilter; }); }
 
