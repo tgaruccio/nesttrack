@@ -3114,62 +3114,105 @@ async function signUp() {
 
   try {
     const cred = await fb.createUserWithEmailAndPassword(fb.auth, email, pass);
-    // Agent from dropdown, overridden by invite code if present
     const selectedAgent = document.getElementById('su-agent').value || 'tom';
     let agentId = selectedAgent;
     let inviteData = null;
+
+    // Load invite data if code present
     if (invite) {
       try {
         const invDoc = await fb.getDoc(fb.doc(fb.db, 'invites', invite));
         if (invDoc.exists()) { inviteData = invDoc.data(); agentId = inviteData.agentId || selectedAgent; }
       } catch (x) { console.log('Invite lookup failed', x); }
     }
-    var journeyType = (inviteData && inviteData.journeyType) || 'buyer';
-    await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), {
-      email, firstName: first, lastName: last, phone,
-      role: 'buyer', agentId, lenderId: 'tom', journeyType: journeyType,
-      currentStep: 1, currentSellerStep: 0,
-      stepHistory: [{step:1, at: new Date().toISOString()}],
+
+    // Check for existing contact record with same email (agent-created before signup)
+    let existingContact = null;
+    try {
+      const emailQuery = fb.query(
+        fb.collection(fb.db, 'users'),
+        fb.where('email', '==', email.toLowerCase())
+      );
+      const emailSnaps = await fb.getDocs(emailQuery);
+      emailSnaps.forEach(function(d) {
+        // Skip the new auth record itself and pending records
+        if (d.id !== cred.user.uid) {
+          const data = d.data();
+          // Only merge if this looks like an agent-created contact (has agentId, not a full auth account)
+          if (data.agentId && !data.portalUid) {
+            existingContact = { uid: d.id, ...data };
+          }
+        }
+      });
+    } catch(x) { console.log('Email contact lookup:', x); }
+
+    // Build the new profile — merge existing contact data if found
+    var journeyType = (existingContact && existingContact.journeyType)
+      || (inviteData && inviteData.journeyType)
+      || 'buyer';
+
+    var newProfile = {
+      email: email.toLowerCase(),
+      firstName: first,
+      lastName: last,
+      phone: phone || (existingContact && existingContact.phone) || '',
+      role: 'buyer',
+      agentId: (existingContact && existingContact.agentId) || agentId,
+      coAgentId: (existingContact && existingContact.coAgentId) || null,
+      lenderId: (existingContact && existingContact.lenderId) || 'tom',
+      journeyType: journeyType,
+      currentStep: (existingContact && existingContact.currentStep > 0) ? existingContact.currentStep : 1,
+      currentSellerStep: (existingContact && existingContact.currentSellerStep) || 0,
+      currentMortgageStep: (existingContact && existingContact.currentMortgageStep) || 0,
+      portalUid: cred.user.uid,
       createdAt: fb.serverTimestamp(),
       lastActive: fb.serverTimestamp(),
+    };
+
+    // Copy over contract dates and other agent-set fields if they exist
+    var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
+      'buyerIsCash','sellerIsCash','inviteCode','crmStatus','notes',
+      'mortLAName','mortLAEmail','mortLACCEnabled'];
+    copyFields.forEach(function(f) {
+      if (existingContact && existingContact[f] !== undefined) newProfile[f] = existingContact[f];
     });
-    // Clean up any pending records with same email (even without invite code)
+
+    await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), newProfile);
+
+    // Mark invite as used
+    if (invite && inviteData) {
+      try {
+        await fb.updateDoc(fb.doc(fb.db, 'invites', invite), {
+          used: true, usedBy: cred.user.uid, usedAt: fb.serverTimestamp()
+        });
+      } catch(x) { console.log('Invite mark used:', x); }
+    }
+
+    // Delete the orphan contact record now that data is merged
+    if (existingContact && existingContact.uid) {
+      try {
+        await fb.deleteDoc(fb.doc(fb.db, 'users', existingContact.uid));
+        console.log('Merged and cleaned up contact record:', existingContact.uid);
+      } catch(x) { console.log('Contact cleanup:', x); }
+    }
+
+    // Clean up any pending records with same email
     try {
       var pendingQuery = fb.query(
         fb.collection(fb.db, 'users'),
-        fb.where('email', '==', email),
+        fb.where('email', '==', email.toLowerCase()),
         fb.where('pending', '==', true)
       );
       var pendingSnaps = await fb.getDocs(pendingQuery);
       pendingSnaps.forEach(async function(d) {
-        await fb.deleteDoc(fb.doc(fb.db, 'users', d.id));
+        if (d.id !== cred.user.uid) await fb.deleteDoc(fb.doc(fb.db, 'users', d.id));
       });
-    } catch(x) { console.log('Pending email cleanup:', x); }
+    } catch(x) { console.log('Pending cleanup:', x); }
 
-    if (invite && inviteData) {
-      try {
-        await fb.updateDoc(fb.doc(fb.db, 'invites', invite), { used: true, usedBy: cred.user.uid, usedAt: fb.serverTimestamp() });
-        // Copy any data from pending record (contract dates, steps set by agent) to real account
-        var pendingUid = 'pending_' + invite;
-        var pendingSnap = await fb.getDoc(fb.doc(fb.db, 'users', pendingUid));
-        if (pendingSnap.exists()) {
-          var pendingData = pendingSnap.data();
-          var copyFields = {};
-          if (pendingData.buyerContractDates) copyFields.buyerContractDates = pendingData.buyerContractDates;
-          if (pendingData.sellerContractDates) copyFields.sellerContractDates = pendingData.sellerContractDates;
-          if (pendingData.buyerIsCash) copyFields.buyerIsCash = pendingData.buyerIsCash;
-          if (pendingData.sellerIsCash) copyFields.sellerIsCash = pendingData.sellerIsCash;
-          if (pendingData.currentStep > 1) copyFields.currentStep = pendingData.currentStep;
-          if (pendingData.currentSellerStep > 0) copyFields.currentSellerStep = pendingData.currentSellerStep;
-          if (Object.keys(copyFields).length) {
-            await fb.updateDoc(fb.doc(fb.db, 'users', cred.user.uid), copyFields);
-          }
-          await fb.deleteDoc(fb.doc(fb.db, 'users', pendingUid));
-        }
-      } catch (x) { console.log('Pending cleanup:', x); }
-    }
   } catch (e) {
-    err.textContent = e.code === 'auth/email-already-in-use' ? 'An account with this email already exists' : (e.message || 'Sign-up failed');
+    err.textContent = e.code === 'auth/email-already-in-use'
+      ? 'An account with this email already exists. Use the Sign In tab instead.'
+      : (e.message || 'Sign-up failed');
     err.style.display = 'block';
   }
 }
@@ -3239,6 +3282,43 @@ async function loadUserProfile() {
       userProfile = snap.data();
       if (userProfile.buyerContractDates) userProfile.buyerContractDates = Object.assign({}, userProfile.buyerContractDates);
       if (userProfile.sellerContractDates) userProfile.sellerContractDates = Object.assign({}, userProfile.sellerContractDates);
+
+      // Check if an agent-created contact record exists for this email that hasn't been merged yet
+      // This handles the case where the client signed up without using the invite link
+      try {
+        var mergeQuery = fb.query(
+          fb.collection(fb.db, 'users'),
+          fb.where('email', '==', currentUser.email.toLowerCase())
+        );
+        var mergeSnaps = await fb.getDocs(mergeQuery);
+        mergeSnaps.forEach(async function(d) {
+          if (d.id === currentUser.uid) return; // skip self
+          var contact = d.data();
+          if (!contact.agentId || contact.portalUid) return; // skip other auth accounts
+          // Found an unmerged contact record — merge key fields in
+          var patch = {};
+          if (contact.agentId && !userProfile.agentId) patch.agentId = contact.agentId;
+          if (contact.coAgentId && !userProfile.coAgentId) patch.coAgentId = contact.coAgentId;
+          if (contact.journeyType && userProfile.journeyType === 'buyer') patch.journeyType = contact.journeyType;
+          if (contact.currentStep > (userProfile.currentStep||1)) patch.currentStep = contact.currentStep;
+          if (contact.currentSellerStep > (userProfile.currentSellerStep||0)) patch.currentSellerStep = contact.currentSellerStep;
+          if (contact.currentMortgageStep > (userProfile.currentMortgageStep||0)) patch.currentMortgageStep = contact.currentMortgageStep;
+          var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
+            'buyerIsCash','sellerIsCash','crmStatus','notes','mortLAName','mortLAEmail','mortLACCEnabled'];
+          copyFields.forEach(function(f) {
+            if (contact[f] !== undefined && userProfile[f] === undefined) patch[f] = contact[f];
+          });
+          if (Object.keys(patch).length) {
+            patch.portalUid = currentUser.uid;
+            await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), patch);
+            Object.assign(userProfile, patch);
+            console.log('Merged contact record fields:', Object.keys(patch));
+          }
+          // Delete orphan
+          try { await fb.deleteDoc(fb.doc(fb.db, 'users', d.id)); } catch(x) {}
+        });
+      } catch(x) { console.log('Contact merge check:', x); }
+
       // Check if this email is one of the team agents
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
       if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; }
