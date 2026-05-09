@@ -82,7 +82,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .sidebar-overlay.open{display:block;}
 
 /* TIMELINE */
-.tlbar{grid-column:1/-1;background:var(--surface);border-bottom:0.5px solid var(--border);padding:11px 20px;}
+
 
 /* MOBILE LAYOUT */
 @media(max-width:700px){
@@ -94,9 +94,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   .user-name{display:none;}
   .user-role{display:none;}
   .menu-btn{display:flex;}
-  .tlbar{padding:8px 10px;}
-  .tl-label{display:none;}
-  .tl-status{font-size:11px;}
+
   .tl-step{min-width:52px;}
   .tl-step .label{font-size:8.5px;}
   .tl-dot{width:20px;height:20px;font-size:9px;}
@@ -134,11 +132,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
   .tb-r{gap:6px;}
 input[type=text],input[type=email],input[type=password],input[type=number],input[type=tel],select,textarea{font-size:16px;} /* prevent iOS zoom/keyboard issues */
 }
-.tl-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.tl-label{font-size:10.5px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;}
-.tl-status{font-size:12px;color:var(--text2);}
-.tl-status strong{color:var(--green-dk);font-weight:500;}
-.tl-track{display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:2px 0 6px;scroll-snap-type:x proximity;}
+
 .tl-step{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;min-width:78px;padding:4px 2px;border-radius:6px;transition:all 0.12s;flex-shrink:0;scroll-snap-align:start;}
 .tl-step:hover{background:var(--surface2);}
 .tl-dot{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border2);background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:500;color:var(--text3);transition:all 0.18s;flex-shrink:0;}
@@ -484,18 +478,6 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <button class="icon-btn" onclick="signOut()" title="Sign out">⏻</button>
   </div>
-</div>
-
-<!-- TIMELINE -->
-<div class="tlbar" id="timeline-bar">
-  <div class="tl-head">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <div class="tl-label" id="tl-label-text">Your Buyers Journey</div>
-      <div id="tl-journey-pills" style="display:flex;gap:4px;flex-shrink:0;"></div>
-    </div>
-    <div class="tl-status" id="tl-status">Currently in: <strong>Initial Consultation</strong></div>
-  </div>
-  <div class="tl-track" id="tl-track"></div>
 </div>
 
 <!-- CLIENT PREVIEW BANNER -->
@@ -3682,7 +3664,7 @@ async function showApp() {
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   // Hide buyer journey timeline bar for agents — they have no buyer journey
-  var _tlbar=document.getElementById('timeline-bar');if(_tlbar)_tlbar.style.display=isAgent?'none':'block';
+  
   const mtb = document.getElementById('manage-team-btn');
   if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
   updateAgentRefs();
@@ -3696,7 +3678,7 @@ async function showApp() {
     await loadTours();
     chatPartner = assignedAgent; // buyer chats with their agent
   }
-  renderTimeline();
+  
   setTimeout(populateBuyerStepSelector, 100);
   renderTours();
   renderSaved();
@@ -4041,63 +4023,6 @@ window.closeM = closeM;
 
 // ─── SAVE MODAL ───
 // ─── TIMELINE ───
-function renderTimeline() {
-  const cur = (userProfile && userProfile.currentStep) || 1;
-  const track = document.getElementById('tl-track');
-  const status = document.getElementById('tl-status');
-  if (!track) return;
-  track.innerHTML = TIMELINE_STEPS.map(s => {
-    const done = s.id < cur, active = s.id === cur;
-    return `<div class="tl-step ${done?'done':active?'current':''}" onclick="openStep(${s.id})">
-      <div class="tl-dot">${s.id}</div>
-      <div class="label">${s.name}</div>
-    </div>`;
-  }).join('');
-  if (status) {
-    const cur_step = TIMELINE_STEPS.find(s => s.id === cur);
-    status.innerHTML = `Currently in: <strong style="color:var(--green-dk);">${cur_step ? cur_step.name : 'Initial Consultation'}</strong>`;
-  }
-}
-window.renderTimeline = renderTimeline;
-
-var activeJourneyTab = 'buying';
-
-function switchJourneyTab(tab) {
-  activeJourneyTab = tab;
-  var lbl = document.getElementById('tl-label-text');
-  // Update read-only pills
-  var pillsEl = document.getElementById('tl-journey-pills');
-  var jt = (userProfile && userProfile.journeyType) || 'buyer';
-  if (pillsEl) {
-    var pills = '';
-    if (jt === 'buyer' || jt === 'both') pills += '<span style="background:var(--green);color:#fff;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;">Buying</span>';
-    if (jt === 'seller' || jt === 'both') pills += '<span style="background:#D97706;color:#fff;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:500;">Selling</span>';
-    pillsEl.innerHTML = pills;
-  }
-  if (lbl) lbl.textContent = tab==='buying'?'Your Buyers Journey':'Your Sellers Journey';
-  if (tab === 'selling') { renderSellerTimeline(); } else { renderTimeline(); }
-}
-window.switchJourneyTab = switchJourneyTab;
-
-function renderSellerTimeline() {
-  var track = document.getElementById('tl-track');
-  var status = document.getElementById('tl-status');
-  if (!track) return;
-  var cur = (userProfile && userProfile.currentSellerStep) || 1;
-  track.innerHTML = SELLER_STEPS.map(function(s, i) {
-    var done = (i+1) < cur, active = (i+1) === cur;
-    return '<div class="tl-step '+(done?'done':active?'current':'')+'" onclick="showSellerStepEdu('+i+')">'
-      + '<div class="tl-dot" style="'+(done?'':'')+(active?'border-color:#D97706;color:#D97706;box-shadow:0 0 0 3px #FEF3C7;':'')+'">'+(i+1)+'</div>'
-      + '<div class="label">'+s.title.split(' ')[0]+'</div>'
-      + '</div>';
-  }).join('');
-  if (status) {
-    var curStep = SELLER_STEPS[cur-1];
-    status.innerHTML = 'Currently in: <strong style="color:#D97706;">'+(curStep?curStep.title:'Initial Consultation')+'</strong>';
-  }
-}
-window.renderSellerTimeline = renderSellerTimeline;
-
 
 let activeEduTab = 'buying';
 
@@ -4517,7 +4442,7 @@ async function buyerUpdateStep() {
       lastStepUpdate: fb.serverTimestamp()
     });
     userProfile.currentStep = newStep;
-    renderTimeline();
+    
     renderTrailMap();
     status.textContent = '✓ Journey updated to: ' + TIMELINE_STEPS.find(s=>s.id===newStep).name;
     status.style.background = 'var(--green-lt)';
@@ -6657,7 +6582,7 @@ async function homeUpdateBuyStep(val) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{currentStep:newStep,lastStepUpdate:fb.serverTimestamp()});
     userProfile.currentStep = newStep;
-    renderTimeline(); renderTrailMap();
+     renderTrailMap();
     // Show quick confirmation
     var el = document.querySelector('#home-journeys .card[style*="green"]');
     if (el) { el.style.borderColor='var(--green)'; }
@@ -6670,7 +6595,7 @@ async function homeUpdateSellStep(val) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid),{currentSellerStep:newStep,lastStepUpdate:fb.serverTimestamp()});
     userProfile.currentSellerStep = newStep;
-    renderSellerTimeline(); renderSellerTrail();
+     renderSellerTrail();
   } catch(e) { alert('Update failed: '+e.message); }
 }
 window.homeUpdateSellStep = homeUpdateSellStep;
@@ -7029,14 +6954,12 @@ window._startPreview = async function(buyerUid) {
   if (banner) banner.style.display = 'flex';
   var ats = document.getElementById('agent-tools-section');
   if (ats) ats.style.display = 'none';
-  var tlbar = document.getElementById('timeline-bar');
-  if (tlbar) tlbar.style.display = 'block';
   var startLabel = document.getElementById('sidebar-start-label');
   if (startLabel) startLabel.style.display = '';
   document.body.style.paddingTop = '46px'; // make room for banner
 
   // Re-render as buyer
-  renderTimeline();
+  
   updateAgentRefs();
   renderYourAgent();
   renderYourLender();
@@ -7065,8 +6988,6 @@ function exitClientPreview() {
   if (banner) banner.style.display = 'none';
   var ats = document.getElementById('agent-tools-section');
   if (ats) ats.style.display = 'flex';
-  var tlbar = document.getElementById('timeline-bar');
-  if (tlbar) tlbar.style.display = 'none';
   document.body.style.paddingTop = '';
 
   // Go back to agent dashboard
@@ -9620,15 +9541,13 @@ function switchTrailTab(tab) {
   var tsb = document.getElementById('tl-tab-selling');
   if (tbb) { tbb.style.background = tab==='buying'?'var(--green)':'transparent'; tbb.style.color = tab==='buying'?'#fff':'var(--text3)'; }
   if (tsb) { tsb.style.background = tab==='selling'?'#D97706':'transparent'; tsb.style.color = tab==='selling'?'#fff':'var(--text3)'; }
-  var lbl = document.getElementById('tl-label-text');
-  if (lbl) lbl.textContent = tab==='buying'?'Your Buyers Journey':'Your Sellers Journey';
   if (tab === 'selling') {
     if (tg) tg.style.display = 'none';
     if (sg) { sg.style.display = 'block'; renderSellerTrail(); }
     if (pc) pc.style.display = 'none';
     if (dd) dd.textContent = 'Your path from first conversation to closed deal. Tap any stop to learn what happens at that stage.';
     if (tt) tt.textContent = 'The Home Sellers Trail';
-    renderSellerTimeline();
+    
   } else {
     if (tg) tg.style.display = 'block';
     if (sg) sg.style.display = 'none';
@@ -9636,7 +9555,7 @@ function switchTrailTab(tab) {
     if (dd) dd.textContent = 'Follow the trail from search to keys. Tap any stop to open its details below the map.';
     if (tt) tt.textContent = 'The Home Buyers Trail';
     renderTrailMap();
-    renderTimeline();
+    
   }
 }
 window.switchTrailTab = switchTrailTab;
