@@ -2491,16 +2491,38 @@ textarea{resize:vertical;min-height:68px;}
 <div class="mo" id="team-modal" style="display:none;">
   <div class="mbox">
     <div class="mhdr"><div class="mtitle">Manage Team</div><button class="xbtn" onclick="closeM('team-modal')">✕</button></div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">Agents</div>
     <div id="team-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <div style="border-top:0.5px solid var(--border);padding-top:14px;">
-      <div style="font-weight:500;font-size:13px;margin-bottom:8px;">Add New Agent</div>
-      <div class="fg2">
-        <div><label class="flabel">Name</label><input type="text" id="ta-name"/></div>
-        <div><label class="flabel">Phone</label><input type="tel" id="ta-phone"/></div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:14px 0 6px;">Lenders</div>
+    <div id="team-lender-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="border-top:0.5px solid var(--border);padding-top:14px;margin-top:14px;">
+      <div style="display:flex;gap:0;background:var(--surface2);border-radius:var(--r-sm);overflow:hidden;margin-bottom:12px;">
+        <button id="team-role-agent" onclick="switchTeamRole('agent')" style="flex:1;padding:8px;font-size:12px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">+ Agent</button>
+        <button id="team-role-lender" onclick="switchTeamRole('lender')" style="flex:1;padding:8px;font-size:12px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;">+ Lender</button>
       </div>
-      <div><label class="flabel">Email</label><input type="email" id="ta-email"/></div>
-      <div style="display:flex;gap:8px;margin-top:10px;">
-        <button class="btn btn-g btn-sm" onclick="addAgentAndInvite()">+ Add Agent & Send Invite</button>
+      <div id="team-agent-form">
+        <div style="font-weight:500;font-size:13px;margin-bottom:8px;">Add New Agent</div>
+        <div class="fg2">
+          <div><label class="flabel">Name</label><input type="text" id="ta-name"/></div>
+          <div><label class="flabel">Phone</label><input type="tel" id="ta-phone"/></div>
+        </div>
+        <div><label class="flabel">Email</label><input type="email" id="ta-email"/></div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-g btn-sm" onclick="addAgentAndInvite()">+ Add Agent & Send Invite</button>
+        </div>
+      </div>
+      <div id="team-lender-form" style="display:none;">
+        <div style="font-weight:500;font-size:13px;margin-bottom:8px;">Add New Lender</div>
+        <div class="fg2">
+          <div><label class="flabel">Name</label><input type="text" id="tl-name"/></div>
+          <div><label class="flabel">Phone</label><input type="tel" id="tl-phone"/></div>
+        </div>
+        <div><label class="flabel">Email</label><input type="email" id="tl-email"/></div>
+        <div><label class="flabel">Company / NMLS#</label><input type="text" id="tl-company" placeholder="e.g. Ask Local Mortgage · NMLS #12345"/></div>
+        <div><label class="flabel">Apply Link (optional)</label><input type="text" id="tl-applylink" placeholder="https://..."/></div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-sm" style="background:#185FA5;color:#fff;border-color:#185FA5;" onclick="addLenderAndInvite()">+ Add Lender & Send Invite</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3018,6 +3040,22 @@ const DEFAULT_LENDERS = [
   {id:'tom',name:'Tom Garuccio',role:'Licensed Mortgage Professional',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',applyLink:'https://1660690.my1003app.com/2784866/register',isDefault:true},
 ];
 
+async function loadTeamLenders() {
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db, 'team_lenders'));
+    snap.forEach(function(doc) {
+      var l = doc.data();
+      var idx = DEFAULT_LENDERS.findIndex(function(x){ return x.id === l.id; });
+      if (idx < 0) {
+        DEFAULT_LENDERS.push(l);
+      } else {
+        DEFAULT_LENDERS[idx] = Object.assign({}, DEFAULT_LENDERS[idx], l);
+      }
+    });
+  } catch(e) { console.log('loadTeamLenders:', e.message); }
+}
+window.loadTeamLenders = loadTeamLenders;
+
 const ROOMS = ['Kitchen','Living Room','Master Bedroom','Bedrooms','Master Bath','Bathrooms','Basement','Garage','Yard / Exterior','Laundry'];
 const SYSTEMS = ['Roof','HVAC / Furnace','Plumbing','Electrical Panel','Foundation','Windows','Insulation','Overall'];
 const ROOM_QS = {
@@ -3287,6 +3325,7 @@ async function syncHardcodedAgentsToFirestore() {
 async function loadUserProfile() {
   // Load any dynamically added agents first
   await loadTeamAgents();
+  await loadTeamLenders();
   try {
     const snap = await fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid));
     if (snap.exists()) {
@@ -3576,7 +3615,6 @@ function renderYourLender() {
   var card = document.getElementById('your-lender-card');
   var section = document.getElementById('your-lender-section');
   if (!card) return;
-  // Hide entire section if no lender assigned
   var lenderId = (userProfile && userProfile.lenderId) || 'tom';
   if (lenderId === 'none') {
     if (section) section.style.display = 'none';
@@ -3690,8 +3728,17 @@ async function showApp() {
     setTimeout(function() {
       go('agent-dash', agentBtn);
       watchAllAgentChats();
-      // Re-render after data loads (mobile needs more time)
       setTimeout(renderAgentDashboard, 1500);
+    }, 100);
+  } else if (isLender) {
+    // Lender-only login — send to agent CRM (filtered to their mortgage clients)
+    var agentBtn2 = document.getElementById('agent-nav');
+    if (agentBtn2) agentBtn2.style.display = '';
+    var startLabel2 = document.getElementById('sidebar-start-label');
+    if (startLabel2) startLabel2.style.display = 'none';
+    setTimeout(function() {
+      go('agent', document.querySelector('[data-pg=agent]'));
+      setTimeout(renderBuyers, 300);
     }, 100);
   } else {
     go('home', document.querySelector('[data-pg=home]'));
@@ -8699,11 +8746,112 @@ window.resendInvite = resendInvite;
 
 
 // TEAM MGMT
-function openTeamModal() {
-  if (!isTeamLeader()) { alert('Only the team leader can manage the team.'); return; }
-  renderTeam();
-  document.getElementById('team-modal').style.display = 'flex';
+function switchTeamRole(role) {
+  var agentBtn = document.getElementById('team-role-agent');
+  var lenderBtn = document.getElementById('team-role-lender');
+  var agentForm = document.getElementById('team-agent-form');
+  var lenderForm = document.getElementById('team-lender-form');
+  var isAgent = role === 'agent';
+  if (agentBtn) { agentBtn.style.background = isAgent ? 'var(--green)' : 'var(--surface2)'; agentBtn.style.color = isAgent ? '#fff' : 'var(--text2)'; }
+  if (lenderBtn) { lenderBtn.style.background = !isAgent ? '#185FA5' : 'var(--surface2)'; lenderBtn.style.color = !isAgent ? '#fff' : 'var(--text2)'; }
+  if (agentForm) agentForm.style.display = isAgent ? 'block' : 'none';
+  if (lenderForm) lenderForm.style.display = !isAgent ? 'block' : 'none';
 }
+window.switchTeamRole = switchTeamRole;
+
+function renderTeamLenders() {
+  var el = document.getElementById('team-lender-list');
+  if (!el) return;
+  el.innerHTML = DEFAULT_LENDERS.map(function(l) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#EFF6FF;border:1px solid #B5D4F4;padding:10px 12px;border-radius:6px;">'
+      + '<div>'
+      + '<div style="font-weight:500;font-size:13px;">'+l.name+(l.isDefault?' <span class="pill" style="background:#185FA5;color:#fff;font-size:9px;">Platform</span>':'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--text2);">'+(l.role||'Lender')+(l.company?' · '+l.company:'')+(l.email?' · '+l.email:'')+'</div>'
+      + '</div>'
+      + (l.id!=='tom' ? '<button class="btn btn-sm" onclick="removeLender(\''+l.id+'\')" style="color:var(--red-dk);">Remove</button>' : '<span style="font-size:10px;color:var(--text3);">Owner</span>')
+      + '</div>';
+  }).join('');
+}
+window.renderTeamLenders = renderTeamLenders;
+
+async function removeLender(id) {
+  if (!confirm('Remove this lender from the platform?')) return;
+  var idx = DEFAULT_LENDERS.findIndex(function(l){ return l.id === id; });
+  if (idx >= 0) DEFAULT_LENDERS.splice(idx, 1);
+  try { await fb.deleteDoc(fb.doc(fb.db, 'team_lenders', id)); } catch(e) { console.log('removeLender:', e.message); }
+  renderTeamLenders();
+}
+window.removeLender = removeLender;
+
+async function addLenderAndInvite() {
+  var name = (document.getElementById('tl-name')||{}).value.trim();
+  var phone = (document.getElementById('tl-phone')||{}).value.trim();
+  var email = (document.getElementById('tl-email')||{}).value.trim();
+  var company = (document.getElementById('tl-company')||{}).value.trim();
+  var applyLink = (document.getElementById('tl-applylink')||{}).value.trim();
+  if (!name || !email) { alert('Name and email are required.'); return; }
+
+  var id = 'lndr_' + name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12) + '_' + Date.now().toString(36);
+  var existing = DEFAULT_LENDERS.find(function(l){ return l.email && l.email.toLowerCase() === email.toLowerCase(); });
+  if (existing) { alert('A lender with that email already exists.'); return; }
+
+  var lenderData = { id, name, role: 'Licensed Mortgage Professional', phone, email, company, applyLink, addedAt: new Date().toISOString() };
+  DEFAULT_LENDERS.push(lenderData);
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'team_lenders', id), lenderData);
+  } catch(e) {
+    DEFAULT_LENDERS.pop();
+    alert('Failed to save lender: ' + e.message);
+    return;
+  }
+
+  // Clear form
+  ['tl-name','tl-phone','tl-email','tl-company','tl-applylink'].forEach(function(fid){
+    var el = document.getElementById(fid); if(el) el.value = '';
+  });
+  renderTeamLenders();
+
+  // Build lender invite email (blue themed)
+  var first = name.split(' ')[0];
+  var code = 'LND' + Math.random().toString(36).substr(2,8).toUpperCase();
+  var link = location.origin + location.pathname + '#agent-invite=' + code;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
+      name, email: email.toLowerCase(), code, role: 'lender', lenderId: id,
+      invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false
+    });
+  } catch(e) { console.log('lenderInvite store failed:', e.message); }
+
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#185FA5;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:24px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Mortgage Professional Platform</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join Nest Track as a mortgage professional by Tom Garuccio. Track your mortgage clients through every step of their journey, stay in sync with agents, and keep everyone updated automatically.</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account.</p>'
+    +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#185FA5;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Lender Account →</a></div>'
+    +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
+    +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 16px;"/>'
+    +'<div style="font-size:14px;font-weight:600;">Tom Garuccio</div>'
+    +'<div style="font-size:12px;color:#888;">The Garuccio Group · Tom@GaruccioGroup.com</div>'
+    +'</div></div>';
+
+  var subject = first + ', your Nest Track lender account is ready';
+  closeM('team-modal');
+  showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue) {
+    try {
+      var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
+      if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; }
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      alert(name + ' added and lender invite sent to ' + email + '!');
+    } catch(e) { alert('Lender added but invite email failed: ' + e.message); }
+  });
+}
+window.addLenderAndInvite = addLenderAndInvite;
+
+window.saveOutsideLender = function(uid) { console.log('outside lender disabled'); };
 function renderTeam() {
   document.getElementById('team-list').innerHTML = DEFAULT_AGENTS.map(a => `
     <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:10px 12px;border-radius:6px;">
@@ -8847,6 +8995,12 @@ async function removeAgent(id) {
   try { await fb.deleteDoc(fb.doc(fb.db, 'team_agents', id)); } catch(e) { console.log('removeAgent:', e.message); }
   populateAgentDropdown();
   alert(ag.name + ' removed from team.');
+}
+function openTeamModal() {
+  if (!isTeamLeader()) { alert('Only the team leader can manage the team.'); return; }
+  renderTeam();
+  renderTeamLenders();
+  document.getElementById('team-modal').style.display = 'flex';
 }
 window.openTeamModal = openTeamModal;
 window.addAgent = addAgent;
@@ -14187,14 +14341,19 @@ function openAddContactModal() {
   });
   var crmSel = document.getElementById('inv-crm-status');
   if (crmSel) crmSel.value = 'pipeline';
+  // Default journey type — mortgage for lender-only logins
+  var journeySel = document.getElementById('inv-journey');
+  if (journeySel) journeySel.value = (isLender && !isAgent) ? 'mortgage' : 'buyer';
   var inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){
     return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>';
   }).join('');
   var invLenderSel = document.getElementById('inv-lender');
-  if (invLenderSel) invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){
-    return '<option value="'+l.id+'">'+l.name+(l.role?' — '+l.role:'')+'</option>';
-  }).join('');
+  if (invLenderSel) {
+    invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){
+      return '<option value="'+l.id+'"'+(l.id===(userProfile.lenderId||'tom')&&isLender?' selected':'')+'>'+l.name+(l.role?' — '+l.role:'')+'</option>';
+    }).join('');
+  }
   document.getElementById('invite-result').style.display = 'none';
   document.getElementById('invite-modal').style.display = 'flex';
 }
