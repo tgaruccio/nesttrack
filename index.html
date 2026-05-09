@@ -2211,7 +2211,7 @@ textarea{resize:vertical;min-height:68px;}
 
   <!-- PROFILE TAB -->
   <!-- DEALS TAB -->
-  <div id="agent-deals-panel" style="display:none;flex-direction:column;gap:12px;background:var(--surface2);border-radius:var(--r);padding:12px;margin:-12px;">
+  <div id="agent-deals-panel" style="display:none;flex-direction:column;gap:12px;">
     <div id="deal-tracker-panel"></div>
   </div>
 
@@ -13313,8 +13313,11 @@ function renderDealCards(deals) {
     var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
     var autoStatus = deal.status || deal._storedStatus || 'Active';
     var hasAddr = deal.address && deal.address.trim();
-    return '<div style="background:#fff;border-radius:8px;overflow:hidden;border:1px solid var(--border);" id="deal-card-'+deal.id+'">'
-      +'<div style="background:'+(deal.dealType==='seller'?'#D97706':'#1D9E75')+';padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+    var tileBg   = deal.dealType === 'seller' ? '#FEF3C7' : '#ECFDF5';
+    var tileBdr  = deal.dealType === 'seller' ? '#F59E0B' : '#6EE7B7';
+    var hdrBg    = deal.dealType === 'seller' ? '#D97706' : '#1D9E75';
+    return '<div style="background:'+tileBg+';border:1.5px solid '+tileBdr+';border-radius:var(--r);overflow:hidden;margin-bottom:12px;" id="deal-card-'+deal.id+'">'
+      +'<div style="background:'+hdrBg+';padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
       +'<div style="flex:1;min-width:0;">'
       +'<div style="font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
       +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
