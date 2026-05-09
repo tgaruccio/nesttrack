@@ -7065,10 +7065,25 @@ async function loadBuyersForAgent() {
         });
       } catch(e) { console.log('coAgent query err:', e.message); }
     }
+    // Also load clients where this user is assigned as lender/mortgage LO
+    if (isLender && !(isTeamLeader() && _adminShowAll)) {
+      try {
+        var lenderId = userProfile.lenderId || 'tom';
+        var lQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('lenderId','==',lenderId));
+        var lSnap = await fb.getDocs(lQ);
+        lSnap.forEach(d => {
+          if (!allBuyers.find(function(b){ return b.uid === d.id; })) {
+            allBuyers.push({ uid: d.id, ...d.data() });
+          }
+        });
+      } catch(e) { console.log('lender query err:', e.message); }
+    }
     // myBuyers always respects the current view mode
     myBuyers = allBuyers.filter(function(b) {
       if (isTeamLeader() && _adminShowAll) return true;
-      return b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId;
+      return b.agentId === userProfile.agentId
+        || b.coAgentId === userProfile.agentId
+        || (isLender && b.lenderId === (userProfile.lenderId || 'tom'));
     });
   } catch(e) { console.error('loadBuyers', e); }
 }
