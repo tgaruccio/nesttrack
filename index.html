@@ -3889,7 +3889,9 @@ function go(page, el) {
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
-      fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid)).then(function(snap) {
+      // In preview mode fetch the buyer's profile, not the agent's
+      var _fetchUid = (_previewMode && _previewBuyerUid) ? _previewBuyerUid : currentUser.uid;
+      fb.getDoc(fb.doc(fb.db, 'users', _fetchUid)).then(function(snap) {
         if (snap.exists()) {
           var data = snap.data();
           if (data.buyerContractDates && typeof data.buyerContractDates === 'object') {
@@ -3904,7 +3906,6 @@ function go(page, el) {
           userProfile = data;
           renderTxnTimeline();
           if (typeof renderYourTitleCo === 'function') renderYourTitleCo();
-
         }
       }).catch(function(){});
     }
@@ -6949,11 +6950,15 @@ window._startPreview = async function(buyerUid) {
   var picker = document.getElementById('preview-picker-overlay');
   if (picker) picker.remove();
 
-  // Load that client's profile
+  // Load full buyer profile including nested date objects
   var snap = await fb.getDoc(fb.doc(fb.db, 'users', buyerUid));
   if (!snap.exists()) { alert('Could not load client profile.'); return; }
   var buyerProfile = snap.data();
   buyerProfile.uid = buyerUid;
+  // Ensure contract dates are plain objects
+  if (buyerProfile.buyerContractDates) buyerProfile.buyerContractDates = Object.assign({}, buyerProfile.buyerContractDates);
+  if (buyerProfile.sellerContractDates) buyerProfile.sellerContractDates = Object.assign({}, buyerProfile.sellerContractDates);
+  if (buyerProfile.mortgageContractDates) buyerProfile.mortgageContractDates = Object.assign({}, buyerProfile.mortgageContractDates);
 
   // Save agent state
   window._previewSavedState = {
