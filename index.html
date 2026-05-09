@@ -7557,10 +7557,30 @@ function renderAdPipeline(buyers) {
   }).slice(0, 8);
   container.innerHTML = sorted.map(function(b) {
     var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
-    var stepNum = b.currentStep || 1;
-    var stepName = (TIMELINE_STEPS[stepNum-1]||{}).name || 'Initial Consult';
-    var hasDates = b.buyerContractDates && Object.keys(b.buyerContractDates).some(function(k){ return b.buyerContractDates[k]; });
-    var closing = hasDates && b.buyerContractDates.closingDate;
+    var jt = b.journeyType || 'buyer';
+    var isSellerOnly = jt === 'seller' || jt === 'seller-only';
+    var stepNum, stepName, stepColor, stepBg;
+    if (isSellerOnly) {
+      stepNum = b.currentSellerStep || 1;
+      stepName = (typeof SELLER_STEPS !== 'undefined' && SELLER_STEPS[stepNum-1]) ? SELLER_STEPS[stepNum-1].title : 'Initial Consult';
+      stepColor = '#92400E'; stepBg = '#FEF3C7';
+    } else if (jt === 'both' && (b.currentSellerStep||0) > 0) {
+      // Show whichever journey is further along / most recent
+      stepNum = b.currentStep || 1;
+      stepName = (TIMELINE_STEPS[stepNum-1]||{}).name || 'Initial Consult';
+      stepColor = 'var(--green-dk)'; stepBg = 'var(--green-lt)';
+    } else {
+      stepNum = b.currentStep || 1;
+      stepName = (TIMELINE_STEPS[stepNum-1]||{}).name || 'Initial Consult';
+      stepColor = 'var(--green-dk)'; stepBg = 'var(--green-lt)';
+    }
+    // Closing date — prefer seller dates for seller-only clients
+    var hasDates = isSellerOnly
+      ? (b.sellerContractDates && Object.keys(b.sellerContractDates).some(function(k){ return b.sellerContractDates[k]; }))
+      : (b.buyerContractDates && Object.keys(b.buyerContractDates).some(function(k){ return b.buyerContractDates[k]; }));
+    var closing = isSellerOnly
+      ? (hasDates && b.sellerContractDates.closingDate)
+      : (hasDates && b.buyerContractDates && b.buyerContractDates.closingDate);
     var closingTag = '';
     if (closing) {
       var cd = new Date(closing+'T12:00:00');
@@ -7584,7 +7604,7 @@ function renderAdPipeline(buyers) {
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-weight:500;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(b.firstName||'')+' '+(b.lastName||'')+unreadTag+'</div>'
       + '<div style="font-size:11.5px;color:var(--text2);margin-top:2px;">'
-      + '<span style="background:var(--green-lt);color:var(--green-dk);border-radius:8px;padding:1px 7px;font-size:10px;font-weight:500;">Step '+stepNum+' · '+stepName+'</span>'
+      + '<span style="background:'+stepBg+';color:'+stepColor+';border-radius:8px;padding:1px 7px;font-size:10px;font-weight:500;">Step '+stepNum+' · '+stepName+'</span>'
       + closingTag+'</div>'
       + '</div>'
       + '<div style="font-size:11px;color:var(--text3);flex-shrink:0;">'+lastUpdate+'</div>'
