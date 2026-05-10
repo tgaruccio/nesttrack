@@ -1351,14 +1351,19 @@ textarea{resize:vertical;min-height:68px;}
 <!-- LISTING DESCRIPTION GENERATOR -->
 <div class="page" id="page-listing-desc">
   <div class="ph"><div class="pt">Listing Description Generator</div><span class="pill pill-p">✦ Claude AI</span></div>
-  <div class="notice" style="background:#FEF3C7;color:#92400E;">Upload photos and enter property details — Claude writes a compelling MLS description, social post, and email subject line.</div>
+  <div class="notice" style="background:#EFF6FF;color:#185FA5;">Upload the property tax sheet and Claude auto-fills the details — then generates your MLS description, social post, and email subject line.</div>
   <div class="card" style="display:flex;flex-direction:column;gap:13px;">
 
-    <!-- Photos first — Claude reads them -->
+    <!-- Tax sheet PDF upload -->
     <div>
-      <label class="flabel">Property Photos (upload up to 5 — Claude will describe what it sees)</label>
-      <input type="file" id="ld-photos" accept="image/*" multiple style="font-size:13px;" onchange="ldHandlePhotos(event)"/>
-      <div id="ld-photo-previews" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+      <label class="flabel">Property Tax Sheet / MLS Sheet (PDF — Claude reads it and fills the form)</label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label style="display:inline-flex;align-items:center;gap:7px;background:var(--blue-lt);color:var(--blue-dk);border:1px solid #B5D4F4;border-radius:var(--r-sm);padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;">
+          📄 Upload Tax Sheet
+          <input type="file" id="ld-taxsheet" accept="application/pdf" style="display:none;" onchange="ldHandleTaxSheet(event)"/>
+        </label>
+        <div id="ld-taxsheet-status" style="font-size:12px;color:var(--text3);"></div>
+      </div>
     </div>
 
     <div class="fg2">
@@ -4281,33 +4286,66 @@ async function fetchMortgageRates(){
 function applyRateToCalc(){var ri=document.getElementById('mort-rate');if(ri&&currentRates.rate30){ri.value=currentRates.rate30.toFixed(3);calcMort();}}
 window.applyRateToCalc=applyRateToCalc;
 
-var ldPhotoData = []; // [{b64, mime}]
+var ldTaxSheetB64 = null;
 
-function ldHandlePhotos(event) {
-  ldPhotoData = [];
-  var previews = document.getElementById('ld-photo-previews');
-  if (previews) previews.innerHTML = '';
-  var files = Array.from(event.target.files || []).slice(0, 5);
-  files.forEach(function(file) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var dataUrl = e.target.result;
-      var b64 = dataUrl.split(',')[1];
-      var mm = dataUrl.match(/^data:([^;]+);/);
-      var mime = mm ? mm[1] : 'image/jpeg';
-      if (!['image/jpeg','image/png','image/gif','image/webp'].includes(mime)) mime = 'image/jpeg';
-      ldPhotoData.push({b64: b64, mime: mime});
-      if (previews) {
-        var img = document.createElement('img');
-        img.src = dataUrl;
-        img.style.cssText = 'width:80px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);';
-        previews.appendChild(img);
+async function ldHandleTaxSheet(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var status = document.getElementById('ld-taxsheet-status');
+  if (status) { status.textContent = 'Reading PDF...'; status.style.color = 'var(--text3)'; }
+
+  // Read PDF as base64
+  var reader = new FileReader();
+  reader.onload = async function(e) {
+    var dataUrl = e.target.result;
+    ldTaxSheetB64 = dataUrl.split(',')[1];
+    if (status) { status.textContent = '✓ ' + file.name + ' — extracting details...'; status.style.color = 'var(--green-dk)'; }
+
+    // Ask Claude to extract the property details
+    try {
+      var d = await claudeAPI({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: ldTaxSheetB64 } },
+            { type: 'text', text: 'Extract property details from this tax record or MLS sheet. Return ONLY valid JSON with these exact keys (use null if not found): {"address":"full street address","city":"city","state":"state","zip":"zip","beds":number,"baths":number,"sqft":number,"year":number,"lotSize":"lot size if shown","garage":"garage info if shown","basement":"basement info if shown","style":"home style if shown"}' }
+          ]
+        }]
+      });
+      var txt = d.content[0].text;
+      var clean = txt.replace(/```json|```/g, '').trim();
+      var data = JSON.parse(clean);
+
+      // Auto-fill the form fields
+      var addr = [data.address, data.city, data.state, data.zip].filter(Boolean).join(', ');
+      if (addr) { var el = document.getElementById('ld-address'); if (el) el.value = addr; }
+      if (data.beds) { var el = document.getElementById('ld-beds'); if (el) el.value = data.beds; }
+      if (data.baths) { var el = document.getElementById('ld-baths'); if (el) el.value = data.baths; }
+      if (data.sqft) { var el = document.getElementById('ld-sqft'); if (el) el.value = data.sqft; }
+      if (data.year) { var el = document.getElementById('ld-year'); if (el) el.value = data.year; }
+
+      // Add lot, garage, basement to features if found
+      var extras = [];
+      if (data.lotSize) extras.push('Lot: ' + data.lotSize);
+      if (data.garage) extras.push('Garage: ' + data.garage);
+      if (data.basement) extras.push('Basement: ' + data.basement);
+      if (data.style) extras.push('Style: ' + data.style);
+      if (extras.length) {
+        var feat = document.getElementById('ld-features');
+        if (feat) feat.value = (feat.value ? feat.value + '\n' : '') + extras.join('\n');
       }
-    };
-    reader.readAsDataURL(file);
-  });
+
+      if (status) { status.textContent = '✓ Details filled in — review and add anything missing'; status.style.color = 'var(--green-dk)'; }
+    } catch(e) {
+      if (status) { status.textContent = 'Could not read PDF — fill in details manually'; status.style.color = 'var(--text3)'; }
+      ldTaxSheetB64 = null;
+    }
+  };
+  reader.readAsDataURL(file);
 }
-window.ldHandlePhotos = ldHandlePhotos;
+window.ldHandleTaxSheet = ldHandleTaxSheet;
 
 async function generateListingDesc(){
   var addr=(document.getElementById('ld-address')||{}).value||'';
@@ -4343,23 +4381,19 @@ async function generateListingDesc(){
   var userText = 'Write listing copy in a '+tone+' tone for this property:\n\n'+details+'\n\nGenerate exactly three sections with these headers:\n\nMLS DESCRIPTION:\n(Max 500 characters, no emojis, factual and compelling, focus on the strongest selling points)\n\nSOCIAL MEDIA POST:\n(Facebook/Instagram post, 150-250 characters, include 3-4 relevant emojis naturally, end with a call to action)\n\nEMAIL SUBJECT LINE:\n(Max 60 characters, attention-grabbing)';
 
   try{
-    var messages;
-    if(ldPhotoData.length > 0){
-      // Include photos in message
-      var content = ldPhotoData.map(function(p){
-        return {type:'image',source:{type:'base64',media_type:p.mime,data:p.b64}};
-      });
-      content.push({type:'text',text:'These are photos of the property. Use what you see to enhance the description — mention specific visible features like finishes, layout, light, space, or standout details.\n\n'+userText});
-      messages = [{role:'user',content:content}];
-    } else {
-      messages = [{role:'user',content:userText}];
-    }
-    var d=await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1200,system:systemPrompt,messages:messages});
-    var txt=d.content[0].text;
+    // Small wait to ensure any async operations finish
+    await new Promise(function(r){ setTimeout(r, 100); });
+    var messages = [{role:'user',content:userText}];
+    var payload = {model:'claude-sonnet-4-5-20250929',max_tokens:1200,system:systemPrompt,messages:messages};
+    var d = await claudeAPI(payload);
+    if (!d || !d.content || !d.content[0]) throw new Error('Empty response — no content returned');
+    var txt = d.content[0].text;
+    if (!txt) throw new Error('Response had no text');
     resultEl.innerHTML='<div class="ai-resp" id="ld-output">'+escapeHtml(txt)+'</div>'
       +'<button class="btn btn-sm" style="margin-top:8px;" onclick="copyLDOutput()">Copy All</button>';
   }catch(e){
-    resultEl.innerHTML='<div class="notice" style="color:#E24B4A;">Failed. Try again.</div>';
+    resultEl.innerHTML='<div class="notice" style="color:#E24B4A;">Failed: '+e.message+'</div>';
+    console.error('Listing generator error:', e);
   }
   if(btn){btn.disabled=false;btn.textContent='Generate Listing Copy';}
 }
