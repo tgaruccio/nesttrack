@@ -7567,12 +7567,12 @@ async function renderAgentDashboard() {
   el = document.getElementById('ad-stat-saved');
   if (el) el.textContent = '🏠 ' + savedCount + ' saved home' + (savedCount !== 1 ? 's' : '') + ' across clients';
 
-  // Appts + showings this week — include ShowingTime synced events
+  // Appts + showings this week — include ShowingTime synced events and manual showings
   var weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
   var weekEndStr = weekEnd.toISOString().split('T')[0];
   var apptCount = (_todos||[]).filter(function(t){ return t.id && t.id.startsWith('appt-') && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
   var manualShowingCount = (_todos||[]).filter(function(t){ return t.id && (t.id.startsWith('showing-') || (t.text && t.text.toLowerCase().indexOf('showing') !== -1)) && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
-  // Also count ShowingTime synced events this week
+  // Count ShowingTime synced events this week
   var stShowingCount = 0;
   try {
     var stEvents = await fetchShowingTimeEvents();
@@ -7582,7 +7582,18 @@ async function renderAgentDashboard() {
       return d >= todayStr && d <= weekEndStr;
     }).length;
   } catch(e) {}
-  var totalApptShowings = apptCount + manualShowingCount + stShowingCount;
+  // Count manual showings from Firestore this week
+  var firestoreShowingCount = 0;
+  try {
+    var msSnap = await fb.getDocs(fb.collection(fb.db,'agents',userProfile.agentId||'tom','manualShowings'));
+    msSnap.forEach(function(d){
+      var m = d.data();
+      if (!m.date) return;
+      var dateStr2 = new Date(m.date).toISOString().split('T')[0];
+      if (dateStr2 >= todayStr && dateStr2 <= weekEndStr) firestoreShowingCount++;
+    });
+  } catch(e) {}
+  var totalApptShowings = apptCount + manualShowingCount + stShowingCount + firestoreShowingCount;
   el = document.getElementById('ad-stat-showings');
   if (el) el.textContent = '📅 ' + totalApptShowings + ' showing' + (totalApptShowings !== 1 ? 's' : '') + ' & appt' + (totalApptShowings !== 1 ? 's' : '') + ' this week';
 
@@ -12727,38 +12738,12 @@ window.fetchShowingTimeEvents = fetchShowingTimeEvents;
 async function renderShowingInbox() {
   var el = document.getElementById('showing-inbox');
   if (!el) return;
-  el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Syncing ShowingTime...</div>';
+  el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading showings...</div>';
 
+  // Load both sources in parallel
   var events = await fetchShowingTimeEvents();
 
-  if (!events.length) {
-    var stUrl = null;
-    try {
-      var aSnap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
-      if (aSnap.exists()) stUrl = aSnap.data().showingTimeUrl;
-    } catch(e) {}
-
-    if (!stUrl) {
-      el.innerHTML = '<div class="notice" style="text-align:center;">'
-        +'<div style="font-size:32px;margin-bottom:8px;">📅</div>'
-        +'<div style="font-size:14px;font-weight:500;margin-bottom:6px;">Connect ShowingTime</div>'
-        +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Paste your ShowingTime iCal URL in My Profile to sync upcoming showings.</div>'
-        +'<button class="btn btn-sm btn-g" onclick="switchAgentTab(\'profile\')">Go to My Profile →</button>'
-        +'</div>';
-    } else {
-      el.innerHTML = '<div class="notice" style="text-align:center;">'
-        +'<div style="font-size:13px;color:var(--text3);">No upcoming showings in the next 60 days.</div>'
-        +'</div>';
-    }
-    return;
-  }
-
-  _pendingShowings = events;
-
-  // Load buyers for assignment dropdown
-  if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
-
-  // Load manual showings and merge
+  // Load manual showings regardless of ShowingTime
   var manualShowings = [];
   try {
     var agId = userProfile.agentId||'tom';
@@ -12772,6 +12757,34 @@ async function renderShowingInbox() {
     });
     manualShowings.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
   } catch(me){ console.log('manualShowings load err:', me.message); }
+
+  // If nothing at all, show appropriate message
+  if (!events.length && !manualShowings.length) {
+    var stUrl = null;
+    try {
+      var aSnap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+      if (aSnap.exists()) stUrl = aSnap.data().showingTimeUrl;
+    } catch(e) {}
+
+    if (!stUrl) {
+      el.innerHTML = '<div class="notice" style="text-align:center;">'
+        +'<div style="font-size:32px;margin-bottom:8px;">📅</div>'
+        +'<div style="font-size:14px;font-weight:500;margin-bottom:6px;">No showings yet</div>'
+        +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Add a manual showing above or connect ShowingTime in My Profile to sync upcoming showings.</div>'
+        +'<button class="btn btn-sm btn-g" onclick="switchAgentTab(\'profile\')">Connect ShowingTime →</button>'
+        +'</div>';
+    } else {
+      el.innerHTML = '<div class="notice" style="text-align:center;">'
+        +'<div style="font-size:13px;color:var(--text3);">No upcoming showings in the next 60 days.</div>'
+        +'</div>';
+    }
+    return;
+  }
+
+  _pendingShowings = events;
+
+  // Load buyers for assignment dropdown
+  if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
     +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'
