@@ -1915,7 +1915,7 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- CHAT -->
 <!-- AGENT MESSAGES PAGE -->
-<div class="page" id="page-messages" style="padding:0;flex-direction:row;height:calc(100vh - 56px);">
+<div class="page" id="page-messages" style="padding:0;flex-direction:row;height:calc(100vh - 56px);overflow:hidden;gap:0;">
 
   <!-- Conversation list (left panel) -->
   <div id="msg-convo-list" style="width:280px;min-width:280px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden;">
@@ -1927,7 +1927,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- Chat window (right panel) -->
-  <div id="msg-chat-panel" style="flex:1;display:flex;flex-direction:column;min-width:0;">
+  <div id="msg-chat-panel" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;">
     <!-- Empty state -->
     <div id="msg-empty-state" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);gap:10px;">
       <div style="font-size:40px;">💬</div>
@@ -1935,8 +1935,8 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:13px;">Choose a client from the left to start chatting</div>
     </div>
     <!-- Active chat -->
-    <div id="msg-active-chat" style="display:none;flex-direction:column;height:100%;">
-      <div id="msg-chat-hdr" style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);">
+    <div id="msg-active-chat" style="display:none;flex-direction:column;flex:1;min-height:0;height:100%;overflow:hidden;">
+      <div id="msg-chat-hdr" style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">
         <div id="msg-chat-avatar" style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;"></div>
         <div style="flex:1;">
           <div id="msg-chat-name" style="font-size:14px;font-weight:500;"></div>
@@ -1945,8 +1945,8 @@ textarea{resize:vertical;min-height:68px;}
         <a id="msg-chat-call" href="#" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;text-decoration:none;color:var(--text);">📞 Call</a>
         <a id="msg-chat-sms" href="#" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;text-decoration:none;color:var(--text);">💬 Text</a>
       </div>
-      <div class="chat-messages" id="msg-chat-messages" style="flex:1;"></div>
-      <div class="chat-input">
+      <div class="chat-messages" id="msg-chat-messages" style="flex:1;overflow-y:auto;min-height:0;"></div>
+      <div class="chat-input" style="flex-shrink:0;">
         <textarea id="msg-chat-input" placeholder="Message..." rows="1"
           style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:var(--surface2);"
           oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
