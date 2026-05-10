@@ -499,7 +499,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
     <div class="ns" style="padding-top:6px;">Agent Tools</div>
     <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
-    <button class="nb" data-pg="page-messages" onclick="go('page-messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Command Center</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
@@ -1225,7 +1225,7 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Quick launch grid -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
-    <button onclick="go('page-messages',document.querySelector('[data-pg=page-messages]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+    <button onclick="go('messages',document.querySelector('[data-pg=messages]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">💬</span>
       <span style="font-size:13px;font-weight:600;">Messages</span>
       <span style="font-size:11px;opacity:0.85;" id="ad-msg-count">Client conversations</span>
@@ -1915,7 +1915,7 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- CHAT -->
 <!-- AGENT MESSAGES PAGE -->
-<div class="page" id="page-messages" style="padding:0;display:none;flex-direction:row;height:100vh;">
+<div class="page" id="page-messages" style="padding:0;flex-direction:row;height:calc(100vh - 56px);">
 
   <!-- Conversation list (left panel) -->
   <div id="msg-convo-list" style="width:280px;min-width:280px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden;">
@@ -4028,7 +4028,7 @@ function go(page, el) {
   if (page === 'education') renderEducation();
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
-  if (page === 'page-messages') { renderMessagesPage(); }
+  if (page === 'messages') { renderMessagesPage(); }
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
