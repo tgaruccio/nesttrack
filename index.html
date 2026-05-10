@@ -6402,35 +6402,34 @@ function renderHome() {
     el = document.getElementById('home-sell-progress');   if(el) el.style.width = Math.max(5,sellPct)+'%';
   }
 
-  // Call existing render functions (they fill divs on the full trail pages)
-  renderTrailMap();
-  renderTxnTimeline();
-  if (mortStep > 0 || mortHasDates) renderMortgageJourney();
-  if (showSeller) renderSellerTrail();
+  // Render trail maps — use setTimeout to ensure DOM is ready on mobile
+  setTimeout(function() {
+    renderTrailMap();
+    if (mortStep > 0 || mortHasDates) renderMortgageJourney();
+    if (showSeller) renderSellerTrail();
 
-  // Copy rendered SVGs from trail page divs into home section divs
-  // (uses requestAnimationFrame to ensure render is complete first)
-  requestAnimationFrame(function() {
-    var src, dst;
-    // Buyer trail — showTrailStage → showHomeTrailStage (id stays the same, 1-based)
-    src = document.getElementById('trail-map');
-    dst = document.getElementById('home-trail-map');
-    if (src && dst) {
-      dst.innerHTML = src.innerHTML.replace(/showTrailStage/g, 'showHomeTrailStage');
-    }
-    // Mortgage trail — showMJStep → showHomeMJStep (i stays the same, 0-based)
-    src = document.getElementById('mj-trail-map');
-    dst = document.getElementById('home-mj-trail-map');
-    if (src && dst) {
-      dst.innerHTML = src.innerHTML.replace(/showMJStep/g, 'showHomeMJStep');
-    }
-    // Seller trail — showSellerStep → showHomeSellerStep (i stays the same, 0-based)
-    src = document.getElementById('seller-trail-map');
-    dst = document.getElementById('home-seller-trail-map');
-    if (src && dst) {
-      dst.innerHTML = src.innerHTML.replace(/showSellerStep/g, 'showHomeSellerStep');
-    }
-  });
+    // Copy rendered SVGs from trail page divs into home section divs
+    setTimeout(function() {
+      var src, dst;
+      src = document.getElementById('trail-map');
+      dst = document.getElementById('home-trail-map');
+      if (src && dst && src.innerHTML) {
+        dst.innerHTML = src.innerHTML.replace(/showTrailStage/g, 'showHomeTrailStage');
+      }
+      src = document.getElementById('mj-trail-map');
+      dst = document.getElementById('home-mj-trail-map');
+      if (src && dst && src.innerHTML) {
+        dst.innerHTML = src.innerHTML.replace(/showMJStep/g, 'showHomeMJStep');
+      }
+      src = document.getElementById('seller-trail-map');
+      dst = document.getElementById('home-seller-trail-map');
+      if (src && dst && src.innerHTML) {
+        dst.innerHTML = src.innerHTML.replace(/showSellerStep/g, 'showHomeSellerStep');
+      }
+    }, 300);
+  }, 100);
+
+  renderTxnTimeline();
 
   // Saved homes badge
   var savedBadge = document.getElementById('home-saved-badge');
@@ -7076,15 +7075,22 @@ window._startPreview = async function(buyerUid) {
   if (startLabel) startLabel.style.display = '';
   document.body.style.paddingTop = '46px'; // make room for banner
 
-  // Re-render as buyer
-  
+  // Re-render as buyer — use longer timeouts for mobile
   updateAgentRefs();
   renderYourAgent();
   renderYourLender();
   await loadProperties();
   await loadTours();
   go('home', document.querySelector('[data-pg=home]'));
-  setTimeout(renderHome, 100);
+  setTimeout(function() {
+    renderHome();
+    renderTxnTimeline();
+    setTimeout(function() {
+      renderTrailMap();
+      renderSellerTrail();
+      renderMortgageJourney();
+    }, 400);
+  }, 300);
 };
 window._startPreview = window._startPreview;
 
