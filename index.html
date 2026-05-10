@@ -6636,7 +6636,6 @@ window.showHomeSellerStep = showHomeSellerStep;
 
 function showHomeMJStep(i) {
   var s = MJ_STEPS[i]; if (!s) return;
-  // Close other section popups
   ['home-buyer-popup','home-sell-popup'].forEach(function(pid){ var p=document.getElementById(pid); if(p) p.style.display='none'; });
   var acts = '';
   if (s.action) {
@@ -6645,6 +6644,25 @@ function showHomeMJStep(i) {
     } else if (s.action.page) {
       acts += '<button class="btn btn-g btn-sm" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));">' + s.action.label + '</button>';
     }
+  }
+  var _hmjDocMap = {
+    0: ['consumer-guide','wire-fraud'],
+    1: ['consumer-guide'],
+    3: ['wire-fraud'],
+    9: ['closing'],
+    10: ['closing']
+  };
+  var _hmjDocs = _hmjDocMap[i] || [];
+  var _hmjNames = {'consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','closing':'Closing Statement'};
+  if (_hmjDocs.length) {
+    acts += '<div style="width:100%;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">'
+      + '<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:7px;">Documents for this step</div>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      + _hmjDocs.map(function(dk){
+          return '<button class="btn btn-sm" style="background:#EFF6FF;color:#185FA5;border-color:#B5D4F4;font-size:11.5px;" onclick="document.getElementById(\'home-mort-popup\').style.display=\'none\';go(\'docs-explainer\',document.querySelector(\'[data-pg=docs-explainer]\'));setTimeout(function(){var s=document.getElementById(\'de-doc\');if(s){s.value=\''+dk+'\';showDocInfo();explainDoc();}},300);">'
+            + (_hmjNames[dk]||dk) + '</button>';
+        }).join('')
+      + '</div></div>';
   }
   _fillPopup('home-mort-popup', 'Step ' + (i+1) + ' of ' + MJ_STEPS.length, s.title, s.body, s.tip||null, acts);
 }
@@ -9979,6 +9997,46 @@ function showMJStep(i) {
     }
     act.appendChild(el);
   } else act.style.display='none';
+
+  // Mortgage doc chips
+  var _mjDocMap = {
+    0: ['consumer-guide','wire-fraud'],
+    1: ['consumer-guide'],
+    3: ['wire-fraud'],
+    9: ['closing'],
+    10: ['closing']
+  };
+  var _mjDocs = _mjDocMap[i] || [];
+  var _mjNames = {'consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','closing':'Closing Statement'};
+  // Remove any previous doc chips
+  var prevChips = document.getElementById('mj-doc-chips');
+  if (prevChips) prevChips.remove();
+  if (_mjDocs.length) {
+    var wrap = document.createElement('div');
+    wrap.id = 'mj-doc-chips';
+    wrap.style.cssText = 'margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);';
+    var lbl = document.createElement('div');
+    lbl.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
+    lbl.textContent = 'Documents for this step';
+    wrap.appendChild(lbl);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+    _mjDocs.forEach(function(dk) {
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-sm';
+      btn.style.cssText = 'background:#EFF6FF;color:#185FA5;border-color:#B5D4F4;font-size:11.5px;';
+      btn.textContent = _mjNames[dk] || dk;
+      (function(key){ btn.onclick = function(){
+        document.getElementById('mj-detail').style.display='none';
+        go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
+        setTimeout(function(){ var s=document.getElementById('de-doc'); if(s){s.value=key;showDocInfo();explainDoc();} },300);
+      }; })(dk);
+      row.appendChild(btn);
+    });
+    wrap.appendChild(row);
+    act.parentNode.appendChild(wrap);
+  }
+
   var det = document.getElementById('mj-detail');
   det.style.display='block';
   keepJourneyMapUsable('mj-detail');
@@ -13726,7 +13784,9 @@ function filterDeals(tab) {
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
   var showClosed = (tab === 'closed');
   var filtered = _deals.filter(function(d){
-    return ((d.status || d._storedStatus || 'Active') === 'Closed') === showClosed;
+    var status = d.status || d._storedStatus || 'Active';
+    var isClosed = status === 'Closed' || status === 'Fallen Through';
+    return isClosed === showClosed;
   });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
