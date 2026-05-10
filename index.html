@@ -4354,7 +4354,7 @@ async function generateListingDesc(){
     } else {
       messages = [{role:'user',content:userText}];
     }
-    var d=await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:1200,system:systemPrompt,messages:messages});
+    var d=await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1200,system:systemPrompt,messages:messages});
     var txt=d.content[0].text;
     resultEl.innerHTML='<div class="ai-resp" id="ld-output">'+escapeHtml(txt)+'</div>'
       +'<button class="btn btn-sm" style="margin-top:8px;" onclick="copyLDOutput()">Copy All</button>';
@@ -5397,7 +5397,7 @@ async function autofillFromURL() {
   status.style.color = 'var(--text3)';
   try {
     const d = await claudeAPI({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 400,
       messages: [{
         role: 'user',
@@ -5442,7 +5442,7 @@ async function quickSaveFromURL() {
   if (!url) { alert('Paste a listing URL first'); return; }
   status.textContent = 'Loading...'; status.style.color = 'var(--text3)'; status.style.display = 'block';
   try {
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:300,messages:[{role:'user',content:'From this URL: ' + url + ' return ONLY valid JSON: {"address":"full address with city state zip","price":"$XXX,XXX","beds":number,"baths":number,"sqft":number,"year":number,"status":"active"}'}]});
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:300,messages:[{role:'user',content:'From this URL: ' + url + ' return ONLY valid JSON: {"address":"full address with city state zip","price":"$XXX,XXX","beds":number,"baths":number,"sqft":number,"year":number,"status":"active"}'}]});
     var info = JSON.parse(d.content[0].text.replace(/```json|```/g,'').trim());
     openSaveModal();
     setTimeout(function() {
@@ -5999,7 +5999,7 @@ async function getAIRecs() {
   if (budget) quiz += '\nBudget: '+budget;
   if (notes) quiz += '\nAdditional notes: '+notes;
   try {
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:'You are a real estate advisor helping a home buyer clarify their priorities and sharpen their search. Use their quiz answers and saved homes to give personalized guidance.\n\nBuyer answers:\n'+quiz+'\n\nSaved properties:\n'+summary+'\n\nProvide:\n\n1) BUYER PROFILE (2-3 sentences): What kind of buyer are they? What matters most to them?\n\n2) WHAT TO PRIORITIZE: Based on their answers, what 4-5 criteria should guide every home they evaluate?\n\n3) WHAT TO WATCH OUT FOR: 2-3 common traps or compromises buyers like them tend to make — what should they avoid?\n\n4) SAVED HOMES FEEDBACK: If they have saved homes, which seem like the best fit based on their priorities and why? Which might be worth reconsidering? If none saved, skip this section.\n\n5) NEXT STEP: One specific, actionable thing they should do this week to move forward.\n\nBe direct, warm, and specific. Do not recommend specific properties or addresses — focus on criteria, priorities, and process.'}]});
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:900,messages:[{role:'user',content:'You are a real estate advisor helping a home buyer clarify their priorities and sharpen their search. Use their quiz answers and saved homes to give personalized guidance.\n\nBuyer answers:\n'+quiz+'\n\nSaved properties:\n'+summary+'\n\nProvide:\n\n1) BUYER PROFILE (2-3 sentences): What kind of buyer are they? What matters most to them?\n\n2) WHAT TO PRIORITIZE: Based on their answers, what 4-5 criteria should guide every home they evaluate?\n\n3) WHAT TO WATCH OUT FOR: 2-3 common traps or compromises buyers like them tend to make — what should they avoid?\n\n4) SAVED HOMES FEEDBACK: If they have saved homes, which seem like the best fit based on their priorities and why? Which might be worth reconsidering? If none saved, skip this section.\n\n5) NEXT STEP: One specific, actionable thing they should do this week to move forward.\n\nBe direct, warm, and specific. Do not recommend specific properties or addresses — focus on criteria, priorities, and process.'}]});
     out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>';
   } catch(e) {
     out.innerHTML = '<div class="ai-resp" style="color:var(--red-dk);">Recommendations failed: '+e.message+'</div>';
@@ -6662,7 +6662,7 @@ async function genReport() {
   const out = document.getElementById('report-out'); think(out);
   const summary = props.length ? props.map(p => `${p.address} (${p.price}, ${p.rating}/5): Pros: ${(p.pros||[]).join(', ')||'none'}. Cons: ${(p.cons||[]).join(', ')||'none'}.`).join('\n') : 'No properties saved.';
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`Write a 3-4 paragraph buyer feedback report for the real estate agent based on these saved properties:\n\n${summary}\n\nCover: overall impressions, top candidates, deal-breakers, and what they're looking for next. Professional but warm.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1000,messages:[{role:'user',content:`Write a 3-4 paragraph buyer feedback report for the real estate agent based on these saved properties:\n\n${summary}\n\nCover: overall impressions, top candidates, deal-breakers, and what they're looking for next. Professional but warm.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
   } catch(e) { out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed.</div>`; out.style.display = 'block'; }
 }
 window.savePref = savePref;
@@ -8305,7 +8305,7 @@ async function aiBuyerSummary(uid) {
   try { const ps = await fb.getDocs(fb.collection(fb.db, 'users', uid, 'properties')); ps.forEach(d => bProps.push(d.data())); } catch(e){}
   const summary = bProps.length ? bProps.map(p => `${p.address}: ${p.rating}/5, tags: ${(p.tags||[]).join(',')||'none'}, pros: ${(p.pros||[]).join(', ')||'none'}, cons: ${(p.cons||[]).join(', ')||'none'}`).join('\n') : 'No saved properties.';
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:`Summarize this real estate buyer for their agent in 3-4 sentences: ${b.firstName} ${b.lastName}, currently in step ${b.currentStep}/11.\n\nSaved properties:\n${summary}\n\nGive: 1) buyer pattern/preferences, 2) recommended next action for the agent.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:600,messages:[{role:'user',content:`Summarize this real estate buyer for their agent in 3-4 sentences: ${b.firstName} ${b.lastName}, currently in step ${b.currentStep}/11.\n\nSaved properties:\n${summary}\n\nGive: 1) buyer pattern/preferences, 2) recommended next action for the agent.`}]}); out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`; out.style.display = 'block';
   } catch(e) { out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed.</div>`; out.style.display = 'block'; }
 }
 window.openBuyerDetail = openBuyerDetail;
@@ -10018,7 +10018,7 @@ async function analyzePhoto() {
   document.getElementById('analyze-btn').disabled = true;
   var apiMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(photoMime) ? photoMime : 'image/jpeg';
   try {
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:[
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:900,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:apiMime,data:photoB64}},
       {type:'text',text:'You are a home inspection expert. Analyze this photo for a buyer.\n\nBuyer question: '+(question||'General assessment — condition, age, what to watch for.')+'\n\nProvide:\n\nWHAT IS THIS? Identify the component.\n\nESTIMATED AGE: Best guess from visible indicators.\n\nCONDITION: Excellent/Good/Fair/Poor with explanation.\n\nCOST IF ACTION NEEDED: Rough repair/replacement estimate.\n\nCONCERNS: Anything needing attention.\n\nINSPECTION CHECKLIST: Items to ask your inspector.\n\nUse Northeast Ohio contractor pricing where relevant.'}
     ]}]});
@@ -10048,7 +10048,7 @@ async function runOffer() {
   var out = document.getElementById('offer-result'); think(out);
   try {
     var prompt = 'You are a real estate negotiation expert for Greater Cleveland / Northeast Ohio.\n\nProperty: '+(addr||'not specified')+'\nList Price: '+(list||'not specified')+'\nDays on Market: '+(dom||'unknown')+'\nBeds/Baths: '+(bb||'not specified')+'\nYear: '+(year||'unknown')+'\nCondition: '+(cond||'not specified')+'\nMarket: '+(market||'not specified')+'\nPre-Approval: '+(preapproval||'not specified')+'\nNotes: '+(notes||'none')+'\n\nProvide a complete offer strategy:\n\nRECOMMENDED OFFER PRICE: Specific dollar amount with reasoning.\n\nKEY CONTINGENCIES: Which to include and which to consider waiving.\n\nCLOSING DATE: Recommended timeline.\n\nEARNEST MONEY: Recommended amount.\n\nNEGOTIATION LEVERAGE: What advantages does the buyer have?\n\nESCALATION CLAUSE: Should they include one? Parameters if so.\n\nWATCH OUT FOR: Key risks in this deal.\n\nBe specific with dollar amounts.';
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:prompt}]});
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:900,messages:[{role:'user',content:prompt}]});
     out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>';
     out.style.display = 'block';
   } catch(e) {
@@ -10071,7 +10071,7 @@ async function runNeighborhood() {
   var out = document.getElementById('nbhd-result'); think(out);
   try {
     var prompt = 'You are a local neighborhood expert for Northeast Ohio / Greater Cleveland suburbs.\n\nLocation: '+addr+'\nHousehold: '+(type||'not specified')+'\nWork location: '+(work||'not specified')+'\nPriorities: '+(chips||'general overview')+'\n\nProvide a thorough analysis:\n\nNEIGHBORHOOD OVERVIEW: Character, vibe, who lives there.\n\nSCHOOLS: District name, school names, reputation, ratings.\n\nCOMMUTE: Drive time to '+(work||'downtown Cleveland')+' at rush hour, route, pain points.\n\nAMENITIES: Nearest grocery, restaurants, parks, shopping.\n\nPROPERTY VALUES: Recent trend and 5-year outlook.\n\nSAFETY: General reputation.\n\n'+(chips?'YOUR PRIORITIES: Specific feedback on: '+chips+'.\n\n':'')+'INSIDER TIPS: 2-3 things a local would tell you that you cannot find on Zillow.\n\nBe honest. If there are drawbacks, say so.';
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:prompt}]});
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:900,messages:[{role:'user',content:prompt}]});
     out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>';
     out.style.display = 'block';
   } catch(e) {
@@ -10092,7 +10092,7 @@ async function runMovingList() {
   var out = document.getElementById('mv-result'); think(out);
   try {
     var prompt = 'You are a moving coordinator for Northeast Ohio / Greater Cleveland. Create a personalized moving checklist.\n\nClosing/Move-in date: '+(date||'not specified')+'\nMoving from: '+(from||'not specified')+'\nHousehold: '+(size||'not specified')+'\nPets: '+(pets==='yes'?'Yes':'No')+'\nNew address: '+(addr||'not specified')+'\nNotes: '+(notes||'none')+'\n\nCreate a checklist organized by timeframe:\n\nBEFORE CLOSING (2-4 weeks): Key tasks to complete before closing day.\n\nCLOSING WEEK: Wire transfer safety, final walkthrough, etc.\n\nCLOSING DAY: What to bring, what to expect, first steps with keys.\n\nMOVING DAY: Practical checklist for the actual move.\n\nFIRST WEEK: Utilities, address changes, security setup.\n\nFIRST MONTH: Longer-term tasks including Ohio-specific items (license, car registration, voter registration, school enrollment).\n\n'+(pets==='yes'?'PET TIPS: Specific tasks for moving with pets.\n\n':'')+'Be practical and specific.';
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]});
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1000,messages:[{role:'user',content:prompt}]});
     out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>';
     out.style.display = 'block';
   } catch(e) {
@@ -10139,7 +10139,7 @@ async function analyzeHomePrepPhoto() {
       'PHOTO DAY CHECKLIST: What to have in place before the photographer.\n\n' +
       'WHAT TO AVOID: Common mistakes in this type of room.\n\n' +
       'Be specific and actionable. Prioritize low-cost, high-impact improvements.';
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1000,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:apiMime,data:homePrepB64}},
       {type:'text',text:prompt}
     ]}]});
@@ -10184,7 +10184,7 @@ async function analyzeRedFlag() {
   document.getElementById('rf-btn').disabled = true;
   const apiMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(rfMime) ? rfMime : 'image/jpeg';
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1000,messages:[{role:'user',content:[
       {type:'image',source:{type:'base64',media_type:apiMime,data:rfB64}},
       {type:'text',text:`You are a home inspection expert helping a real estate buyer evaluate a potential red flag during a home showing.
 
@@ -10233,7 +10233,7 @@ async function lookupSchools() {
   const priority = document.getElementById('sc-priority').value;
   const out = document.getElementById('sc-result'); think(out);
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`You are a local education expert for Northeast Ohio / Greater Cleveland suburbs. A home buyer wants school district info for this address.
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:1000,messages:[{role:'user',content:`You are a local education expert for Northeast Ohio / Greater Cleveland suburbs. A home buyer wants school district info for this address.
 
 Address: ${addr}
 Kids grades/ages: ${grades || 'not specified'}
@@ -10299,7 +10299,7 @@ async function calcCommute() {
   const stops = document.getElementById('cm-stops').value;
   const out = document.getElementById('cm-result'); think(out);
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:`You are a local commute expert for Northeast Ohio / Greater Cleveland area. A home buyer wants realistic commute info.
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:900,messages:[{role:'user',content:`You are a local commute expert for Northeast Ohio / Greater Cleveland area. A home buyer wants realistic commute info.
 
 Home address: ${home}
 Work address: ${work}
@@ -10369,7 +10369,7 @@ async function autofillValFromURL() {
   if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
   try {
     var prompt = 'Extract the property street address from this real estate listing URL. Return ONLY the address like: 123 Main St, City, ST 12345 — nothing else.\n\nURL: ' + url;
-    var d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:150,messages:[{role:'user',content:prompt}]});
+    var d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:150,messages:[{role:'user',content:prompt}]});
     var addr = d.content[0].text.trim();
     if (addrEl && addr && addr.length > 5) { addrEl.value = addr; }
   } catch(e) { console.log('autofill error:', e); }
@@ -10390,7 +10390,7 @@ async function estimateValue() {
   if (!addr) { alert('Please enter an address'); return; }
   const out = document.getElementById('val-result'); think(out);
   try {
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514',max_tokens:900,messages:[{role:'user',content:`You are an expert real estate appraiser in Northeast Ohio / Greater Cleveland suburbs with deep knowledge of local market values.
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929',max_tokens:900,messages:[{role:'user',content:`You are an expert real estate appraiser in Northeast Ohio / Greater Cleveland suburbs with deep knowledge of local market values.
 
 Property: ${addr}
 List Price: ${price || 'not provided'}
@@ -10852,7 +10852,7 @@ End with: "Questions? Ask {agentFirst}." — keep it friendly.
 
 IMPORTANT: This is explanation only, not legal advice. For anything complex, always recommend they consult {agentFirst} or an attorney.`;
 
-    const d = await claudeAPI({model:'claude-sonnet-4-20250514', max_tokens:900, messages:[{role:'user', content:prompt}]});
+    const d = await claudeAPI({model:'claude-sonnet-4-5-20250929', max_tokens:900, messages:[{role:'user', content:prompt}]});
     out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`;
     out.style.display = 'block';
   } catch(e) {
