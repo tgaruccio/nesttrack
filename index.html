@@ -7567,13 +7567,22 @@ async function renderAgentDashboard() {
   el = document.getElementById('ad-stat-saved');
   if (el) el.textContent = '🏠 ' + savedCount + ' saved home' + (savedCount !== 1 ? 's' : '') + ' across clients';
 
-  // Appts + showings this week
+  // Appts + showings this week — include ShowingTime synced events
   var weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() + 7);
   var weekEndStr = weekEnd.toISOString().split('T')[0];
   var apptCount = (_todos||[]).filter(function(t){ return t.id && t.id.startsWith('appt-') && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
-  // Add manual showings from _todos with showing- prefix
-  var showingCount = (_todos||[]).filter(function(t){ return t.id && (t.id.startsWith('showing-') || (t.text && t.text.toLowerCase().indexOf('showing') !== -1)) && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
-  var totalApptShowings = apptCount + showingCount;
+  var manualShowingCount = (_todos||[]).filter(function(t){ return t.id && (t.id.startsWith('showing-') || (t.text && t.text.toLowerCase().indexOf('showing') !== -1)) && t.date && t.date >= todayStr && t.date <= weekEndStr; }).length;
+  // Also count ShowingTime synced events this week
+  var stShowingCount = 0;
+  try {
+    var stEvents = await fetchShowingTimeEvents();
+    stShowingCount = (stEvents||[]).filter(function(e){
+      if (!e.start) return false;
+      var d = e.start.split('T')[0];
+      return d >= todayStr && d <= weekEndStr;
+    }).length;
+  } catch(e) {}
+  var totalApptShowings = apptCount + manualShowingCount + stShowingCount;
   el = document.getElementById('ad-stat-showings');
   if (el) el.textContent = '📅 ' + totalApptShowings + ' showing' + (totalApptShowings !== 1 ? 's' : '') + ' & appt' + (totalApptShowings !== 1 ? 's' : '') + ' this week';
 
