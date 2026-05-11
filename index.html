@@ -11291,8 +11291,22 @@ async function oneSignalRegister() {
   try {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
+      // Link Firebase UID as external_id
       await OneSignal.login(currentUser.uid);
-      console.log('OneSignal: registered as', currentUser.uid);
+      // Also store the OneSignal subscription ID in Firestore
+      // so we can target by it as fallback
+      try {
+        var subId = await OneSignal.User.PushSubscription.id;
+        if (subId && currentUser) {
+          var saveData = { onesignalSubId: subId, uid: currentUser.uid, updated: Date.now() };
+          if (isAgent && userProfile && userProfile.agentId) {
+            saveData.agentShortId = userProfile.agentId;
+            await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + userProfile.agentId), saveData);
+          }
+          await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), saveData);
+          console.log('OneSignal: registered, subId:', subId);
+        }
+      } catch(se) { console.log('OneSignal: subId save err:', se.message); }
     });
   } catch(e) { console.log('OneSignal register err:', e.message); }
 }
@@ -11337,23 +11351,27 @@ window.dismissNotifBanner = dismissNotifBanner;
 async function sendPushToUser(uid, title, body) {
   if (!uid) return;
   try {
+    // Look up stored OneSignal subscription ID for direct targeting
+    var subId = null;
+    try { var snap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions',uid)); if(snap.exists()) subId = snap.data().onesignalSubId||null; } catch(e){}
     fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: uid, title: title, body: body, url: '/' })
+      body: JSON.stringify({ uid: uid, title: title, body: body, url: '/', subId: subId })
     }).catch(function(e){ console.log('push failed:', e.message); });
   } catch(e) { console.log('sendPushToUser:', e.message); }
 }
 window.sendPushToUser = sendPushToUser;
 
-// Send push to agent by short ID
 async function sendPushToAgentByShortId(agentShortId, title, body) {
   if (!agentShortId) return;
   try {
+    var subId = null;
+    try { var snap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions','agent_'+agentShortId)); if(snap.exists()) subId = snap.data().onesignalSubId||null; } catch(e){}
     fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: 'agent_' + agentShortId, title: title, body: body, url: '/' })
+      body: JSON.stringify({ uid: 'agent_'+agentShortId, title: title, body: body, url: '/', subId: subId })
     }).catch(function(e){ console.log('agent push failed:', e.message); });
   } catch(e) { console.log('sendPushToAgentByShortId:', e.message); }
 }
