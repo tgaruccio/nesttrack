@@ -499,7 +499,6 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
     <div class="ns" style="padding-top:6px;">Agent Tools</div>
     <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
-    <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Command Center</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
@@ -547,8 +546,7 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="homeprep" onclick="go('homeprep',this)">🏡 Home Prep Analyzer</button>
   <button class="nb" data-pg="photochecklist" onclick="go('photochecklist',this)">📋 Listing Photos Checklist</button>
 
-  <div class="ns">Messages</div>
-  <button class="nb" data-pg="chat" onclick="go('chat',this)">💬 Message Your Agent</button>
+  <div class="ns">Communicate</div>
   <button class="nb" data-pg="docs" onclick="go('docs',this)">📁 Documents</button>
 
   <div class="ns">Resources</div>
@@ -1225,13 +1223,9 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Quick launch grid -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
-    <button onclick="go('messages',document.querySelector('[data-pg=messages]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">💬</span>
-      <span style="font-size:13px;font-weight:600;">Messages</span>
-      <span style="font-size:11px;opacity:0.85;" id="ad-msg-count">Client conversations</span>
-    </button>
+    
 
-    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">👥</span>
       <span style="font-size:13px;font-weight:600;">Clients</span>
       <span style="font-size:11px;opacity:0.85;" id="ad-clients-count">Loading...</span>
@@ -1914,60 +1908,6 @@ textarea{resize:vertical;min-height:68px;}
 </div>
 
 <!-- CHAT -->
-<!-- AGENT MESSAGES PAGE -->
-<div class="page" id="page-messages" style="padding:0;flex-direction:row;height:calc(100vh - 56px);overflow:hidden;gap:0;">
-
-  <!-- Conversation list (left panel) -->
-  <div id="msg-convo-list" style="width:280px;min-width:280px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden;">
-    <div style="padding:14px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:15px;font-weight:600;">Messages</div>
-      <span id="msg-total-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:600;"></span>
-    </div>
-    <div id="msg-convo-items" style="flex:1;overflow-y:auto;"></div>
-  </div>
-
-  <!-- Chat window (right panel) -->
-  <div id="msg-chat-panel" style="flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;">
-    <!-- Empty state -->
-    <div id="msg-empty-state" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);gap:10px;">
-      <div style="font-size:40px;">💬</div>
-      <div style="font-size:14px;font-weight:500;color:var(--text2);">Select a conversation</div>
-      <div style="font-size:13px;">Choose a client from the left to start chatting</div>
-    </div>
-    <!-- Active chat — modal style overlay -->
-    <div id="msg-active-chat" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:0;background:var(--bg);flex-direction:column;z-index:100;">
-      <div id="msg-chat-hdr" style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">
-        <button onclick="document.getElementById('msg-active-chat').style.display='none';document.getElementById('msg-empty-state').style.display='flex';" style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;margin-right:4px;color:var(--text);">←</button>
-        <div id="msg-chat-avatar" style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;"></div>
-        <div style="flex:1;">
-          <div id="msg-chat-name" style="font-size:14px;font-weight:500;"></div>
-          <div id="msg-chat-step" style="font-size:11.5px;color:var(--text3);"></div>
-        </div>
-        <a id="msg-chat-call" href="#" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;text-decoration:none;color:var(--text);">📞</a>
-        <a id="msg-chat-sms" href="#" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;text-decoration:none;color:var(--text);">💬</a>
-      </div>
-      <div id="msg-chat-messages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;"></div>
-      <div style="padding:12px;border-top:0.5px solid var(--border);display:flex;gap:8px;align-items:flex-end;background:var(--surface);flex-shrink:0;">
-        <textarea id="msg-chat-input" placeholder="Message..." rows="1"
-          style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:var(--surface2);min-height:40px;max-height:120px;"
-          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgentMessage();}"></textarea>
-        <button onclick="sendAgentMessage()" style="width:40px;height:40px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">↑</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Mobile: on small screens stack vertically -->
-<style>
-@media(max-width:700px){
-  #page-messages{flex-direction:column!important;}
-  #msg-convo-list{width:100%!important;min-width:unset!important;border-right:none!important;border-bottom:0.5px solid var(--border);max-height:40vh;}
-  #msg-chat-panel{flex:1;}
-}
-#msg-active-chat.chat-shell{max-height:100%!important;height:calc(100vh - 56px)!important;}
-</style>
-
 <div class="page" id="page-chat" style="padding:0;gap:0;">
   <!-- Chat header -->
   <div class="chat-hdr">
@@ -2718,20 +2658,6 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
-<!-- ONESIGNAL -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "effa5e11-e85f-4b00-bf87-1f6d415ff51e",
-      serviceWorkerPath: "/OneSignalSDKWorker.js",
-      notifyButton: { enable: false },
-      allowLocalhostAsSecureOrigin: true,
-    });
-  });
-</script>
-
 <!-- FIREBASE + APP SCRIPT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
@@ -2789,7 +2715,7 @@ window.dispatchEvent(new Event('firebase-ready'));
   }
 })();
 const PROXY_URL = 'https://app.tom-b52.workers.dev';
-// Push notifications handled by OneSignal — see bottom of script
+const VAPID_PUBLIC_KEY = 'BJTQOfGIrF82EPPDKZtqpSThXhxubKuNn90euj7F5iqTBQFn_EBIqSkXMQytYc7O2MePh0cJnZzY8r5UrdeJAGU';
 const GOOGLE_PLACES_KEY = ''; // Optional: add your Google Places API key for address autocomplete
 
 // ── Single model constant — only update this one line when Anthropic releases new versions ──
@@ -3841,7 +3767,6 @@ async function showApp() {
     setTimeout(renderHome, 100);
     setTimeout(checkIOSInstallPrompt, 2000);
     setTimeout(showNotificationBanner, 3000);
-    setTimeout(oneSignalRegister, 1000);
   }
 }
 
@@ -4030,7 +3955,6 @@ function go(page, el) {
   if (page === 'education') renderEducation();
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
-  if (page === 'messages') { renderMessagesPage(); }
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
@@ -7368,21 +7292,13 @@ window.watchAllAgentChats = watchAllAgentChats;
 
 function updateAgentUnreadBadge() {
   var total = Object.values(agentUnreadCounts).reduce(function(a,b){return a+b;},0);
-  // Tab badge (legacy)
+  // Tab badge
   var tabBadge = document.getElementById('agent-chat-badge');
   if (tabBadge) { tabBadge.style.display = total>0?'inline':'none'; tabBadge.textContent = total>9?'9+':String(total); }
-  // Agent dashboard nav badge
+  // Nav button badge
   var navBadge = document.getElementById('agent-nav-badge');
   if (navBadge) { navBadge.style.display = total>0?'inline':'none'; navBadge.textContent = total>9?'9+':String(total); }
-  // Messages sidebar badge
-  var msgBadge = document.getElementById('agent-msg-badge');
-  if (msgBadge) { msgBadge.style.display = total>0?'inline':'none'; msgBadge.textContent = total>9?'9+':String(total); }
-  // Messages page total badge + re-render convo list
-  var msgTotalBadge = document.getElementById('msg-total-badge');
-  if (msgTotalBadge) { msgTotalBadge.style.display = total>0?'block':'none'; msgTotalBadge.textContent = total||''; }
-  var msgItems = document.getElementById('msg-convo-items');
-  if (msgItems && msgItems.children.length) renderMessagesPage();
-  // Re-render inbox list (legacy)
+  // Re-render inbox list to show per-buyer highlights
   var inboxList = document.getElementById('agent-inbox-list');
   if (inboxList && inboxList.style.display !== 'none') renderAgentInbox();
 }
@@ -7526,121 +7442,6 @@ function openAgentInboxChat(buyerUid, buyerName, buyerPhone) {
   });
 }
 window.openAgentInboxChat = openAgentInboxChat;
-
-// ─── MESSAGES PAGE ───
-var _msgCurrentBuyer = null;
-var _msgChatListener = null;
-
-function renderMessagesPage() {
-  var container = document.getElementById('msg-convo-items');
-  if (!container) return;
-  if (!myBuyers || !myBuyers.length) {
-    container.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">No clients yet</div>';
-    return;
-  }
-  // Sort by unread first, then by name
-  var buyers = (myBuyers||[]).filter(function(b){ return !b.pending; }).slice();
-  buyers.sort(function(a,b){
-    var ua = agentUnreadCounts[a.uid]||0, ub = agentUnreadCounts[b.uid]||0;
-    if (ub !== ua) return ub - ua;
-    return ((a.firstName||'')+(a.lastName||'')).localeCompare((b.firstName||'')+(b.lastName||''));
-  });
-
-  var totalUnread = Object.values(agentUnreadCounts).reduce(function(a,b){return a+b;},0);
-  var badge = document.getElementById('msg-total-badge');
-  if (badge) { badge.textContent = totalUnread > 0 ? totalUnread : ''; badge.style.display = totalUnread > 0 ? 'block' : 'none'; }
-
-  container.innerHTML = buyers.map(function(b) {
-    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
-    var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
-    var unread = agentUnreadCounts[b.uid]||0;
-    var stepName = (TIMELINE_STEPS[(b.currentStep||1)-1]||{}).name||'';
-    var isActive = _msgCurrentBuyer && _msgCurrentBuyer.uid === b.uid;
-    return '<button onclick="openMessageThread(\''+b.uid+'\')" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
-      + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--surface2)')+';color:'+(unread?'#fff':'var(--text2)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
-      + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13.5px;font-weight:'+(unread?'600':'400')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'
-      + '<div style="font-size:11.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(stepName)+'</div>'
-      + '</div>'
-      + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;flex-shrink:0;">'+unread+'</span>' : '')
-      + '</button>';
-  }).join('');
-}
-window.renderMessagesPage = renderMessagesPage;
-
-function openMessageThread(buyerUid) {
-  var buyer = (myBuyers||[]).find(function(b){ return b.uid===buyerUid; });
-  if (!buyer) return;
-  _msgCurrentBuyer = buyer;
-
-  // Clear unread for this buyer
-  clearAgentUnreadForBuyer(buyerUid);
-  renderMessagesPage();
-
-  // Update header
-  var name = ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email||'Client';
-  var initials = ((buyer.firstName||'?')[0]+(buyer.lastName||'?')[0]).toUpperCase();
-  var phone = (buyer.phone||'').replace(/[^0-9]/g,'');
-  var stepName = (TIMELINE_STEPS[(buyer.currentStep||1)-1]||{}).name||'';
-  document.getElementById('msg-chat-avatar').textContent = initials;
-  document.getElementById('msg-chat-name').textContent = name;
-  document.getElementById('msg-chat-step').textContent = stepName;
-  document.getElementById('msg-chat-call').href = phone ? 'tel:'+phone : '#';
-  document.getElementById('msg-chat-sms').href = phone ? 'sms:'+phone : '#';
-
-  // Show active chat, hide empty state
-  document.getElementById('msg-empty-state').style.display = 'none';
-  var activeChat = document.getElementById('msg-active-chat');
-  activeChat.style.display = 'flex';
-
-  // Clear old listener
-  if (_msgChatListener) { try { _msgChatListener(); } catch(e){} _msgChatListener = null; }
-
-  // Start listening to this room
-  var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email===(userProfile&&userProfile.email)||a.id===(userProfile&&userProfile.agentId); });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
-  var roomId = 'chat_'+agentShortId+'_'+buyerUid;
-  var msgsEl = document.getElementById('msg-chat-messages');
-  if (msgsEl) { msgsEl.innerHTML = ''; msgsEl.removeAttribute('data-last-date'); }
-
-  var chatRef = fb.ref(fb.rtdb, 'chats/'+roomId+'/messages');
-  _msgChatListener = fb.onChildAdded(chatRef, function(snap) {
-    var msg = snap.val(); if (!msg) return;
-    var msgsEl = document.getElementById('msg-chat-messages');
-    if (!msgsEl) return;
-    var isMe = msg.senderRole === 'agent';
-    var bubble = document.createElement('div');
-    bubble.className = 'chat-msg ' + (isMe ? 'me' : 'them');
-    var timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
-    bubble.innerHTML = '<div>'+partnerEsc(msg.text||'')+'</div><div class="chat-meta" style="font-size:10px;opacity:0.6;margin-top:3px;text-align:'+(isMe?'right':'left')+';">'+timeStr+'</div>';
-    msgsEl.appendChild(bubble);
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-  });
-}
-window.openMessageThread = openMessageThread;
-
-function sendAgentMessage() {
-  if (!_msgCurrentBuyer) return;
-  var input = document.getElementById('msg-chat-input');
-  var text = (input&&input.value||'').trim();
-  if (!text) return;
-  input.value = ''; input.style.height = 'auto';
-
-  var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email===(userProfile&&userProfile.email)||a.id===(userProfile&&userProfile.agentId); });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
-  var roomId = 'chat_'+agentShortId+'_'+_msgCurrentBuyer.uid;
-  var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
-
-  fb.push(fb.ref(fb.rtdb, 'chats/'+roomId+'/messages'), {
-    text: text,
-    senderRole: 'agent',
-    senderName: agentName,
-    timestamp: Date.now(),
-  });
-  // Push to client
-  sendPushToUser(_msgCurrentBuyer.uid, 'New message from '+agentName, text.substring(0,80));
-}
-window.sendAgentMessage = sendAgentMessage;
 
 function closeAgentChatWindow() {
   var win=document.getElementById('agent-chat-window');
@@ -11281,124 +11082,143 @@ window.jumpToDoc = jumpToDoc;
 
 
 // ─── NOTIFICATION PERMISSION BANNER ───
-// ─── ONESIGNAL PUSH NOTIFICATIONS ───
-const ONESIGNAL_APP_ID = 'effa5e11-e85f-4b00-bf87-1f6d415ff51e';
-const ONESIGNAL_REST_KEY = 'os_v2_app_575f4epil5fqbp4hd5wucx7vdy6gexchsxve2su65tvhpm7bgeutdf7tjypvejjovy4l74mg3rycoox3a37b3qej7knoym2mvmvrw6a';
-
-// Register user with OneSignal using Firebase UID as external_id
-async function oneSignalRegister() {
-  if (!currentUser) return;
-  try {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-      try {
-        // Link Firebase UID as external_id
-        await OneSignal.login(currentUser.uid);
-      } catch(le) { console.log('OneSignal login err:', le.message); }
-      // Wait a moment for subscription to be ready then save
-      setTimeout(async function() {
-        try {
-          var subId = OneSignal.User.PushSubscription.id;
-          if (!subId) {
-            // Try alternate access pattern
-            subId = OneSignal.User.onesignalId || null;
-          }
-          console.log('OneSignal subId:', subId);
-          if (subId && currentUser) {
-            var saveData = { onesignalSubId: subId, uid: currentUser.uid, updated: Date.now() };
-            if (isAgent && userProfile && userProfile.agentId) {
-              saveData.agentShortId = userProfile.agentId;
-              await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + userProfile.agentId), saveData);
-            }
-            await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), saveData);
-            console.log('OneSignal: saved subId for', currentUser.uid);
-          }
-        } catch(se) { console.log('OneSignal save err:', se.message); }
-      }, 3000);
-    });
-  } catch(e) { console.log('OneSignal register err:', e.message); }
-}
-window.oneSignalRegister = oneSignalRegister;
-
-// Show permission prompt banner after login
 function showNotificationBanner() {
-  if (!window.OneSignalDeferred) return;
-  OneSignalDeferred.push(async function(OneSignal) {
-    var permission = await OneSignal.Notifications.permission;
-    if (permission) return;
-    if (document.getElementById('notif-banner')) return;
-    var banner = document.createElement('div');
-    banner.id = 'notif-banner';
-    banner.style.cssText = 'position:fixed;bottom:80px;left:12px;right:12px;background:#1D9E75;color:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:9998;box-shadow:0 8px 32px rgba(0,0,0,0.2);animation:slideUp 0.3s ease;';
-    banner.innerHTML = '<span style="font-size:26px;flex-shrink:0;">\uD83D\uDD14</span>'
-      + '<div style="flex:1;">'
-      + '<div style="font-weight:500;font-size:14px;">Enable Notifications</div>'
-      + '<div style="font-size:12px;opacity:0.85;margin-top:2px;">Get alerted when you have new messages</div>'
-      + '</div>'
-      + '<button onclick="enableNotifFromBanner()" style="background:#fff;color:#1D9E75;border:none;border-radius:20px;padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0;">Enable</button>'
-      + '<button onclick="dismissNotifBanner()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:0 4px;opacity:0.7;flex-shrink:0;">\xD7</button>';
-    document.body.appendChild(banner);
-  });
+  // Don't show if already granted
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') { subscribeToPush(); return; }
+  // Show every login if not granted (whether denied or default)
+  if (document.getElementById('notif-banner')) return;
+
+  var banner = document.createElement('div');
+  banner.id = 'notif-banner';
+  banner.style.cssText = 'position:fixed;bottom:80px;left:12px;right:12px;background:#1D9E75;color:#fff;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:9998;box-shadow:0 8px 32px rgba(0,0,0,0.2);animation:slideUp 0.3s ease;';
+  banner.innerHTML = '<span style="font-size:26px;flex-shrink:0;">🔔</span>'
+    + '<div style="flex:1;">'
+    + '<div style="font-weight:500;font-size:14px;">Enable Notifications</div>'
+    + '<div style="font-size:12px;opacity:0.85;margin-top:2px;">Get alerted when your agent sends a message</div>'
+    + '</div>'
+    + '<button onclick="enableNotifFromBanner()" style="background:#fff;color:#1D9E75;border:none;border-radius:20px;padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0;">Enable</button>'
+    + '<button onclick="dismissNotifBanner()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:0 4px;opacity:0.7;flex-shrink:0;">×</button>';
+  document.body.appendChild(banner);
 }
 window.showNotificationBanner = showNotificationBanner;
 
 async function enableNotifFromBanner() {
   dismissNotifBanner();
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.Notifications.requestPermission();
-  });
+  await requestNotificationPermission();
 }
 window.enableNotifFromBanner = enableNotifFromBanner;
 
 function dismissNotifBanner() {
-  var b = document.getElementById('notif-banner'); if (b) b.remove();
+  var b = document.getElementById('notif-banner');
+  if (b) b.remove();
+  // Don't store dismissal — show again next login if still not granted
 }
 window.dismissNotifBanner = dismissNotifBanner;
 
-// Send push to any user by Firebase UID via Cloudflare Worker -> OneSignal REST API
+// ─── PWA SERVICE WORKER + INSTALL PROMPT ───
+var deferredInstallPrompt = null;
+var swRegistration = null;
+var pushSubscription = null;
+
+// ─── SERVICE WORKER ───
+if ('serviceWorker' in navigator) {
+  // Register real /sw.js file (required for iOS Safari push support)
+  navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg) {
+    swRegistration = reg;
+    console.log('Nest Track SW registered from /sw.js');
+    reg.pushManager.getSubscription().then(function(sub) {
+      if (sub) { pushSubscription = sub; savePushSubscription(sub); }
+    });
+  }).catch(function(e) { console.log('SW reg failed:', e.message); });
+}
+
+// ─── PUSH SUBSCRIPTION ───
+function urlBase64ToUint8Array(base64String) {
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = window.atob(base64);
+  return new Uint8Array([...rawData].map(function(c){ return c.charCodeAt(0); }));
+}
+
+async function subscribeToPush() {
+  if (!swRegistration) return;
+  try {
+    var sub = await swRegistration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    pushSubscription = sub;
+    await savePushSubscription(sub);
+    console.log('Push subscription active');
+  } catch(e) {
+    console.log('Push subscribe failed:', e.message);
+  }
+}
+
+async function savePushSubscription(sub) {
+  if (!currentUser || !sub) return;
+  try {
+    var subJson = JSON.parse(JSON.stringify(sub));
+    var data = { subscription: subJson, uid: currentUser.uid, updated: Date.now() };
+    // If agent, also save under their short ID for buyer-to-agent push lookup
+    if (isAgent && userProfile && userProfile.agentId) {
+      data.agentShortId = userProfile.agentId;
+      await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + userProfile.agentId), data);
+    }
+    // Always save under Firebase UID
+    await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), data);
+  } catch(e) { console.log('Save push sub failed:', e.message); }
+}
+
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    await subscribeToPush();
+    return;
+  }
+  if (Notification.permission !== 'denied') {
+    var perm = await Notification.requestPermission();
+    if (perm === 'granted') await subscribeToPush();
+  }
+}
+
+// ─── SEND PUSH VIA WORKER ───
+// Called when a message is sent — pushes to recipient's saved subscription
 async function sendPushToUser(uid, title, body) {
   if (!uid) return;
   try {
-    // Look up stored OneSignal subscription ID for direct targeting
-    var subId = null;
-    try { var snap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions',uid)); if(snap.exists()) subId = snap.data().onesignalSubId||null; } catch(e){}
+    var snap = await fb.getDoc(fb.doc(fb.db, 'push_subscriptions', uid));
+    if (!snap.exists()) return;
+    var sub = snap.data().subscription;
+    if (!sub) return;
     fetch(PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: uid, title: title, body: body, url: '/', subId: subId })
-    }).catch(function(e){ console.log('push failed:', e.message); });
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'push' },
+      body: JSON.stringify({ subscriptions: [sub], title: title, body: body, url: '/' })
+    }).catch(function(e){ console.log('push fetch failed:', e.message); });
   } catch(e) { console.log('sendPushToUser:', e.message); }
+  // Never throw — push failure should not break chat
 }
 window.sendPushToUser = sendPushToUser;
 
 async function sendPushToAgentByShortId(agentShortId, title, body) {
   if (!agentShortId) return;
   try {
-    // Hardcoded subscription IDs per agent — most reliable targeting method
-    var AGENT_SUB_IDS = {
-      'tom': 'af12687c-6958-4f8c-b035-5ea4cf3169ea'
-    };
-    var subId = AGENT_SUB_IDS[agentShortId] || null;
-    // Also try Firestore as fallback for other agents
-    if (!subId) {
-      try { var snap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions','agent_'+agentShortId)); if(snap.exists()) subId = snap.data().onesignalSubId||null; } catch(e){}
-    }
+    var snap = await fb.getDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + agentShortId));
+    if (!snap.exists()) return;
+    var sub = snap.data().subscription;
+    if (!sub) return;
     fetch(PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: 'agent_'+agentShortId, title: title, body: body, url: '/', subId: subId })
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'push' },
+      body: JSON.stringify({ subscriptions: [sub], title: title, body: body, url: '/' })
     }).catch(function(e){ console.log('agent push failed:', e.message); });
   } catch(e) { console.log('sendPushToAgentByShortId:', e.message); }
 }
 window.sendPushToAgentByShortId = sendPushToAgentByShortId;
 
-// Legacy no-op kept so nothing breaks
-function showBrowserNotification(title, body) {}
-window.showBrowserNotification = showBrowserNotification;
-
-// ─── PWA INSTALL PROMPT ───
-var deferredInstallPrompt = null;
-
+// Capture install prompt (Android Chrome)
 window.addEventListener('beforeinstallprompt', function(e) {
   e.preventDefault();
   deferredInstallPrompt = e;
@@ -11410,13 +11230,15 @@ function showInstallBanner() {
   var banner = document.createElement('div');
   banner.id = 'install-banner';
   banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1D9E75;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:9999;box-shadow:0 -4px 20px rgba(0,0,0,0.15);';
-  banner.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">\uD83C\uDFE1</div>'
-    + '<div style="flex:1;"><div style="font-weight:500;font-size:14px;">Add Nest Track to your home screen</div><div style="font-size:12px;opacity:0.85;">Get notifications and fast access</div></div>'
+  banner.innerHTML = '<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🏡</div>'
+    + '<div style="flex:1;"><div style="font-weight:500;font-size:14px;">Add NestTrack to your home screen</div><div style="font-size:12px;opacity:0.85;">Get notifications and fast access</div></div>'
     + '<button onclick="installApp()" style="background:#fff;color:#1D9E75;border:none;border-radius:20px;padding:8px 16px;font-weight:600;font-size:13px;cursor:pointer;flex-shrink:0;">Install</button>'
-    + '<button onclick="dismissInstallBanner()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;opacity:0.7;">\xD7</button>';
+    + '<button onclick="dismissInstallBanner()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;opacity:0.7;">×</button>';
   document.body.appendChild(banner);
+  // Auto-dismiss after 15s
   setTimeout(dismissInstallBanner, 15000);
 }
+
 function installApp() {
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
@@ -11427,42 +11249,70 @@ function installApp() {
   }
 }
 window.installApp = installApp;
+
 function dismissInstallBanner() {
-  var b = document.getElementById('install-banner'); if (b) b.remove();
+  var b = document.getElementById('install-banner');
+  if (b) b.remove();
   try { localStorage.setItem('installBannerDismissed', Date.now()); } catch(e){}
 }
 window.dismissInstallBanner = dismissInstallBanner;
 
+// iOS install instructions (shown once, only on iOS Safari not standalone)
 function checkIOSInstallPrompt() {
   var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   var isStandalone = window.navigator.standalone === true;
   var dismissed = false;
   try { dismissed = localStorage.getItem('iosInstallDismissed'); } catch(e){}
-  if (isIOS && !isStandalone && !dismissed) setTimeout(showIOSInstallTip, 3000);
+  if (isIOS && !isStandalone && !dismissed) {
+    setTimeout(function() {
+      showIOSInstallTip();
+    }, 3000);
+  }
 }
+
 function showIOSInstallTip() {
   if (document.getElementById('ios-install-tip')) return;
   var tip = document.createElement('div');
   tip.id = 'ios-install-tip';
   tip.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1D9E75;color:#fff;padding:16px;z-index:9999;box-shadow:0 -4px 20px rgba(0,0,0,0.2);border-radius:16px 16px 0 0;';
   tip.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
-    + '<div style="font-weight:500;font-size:15px;">\uD83D\uDCF2 Install Nest Track</div>'
-    + '<button onclick="dismissIOSTip()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;opacity:0.8;">\xD7</button></div>'
+    + '<div style="font-weight:500;font-size:15px;">📲 Install NestTrack</div>'
+    + '<button onclick="dismissIOSTip()" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;opacity:0.8;">×</button></div>'
     + '<div style="font-size:13px;opacity:0.95;line-height:1.6;">'
     + 'To install on your iPhone:<br>'
-    + '1. Tap the <strong>Share</strong> button \u238F at the bottom of Safari<br>'
-    + '2. Scroll down and tap <strong>&ldquo;Add to Home Screen&rdquo;</strong><br>'
-    + '3. Tap <strong>Add</strong>'
+    + '1. Tap the <strong>Share</strong> button <span style="font-size:16px;">⎏</span> at the bottom of Safari<br>'
+    + '2. Scroll down and tap <strong>"Add to Home Screen"</strong><br>'
+    + '3. Tap <strong>Add</strong> — NestTrack will appear on your home screen'
     + '</div>'
     + '<div style="margin-top:12px;font-size:11.5px;opacity:0.75;">Install to receive notifications from your agent.</div>';
   document.body.appendChild(tip);
 }
+
 function dismissIOSTip() {
-  var t = document.getElementById('ios-install-tip'); if (t) t.remove();
+  var t = document.getElementById('ios-install-tip');
+  if (t) t.remove();
   try { localStorage.setItem('iosInstallDismissed', '1'); } catch(e){}
 }
 window.dismissIOSTip = dismissIOSTip;
 
+// requestNotificationPermission defined above
+
+// Send browser notification
+function showBrowserNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    var n = new Notification(title, {
+      body: body,
+      icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjExNCIgZmlsbD0iIzFEOUU3NSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDI1NiwyNTApIj4KICAgIDxwb2x5Z29uIHBvaW50cz0iMCwtMTQwIDE1MCwtMjUgLTE1MCwtMjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuOTUiLz4KICAgIDxyZWN0IHg9Ii0xMDUiIHk9Ii0yNSIgd2lkdGg9IjIxMCIgaGVpZ2h0PSIxNTAiIHJ4PSI4IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjk1Ii8+CiAgICA8cmVjdCB4PSItMzUiIHk9IjUwIiB3aWR0aD0iNzAiIGhlaWdodD0iNzUiIHJ4PSI2IiBmaWxsPSIjMUQ5RTc1Ii8+CiAgICA8cmVjdCB4PSItOTIiIHk9IjgiIHdpZHRoPSI1MiIgaGVpZ2h0PSI0OCIgcng9IjUiIGZpbGw9IiNFMUY1RUUiLz4KICAgIDxyZWN0IHg9IjQwIiB5PSI4IiB3aWR0aD0iNTIiIGhlaWdodD0iNDgiIHJ4PSI1IiBmaWxsPSIjRTFGNUVFIi8+CiAgICA8cmVjdCB4PSI2OCIgeT0iLTExMCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjY4IiByeD0iNCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC45Ii8+CiAgICA8Y2lyY2xlIGN4PSIwIiBjeT0iLTE2MCIgcj0iMTYiIGZpbGw9IiMwRjZFNTYiLz4KICAgIDxjaXJjbGUgY3g9IjAiIGN5PSItMTYwIiByPSI4IiBmaWxsPSIjZmZmIi8+CiAgPC9nPgogIDxnIGZpbGw9IiM5RkUxQ0IiIG9wYWNpdHk9IjAuNiI+CiAgICA8Y2lyY2xlIGN4PSI3NiIgY3k9IjQ0MCIgcj0iOSIvPgogICAgPGNpcmNsZSBjeD0iMTE0IiBjeT0iNDQwIiByPSI5Ii8+CiAgICA8Y2lyY2xlIGN4PSIxNTIiIGN5PSI0NDAiIHI9IjkiLz4KICAgIDxjaXJjbGUgY3g9IjI1NiIgY3k9IjQ0MCIgcj0iOSIvPgogICAgPGNpcmNsZSBjeD0iMzYwIiBjeT0iNDQwIiByPSI5Ii8+CiAgICA8Y2lyY2xlIGN4PSIzOTgiIGN5PSI0NDAiIHI9IjkiLz4KICAgIDxjaXJjbGUgY3g9IjQzNiIgY3k9IjQ0MCIgcj0iOSIvPgogIDwvZz4KPC9zdmc+',
+      badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjExNCIgZmlsbD0iIzFEOUU3NSIvPgogIDxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDI1NiwyNTApIj4KICAgIDxwb2x5Z29uIHBvaW50cz0iMCwtMTQwIDE1MCwtMjUgLTE1MCwtMjUiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuOTUiLz4KICAgIDxyZWN0IHg9Ii0xMDUiIHk9Ii0yNSIgd2lkdGg9IjIxMCIgaGVpZ2h0PSIxNTAiIHJ4PSI4IiBmaWxsPSIjZmZmIiBvcGFjaXR5PSIwLjk1Ii8+CiAgICA8cmVjdCB4PSItMzUiIHk9IjUwIiB3aWR0aD0iNzAiIGhlaWdodD0iNzUiIHJ4PSI2IiBmaWxsPSIjMUQ5RTc1Ii8+CiAgICA8cmVjdCB4PSItOTIiIHk9IjgiIHdpZHRoPSI1MiIgaGVpZ2h0PSI0OCIgcng9IjUiIGZpbGw9IiNFMUY1RUUiLz4KICAgIDxyZWN0IHg9IjQwIiB5PSI4IiB3aWR0aD0iNTIiIGhlaWdodD0iNDgiIHJ4PSI1IiBmaWxsPSIjRTFGNUVFIi8+CiAgICA8cmVjdCB4PSI2OCIgeT0iLTExMCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjY4IiByeD0iNCIgZmlsbD0iI2ZmZiIgb3BhY2l0eT0iMC45Ii8+CiAgICA8Y2lyY2xlIGN4PSIwIiBjeT0iLTE2MCIgcj0iMTYiIGZpbGw9IiMwRjZFNTYiLz4KICAgIDxjaXJjbGUgY3g9IjAiIGN5PSItMTYwIiByPSI4IiBmaWxsPSIjZmZmIi8+CiAgPC9nPgogIDxnIGZpbGw9IiM5RkUxQ0IiIG9wYWNpdHk9IjAuNiI+CiAgICA8Y2lyY2xlIGN4PSI3NiIgY3k9IjQ0MCIgcj0iOSIvPgogICAgPGNpcmNsZSBjeD0iMTE0IiBjeT0iNDQwIiByPSI5Ii8+CiAgICA8Y2lyY2xlIGN4PSIxNTIiIGN5PSI0NDAiIHI9IjkiLz4KICAgIDxjaXJjbGUgY3g9IjI1NiIgY3k9IjQ0MCIgcj0iOSIvPgogICAgPGNpcmNsZSBjeD0iMzYwIiBjeT0iNDQwIiByPSI5Ii8+CiAgICA8Y2lyY2xlIGN4PSIzOTgiIGN5PSI0NDAiIHI9IjkiLz4KICAgIDxjaXJjbGUgY3g9IjQzNiIgY3k9IjQ0MCIgcj0iOSIvPgogIDwvZz4KPC9zdmc+',
+      vibrate: [200, 100, 200],
+      tag: 'nesttrack-msg',
+      renotify: true
+    });
+    n.onclick = function() { window.focus(); n.close(); go('chat', document.querySelector('[data-pg=chat]')); };
+  } catch(e) {}
+}
+window.showBrowserNotification = showBrowserNotification;
 
 
 // ═══════════════════════════════════════════════════════
@@ -11855,12 +11705,15 @@ async function viewOffers(listingId) {
   el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center;">Loading offers...</div>';
 
   try {
-    var snap = await fb.getDocs(fb.query(
-      fb.collection(fb.db,'offer_listings',listingId,'offers'),
-      fb.orderBy('submittedAt','desc')
-    ));
+    var snap = await fb.getDocs(fb.collection(fb.db,'offer_listings',listingId,'offers'));
     var offers = [];
     snap.forEach(function(d){ offers.push(Object.assign({id:d.id},d.data())); });
+    // Sort client-side newest first
+    offers.sort(function(a,b){
+      var ta = a.submittedAt && a.submittedAt.toMillis ? a.submittedAt.toMillis() : (a.submittedAt ? new Date(a.submittedAt).getTime() : 0);
+      var tb = b.submittedAt && b.submittedAt.toMillis ? b.submittedAt.toMillis() : (b.submittedAt ? new Date(b.submittedAt).getTime() : 0);
+      return tb - ta;
+    });
 
     var html = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">'
       + '<button class="btn btn-sm" onclick="renderOfferManager()">&#8592; Back</button>'
@@ -11946,9 +11799,11 @@ async function showOfferComparison(listingId) {
   var listing = _listings.find(function(l){ return l.id===listingId; });
   el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center;">Loading comparison...</div>';
   try {
-    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('offerPriceNum','desc')));
+    var snap = await fb.getDocs(fb.collection(fb.db,'offer_listings',listingId,'offers'));
     var offers = [];
     snap.forEach(function(d){ offers.push(Object.assign({id:d.id},d.data())); });
+    // Sort highest price first client-side
+    offers.sort(function(a,b){ return (b.offerPriceNum||0)-(a.offerPriceNum||0); });
 
     var compareFields = [
       {key:'offerPrice',     label:'Offer Price'},
@@ -12603,8 +12458,10 @@ async function submitPublicOffer(listingId) {
     try {
       var lSnap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId));
       if (lSnap.exists() && lSnap.data().autoSend && lSnap.data().clientUid) {
-        var newSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('submittedAt','desc')));
-        if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
+        var newSnap = await fb.getDocs(fb.collection(fb.db,'offer_listings',listingId,'offers'));
+        var newDocs = []; newSnap.forEach(function(d){ newDocs.push(d); });
+        newDocs.sort(function(a,b){ var ta=a.data().submittedAt&&a.data().submittedAt.toMillis?a.data().submittedAt.toMillis():0; var tb=b.data().submittedAt&&b.data().submittedAt.toMillis?b.data().submittedAt.toMillis():0; return tb-ta; });
+        if (newDocs.length) await autoSendOfferToClient(listingId, newDocs[0].id, lSnap.data());
       }
     } catch(asErr){ console.log('Auto-send err:',asErr.message); }
     // Notify listing agent that offer was received
@@ -12814,12 +12671,10 @@ async function emailComparisonToClient(listingId) {
   if (!cSnap.exists()) { alert('Client not found.'); return; }
   var client = cSnap.data();
   if (!client.email) { alert('Client has no email address.'); return; }
-  var snap = await fb.getDocs(fb.query(
-    fb.collection(fb.db,'offer_listings',listingId,'offers'),
-    fb.orderBy('offerPriceNum','desc')
-  ));
+  var snap = await fb.getDocs(fb.collection(fb.db,'offer_listings',listingId,'offers'));
   var offers = [];
   snap.forEach(function(d){ offers.push(Object.assign({id:d.id},d.data())); });
+  offers.sort(function(a,b){ return (b.offerPriceNum||0)-(a.offerPriceNum||0); });
   snap.forEach(function(d){ offers.push(Object.assign({id:d.id},d.data())); });
   if (!offers.length) { alert('No offers to compare.'); return; }
   var clientFirst = client.firstName || 'there';
