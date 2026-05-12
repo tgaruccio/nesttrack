@@ -1205,21 +1205,31 @@ textarea{resize:vertical;min-height:68px;}
 
   <!-- Stat banner -->
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:0;flex-shrink:0;">
-    <!-- Top stat line -->
+    <!-- Row 1: Clients, tasks, next appt -->
     <div style="padding:14px 16px;display:flex;flex-wrap:wrap;gap:6px 18px;border-bottom:0.5px solid var(--border);">
       <span id="ad-stat-clients" style="font-size:13px;font-weight:500;color:var(--text);">Loading... clients</span>
       <span style="color:var(--border2);">·</span>
       <span id="ad-stat-tasks" style="font-size:13px;font-weight:500;color:var(--text);">— tasks today</span>
       <span style="color:var(--border2);">·</span>
-      <span id="ad-stat-deals" style="font-size:13px;font-weight:500;color:var(--text);">— open deals</span>
-      <span style="color:var(--border2);">·</span>
       <span id="ad-stat-appt" style="font-size:13px;color:var(--text2);">No upcoming appts</span>
     </div>
-    <!-- Detail row -->
+    <!-- Row 2: Commission stats -->
+    <div style="padding:10px 16px;display:flex;flex-wrap:nowrap;gap:6px 16px;border-bottom:0.5px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--surface);">
+      <span id="ad-stat-earned" style="font-size:12px;color:var(--green-dk);font-weight:500;white-space:nowrap;">💰 $— earned</span>
+      <span style="color:var(--border2);flex-shrink:0;">·</span>
+      <span id="ad-stat-pending-comm" style="font-size:12px;color:var(--text2);white-space:nowrap;">🔄 $— pending</span>
+      <span style="color:var(--border2);flex-shrink:0;">·</span>
+      <span id="ad-stat-volume" style="font-size:12px;color:var(--text2);white-space:nowrap;">📊 $— sold</span>
+      <span style="color:var(--border2);flex-shrink:0;">·</span>
+      <span id="ad-stat-closed-count" style="font-size:12px;color:var(--text2);white-space:nowrap;">📋 — closed</span>
+      <span style="color:var(--border2);flex-shrink:0;">·</span>
+      <span id="ad-stat-closing-soon" style="font-size:12px;color:var(--text2);white-space:nowrap;">🏠 — closing soon</span>
+    </div>
+    <!-- Row 3: Activity -->
     <div style="padding:10px 16px;display:flex;flex-wrap:wrap;gap:6px 20px;background:var(--surface2);">
       <span id="ad-stat-saved" style="font-size:12px;color:var(--text2);">🏠 — saved homes</span>
       <span id="ad-stat-showings" style="font-size:12px;color:var(--text2);">📅 — showings this week</span>
-      <span id="ad-stat-pending" style="font-size:12px;color:var(--text2);">⏳ — pending invites</span>
+      <span id="ad-stat-unread" style="font-size:12px;color:var(--text2);">💬 — unread messages</span>
     </div>
   </div>
 
@@ -7703,10 +7713,8 @@ async function renderAgentDashboard() {
   el = document.getElementById('ad-todo-count');
   if (el) el.textContent = todayTasks.length > 0 ? todayTasks.length + ' open task' + (todayTasks.length !== 1 ? 's' : '') : 'All clear';
 
-  // Open deals
+  // Open deals (for internal tile use only)
   var openDeals = (_deals||[]).filter(function(d){ return d.status!=='Closed'&&d.status!=='Fallen Through'; });
-  el = document.getElementById('ad-stat-deals');
-  if (el) el.textContent = openDeals.length + ' open deal' + (openDeals.length !== 1 ? 's' : '');
   el = document.getElementById('ad-deals-count');
   if (el && _deals && _deals.length) el.textContent = openDeals.length + ' open · ' + _deals.length + ' total';
 
@@ -7769,9 +7777,58 @@ async function renderAgentDashboard() {
   el = document.getElementById('ad-stat-showings');
   if (el) el.textContent = '📅 ' + totalApptShowings + ' showing' + (totalApptShowings !== 1 ? 's' : '') + ' & appt' + (totalApptShowings !== 1 ? 's' : '') + ' this week';
 
-  // Pending invites
-  el = document.getElementById('ad-stat-pending');
-  if (el) el.textContent = '⏳ ' + pending.length + ' pending invite' + (pending.length !== 1 ? 's' : '');
+  // Pending invites (kept for internal use but no longer displayed)
+  // Replaced with unread messages count
+  var unreadTotal = Object.values(agentUnreadCounts||{}).reduce(function(a,b){return a+b;},0);
+  el = document.getElementById('ad-stat-unread');
+  if (el) {
+    el.textContent = '💬 ' + unreadTotal + ' unread message' + (unreadTotal !== 1 ? 's' : '');
+    el.style.color = unreadTotal > 0 ? 'var(--green-dk)' : 'var(--text2)';
+    el.style.fontWeight = unreadTotal > 0 ? '600' : 'normal';
+  }
+
+  // ── Commission stats from Deal Tracker ──
+  var thisYear = new Date().getFullYear();
+  var earnedComm = 0, pendingComm = 0, soldVolume = 0, closedCount = 0, closingSoon = 0;
+  var thirtyDays = new Date(); thirtyDays.setDate(thirtyDays.getDate() + 30);
+  var thirtyStr = thirtyDays.toISOString().split('T')[0];
+  (_deals||[]).forEach(function(deal) {
+    var comm = parseFloat(deal.commission) || 0;
+    var price = parseFloat(deal.salePrice) || 0;
+    var status = deal.status || 'Active';
+    if (status === 'Closed') {
+      // Only count current year
+      var closeDate = deal.closingDate || '';
+      if (!closeDate || closeDate.startsWith(String(thisYear))) {
+        earnedComm += comm;
+        soldVolume += price;
+        closedCount++;
+      }
+    } else if (status !== 'Fallen Through') {
+      pendingComm += comm;
+      // Closing soon = closing date within 30 days
+      if (deal.closingDate && deal.closingDate >= todayStr && deal.closingDate <= thirtyStr) {
+        closingSoon++;
+      }
+    }
+  });
+
+  function fmtMoney(n) {
+    if (n >= 1000000) return '$' + (n/1000000).toFixed(1).replace(/\.0$/,'') + 'M';
+    if (n >= 1000) return '$' + (n/1000).toFixed(0) + 'k';
+    return '$' + n.toLocaleString();
+  }
+
+  el = document.getElementById('ad-stat-earned');
+  if (el) { el.textContent = '💰 ' + fmtMoney(earnedComm) + ' earned'; el.style.color = earnedComm > 0 ? 'var(--green-dk)' : 'var(--text2)'; }
+  el = document.getElementById('ad-stat-pending-comm');
+  if (el) el.textContent = '🔄 ' + fmtMoney(pendingComm) + ' pending';
+  el = document.getElementById('ad-stat-volume');
+  if (el) el.textContent = '📊 ' + fmtMoney(soldVolume) + ' sold';
+  el = document.getElementById('ad-stat-closed-count');
+  if (el) el.textContent = '📋 ' + closedCount + ' closed';
+  el = document.getElementById('ad-stat-closing-soon');
+  if (el) { el.textContent = '🏠 ' + closingSoon + ' closing soon'; el.style.color = closingSoon > 0 ? '#D97706' : 'var(--text2)'; }
 
   // ── Today's Tasks panel ──
   renderDashTasks();
@@ -13682,7 +13739,19 @@ function renderDealCards(deals) {
       +(hasAddr ? partnerEsc(deal.address) : '📍 No address — tap to add')+'</div>'
       +'<div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:1px;">'+partnerEsc(deal.clientName||'Unlinked')+' · '+typeLabel+(clientStep?' · Step '+clientStep:'')+'</div>'
       +'</div>'
-      +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;flex-shrink:0;">'+autoStatus+'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'
+      +'<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end;">'
+      +'<div style="display:flex;align-items:center;gap:3px;">'
+      +'<span style="font-size:9px;color:rgba(255,255,255,0.7);font-weight:600;text-transform:uppercase;">Sale $</span>'
+      +'<input type="number" placeholder="—" value="'+(deal.salePrice||'')+'" onchange="updateDealField(\''+deal.id+'\',\'salePrice\',parseFloat(this.value)||0);recalcDealComm(\''+deal.id+'\')" style="width:70px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;font-size:11px;padding:2px 5px;text-align:right;font-family:inherit;" />'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:3px;">'
+      +'<button onclick="toggleDealCommMode(\''+deal.id+'\')" id="comm-mode-btn-'+deal.id+'" style="font-size:9px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);border-radius:3px;color:#fff;padding:1px 4px;cursor:pointer;font-family:inherit;">'+(deal.commMode==='pct'?'%':'$')+'</button>'
+      +'<input type="number" placeholder="—" value="'+(deal.commMode==='pct'?(deal.commPct||''):(deal.commission||'')+'')+'" id="comm-input-'+deal.id+'" onchange="updateDealComm(\''+deal.id+'\',this.value)" style="width:65px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:4px;color:#fff;font-size:11px;padding:2px 5px;text-align:right;font-family:inherit;" />'
+      +'</div>'
+      +'</div>'
+      +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;">'+autoStatus+'</div>'
+      +'</div>'
       +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
       +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate']].map(function(pair,i){
@@ -13720,6 +13789,49 @@ function renderDealCards(deals) {
   }).join('');
 }
 window.renderDealCards = renderDealCards;
+
+function updateDealField(dealId, field, value) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  deal[field] = value;
+  saveDeal(dealId, deal);
+}
+window.updateDealField = updateDealField;
+
+function toggleDealCommMode(dealId) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  deal.commMode = (deal.commMode === 'pct') ? 'dollar' : 'pct';
+  var btn = document.getElementById('comm-mode-btn-'+dealId);
+  var inp = document.getElementById('comm-input-'+dealId);
+  if (btn) btn.textContent = deal.commMode === 'pct' ? '%' : '$';
+  if (inp) inp.value = deal.commMode === 'pct' ? (deal.commPct||'') : (deal.commission||'');
+  saveDeal(dealId, deal);
+}
+window.toggleDealCommMode = toggleDealCommMode;
+
+function updateDealComm(dealId, value) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var num = parseFloat(value) || 0;
+  if (deal.commMode === 'pct') {
+    deal.commPct = num;
+    deal.commission = deal.salePrice ? Math.round(deal.salePrice * num / 100) : 0;
+  } else {
+    deal.commission = num;
+    deal.commPct = deal.salePrice && num ? Math.round((num / deal.salePrice) * 10000) / 100 : 0;
+  }
+  saveDeal(dealId, deal);
+}
+window.updateDealComm = updateDealComm;
+
+function recalcDealComm(dealId) {
+  var deal = _deals.find(function(d){ return d.id===dealId; });
+  if (!deal || deal.commMode !== 'pct' || !deal.commPct) return;
+  deal.commission = deal.salePrice ? Math.round(deal.salePrice * deal.commPct / 100) : 0;
+  saveDeal(dealId, deal);
+}
+window.recalcDealComm = recalcDealComm;
 
 function renderChecklist(dealId, checklist, stepPrefills) {
   if (!checklist || !checklist.length) return '<div style="font-size:12px;color:var(--text3);font-style:italic;">No items — add one below</div>';
