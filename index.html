@@ -6209,6 +6209,7 @@ function watchChat(buyerIdOverride) {
 
     // Auto-scroll to bottom
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (firstLoad) setTimeout(function(){ messagesEl.scrollTop = messagesEl.scrollHeight; }, 100);
 
     // Update unread badge on nav if message is not mine and chat not open
     if (!isMine && !firstLoad) {
@@ -7580,6 +7581,7 @@ function openMsgThread(buyerUid) {
   if (msgsEl) { msgsEl.innerHTML = ''; msgsEl.removeAttribute('data-last-date'); }
 
   var chatRef = fb.ref(fb.rtdb, 'chats/'+roomId+'/messages');
+  var _msgFirstLoad = true;
   _msgListener = fb.onChildAdded(chatRef, function(snap) {
     var msg = snap.val(); if (!msg) return;
     var msgsEl = document.getElementById('msg-msgs');
@@ -7591,6 +7593,7 @@ function openMsgThread(buyerUid) {
     bubble.innerHTML = '<div>'+partnerEsc(msg.text||'')+'</div><div style="font-size:10px;opacity:0.6;margin-top:3px;text-align:'+(isMe?'right':'left')+';">'+timeStr+'</div>';
     msgsEl.appendChild(bubble);
     msgsEl.scrollTop = msgsEl.scrollHeight;
+    if (_msgFirstLoad) { setTimeout(function(){ msgsEl.scrollTop = msgsEl.scrollHeight; }, 150); _msgFirstLoad = false; }
   });
 }
 window.openMsgThread = openMsgThread;
