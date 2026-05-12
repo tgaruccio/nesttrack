@@ -11081,10 +11081,16 @@ async function testPushNotification() {
   if (result) result.textContent = 'Sending...';
   if (!currentUser) { if (result) result.textContent = 'Not logged in'; return; }
   try {
+    // Look up agent subscription ID from Firestore
+    var agentShortId = (userProfile && userProfile.agentId) || 'tom';
+    var snap = await fb.getDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + agentShortId));
+    var subId = snap.exists() ? snap.data().onesignalSubId : null;
+    console.log('Test push subId:', subId);
+    if (!subId) { if (result) result.textContent = '✗ No subscription ID found in Firestore'; return; }
     var resp = await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: 'e6479576-e6fb-4bec-9ddf-31c7ab082aa0', title: 'Nest Track Test', body: 'Push notifications are working!' })
+      body: JSON.stringify({ uid: subId, title: 'Nest Track Test', body: 'Push notifications are working!' })
     });
     var data = await resp.json();
     console.log('Test push result:', data);
