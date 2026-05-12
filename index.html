@@ -4039,7 +4039,7 @@ function go(page, el) {
     }
   }
   if (page === 'mortgage') fetchMortgageRates();
-  if (page === 'chat') { clearChatBadge(); try{localStorage.setItem('chatLastOpened_'+(currentUser&&currentUser.uid), String(Date.now()));}catch(e){} var msgs=document.getElementById('chat-messages'); if(msgs){msgs.innerHTML='';msgs.removeAttribute('data-last-date');} var emp=document.getElementById('chat-empty'); if(emp) emp.style.display='block'; if(currentChatRoom) watchChat(isAgent?null:null); else setupChatHead(); setTimeout(function(){ var m=document.getElementById('chat-messages'); if(m) m.scrollTop=m.scrollHeight; },300); }
+  if (page === 'chat') { clearChatBadge(); try{localStorage.setItem('chatLastOpened_'+(currentUser&&currentUser.uid), String(Date.now()));}catch(e){} var msgs=document.getElementById('chat-messages'); if(msgs){msgs.innerHTML='';msgs.removeAttribute('data-last-date');} var emp=document.getElementById('chat-empty'); if(emp) emp.style.display='block'; if(currentChatRoom) watchChat(isAgent?null:null); else setupChatHead(); setTimeout(function(){ var m=document.getElementById('chat-messages'); if(m){ m.scrollTop=m.scrollHeight; var last=m.lastElementChild; if(last) last.scrollIntoView({block:'end'}); } },400); }
   if (page === 'photochecklist') renderPhotoChecklist();
   if (page === 'mortgage') buildMortgageDropdown();
   if (page === 'agent' && isAgent) { renderAgentProfileEditor(); renderBuyers(); }
@@ -6209,7 +6209,7 @@ function watchChat(buyerIdOverride) {
 
     // Auto-scroll to bottom
     messagesEl.scrollTop = messagesEl.scrollHeight;
-    if (firstLoad) setTimeout(function(){ messagesEl.scrollTop = messagesEl.scrollHeight; }, 100);
+    if (firstLoad) { setTimeout(function(){ var last=messagesEl.lastElementChild; if(last) last.scrollIntoView({block:'end'}); else messagesEl.scrollTop=messagesEl.scrollHeight; }, 200); }
 
     // Update unread badge on nav if message is not mine and chat not open
     if (!isMine && !firstLoad) {
