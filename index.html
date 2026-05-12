@@ -1239,10 +1239,11 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Quick launch grid -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
-    <button onclick="go('messages',document.querySelector('[data-pg=messages]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+    <button onclick="go('messages',document.querySelector('[data-pg=messages]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;position:relative;">
       <span style="font-size:24px;">💬</span>
       <span style="font-size:13px;font-weight:600;">Messages</span>
       <span style="font-size:11px;opacity:0.85;" id="ad-msg-count">Client conversations</span>
+      <span id="ad-msg-tile-badge" style="display:none;position:absolute;top:10px;right:10px;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:600;"></span>
     </button>
 
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
@@ -7366,6 +7367,8 @@ function updateAgentUnreadBadge() {
   if (navBadge) { navBadge.style.display = total>0?'inline':'none'; navBadge.textContent = total>9?'9+':String(total); }
   var msgBadge = document.getElementById('agent-msg-badge');
   if (msgBadge) { msgBadge.style.display = total>0?'inline':'none'; msgBadge.textContent = total>9?'9+':String(total); }
+  var tileBadge = document.getElementById('ad-msg-tile-badge');
+  if (tileBadge) { tileBadge.style.display = total>0?'inline':'none'; tileBadge.textContent = total>9?'9+':String(total); }
   var inboxList = document.getElementById('agent-inbox-list');
   if (inboxList && inboxList.style.display !== 'none') renderAgentInbox();
   var msgItems = document.getElementById('msg-list-items');
