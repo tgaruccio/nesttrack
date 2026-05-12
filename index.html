@@ -3781,7 +3781,7 @@ async function showApp() {
     setTimeout(renderHome, 100);
     setTimeout(checkIOSInstallPrompt, 2000);
     setTimeout(showNotificationBanner, 3000);
-    setTimeout(oneSignalRegister, 1500);
+    setTimeout(oneSignalRegister, 4000);
   }
 }
 
@@ -11028,19 +11028,26 @@ window.jumpToDoc = jumpToDoc;
 // Uses subscription change listener for reliable iOS support
 async function oneSignalRegister() {
   if (!currentUser) return;
+  var debugEl = document.getElementById('push-test-result');
+  function dbg(msg) { console.log(msg); if(debugEl) debugEl.textContent = msg; }
   try {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-      try { await OneSignal.login(currentUser.uid); } catch(e) { console.log('OneSignal login err:', e.message); }
+      dbg('OneSignal: starting login...');
+      try { await OneSignal.login(currentUser.uid); dbg('OneSignal: login done'); } 
+      catch(e) { dbg('OneSignal login err: ' + e.message); }
 
-      // Poll for subscription ID — more reliable than change listener on iOS
+      dbg('OneSignal: checking permission...');
+      var permission = OneSignal.Notifications.permission;
+      dbg('OneSignal: permission = ' + permission);
+
       var attempts = 0;
       var maxAttempts = 20;
       var interval = setInterval(async function() {
         attempts++;
         try {
           var subId = OneSignal.User.PushSubscription.id;
-          console.log('OneSignal poll attempt', attempts, 'subId:', subId);
+          dbg('Poll ' + attempts + ': subId=' + (subId || 'null'));
           if (subId) {
             clearInterval(interval);
             var data = { onesignalSubId: subId, uid: currentUser.uid, updated: Date.now() };
@@ -11049,13 +11056,13 @@ async function oneSignalRegister() {
               await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + userProfile.agentId), data);
             }
             await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), data);
-            console.log('OneSignal: saved subId', subId, 'for', currentUser.uid);
+            dbg('OneSignal: SAVED ' + subId);
           }
-        } catch(e) { console.log('OneSignal poll err:', e.message); }
-        if (attempts >= maxAttempts) { clearInterval(interval); console.log('OneSignal: gave up polling'); }
+        } catch(e) { dbg('Poll err: ' + e.message); }
+        if (attempts >= maxAttempts) { clearInterval(interval); dbg('OneSignal: gave up after 20 attempts'); }
       }, 1000);
     });
-  } catch(e) { console.log('oneSignalRegister err:', e.message); }
+  } catch(e) { dbg('oneSignalRegister err: ' + e.message); }
 }
 window.oneSignalRegister = oneSignalRegister;
 
@@ -11110,7 +11117,11 @@ window.showNotificationBanner = showNotificationBanner;
 async function enableNotifFromBanner() {
   dismissNotifBanner();
   OneSignalDeferred.push(async function(OneSignal) {
-    try { await OneSignal.Notifications.requestPermission(); } catch(e) {}
+    try { 
+      await OneSignal.Notifications.requestPermission();
+      // Now that permission is granted, register with Firebase UID
+      await oneSignalRegister();
+    } catch(e) {}
   });
 }
 window.enableNotifFromBanner = enableNotifFromBanner;
