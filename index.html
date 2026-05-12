@@ -11031,18 +11031,18 @@ async function oneSignalRegister() {
   try {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-      try {
-        // Link Firebase UID as external_id — this is the stable identifier
-        await OneSignal.login(currentUser.uid);
-        console.log('OneSignal: logged in as', currentUser.uid);
-      } catch(e) { console.log('OneSignal login err:', e.message); }
+      try { await OneSignal.login(currentUser.uid); } catch(e) { console.log('OneSignal login err:', e.message); }
 
-      // Use subscription change listener — most reliable way to get subId on iOS
-      OneSignal.User.PushSubscription.addEventListener('change', async function(event) {
+      // Poll for subscription ID — more reliable than change listener on iOS
+      var attempts = 0;
+      var maxAttempts = 20;
+      var interval = setInterval(async function() {
+        attempts++;
         try {
-          var subId = event.current && event.current.id;
-          console.log('OneSignal subscription changed, subId:', subId);
-          if (subId && currentUser) {
+          var subId = OneSignal.User.PushSubscription.id;
+          console.log('OneSignal poll attempt', attempts, 'subId:', subId);
+          if (subId) {
+            clearInterval(interval);
             var data = { onesignalSubId: subId, uid: currentUser.uid, updated: Date.now() };
             if (isAgent && userProfile && userProfile.agentId) {
               data.agentShortId = userProfile.agentId;
@@ -11051,25 +11051,9 @@ async function oneSignalRegister() {
             await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), data);
             console.log('OneSignal: saved subId', subId, 'for', currentUser.uid);
           }
-        } catch(se) { console.log('OneSignal save err:', se.message); }
-      });
-
-      // Also try to save current subId immediately if already subscribed
-      setTimeout(async function() {
-        try {
-          var subId = OneSignal.User.PushSubscription.id;
-          console.log('OneSignal current subId:', subId);
-          if (subId && currentUser) {
-            var data = { onesignalSubId: subId, uid: currentUser.uid, updated: Date.now() };
-            if (isAgent && userProfile && userProfile.agentId) {
-              data.agentShortId = userProfile.agentId;
-              await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + userProfile.agentId), data);
-            }
-            await fb.setDoc(fb.doc(fb.db, 'push_subscriptions', currentUser.uid), data);
-            console.log('OneSignal: saved existing subId', subId);
-          }
-        } catch(e) { console.log('OneSignal existing sub err:', e.message); }
-      }, 2000);
+        } catch(e) { console.log('OneSignal poll err:', e.message); }
+        if (attempts >= maxAttempts) { clearInterval(interval); console.log('OneSignal: gave up polling'); }
+      }, 1000);
     });
   } catch(e) { console.log('oneSignalRegister err:', e.message); }
 }
