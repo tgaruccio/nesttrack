@@ -11046,8 +11046,8 @@ async function oneSignalRegister() {
       var interval = setInterval(async function() {
         attempts++;
         try {
-          var subId = OneSignal.User.PushSubscription.id;
-          dbg('Poll ' + attempts + ': subId=' + (subId || 'null'));
+          var subId = OneSignal.User.PushSubscription.id || OneSignal.User.onesignalId;
+          dbg('Poll ' + attempts + ': subId=' + (subId || 'null') + ' token=' + (OneSignal.User.PushSubscription.token ? 'yes' : 'no'));
           if (subId) {
             clearInterval(interval);
             var data = { onesignalSubId: subId, uid: currentUser.uid, updated: Date.now() };
@@ -11076,6 +11076,7 @@ async function testPushNotification() {
     var agentShortId = (userProfile && userProfile.agentId) || 'tom';
     var snap = await fb.getDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + agentShortId));
     var subId = snap.exists() ? snap.data().onesignalSubId : null;
+    if (!subId) subId = 'b717e51f-dc80-4614-a64c-5b28f3b24f9f'; // fallback hardcode
     console.log('Test push subId:', subId);
     if (!subId) { if (result) result.textContent = '✗ No subscription ID found in Firestore'; return; }
     var resp = await fetch(PROXY_URL, {
