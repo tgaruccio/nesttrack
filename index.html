@@ -2517,7 +2517,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <div><label class="flabel">Email <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
     <div><label class="flabel">Phone <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
-    <div id="inv-address-wrap"><label class="flabel">Property Address <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/></div>
+    <div><label class="flabel">Mailing Address <span style="font-weight:400;color:var(--text3);">(optional — current home address)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/></div>
     <div><label class="flabel">CRM Status</label>
       <select id="inv-crm-status">
         <option value="pipeline">Pipeline</option>
@@ -8270,6 +8270,10 @@ async function openBuyerDetail(uid, scrollTo) {
         <div>
           <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email}${b.phone?' · '+b.phone:''}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+            <span style="font-size:12px;color:var(--text2);">📍</span>
+            <input type="text" placeholder="Mailing address" value="${b.mailingAddress||''}" onchange="saveClientField('${uid}','mailingAddress',this.value)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
+          </div>
           ${!b.portalAccess ? `<button onclick="openPortalInviteModal('${uid}')" style="margin-top:5px;background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">✉ Invite to Portal</button>` : `<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">✓ Portal Access</span>`}
           ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
@@ -8863,6 +8867,8 @@ async function fireZapierWebhook(agentId, clientData) {
       lastName: clientData.lastName || '',
       email: clientData.email || '',
       phone: clientData.phone || '',
+      mailingAddress: clientData.mailingAddress || '',
+      propertyAddress: clientData.propertyAddress || '',
       agentName: agentEntry.name || '',
       agentEmail: agentEntry.email || '',
       journeyType: clientData.journeyType || 'buyer',
@@ -8922,7 +8928,7 @@ async function createInvite() {
 
     // Journey-specific content
     var isBuyer  = true;
-    var isSeller = !!(document.getElementById('inv-address') && document.getElementById('inv-address').value.trim());
+    var isSeller = false; // seller status set separately via journey type
     var subjectLine = first + (isSeller ? ', your real estate portal is ready 🏠🏡' : ', your home buying portal is ready 🏠');
 
     // Compact feature tiles
@@ -14624,6 +14630,21 @@ async function saveClientStatus(uid, status) {
 }
 window.saveClientStatus = saveClientStatus;
 
+async function saveClientField(uid, field, value) {
+  try {
+    var update = {}; update[field] = value;
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), update);
+    var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
+    if (b) b[field] = value;
+    // Sync to Zapier if webhook configured
+    if (userProfile && userProfile.zapierWebhookUrl && value) {
+      var payload = { firstName: b&&b.firstName||'', lastName: b&&b.lastName||'', email: b&&b.email||'', phone: b&&b.phone||'', mailingAddress: b&&b.mailingAddress||'', propertyAddress: b&&b.propertyAddress||'', agentName: (userProfile.firstName||'')+' '+(userProfile.lastName||''), agentEmail: userProfile.email||'', source: 'NestTrack', updatedField: field };
+      fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'webhook','X-Webhook-Url':userProfile.zapierWebhookUrl}, body:JSON.stringify(payload) }).catch(function(){});
+    }
+  } catch(e) { console.log('saveClientField err:', e.message); }
+}
+window.saveClientField = saveClientField;
+
 // ─── LISTING AGENT FIELD (mortgage section) ───
 async function saveMortLAField(uid, field, value) {
   try {
@@ -14667,6 +14688,7 @@ async function createContact() {
   var email = document.getElementById('inv-email').value.trim();
   var phone = (document.getElementById('inv-phone')||{}).value || '';
   var address = (document.getElementById('inv-address')||{}).value || '';
+  var mailingAddress = address;
   var agentId = document.getElementById('inv-agent').value;
   var lenderId = document.getElementById('inv-lender').value || 'none';
   var crmStatus = (document.getElementById('inv-crm-status')||{}).value || 'pipeline';
@@ -14682,7 +14704,7 @@ async function createContact() {
     currentStep: 0, currentSellerStep: 0,
     portalAccess: false, // no portal account yet
     isContact: true,
-    propertyAddress: address || null,
+    mailingAddress: mailingAddress || null,
     createdAt: fb.serverTimestamp(),
     lastActive: fb.serverTimestamp(),
   };
