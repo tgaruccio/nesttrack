@@ -1030,7 +1030,7 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:13px;font-weight:500;">Email this Net Sheet</div>
       <div id="ns-client-wrap" style="display:none;flex-direction:column;gap:6px;">
         <label class="flabel">Send to Client</label>
-        <select id="ns-client-sel" style="font-size:13px;"><option value="">-- Select client --</option></select>
+        <div id="ns-client-search" style="flex:1;"></div>
       </div>
       <input type="email" id="ns-email" placeholder="Enter email address" style="font-size:14px;"/>
       <button class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;" onclick="emailNetSheet()">📧 Send Net Sheet</button>
@@ -1164,7 +1164,7 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-size:13px;font-weight:500;">📧 Email Payment Summary to Client</div>
     <div>
       <label class="flabel">Select Client</label>
-      <select id="mort-client-sel" style="font-size:13px;"><option value="">— Choose a client —</option></select>
+      <div id="mort-client-search"></div>
     </div>
     <div style="text-align:center;font-size:11px;color:var(--text3);">— or enter manually —</div>
     <div>
@@ -1363,9 +1363,7 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-weight:500;font-size:14px;">Send to a Client</div>
     <div>
       <label class="flabel">Select Client</label>
-      <select id="pa-client-sel" style="font-size:14px;padding:10px 12px;">
-        <option value="">— Choose from your clients —</option>
-      </select>
+      <div id="pa-client-search"></div>
     </div>
     <div style="text-align:center;color:var(--text3);font-size:12px;">— or —</div>
     <div>
@@ -2463,7 +2461,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div id="ref-step2" style="display:none;">
         <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Step 2 &mdash; Select Client</div>
-        <select id="ref-client-select" style="width:100%;margin-bottom:8px;"></select>
+        <div id="ref-client-search" style="margin-bottom:8px;"></div>
         <div style="text-align:center;font-size:12px;color:var(--text3);margin:6px 0;">— or enter email manually —</div>
         <input type="email" id="ref-manual-email" placeholder="email@example.com" style="width:100%;box-sizing:border-box;margin-bottom:12px;font-size:14px;"/>
         <div style="font-size:12px;color:var(--text3);padding:10px 12px;background:var(--surface2);border-radius:var(--r);line-height:1.6;">
@@ -4149,33 +4147,24 @@ function go(page, el) {
     setTimeout(function(){ renderTrailMap(); }, 150);
   }
   if (page === 'commute') { buildCommuteDropdown(); }
-  if (page === 'agent-preapproval' && isAgent) { _populateToolDropdown('pa-client-sel'); }
+  if (page === 'agent-preapproval' && isAgent) {
+    createClientSearchDropdown('pa-client-search', function(uid, email, name){
+      var manualEl = document.getElementById('pa-manual-email'); if (manualEl) manualEl.value = '';
+    }, 'Search clients...');
+  }
   if (page === 'mortgage') {
     var mortEmailSec = document.getElementById('mort-email-section');
     if (mortEmailSec) mortEmailSec.style.display = isAgent ? 'flex' : 'none';
-    if (isAgent) _populateToolDropdown('mort-client-sel');
+    if (isAgent) { createClientSearchDropdown('mort-client-search', function(){}, 'Search clients...'); }
   }
   if (page === 'netsheet' && isAgent) {
     var nsWrap = document.getElementById('ns-client-wrap');
-    var nsSel  = document.getElementById('ns-client-sel');
-    var nsFld  = document.getElementById('ns-email');
     if (nsWrap) nsWrap.style.display = 'flex';
-    function _populateNsSel() {
-      if (!nsSel) return;
-      var list = (myBuyers||[]).filter(function(b){ return b.email; });
-      nsSel.innerHTML = '<option value="">-- Select client --</option>'
-        + '<option value="__all__">📤 Send to ALL clients (' + list.length + ')</option>'
-        + list.map(function(b){
-            var n = (((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email);
-            return '<option value="'+b.email+'">'+n+(b.pending?' (pending)':'')+'</option>';
-          }).join('');
-      nsSel.onchange = function(){ if(nsFld) nsFld.value = nsSel.value==='__all__'?'__all__':nsSel.value; };
-    }
-    if (myBuyers && myBuyers.length) {
-      _populateNsSel();
-    } else {
-      loadBuyersForAgent().then(_populateNsSel);
-    }
+    createClientSearchDropdown('ns-client-search', function(uid, email, name){
+      var nsFld = document.getElementById('ns-email');
+      if (nsFld) nsFld.value = email;
+    }, 'Search clients...');
+    // Keep __all__ option accessible via a separate button
   }
   if (page === 'valuation') { buildValuationDropdown(); }
   if (page === 'mortgagejourney') { setTimeout(function(){ renderMortgageJourney(); }, 150); }
@@ -6155,27 +6144,22 @@ async function refNextStep() {
     var selected = agentPartners.filter(function(p){ return _refChecked[p.id]; });
     if (!selected.length) { alert('Select at least one partner to send.'); return; }
     if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
-    var sel = document.getElementById('ref-client-select');
-    var buyers = myBuyers || allBuyers || [];
-    sel.innerHTML = buyers.map(function(b){
-      var n = ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email || b.uid;
-      return '<option value="'+b.uid+'">'+n+'</option>';
-    }).join('');
     _refStep=2;
     document.getElementById('ref-step1').style.display='none';
     document.getElementById('ref-step2').style.display='block';
     document.getElementById('ref-back-btn').style.display='inline-flex';
     document.getElementById('ref-next-btn').textContent='Send Referrals';
+    createClientSearchDropdown('ref-client-search', function(){}, 'Search clients...');
   } else { await sendReferrals(); }
 }
 window.refNextStep = refNextStep;
 
 async function sendReferrals() {
-  var uid = document.getElementById('ref-client-select').value;
+  var uid = csdGetUid('ref-client-search');
   var manualEmail = (document.getElementById('ref-manual-email')||{}).value||'';
   manualEmail = manualEmail.trim();
   var buyer = (myBuyers||allBuyers||[]).find(function(b){ return b.uid===uid; });
-  var toEmail = (buyer && buyer.email) || manualEmail;
+  var toEmail = (buyer && buyer.email) || csdGetEmail('ref-client-search') || manualEmail;
   var clientFirst = (buyer && buyer.firstName) || 'there';
   if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
   var selected = agentPartners.filter(function(p){ return _refChecked[p.id]; });
@@ -6672,6 +6656,97 @@ window.toggleNavSection = toggleNavSection;
 
 
 // ─── Shared tool dropdown population ───
+// ─── SEARCHABLE CLIENT DROPDOWN ───
+function createClientSearchDropdown(containerId, onSelect, placeholder) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  placeholder = placeholder || 'Search clients...';
+
+  var wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:relative;';
+
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.id = 'csd-input-' + containerId;
+  inp.placeholder = placeholder;
+  inp.autocomplete = 'off';
+  inp.style.cssText = 'width:100%;box-sizing:border-box;font-size:14px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);font-family:inherit;';
+  inp.addEventListener('input', function(){ csdFilter(containerId); });
+  inp.addEventListener('focus', function(){ csdFilter(containerId); });
+
+  var list = document.createElement('div');
+  list.id = 'csd-list-' + containerId;
+  list.style.cssText = 'display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);max-height:220px;overflow-y:auto;z-index:1000;box-shadow:0 4px 12px rgba(0,0,0,0.12);';
+
+  var hidUid = document.createElement('input'); hidUid.type='hidden'; hidUid.id='csd-uid-'+containerId;
+  var hidEmail = document.createElement('input'); hidEmail.type='hidden'; hidEmail.id='csd-email-'+containerId;
+
+  wrapper.appendChild(inp);
+  wrapper.appendChild(list);
+  wrapper.appendChild(hidUid);
+  wrapper.appendChild(hidEmail);
+  container.innerHTML = '';
+  container.appendChild(wrapper);
+
+  window['_csdCb_'+containerId] = onSelect;
+  function populate() { window['_csdClients_'+containerId] = (myBuyers||[]).filter(function(b){ return b.email; }); }
+  if (myBuyers && myBuyers.length) { populate(); }
+  else { loadBuyersForAgent().then(populate); }
+}
+window.createClientSearchDropdown = createClientSearchDropdown;
+
+function csdFilter(containerId) {
+  var inp = document.getElementById('csd-input-'+containerId);
+  var list = document.getElementById('csd-list-'+containerId);
+  if (!inp || !list) return;
+  var q = inp.value.toLowerCase().trim();
+  var clients = window['_csdClients_'+containerId] || [];
+  var filtered = q ? clients.filter(function(b){
+    var n = ((b.firstName||'')+' '+(b.lastName||'')).trim().toLowerCase();
+    return n.includes(q) || (b.email||'').toLowerCase().includes(q);
+  }) : clients;
+  filtered = filtered.slice(0,50);
+  list.innerHTML = '';
+  if (!filtered.length) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'padding:10px 14px;font-size:13px;color:var(--text3);';
+    empty.textContent = 'No clients found';
+    list.appendChild(empty);
+  } else {
+    filtered.forEach(function(b) {
+      var n = ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email;
+      var row = document.createElement('div');
+      row.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:0.5px solid var(--border);';
+      row.innerHTML = '<div style="font-weight:500;">' + n + (b.pending ? ' <span style="font-size:11px;color:var(--text3);">(pending)</span>' : '') + '</div><div style="font-size:11px;color:var(--text3);">' + (b.email||'') + '</div>';
+      row.addEventListener('mouseenter', function(){ this.style.background='var(--surface2)'; });
+      row.addEventListener('mouseleave', function(){ this.style.background=''; });
+      (function(uid, email, name){ row.addEventListener('click', function(){ csdSelect(containerId, uid, email, name); }); })(b.uid, b.email||'', n);
+      list.appendChild(row);
+    });
+  }
+  list.style.display = 'block';
+  setTimeout(function(){
+    function hide(e){ if(!list.contains(e.target)&&e.target!==inp){ list.style.display='none'; document.removeEventListener('click',hide); } }
+    document.addEventListener('click', hide);
+  }, 100);
+}
+window.csdFilter = csdFilter;
+
+function csdSelect(containerId, uid, email, name) {
+  var inp = document.getElementById('csd-input-'+containerId);
+  var list = document.getElementById('csd-list-'+containerId);
+  if (inp) inp.value = name;
+  if (list) list.style.display = 'none';
+  var uidEl = document.getElementById('csd-uid-'+containerId); if (uidEl) uidEl.value = uid;
+  var emailEl = document.getElementById('csd-email-'+containerId); if (emailEl) emailEl.value = email;
+  var cb = window['_csdCb_'+containerId]; if (cb) cb(uid, email, name);
+}
+window.csdSelect = csdSelect;
+function csdGetUid(id) { var el = document.getElementById('csd-uid-'+id); return el ? el.value : ''; }
+function csdGetEmail(id) { var el = document.getElementById('csd-email-'+id); return el ? el.value : ''; }
+window.csdGetUid = csdGetUid;
+window.csdGetEmail = csdGetEmail;
+
 function _populateToolDropdown(selId) {
   var sel = document.getElementById(selId);
   if (!sel) return;
@@ -6682,15 +6757,8 @@ function _populateToolDropdown(selId) {
           var n = (((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email);
           return '<option value="'+b.uid+'|'+b.email+'|'+n+'">'+n+(b.pending?' (pending)':'')+'</option>';
         }).join('');
-    // Wire up to manual email field (same pattern: selId minus '-sel' + '-email' or '-manual-email')
-    var emailFldId = selId.replace('-client-sel','-email').replace('-client-sel','-manual-email');
-    var emailFld = document.getElementById(emailFldId) || document.getElementById(selId.replace('-client-sel','-manual-email'));
-    if (emailFld) {
-      sel.onchange = function(){
-        var parts = sel.value.split('|');
-        if (emailFld) emailFld.value = parts[1] || '';
-      };
-    }
+    var emailFld = document.getElementById(selId.replace('-client-sel','-manual-email'));
+    if (emailFld) { sel.onchange = function(){ var p=sel.value.split('|'); if(emailFld) emailFld.value=p[1]||''; }; }
   }
   if (myBuyers && myBuyers.length) { fill(); }
   else { loadBuyersForAgent().then(fill); }
@@ -6699,14 +6767,9 @@ window._populateToolDropdown = _populateToolDropdown;
 
 // ─── Mortgage calc email ───
 async function emailMortCalc() {
-  var sel = document.getElementById('mort-client-sel');
   var manualFld = document.getElementById('mort-email');
-  var toEmail = '', toLabel = '';
-  if (sel && sel.value) {
-    var parts = sel.value.split('|');
-    toEmail = parts[1] || '';
-    toLabel = parts[2] || toEmail;
-  }
+  var toEmail = csdGetEmail('mort-client-search') || '';
+  var toLabel = csdGetUid('mort-client-search') ? (document.getElementById('csd-input-mort-client-search')||{}).value||toEmail : toEmail;
   if (!toEmail && manualFld) toEmail = manualFld.value.trim();
   if (!toLabel) toLabel = toEmail;
   if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
@@ -8368,22 +8431,15 @@ function renderAdPipeline(buyers) {
 window.renderAdPipeline = renderAdPipeline;
 
 function populatePAClientDropdown() {
-  var sel = document.getElementById('pa-client-sel');
-  if (!sel) return;
-  var active = myBuyers.filter(function(b){ return !b.pending && b.email; });
-  sel.innerHTML = '<option value="">— Choose from your clients —</option>'
-    + active.map(function(b){
-        return '<option value="'+b.email+'">'+b.firstName+' '+b.lastName+' · '+b.email+'</option>';
-      }).join('');
+  createClientSearchDropdown('pa-client-search', function(){}, 'Search clients...');
 }
 window.populatePAClientDropdown = populatePAClientDropdown;
 
 async function sendPreApprovalEmail() {
-  var sel = document.getElementById('pa-client-sel');
   var manual = document.getElementById('pa-manual-email');
   var noteEl = document.getElementById('pa-note');
   var status = document.getElementById('pa-status');
-  var toEmail = (sel && sel.value) || (manual && manual.value.trim());
+  var toEmail = csdGetEmail('pa-client-search') || (manual && manual.value.trim());
   if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
   var note = noteEl ? noteEl.value.trim() : '';
   var agentName = ((userProfile&&userProfile.firstName||'') + ' ' + (userProfile&&userProfile.lastName||'')).trim() || 'Tom Garuccio';
