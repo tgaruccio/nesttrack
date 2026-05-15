@@ -8181,7 +8181,7 @@ async function renderAgentDashboard() {
   if (el) el.textContent = todayTasks.length > 0 ? todayTasks.length + ' open task' + (todayTasks.length !== 1 ? 's' : '') : 'All clear';
 
   // Open deals (for internal tile use only)
-  var openDeals = (_deals||[]).filter(function(d){ return d.status!=='Closed'&&d.status!=='Fallen Through'; });
+  var openDeals = (_deals||[]).filter(function(d){ return d.status!=='Closed'; });
   el = document.getElementById('ad-deals-count');
   if (el && _deals && _deals.length) el.textContent = openDeals.length + ' open · ' + _deals.length + ' total';
 
@@ -8262,7 +8262,7 @@ async function renderAgentDashboard() {
   (_deals||[]).forEach(function(deal) {
     var comm = parseFloat(deal.commission) || 0;
     var price = parseFloat(deal.salePrice) || 0;
-    var status = deal.status || 'Active';
+    var status = deal.status || 'Listed';
     if (status === 'Closed') {
       // Only count current year
       var closeDate = deal.closingDate || '';
@@ -8271,7 +8271,7 @@ async function renderAgentDashboard() {
         soldVolume += price;
         closedCount++;
       }
-    } else if (status !== 'Fallen Through') {
+    } else if (status !== 'Closed') {
       pendingComm += comm;
       // Closing soon = closing date within 30 days
       if (deal.closingDate && deal.closingDate >= todayStr && deal.closingDate <= thirtyStr) {
@@ -8496,7 +8496,7 @@ function injectDealReminders() {
     { key: 'closingDate',    label: 'Closing date',        warn: 7 },
   ];
   _deals.forEach(function(deal) {
-    if (deal.status === 'Closed' || deal.status === 'Fallen Through') return;
+    if (deal.status === 'Closed') return;
     var name = deal.clientName || 'Client';
     var addr = deal.address ? deal.address.split(',')[0] : 'No address';
     watchDates.forEach(function(wd) {
@@ -12124,7 +12124,7 @@ async function saveListing(existingId) {
           clientName: clientName,
           clientUid: clientUid || null,
           agentId: userProfile.agentId || 'tom',
-          status: 'On Market',
+          status: 'Listed',
           type: 'seller',
           salePrice: listPrice ? parseFloat(String(listPrice).replace(/[^0-9.]/g,'')) || 0 : 0,
           commission: 0,
@@ -14099,14 +14099,11 @@ var _deals = [];
 var _dealsLoaded = false;
 var _activeFilter = 'active';
 
-var DEAL_STATUSES = ['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'];
+var DEAL_STATUSES = ['Listed','Under Contract','Closed'];
 var DEAL_STATUS_COLORS = {
-  'On Market':       {bg:'#FFF7ED',color:'#C2410C'},
-  'Active':          {bg:'#F0FDF4',color:'#065F46'},
-  'Under Contract':  {bg:'#FEF9C3',color:'#713F12'},
-  'Clear to Close':  {bg:'#ECFDF5',color:'#065F46'},
-  'Closed':          {bg:'#F3F4F6',color:'#374151'},
-  'Fallen Through':  {bg:'#FEF2F2',color:'#991B1B'},
+  'Listed':          {bg:'#FFF7ED',color:'#C2410C'},
+  'Under Contract':  {bg:'#FEF3C7',color:'#92400E'},
+  'Closed':          {bg:'#F0FDF4',color:'#166534'},
 };
 
 var BUYER_PREFILLS = [
@@ -14139,7 +14136,7 @@ async function loadDeals() {
       var data = Object.assign({id:d.id},d.data());
       if (data.dealType === 'both') data.dealType = 'buyer';
       if (!data.dealType) data.dealType = 'buyer';
-      if (!data.status) data.status = 'Active';
+      if (!data.status) data.status = 'Listed';
       data._storedStatus = data.status;
       _deals.push(data);
     });
@@ -14190,7 +14187,8 @@ async function renderDealTracker() {
     +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
     +'</div>';
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
-    +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')">Active</button>'
+    +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')">Listed</button>'
+    +'<button class="btn btn-sm" id="dchip-contract" onclick="filterDeals(\'contract\')">Under Contract</button>'
     +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
     +'</div>';
   html += '<div id="deal-cards-container"></div>';
@@ -14227,7 +14225,7 @@ function renderDealCards(deals) {
     var total = checklist.length;
     var notes = deal.notes || '';
     var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
-    var autoStatus = deal.status || deal._storedStatus || 'Active';
+    var autoStatus = deal.status || deal._storedStatus || 'Listed';
     var hasAddr = deal.address && deal.address.trim();
     var tileBg   = deal.dealType === 'seller' ? '#FEF3C7' : '#ECFDF5';
     var tileBdr  = deal.dealType === 'seller' ? '#F59E0B' : '#6EE7B7';
@@ -14280,7 +14278,7 @@ function renderDealCards(deals) {
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
       +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
-      +['On Market','Active','Under Contract','Clear to Close','Closed','Fallen Through'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
+      +['Listed','Under Contract','Closed'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
       +'</select>'
       +'<button class="btn btn-sm" onclick="deleteDeal(\''+deal.id+'\')" style="color:#E24B4A;">\ud83d\uddd1</button>'
       +'</div>'
@@ -14525,11 +14523,12 @@ function filterDeals(tab) {
   });
   var chip = document.getElementById('dchip-'+tab);
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
-  var showClosed = (tab === 'closed');
   var filtered = _deals.filter(function(d){
-    var status = d.status || d._storedStatus || 'Active';
-    var isClosed = status === 'Closed' || status === 'Fallen Through';
-    return isClosed === showClosed;
+    var status = d.status || d._storedStatus || 'Listed';
+    if (tab === 'closed') return status === 'Closed';
+    if (tab === 'contract') return status === 'Under Contract';
+    // active tab = Listed + Active + On Market + anything else not closed/contract
+    return status !== 'Closed' && status !== 'Under Contract';
   });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
