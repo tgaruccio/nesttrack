@@ -2463,7 +2463,9 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div id="ref-step2" style="display:none;">
         <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;">Step 2 &mdash; Select Client</div>
-        <select id="ref-client-select" style="width:100%;margin-bottom:12px;"></select>
+        <select id="ref-client-select" style="width:100%;margin-bottom:8px;"></select>
+        <div style="text-align:center;font-size:12px;color:var(--text3);margin:6px 0;">— or enter email manually —</div>
+        <input type="email" id="ref-manual-email" placeholder="email@example.com" style="width:100%;box-sizing:border-box;margin-bottom:12px;font-size:14px;"/>
         <div style="font-size:12px;color:var(--text3);padding:10px 12px;background:var(--surface2);border-radius:var(--r);line-height:1.6;">
           <strong>Disclaimer:</strong> These professionals are recommended as a courtesy. Clients are not obligated to use any of them and may choose whoever they are most comfortable with. No guarantees are made regarding pricing or outcomes.
         </div>
@@ -6061,6 +6063,7 @@ async function openReferralModal() {
   document.getElementById('ref-back-btn').style.display = 'none';
   document.getElementById('ref-next-btn').textContent = 'Next: Select Client';
   document.getElementById('ref-status').style.display = 'none';
+  var me = document.getElementById('ref-manual-email'); if (me) me.value = '';
   refBuildCatChips();
   refBuildCatList();
   document.getElementById('referral-modal').style.display = 'flex';
@@ -6169,12 +6172,15 @@ window.refNextStep = refNextStep;
 
 async function sendReferrals() {
   var uid = document.getElementById('ref-client-select').value;
+  var manualEmail = (document.getElementById('ref-manual-email')||{}).value||'';
+  manualEmail = manualEmail.trim();
   var buyer = (myBuyers||allBuyers||[]).find(function(b){ return b.uid===uid; });
-  if (!buyer || !buyer.email) { alert('Client email not found.'); return; }
+  var toEmail = (buyer && buyer.email) || manualEmail;
+  var clientFirst = (buyer && buyer.firstName) || 'there';
+  if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
   var selected = agentPartners.filter(function(p){ return _refChecked[p.id]; });
   var agentName = (assignedAgent&&assignedAgent.name) || ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your Agent';
   var agentFirst = agentName.split(' ')[0];
-  var clientFirst = buyer.firstName || 'there';
   var cats = []; selected.forEach(function(p){ if(cats.indexOf(p.cat)===-1) cats.push(p.cat); });
   var catSections = cats.map(function(cat) {
     var cps = selected.filter(function(p){ return p.cat===cat; });
@@ -6214,10 +6220,10 @@ async function sendReferrals() {
   var btn = document.getElementById('ref-next-btn');
   if (btn) btn.disabled = true;
   try {
-    var payload = {to:buyer.email, subject:agentFirst+' sent you some referral recommendations', html:emailHtml, from:agentFromField()};
+    var payload = {to:toEmail, subject:agentFirst+' sent you some referral recommendations', html:emailHtml, from:agentFromField()};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
-    if (ae && ae!==buyer.email) payload.cc = ae;
-    showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
+    if (ae && ae!==toEmail) payload.cc = ae;
+    showEmailPreview(toEmail, payload.subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         payload.html = finalHtml || payload.html;
         if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; if(_cc[1])payload.cc2=_cc[1]; }
