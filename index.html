@@ -11986,7 +11986,7 @@ function openListingModal(l) {
     + '<div><label class="flabel">Property Photo</label>' + (l && l.photoUrl ? '<img src="'+partnerEsc(l.photoUrl)+'" style="width:100%;max-height:160px;object-fit:cover;border-radius:8px;margin-bottom:6px;"/>' : '') + '<input type="file" id="lm-photo-file" accept="image/*" style="width:100%;margin-bottom:4px;font-size:13px;"/>' + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Upload a photo, or paste a URL below</div>' + '<input type="url" id="lm-photo" placeholder="https://... (optional)" value="'+partnerEsc(l?l.photoUrl||'':'')+'"/>' + '</div>'
     + '<div><label class="flabel">Listing Price (optional)</label><input type="text" id="lm-price" placeholder="$450,000" value="'+partnerEsc(l?l.listPrice||'':'')+'"/></div>'
     + '<div><label class="flabel">Link to Seller Client</label>'
-    + '<select id="lm-client"><option value="">— Select seller client —</option>'+buyerOpts+'</select></div>'
+    + '<div id="lm-client-search"></div></div>'
     + '<div><label class="flabel">Offer Deadline (optional)</label><input type="datetime-local" id="lm-deadline" value="'+partnerEsc(l?l.deadline||'':'')+'"/></div>'
     + '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:8px 0 4px;">Net Sheet Defaults <span style="font-weight:400;text-transform:none;">(optional — used to auto-fill net sheet)</span></div>'
     + '<div class="fg2">'
@@ -12012,6 +12012,21 @@ function openListingModal(l) {
     + '<button class="btn btn-g" onclick="saveListing(\''+( isEdit?l.id:'')+'\')">Save Listing</button>'
     + '</div></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+  // Initialize searchable client dropdown
+  createClientSearchDropdown('lm-client-search', function(){}, 'Search clients...');
+  // Pre-select existing client if editing
+  if (l && l.clientUid) {
+    var existingClient = (myBuyers||allBuyers||[]).find(function(b){ return b.uid === l.clientUid; });
+    if (existingClient) {
+      var inp = document.getElementById('csd-input-lm-client-search');
+      var uidEl = document.getElementById('csd-uid-lm-client-search');
+      var emailEl = document.getElementById('csd-email-lm-client-search');
+      var n = ((existingClient.firstName||'')+' '+(existingClient.lastName||'')).trim() || existingClient.email;
+      if (inp) inp.value = n;
+      if (uidEl) uidEl.value = l.clientUid;
+      if (emailEl) emailEl.value = existingClient.email || '';
+    }
+  }
   // Store working fields
   window._lmFields = existingFields.map(function(f){ return Object.assign({},f); });
 }
@@ -12063,7 +12078,7 @@ async function saveListing(existingId) {
       photoUrl = await getDownloadURL(snapshot.ref);
     } catch(photoErr) { console.log('Photo upload failed:', photoErr.message); }
   }
-  var clientUid = document.getElementById('lm-client').value;
+  var clientUid = csdGetUid('lm-client-search');
   var deadline = document.getElementById('lm-deadline').value;
   if (!address) { alert('Property address is required.'); return; }
 
