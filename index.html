@@ -11932,6 +11932,7 @@ async function renderOfferManager() {
         + '<button class="btn btn-sm btn-g" onclick="viewOffers(\''+l.id+'\')">📋 View Offers</button>'
         + '<button class="btn btn-sm" onclick="copyOfferLink(\''+encodeURIComponent(link)+'\')">🔗 Copy Link</button>'
         + '<button class="btn btn-sm" onclick="openEditListingModal(\''+l.id+'\')">✏️ Edit</button>'
+        + '<button class="btn btn-sm" onclick="createDealFromListing(\''+l.id+'\')" style="color:var(--green-dk);border-color:var(--green-dk);">🏠 Create Deal</button>'
         + '<button class="btn btn-sm" onclick="archiveListing(\''+l.id+'\')" style="color:#E24B4A;">Archive</button>'
         + '</div></div></div></div>';
     }).join('');
@@ -12142,6 +12143,32 @@ async function saveListing(existingId) {
   } catch(e) { alert('Failed to save listing: '+e.message); }
 }
 window.saveListing = saveListing;
+
+async function createDealFromListing(listingId) {
+  var l = _listings.find(function(x){ return x.id===listingId; });
+  if (!l) return;
+  // Check if deal already exists for this listing
+  var existing = (_deals||[]).find(function(d){ return d.offerListingId===listingId; });
+  if (existing) { alert('A deal already exists for this listing.'); return; }
+  try {
+    var dealData = {
+      address: l.address || '',
+      clientName: l.clientName || '',
+      clientUid: l.clientUid || null,
+      agentId: userProfile.agentId || 'tom',
+      status: 'Listed',
+      type: 'seller',
+      salePrice: l.listPrice ? parseFloat(String(l.listPrice).replace(/[^0-9.]/g,'')) || 0 : 0,
+      commission: 0,
+      commMode: 'dollar',
+      offerListingId: listingId,
+      createdAt: fb.serverTimestamp(),
+    };
+    await fb.addDoc(fb.collection(fb.db,'deals'), dealData);
+    alert('Deal created in Deal Tracker!');
+  } catch(e) { alert('Failed to create deal: '+e.message); }
+}
+window.createDealFromListing = createDealFromListing;
 
 async function archiveListing(id) {
   if (!confirm('Archive this listing? This will delete all offer data and cannot be undone.')) return;
