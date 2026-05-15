@@ -12133,7 +12133,7 @@ async function saveListing(existingId) {
           offerListingId: savedRef.id,
           createdAt: fb.serverTimestamp(),
         };
-        await fb.addDoc(fb.collection(fb.db,'deals'), dealData);
+        await fb.addDoc(fb.collection(fb.db,'agents',dealData.agentId,'deals'), Object.assign(dealData,{createdAt:fb.serverTimestamp()}));
         console.log('Deal auto-created from listing');
       } catch(de) { console.log('Deal auto-create failed:', de.message); }
     }
@@ -12162,9 +12162,9 @@ async function createDealFromListing(listingId) {
       commission: 0,
       commMode: 'dollar',
       offerListingId: listingId,
-      createdAt: fb.serverTimestamp(),
     };
-    await fb.addDoc(fb.collection(fb.db,'deals'), dealData);
+    var agentId = userProfile.agentId || 'tom';
+    await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(dealData,{createdAt:fb.serverTimestamp()}));
     alert('Deal created in Deal Tracker!');
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
