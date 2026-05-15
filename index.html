@@ -499,9 +499,9 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
     <div class="ns" style="padding-top:6px;">Agent Tools</div>
     <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Agent Hub</button>
     <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Newsletter</button>
-    <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Command Center</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
     <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet</button>
@@ -1257,6 +1257,12 @@ textarea{resize:vertical;min-height:68px;}
       <span id="ad-msg-tile-badge" style="display:none;position:absolute;top:10px;right:10px;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:600;"></span>
     </button>
 
+    <button onclick="go('newsletter',document.querySelector('[data-pg=newsletter]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">📧</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Newsletter</span>
+      <span style="font-size:11px;color:var(--text2);">Send to your contacts</span>
+    </button>
+
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">👥</span>
       <span style="font-size:13px;font-weight:600;color:var(--text);">Clients</span>
@@ -1953,6 +1959,12 @@ textarea{resize:vertical;min-height:68px;}
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="past" onchange="updateNlCount()"> Past Client</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="buyers" onchange="updateNlCount()"> Buyers only</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="sellers" onchange="updateNlCount()"> Sellers only</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="one" onchange="updateNlCount();document.getElementById('nl-one-client').style.display='block'"> One client</label>
+    </div>
+    <div id="nl-one-client" style="display:none;margin-top:6px;">
+      <select id="nl-one-client-select" style="font-size:13px;width:100%;" onchange="updateNlCount()">
+        <option value="">— Select a client —</option>
+      </select>
     </div>
     <div id="nl-count" style="font-size:12px;color:var(--text2);">— recipients</div>
   </div>
@@ -7686,8 +7698,32 @@ function updateNlCount() {
   var audience = document.querySelector('input[name="nl-audience"]:checked');
   var val = audience ? audience.value : 'all';
   var buyers = myBuyers || [];
+
+  // Show/hide single client selector
+  var oneDiv = document.getElementById('nl-one-client');
+  if (oneDiv) oneDiv.style.display = val === 'one' ? 'block' : 'none';
+
+  // Populate single client dropdown
+  if (val === 'one') {
+    var sel = document.getElementById('nl-one-client-select');
+    if (sel && sel.options.length <= 1) {
+      buyers.filter(function(b){ return !b.pending && b.email; }).forEach(function(b) {
+        var opt = document.createElement('option');
+        opt.value = b.uid;
+        opt.textContent = ((b.firstName||'') + ' ' + (b.lastName||'')).trim() || b.email;
+        sel.appendChild(opt);
+      });
+    }
+    var selectedUid = sel ? sel.value : '';
+    var filtered = selectedUid ? buyers.filter(function(b){ return b.uid === selectedUid; }) : [];
+    var el = document.getElementById('nl-count');
+    if (el) el.textContent = filtered.length + ' recipient' + (filtered.length !== 1 ? 's' : '');
+    return filtered;
+  }
+
   var filtered = buyers.filter(function(b) {
     if (b.pending) return false;
+    if (!b.email) return false;
     if (val === 'all') return true;
     if (val === 'buyers') return b.journeyType !== 'seller-only';
     if (val === 'sellers') return b.journeyType === 'seller-only' || b.journeyType === 'both';
@@ -7699,7 +7735,22 @@ function updateNlCount() {
 }
 window.updateNlCount = updateNlCount;
 
+function saveNlBlockValues() {
+  _nlBlocks.forEach(function(block) {
+    if (block.type === 'text' || block.type === 'video' || block.type === 'image') {
+      var el = document.getElementById('nl-block-'+block.id);
+      if (el) block.value = el.value;
+    } else if (block.type === 'button') {
+      var lEl = document.getElementById('nl-block-'+block.id+'-label');
+      var uEl = document.getElementById('nl-block-'+block.id+'-url');
+      if (lEl) block.label = lEl.value;
+      if (uEl) block.url = uEl.value;
+    }
+  });
+}
+
 function addNlBlock(type) {
+  saveNlBlockValues();
   var id = ++_nlBlockId;
   var block = { id: id, type: type };
   _nlBlocks.push(block);
@@ -7708,6 +7759,7 @@ function addNlBlock(type) {
 window.addNlBlock = addNlBlock;
 
 function removeNlBlock(id) {
+  saveNlBlockValues();
   _nlBlocks = _nlBlocks.filter(function(b){ return b.id !== id; });
   renderNlBlocks();
 }
@@ -7723,16 +7775,20 @@ function renderNlBlocks() {
   container.innerHTML = _nlBlocks.map(function(block) {
     var inner = '';
     if (block.type === 'text') {
-      inner = '<textarea id="nl-block-'+block.id+'" placeholder="Write your message here..." rows="4" style="width:100%;box-sizing:border-box;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;resize:vertical;"></textarea>';
+      inner = '<textarea id="nl-block-'+block.id+'" placeholder="Write your message here..." rows="4" style="width:100%;box-sizing:border-box;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;resize:vertical;">'+(block.value||'')+'</textarea>';
     } else if (block.type === 'button') {
       inner = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-        + '<input type="text" id="nl-block-'+block.id+'-label" placeholder="Button label" style="flex:1;font-size:13px;"/>'
-        + '<input type="url" id="nl-block-'+block.id+'-url" placeholder="https://..." style="flex:2;font-size:13px;"/>'
+        + '<input type="text" id="nl-block-'+block.id+'-label" placeholder="Button label" value="'+(block.label||'')+'" style="flex:1;font-size:13px;"/>'
+        + '<input type="url" id="nl-block-'+block.id+'-url" placeholder="https://..." value="'+(block.url||'')+'" style="flex:2;font-size:13px;"/>'
         + '</div>';
     } else if (block.type === 'video') {
-      inner = '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste Loom, YouTube, or BombBomb URL" style="width:100%;box-sizing:border-box;font-size:13px;"/>';
+      inner = '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste Loom, YouTube, or BombBomb URL" value="'+(block.value||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;"/>';
     } else if (block.type === 'image') {
-      inner = '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste image URL (Google Drive, Dropbox, etc.)" style="width:100%;box-sizing:border-box;font-size:13px;"/>';
+      inner = '<div style="display:flex;flex-direction:column;gap:6px;">'
+        + '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste image URL or upload below" value="'+(block.value||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;"/>'
+        + '<input type="file" accept="image/*" onchange="uploadNlImage(event,'+block.id+')" style="font-size:12px;"/>'
+        + (block.value ? '<img src="'+block.value+'" style="max-height:80px;border-radius:6px;object-fit:cover;" />' : '')
+        + '</div>';
     } else if (block.type === 'divider') {
       inner = '<div style="border-top:1px solid var(--border);margin:4px 0;"></div>';
     }
@@ -7749,26 +7805,45 @@ function renderNlBlocks() {
 window.renderNlBlocks = renderNlBlocks;
 
 function buildNlBodyHtml() {
+  saveNlBlockValues();
   var parts = [];
   _nlBlocks.forEach(function(block) {
     if (block.type === 'text') {
       var el = document.getElementById('nl-block-'+block.id);
-      var text = el ? el.value.trim() : '';
+      var text = (el ? el.value : block.value || '').trim();
       if (text) parts.push('<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + text.replace(/\n/g,'<br/>') + '</p>');
     } else if (block.type === 'button') {
-      var label = (document.getElementById('nl-block-'+block.id+'-label')||{}).value||'';
-      var url = (document.getElementById('nl-block-'+block.id+'-url')||{}).value||'';
+      var label = block.label || (document.getElementById('nl-block-'+block.id+'-label')||{}).value || '';
+      var url = block.url || (document.getElementById('nl-block-'+block.id+'-url')||{}).value || '';
       if (label && url) parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+url+'" style="background:#1D9E75;color:#fff;text-decoration:none;padding:11px 24px;border-radius:24px;font-size:14px;font-weight:500;display:inline-block;">'+label+'</a></div>');
     } else if (block.type === 'video') {
-      var vurl = (document.getElementById('nl-block-'+block.id)||{}).value||'';
+      var el2 = document.getElementById('nl-block-'+block.id);
+      var vurl = (el2 ? el2.value : block.value || '').trim();
       if (vurl) {
-        var thumb = vurl.includes('youtube.com') || vurl.includes('youtu.be')
-          ? 'https://img.youtube.com/vi/' + (vurl.match(/(?:v=|youtu\.be\/)([^&?]+)/)||[])[1] + '/hqdefault.jpg'
-          : 'https://cdn.loom.com/sessions/thumbnails/' + (vurl.match(/loom\.com\/share\/([a-z0-9]+)/)||[])[1] + '/thumbnail.jpg';
-        parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+vurl+'" target="_blank"><div style="position:relative;display:inline-block;"><img src="'+thumb+'" style="width:100%;max-width:480px;border-radius:8px;" onerror="this.style.display=\'none\'"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);border-radius:50%;width:56px;height:56px;display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:22px;">▶</span></div></div></a></div>');
+        var ytMatch = vurl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?]+)/);
+        var loomMatch = vurl.match(/loom\.com\/share\/([a-z0-9]+)/i);
+        var bbMatch = vurl.match(/(?:bbemaildelivery\.com.*[?&]id=|bombbomb\.com.*\/)([a-f0-9-]{36})/i);
+        var thumbUrl = '';
+        if (ytMatch) {
+          thumbUrl = 'https://img.youtube.com/vi/'+ytMatch[1]+'/hqdefault.jpg';
+        } else if (loomMatch) {
+          thumbUrl = 'https://cdn.loom.com/sessions/thumbnails/'+loomMatch[1]+'-full-play.gif';
+        } else if (bbMatch) {
+          thumbUrl = 'https://content.bombbomb.com/video_thumbs/'+bbMatch[1]+'.gif';
+        }
+        if (thumbUrl) {
+          parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+vurl+'" target="_blank" style="display:inline-block;position:relative;">'
+            + '<img src="'+thumbUrl+'" style="width:100%;max-width:480px;border-radius:8px;display:block;" />'
+            + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.65);border-radius:50%;width:56px;height:56px;display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:22px;margin-left:3px;">▶</span></div>'
+            + '</a></div>');
+        } else {
+          // Fallback for unknown video platforms
+          parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+vurl+'" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:14px;font-weight:500;">▶ Watch Video</a></div>');
+        }
       }
     } else if (block.type === 'image') {
-      var iurl = (document.getElementById('nl-block-'+block.id)||{}).value||'';
+      var el3 = document.getElementById('nl-block-'+block.id);
+      var iurl = (el3 ? el3.value : block.value || '').trim();
       if (iurl) parts.push('<div style="text-align:center;margin:14px 0;"><img src="'+iurl+'" style="max-width:100%;border-radius:8px;" /></div>');
     } else if (block.type === 'divider') {
       parts.push('<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;"/>');
@@ -7776,6 +7851,7 @@ function buildNlBodyHtml() {
   });
   return parts.join('');
 }
+
 
 function previewNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value||'Preview';
@@ -7789,6 +7865,27 @@ function previewNewsletter() {
   w.document.close();
 }
 window.previewNewsletter = previewNewsletter;
+
+async function uploadNlImage(event, blockId) {
+  var file = event.target.files[0];
+  if (!file) return;
+  try {
+    var path = 'newsletter_images/' + currentUser.uid + '/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+    var sRef = fb.storageRef(fb.storage, path);
+    var { uploadBytes, getDownloadURL } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js');
+    var snapshot = await uploadBytes(sRef, file);
+    var url = await getDownloadURL(snapshot.ref);
+    // Save to block and update input
+    var block = _nlBlocks.find(function(b){ return b.id === blockId; });
+    if (block) block.value = url;
+    var inp = document.getElementById('nl-block-'+blockId);
+    if (inp) inp.value = url;
+    // Show preview
+    saveNlBlockValues();
+    renderNlBlocks();
+  } catch(e) { console.log('Image upload err:', e.message); alert('Upload failed: ' + e.message); }
+}
+window.uploadNlImage = uploadNlImage;
 
 async function sendNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value.trim();
@@ -15289,8 +15386,9 @@ function getVideoMeta(url) {
   var ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
   if (ytMatch) return { type: 'youtube', id: ytMatch[1], thumb: 'https://img.youtube.com/vi/'+ytMatch[1]+'/hqdefault.jpg' };
   var loomMatch = url.match(/loom\.com\/share\/([a-f0-9]+)/i);
-  if (loomMatch) return { type: 'loom', id: loomMatch[1], thumb: 'https://cdn.loom.com/sessions/thumbnails/'+loomMatch[1]+'-with-play.gif' };
-  if (url.includes('bombbomb.com')) return { type: 'bombbomb', thumb: '' };
+  if (loomMatch) return { type: 'loom', id: loomMatch[1], thumb: 'https://cdn.loom.com/sessions/thumbnails/'+loomMatch[1]+'-full-play.gif' };
+  var bbMatch = url.match(/(?:bbemaildelivery\.com.*[?&]id=|bombbomb\.com.*\/)([a-f0-9-]{36})/i);
+  if (bbMatch) return { type: 'bombbomb', id: bbMatch[1], thumb: 'https://content.bombbomb.com/video_thumbs/'+bbMatch[1]+'.gif' };
   if (url.includes('vimeo.com')) return { type: 'vimeo', thumb: '' };
   return { type: 'other', thumb: '' };
 }
