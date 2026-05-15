@@ -5333,7 +5333,7 @@ async function sendContractDatesEmail(uid, type, dates) {
       + nsEmailBtn('View My Timeline \u2192', APP_LINK, '#1D9E75');
 
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var datesPayload = { to: client.email, subject: subject, html: html };
+    var datesPayload = { to: client.email, subject: subject, html: html, from: agentFromField() };
     if (agentObj && agentObj.email) datesPayload.cc = agentObj.email;
     await fetch(PROXY_URL, {
       method: 'POST',
@@ -5449,7 +5449,7 @@ async function emailNetSheet() {
       await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html })
+        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html, from: agentFromField() })
       });
       if (status) { status.textContent = '✓ Net sheet sent to ' + email; status.style.color = 'var(--green-dk)'; }
     } catch(e) {
@@ -12731,7 +12731,7 @@ async function confirmSendOffer(listingId, offerId) {
   if (sendBtn) { sendBtn.disabled=true; sendBtn.textContent='Sending...'; }
   try {
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml})});
+      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField()})});
     if (o.agentEmail) {
       var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
         +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
@@ -12745,7 +12745,7 @@ async function confirmSendOffer(listingId, offerId) {
         +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
         +'</div></div>';
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml})});
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField()})});
     }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
     var overlay = document.getElementById('sor-overlay');
@@ -12968,7 +12968,7 @@ async function submitPublicOffer(listingId) {
             +'</div></div>';
           await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
             body:JSON.stringify({to:agentEmail,
-              subject:'New Offer Received — '+partnerEsc(lData.address||''),
+              subject:'New Offer Received — '+partnerEsc(lData.address||''), from:agentFromField(),
               html:alertHtml})});
         }
       }
@@ -13228,7 +13228,7 @@ async function emailComparisonToClient(listingId) {
   showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml, ccValue) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml})});
+        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml, from:agentFromField()})});
       alert('Comparison emailed to '+clientFirst+'!');
     } catch(e) { alert('Failed to send: '+e.message); }
   });
@@ -13780,7 +13780,7 @@ async function assignShowing(idx) {
       +'</div></div>';
 
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml})});
+      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField()})});
 
     // 4. Save assignment to Firestore so inbox remembers
     try {
