@@ -1945,7 +1945,8 @@ textarea{resize:vertical;min-height:68px;}
       <div id="msg-avatar" style="width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;"></div>
       <div style="flex:1;min-width:0;">
         <div id="msg-name" style="font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-        <div id="msg-step" style="font-size:11.5px;color:var(--text3);"></div>
+        <div id="msg-step" style="font-size:11px;color:var(--text3);"></div>
+        <div id="msg-team" style="font-size:11px;color:var(--green-dk);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
       </div>
       <a id="msg-call" href="#" style="border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;text-decoration:none;color:var(--text);flex-shrink:0;">📞</a>
       <a id="msg-sms" href="#" style="border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;text-decoration:none;color:var(--text);flex-shrink:0;">💬</a>
@@ -1965,9 +1966,10 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Chat header -->
   <div class="chat-hdr">
     <div id="chat-avatar" style="width:40px;height:40px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:15px;flex-shrink:0;">TG</div>
-    <div style="flex:1;">
+    <div style="flex:1;min-width:0;">
       <div style="font-weight:500;font-size:14px;" id="chat-with">Tom Garuccio</div>
-      <div style="font-size:11.5px;color:var(--text3);" id="chat-role">REALTOR® · Team Leader</div>
+      <div style="font-size:11px;color:var(--text3);" id="chat-role">REALTOR® · Team Leader</div>
+      <div style="font-size:11px;color:var(--green-dk);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="chat-team"></div>
     </div>
     <div style="display:flex;gap:8px;">
       <button id="chat-call" onclick="contactAgent('call')" style="background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 10px;font-size:12px;cursor:pointer;">📞 Call</button>
@@ -6390,6 +6392,20 @@ function setupChatHead() {
     if (avatarEl) avatarEl.textContent = initials;
     if (withEl) withEl.textContent = a.name || 'Your Agent';
     if (roleEl) roleEl.textContent = (a.role||'REALTOR\u00ae');
+    // Show team members in chat header
+    var teamEl = document.getElementById('chat-team');
+    if (teamEl && userProfile) {
+      var teamParts = [];
+      if (userProfile.coAgentId) {
+        var coE = DEFAULT_AGENTS.find(function(x){ return x.id===userProfile.coAgentId; });
+        if (coE) teamParts.push((coE.firstName||coE.name)+' (co-agent)');
+      }
+      if (userProfile.lenderId) {
+        var lenE = DEFAULT_AGENTS.find(function(x){ return x.id===userProfile.lenderId; });
+        if (lenE) teamParts.push((lenE.firstName||lenE.name)+' (lender)');
+      }
+      teamEl.textContent = teamParts.length ? '👥 Also here: ' + teamParts.join(' · ') : '';
+    }
     var chatRoomId = getChatRoomId(null);
     currentChatRoom = chatRoomId;
     watchChat(null);
@@ -7582,6 +7598,26 @@ function openMsgThread(buyerUid) {
   document.getElementById('msg-step').textContent = stepName;
   document.getElementById('msg-call').href = phone ? 'tel:'+phone : '#';
   document.getElementById('msg-sms').href = phone ? 'sms:'+phone : '#';
+
+  // Build team members list
+  var teamEl = document.getElementById('msg-team');
+  if (teamEl) {
+    var teamParts = [];
+    // Always show assigned agent
+    var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.agentId; });
+    if (agentEntry) teamParts.push(agentEntry.firstName || agentEntry.name || 'Agent');
+    // Co-agent
+    if (buyer.coAgentId) {
+      var coEntry = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.coAgentId; });
+      if (coEntry) teamParts.push((coEntry.firstName || coEntry.name) + ' (co-agent)');
+    }
+    // Lender
+    if (buyer.lenderId) {
+      var lenEntry = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.lenderId; });
+      if (lenEntry) teamParts.push((lenEntry.firstName || lenEntry.name) + ' (lender)');
+    }
+    teamEl.textContent = teamParts.length ? '👥 ' + teamParts.join(' · ') : '';
+  }
 
   var active = document.getElementById('msg-active');
   active.style.display = 'flex';
