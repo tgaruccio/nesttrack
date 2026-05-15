@@ -4855,6 +4855,10 @@ function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
   var photoUrl = ap.photoUrl || '';
   var phone = ap.phone || '';
   var license = ap.licenseNumber || '';
+  // Use full name from profile if agentName not passed properly
+  if (!agentName || agentName === 'Your Agent') {
+    agentName = ((ap.firstName||'') + ' ' + (ap.lastName||'')).trim() || ap.name || agentName;
+  }
 
   // Header: agent photo + name + brokerage
   var headerContent = '';
@@ -7777,7 +7781,8 @@ function previewNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value||'Preview';
   var body = buildNlBodyHtml();
   if (!body) { alert('Add some content first.'); return; }
-  var agentName = (userProfile && userProfile.name) || 'Your Agent';
+  var agentName = ((userProfile && userProfile.firstName)||'') + ' ' + ((userProfile && userProfile.lastName)||'');
+  agentName = agentName.trim() || (userProfile && userProfile.name) || 'Your Agent';
   var html = nsEmailWrap(agentName, subject, '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi [First Name],</p>' + body, userProfile);
   var w = window.open('', '_blank');
   w.document.write(html);
@@ -7799,7 +7804,8 @@ async function sendNewsletter() {
   if (btn) btn.disabled = true;
   if (status) { status.style.display = 'block'; status.textContent = 'Sending...'; }
 
-  var agentName = (userProfile && userProfile.name) || 'Your Agent';
+  var agentName = ((userProfile && userProfile.firstName)||'') + ' ' + ((userProfile && userProfile.lastName)||'');
+  agentName = agentName.trim() || (userProfile && userProfile.name) || 'Your Agent';
   var sent = 0, failed = 0;
 
   for (var i = 0; i < recipients.length; i++) {
