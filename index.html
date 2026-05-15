@@ -6158,19 +6158,15 @@ window.getAIRecs = getAIRecs;
 function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
 
 function getChatRoomId(buyerIdOverride) {
-  var agentShortId, buyerId;
-  if (isAgent) {
-    // Find agent's short ID from DEFAULT_AGENTS by matching uid or email
-    var agentEntry = DEFAULT_AGENTS.find(function(a) {
-      return a.email === (userProfile&&userProfile.email) || a.id === (userProfile&&userProfile.agentId);
-    });
-    agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId) || 'tom';
+  // New format: chat_{buyerUID} — stable, includes all team members
+  var buyerId;
+  if (isAgent || isLender) {
     buyerId = buyerIdOverride || '';
   } else {
-    agentShortId = (userProfile&&userProfile.agentId) || 'tom';
-    buyerId = currentUser.uid;
+    buyerId = currentUser ? currentUser.uid : '';
   }
-  return 'chat_' + agentShortId + '_' + buyerId;
+  if (!buyerId) return null;
+  return 'chat_' + buyerId;
 }
 
 var chatListener = null;
@@ -6218,7 +6214,8 @@ function watchChat(buyerIdOverride) {
 
     var bubble = document.createElement('div');
     bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
-    bubble.innerHTML = escapeHtml(msg.text) + '<div class="ts">' + time + '</div>';
+    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+'</div>' : '';
+    bubble.innerHTML = senderLabel + escapeHtml(msg.text) + '<div class="ts">' + time + '</div>';
     wrapper.appendChild(bubble);
     messagesEl.appendChild(wrapper);
 
@@ -6284,18 +6281,20 @@ function sendChatMessage() {
     input.style.height = 'auto';
     var badge = document.getElementById('chat-unread-badge');
     if (badge) badge.remove();
-    // Push notification to recipient
-    var roomParts = currentChatRoom ? currentChatRoom.replace('chat_','').split('_') : [];
-    if (roomParts.length >= 2) {
-      var notifTitle = 'New message from ' + (senderName.trim() || (isAgent ? 'Your agent' : 'Client'));
-      if (isAgent) {
-        // Agent sending — push to buyer (buyer UID is roomParts[1])
-        sendPushToUser(roomParts[1], notifTitle, text.substring(0,80));
-      } else {
-        // Buyer sending — push to agent using short ID lookup key
-        var agentShortId = roomParts[0]; // e.g. 'tom'
-        sendPushToAgentByShortId(agentShortId, notifTitle, text.substring(0,80));
-      }
+    // Push notification to all relevant recipients
+    var notifTitle = 'New message from ' + (senderName.trim() || (isAgent ? 'Your agent' : 'Client'));
+    if (isAgent || isLender) {
+      // Team member sending — push to client
+      var buyerUidForPush = currentChatRoom ? currentChatRoom.replace('chat_','') : '';
+      if (buyerUidForPush) sendPushToUser(buyerUidForPush, notifTitle, text.substring(0,80));
+    } else {
+      // Client sending — push to all assigned team members
+      var ap = userProfile && userProfile.agentId;
+      var cp = userProfile && userProfile.coAgentId;
+      var lp = userProfile && userProfile.lenderId;
+      if (ap) sendPushToAgentByShortId(ap, notifTitle, text.substring(0,80));
+      if (cp) sendPushToAgentByShortId(cp, notifTitle, text.substring(0,80));
+      if (lp) sendPushToAgentByShortId(lp, notifTitle, text.substring(0,80));
     }
   }).catch(function(e){ console.log('Failed to send:', e.message); });
 }
@@ -6365,7 +6364,7 @@ function openAgentChat(buyerUid) {
     return a.email === (userProfile&&userProfile.email) || a.id === (userProfile&&userProfile.agentId);
   });
   var agentShortId = agentEntry ? agentEntry.id : 'tom';
-  currentChatRoom = 'chat_' + agentShortId + '_' + buyerUid;
+  currentChatRoom = 'chat_' + buyerUid;
   watchChat(buyerUid);
 }
 window.openAgentChat = openAgentChat;
@@ -7361,7 +7360,7 @@ function watchAllAgentChats() {
   try { lastSeen = parseInt(localStorage.getItem('lastSeen_'+currentUser.uid)||'0'); } catch(e){}
 
   myBuyers.forEach(function(b) {
-    var roomId = 'chat_'+agentShortId+'_'+b.uid;
+    var roomId = 'chat_'+b.uid;
     var chatRef = fb.ref(fb.rtdb, 'chats/'+roomId+'/messages');
     var listener = fb.onChildAdded(chatRef, function(snapshot) {
       var msg = snapshot.val(); if (!msg) return;
@@ -7591,7 +7590,7 @@ function openMsgThread(buyerUid) {
 
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email===(userProfile&&userProfile.email)||a.id===(userProfile&&userProfile.agentId); });
   var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
-  var roomId = 'chat_'+agentShortId+'_'+buyerUid;
+  var roomId = 'chat_'+buyerUid;
   var msgsEl = document.getElementById('msg-msgs');
   if (msgsEl) { msgsEl.innerHTML = ''; msgsEl.removeAttribute('data-last-date'); }
 
@@ -7601,11 +7600,12 @@ function openMsgThread(buyerUid) {
     var msg = snap.val(); if (!msg) return;
     var msgsEl = document.getElementById('msg-msgs');
     if (!msgsEl) return;
-    var isMe = msg.role === 'agent';
+    var isMe = msg.senderId === currentUser.uid;
     var bubble = document.createElement('div');
     bubble.className = 'chat-msg ' + (isMe ? 'me' : 'them');
     var timeStr = msg.ts ? new Date(msg.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
-    bubble.innerHTML = '<div>'+partnerEsc(msg.text||'')+'</div><div style="font-size:10px;opacity:0.6;margin-top:3px;text-align:'+(isMe?'right':'left')+';">'+timeStr+'</div>';
+    var nameLabel = (!isMe && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+partnerEsc(msg.senderName)+'</div>' : '';
+    bubble.innerHTML = nameLabel+'<div>'+partnerEsc(msg.text||'')+'</div><div style="font-size:10px;opacity:0.6;margin-top:3px;text-align:'+(isMe?'right':'left')+';">'+timeStr+'</div>';
     msgsEl.appendChild(bubble);
     msgsEl.scrollTop = msgsEl.scrollHeight;
     if (_msgFirstLoad) { setTimeout(function(){ msgsEl.scrollTop = msgsEl.scrollHeight; }, 150); _msgFirstLoad = false; }
@@ -7629,13 +7629,23 @@ function sendAgentMsg() {
 
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email===(userProfile&&userProfile.email)||a.id===(userProfile&&userProfile.agentId); });
   var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
-  var roomId = 'chat_'+agentShortId+'_'+_msgCurrentBuyer.uid;
+  var roomId = 'chat_'+_msgCurrentBuyer.uid;
   var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
 
   fb.push(fb.ref(fb.rtdb, 'chats/'+roomId+'/messages'), {
     text: text, senderId: currentUser.uid, senderName: agentName, ts: Date.now(), role: 'agent'
   });
+  // Push to client
   sendPushToUser(_msgCurrentBuyer.uid, 'New message from '+agentName, text.substring(0,80));
+  // Push to other team members
+  var buyer = _msgCurrentBuyer;
+  var myShortId = agentShortId;
+  var cp = buyer && buyer.coAgentId;
+  var lp = buyer && buyer.lenderId;
+  var ap = buyer && buyer.agentId;
+  if (cp && cp !== myShortId) sendPushToAgentByShortId(cp, 'New message from '+agentName, text.substring(0,80));
+  if (lp && lp !== myShortId) sendPushToAgentByShortId(lp, 'New message from '+agentName, text.substring(0,80));
+  if (ap && ap !== myShortId) sendPushToAgentByShortId(ap, 'New message from '+agentName, text.substring(0,80));
 }
 window.sendAgentMsg = sendAgentMsg;
 
