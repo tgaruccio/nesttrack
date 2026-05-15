@@ -8962,7 +8962,11 @@ async function setBuyerStep(uid) {
     }
     var buyerForEmail = allBuyers.find(function(b){ return b.uid === uid; });
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
-    if (newStep > 0 && !skipForCash && window._pendingStepEmailChoice !== 'nosend') sendStepEmail(uid, newStep, 'buyer');
+    if (newStep > 0 && !skipForCash && window._pendingStepEmailChoice !== 'nosend') {
+      sendStepEmail(uid, newStep, 'buyer');
+      var _bStepName = (typeof BUYER_STEPS !== 'undefined' && BUYER_STEPS[newStep-1]) || ('Step '+newStep);
+      sendPushToUser(uid, 'Step Update 🏠', 'You\'ve reached Step '+newStep+': '+_bStepName);
+    }
     window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: '+e.message); }
 }
@@ -9221,7 +9225,11 @@ async function setSellerStep(uid) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
-    if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') sendStepEmail(uid, newStep, 'seller');
+    if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') {
+      sendStepEmail(uid, newStep, 'seller');
+      var _sStepName = (typeof SELLER_STEPS !== 'undefined' && SELLER_STEPS[newStep-1]) || ('Step '+newStep);
+      sendPushToUser(uid, 'Listing Update 🏡', 'You\'ve reached Step '+newStep+': '+_sStepName);
+    }
     window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: ' + e.message); }
 }
@@ -9243,7 +9251,11 @@ async function setMortgageStep(uid) {
     renderBuyers();
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
     if (buyer) buyer.currentMortgageStep = newStep;
-    if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') sendStepEmail(uid, newStep, 'mortgage');
+    if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') {
+      sendStepEmail(uid, newStep, 'mortgage');
+      var _mStepName = (typeof MORTGAGE_STEPS !== 'undefined' && MORTGAGE_STEPS[newStep-1]) || ('Step '+newStep);
+      sendPushToUser(uid, 'Mortgage Update 💰', 'You\'ve reached Step '+newStep+': '+_mStepName);
+    }
     window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: ' + e.message); }
 }
@@ -9777,7 +9789,11 @@ async function agentSetStepForBuyer(stepId) {
     }
     var bForEmail = allBuyers.find(function(b){ return b.uid === uid; });
     var skipCash = bForEmail && bForEmail.buyerIsCash && (stepId === 6 || stepId === 8);
-    if (!skipCash) sendStepEmail(uid, stepId, 'buyer');
+    if (!skipCash) {
+      sendStepEmail(uid, stepId, 'buyer');
+      var _bsName = (typeof BUYER_STEPS !== 'undefined' && BUYER_STEPS[stepId-1]) || ('Step '+stepId);
+      sendPushToUser(uid, 'Step Update 🏠', 'You\'ve reached Step '+stepId+': '+_bsName);
+    }
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.agentSetStepForBuyer = agentSetStepForBuyer;
@@ -12874,6 +12890,10 @@ async function confirmSendOffer(listingId, offerId) {
         body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField()})});
     }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
+    // Push notify seller client
+    if (ctx.listing && ctx.listing.clientUid) {
+      sendPushToUser(ctx.listing.clientUid, 'New Offer 🎉', 'An offer has come in on '+(ctx.listing.address||'your listing')+'. Check the app to review it.');
+    }
     var overlay = document.getElementById('sor-overlay');
     if (overlay) overlay.remove();
     alert('Offer sent to '+clientFirst+'!'+(includeNS?' Net sheet included.':''));
@@ -13194,6 +13214,9 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
+    if (listingData.clientUid) {
+      sendPushToUser(listingData.clientUid, 'New Offer 🎉', 'An offer has come in on '+(listingData.address||'your listing')+'. Check the app to review it.');
+    }
   } catch(e) { console.log('autoSendOfferToClient error:', e.message); }
 }
 window.autoSendOfferToClient = autoSendOfferToClient;
@@ -13907,6 +13930,7 @@ async function assignShowing(idx) {
 
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField()})});
+    sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
 
     // 4. Save assignment to Firestore so inbox remembers
     try {
