@@ -500,6 +500,7 @@ textarea{resize:vertical;min-height:68px;}
     <div class="ns" style="padding-top:6px;">Agent Tools</div>
     <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Newsletter</button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Command Center</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
@@ -1932,6 +1933,57 @@ textarea{resize:vertical;min-height:68px;}
 </div>
 
 <!-- CHAT -->
+<!-- NEWSLETTER PAGE -->
+<div class="page" id="page-newsletter" style="gap:16px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div>
+      <div style="font-size:18px;font-weight:500;">📧 Newsletter</div>
+      <div style="font-size:12px;color:var(--text2);">Send a branded email to your contacts</div>
+    </div>
+  </div>
+
+  <!-- Audience -->
+  <div class="card" style="gap:10px;">
+    <div style="font-size:13px;font-weight:600;">Audience</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="all" checked onchange="updateNlCount()"> All contacts</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="active" onchange="updateNlCount()"> Active</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="pipeline" onchange="updateNlCount()"> Pipeline</label>
+      <label style="display:flex;align-items:center;gap=6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="nurture" onchange="updateNlCount()"> Nurture</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="past" onchange="updateNlCount()"> Past Client</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="buyers" onchange="updateNlCount()"> Buyers only</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="sellers" onchange="updateNlCount()"> Sellers only</label>
+    </div>
+    <div id="nl-count" style="font-size:12px;color:var(--text2);">— recipients</div>
+  </div>
+
+  <!-- Subject -->
+  <div class="card" style="gap:8px;">
+    <label class="flabel">Subject Line</label>
+    <input type="text" id="nl-subject" placeholder="e.g. Cleveland Market Update — May 2026" style="font-size:14px;"/>
+  </div>
+
+  <!-- Email blocks -->
+  <div class="card" style="gap:10px;">
+    <div style="font-size:13px;font-weight:600;">Email Content</div>
+    <div id="nl-blocks" style="display:flex;flex-direction:column;gap:10px;"></div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+      <button onclick="addNlBlock('text')" class="btn btn-sm">+ Text</button>
+      <button onclick="addNlBlock('button')" class="btn btn-sm">+ Button</button>
+      <button onclick="addNlBlock('video')" class="btn btn-sm">+ Video</button>
+      <button onclick="addNlBlock('image')" class="btn btn-sm">+ Image</button>
+      <button onclick="addNlBlock('divider')" class="btn btn-sm">+ Divider</button>
+    </div>
+  </div>
+
+  <!-- Preview + Send -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button onclick="previewNewsletter()" class="btn" style="flex:1;">👁 Preview</button>
+    <button onclick="sendNewsletter()" class="btn btn-g" style="flex:1;" id="nl-send-btn">📤 Send Newsletter</button>
+  </div>
+  <div id="nl-status" style="font-size:13px;color:var(--text2);display:none;"></div>
+</div>
+
 <!-- AGENT MESSAGES PAGE -->
 <div class="page" id="page-messages" style="padding:0;gap:0;overflow:hidden;flex-direction:column;">
   <!-- Header -->
@@ -2286,6 +2338,9 @@ textarea{resize:vertical;min-height:68px;}
         <div id="ap-photo-preview" style="margin-top:8px;"></div>
       </div>
       <div><label class="flabel">Calendar / Booking Link</label><input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/></div>
+      <div><label class="flabel">Brokerage Name</label><input type="text" id="ap-brokerage" placeholder="e.g. The Garuccio Group at Real Brokerage"/></div>
+      <div><label class="flabel">Email Tagline <span style="font-weight:400;color:var(--text3);">(optional — shows under your name in emails)</span></label><input type="text" id="ap-tagline" placeholder="e.g. Your Cleveland real estate experts"/></div>
+      <div><label class="flabel">License Number <span style="font-weight:400;color:var(--text3);">(optional — shows in email footer)</span></label><input type="text" id="ap-license" placeholder="e.g. OH SAL.2019012345"/></div>
       <div><label class="flabel">ShowingTime iCal URL</label><input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..."/><div style="font-size:11px;color:var(--text3);margin-top:3px;">ShowingTime → Settings → Calendar Sync → Subscribe link</div></div>
       <div><label class="flabel">Zapier Webhook URL <span style="font-weight:400;color:var(--text3);">(optional — syncs new &amp; updated clients to your CRM)</span></label><input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/><div style="font-size:11px;color:var(--text3);margin-top:3px;">Zapier → Create Zap → Trigger: Webhooks → Catch Hook → paste URL here</div></div>
       <div><label class="flabel">Google Review Link</label><input type="url" id="ap-google" placeholder="https://g.page/.../review"/></div>
@@ -3569,6 +3624,12 @@ function renderAgentProfileEditor() {
       if(el && d.showingTimeUrl) el.value=d.showingTimeUrl;
       var ze=document.getElementById('ap-zapier');
       if(ze && d.zapierWebhookUrl) ze.value=d.zapierWebhookUrl;
+      var br=document.getElementById('ap-brokerage');
+      if(br && d.brokerage) br.value=d.brokerage;
+      var tg=document.getElementById('ap-tagline');
+      if(tg && d.emailTagline) tg.value=d.emailTagline;
+      var li=document.getElementById('ap-license');
+      if(li && d.licenseNumber) li.value=d.licenseNumber;
     }
   }).catch(function(){});
   updateAgentPhotoPreview();
@@ -3648,6 +3709,9 @@ async function saveAgentProfile() {
     bio: document.getElementById('ap-bio').value.trim(),
     showingTimeUrl: document.getElementById('ap-showingtime') ? document.getElementById('ap-showingtime').value.trim() : '',
     zapierWebhookUrl: document.getElementById('ap-zapier') ? document.getElementById('ap-zapier').value.trim() : '',
+    brokerage: document.getElementById('ap-brokerage') ? document.getElementById('ap-brokerage').value.trim() : '',
+    emailTagline: document.getElementById('ap-tagline') ? document.getElementById('ap-tagline').value.trim() : '',
+    licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
     updatedAt: fb.serverTimestamp()
   };
   const status = document.getElementById('ap-status');
@@ -4027,6 +4091,7 @@ function go(page, el) {
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
   if (page === 'messages') { renderMessagesPage(); }
+  if (page === 'newsletter') { _nlBlocks = []; _nlBlockId = 0; renderNlBlocks(); updateNlCount(); }
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
@@ -4782,16 +4847,44 @@ window.calcNetSheet = calcNetSheet;
 var PREAPPROVAL_LINK = 'https://1660690.my1003app.com/2784866/register';
 var APP_LINK = 'https://app.garucciogroup.com';
 
-function nsEmailWrap(agentName, subject, bodyHtml) {
+function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
+  // Agent branding — pull from profile if available
+  var ap = agentProfile || userProfile || {};
+  var brokerage = ap.brokerage || '';
+  var tagline = ap.emailTagline || '';
+  var photoUrl = ap.photoUrl || '';
+  var phone = ap.phone || '';
+  var license = ap.licenseNumber || '';
+
+  // Header: agent photo + name + brokerage
+  var headerContent = '';
+  if (photoUrl) {
+    headerContent += '<img src="'+photoUrl+'" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.4);margin-bottom:8px;" /><br/>';
+  }
+  headerContent += '<div style="font-size:20px;font-weight:500;color:#fff;letter-spacing:-0.3px;">'+agentName+'</div>';
+  if (brokerage) headerContent += '<div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:3px;">'+brokerage+'</div>';
+  if (tagline) headerContent += '<div style="font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px;font-style:italic;">'+tagline+'</div>';
+
+  // Footer
+  var footerParts = [agentName];
+  if (phone) footerParts.push(phone);
+  if (brokerage) footerParts.push(brokerage);
+  var footerLine = footerParts.join(' · ');
+  var licenseHtml = license ? '<div style="font-size:10px;color:#bbb;margin-top:2px;">'+license+'</div>' : '';
+
   return '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
-    + '<div style="background:#1D9E75;padding:24px 28px;border-radius:10px 10px 0 0;">'
-    + '<div style="font-size:22px;font-weight:300;color:#fff;letter-spacing:-0.5px;">Nest Track</div>'
-    + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:3px;">Your personal real estate command center</div>'
+    + '<div style="background:#1D9E75;padding:24px 28px;border-radius:10px 10px 0 0;text-align:center;">'
+    + headerContent
     + '</div>'
     + '<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     + bodyHtml
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
-    + '<p style="font-size:12px;color:#888;margin:0;">Questions? Contact ' + agentName + ' directly or reply to this email.</p>'
+    + '<p style="font-size:12px;color:#888;margin:0;">Questions? Contact '+agentName+' directly or reply to this email.</p>'
+    + '</div>'
+    + '<div style="text-align:center;padding:12px 0;">'
+    + '<p style="font-size:11px;color:#aaa;margin:0;">'+footerLine+'</p>'
+    + licenseHtml
+    + '<p style="font-size:10px;color:#ccc;margin:4px 0 0;">Powered by Nest Track</p>'
     + '</div></div>';
 }
 
@@ -5130,7 +5223,7 @@ async function sendStepEmail(uid, stepNum, type) {
     if (!tmpl) return;
     var subject = tmpl.subject;
     var bodyHtml = tmpl.body(first, agentName);
-    var html = nsEmailWrap(agentName, subject, bodyHtml);
+    var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
     var stepPayload = { to: client.email, subject: subject, html: html };
 
     // Build CC prefill string for the email preview
@@ -5223,7 +5316,7 @@ async function sendContractDatesEmail(uid, type, dates) {
       + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">Open the app to see your live interactive timeline \u2014 each milestone is clickable with detailed information about what to expect.</p>'
       + nsEmailBtn('View My Timeline \u2192', APP_LINK, '#1D9E75');
 
-    var html = nsEmailWrap(agentName, subject, bodyHtml);
+    var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
     var datesPayload = { to: client.email, subject: subject, html: html };
     if (agentObj && agentObj.email) datesPayload.cc = agentObj.email;
     await fetch(PROXY_URL, {
@@ -7581,6 +7674,158 @@ function renderMessagesPage() {
 }
 window.renderMessagesPage = renderMessagesPage;
 
+// ─── NEWSLETTER ───
+var _nlBlocks = [];
+var _nlBlockId = 0;
+
+function updateNlCount() {
+  var audience = document.querySelector('input[name="nl-audience"]:checked');
+  var val = audience ? audience.value : 'all';
+  var buyers = myBuyers || [];
+  var filtered = buyers.filter(function(b) {
+    if (b.pending) return false;
+    if (val === 'all') return true;
+    if (val === 'buyers') return b.journeyType !== 'seller-only';
+    if (val === 'sellers') return b.journeyType === 'seller-only' || b.journeyType === 'both';
+    return (b.crmStatus || 'pipeline') === val;
+  });
+  var el = document.getElementById('nl-count');
+  if (el) el.textContent = filtered.length + ' recipient' + (filtered.length !== 1 ? 's' : '');
+  return filtered;
+}
+window.updateNlCount = updateNlCount;
+
+function addNlBlock(type) {
+  var id = ++_nlBlockId;
+  var block = { id: id, type: type };
+  _nlBlocks.push(block);
+  renderNlBlocks();
+}
+window.addNlBlock = addNlBlock;
+
+function removeNlBlock(id) {
+  _nlBlocks = _nlBlocks.filter(function(b){ return b.id !== id; });
+  renderNlBlocks();
+}
+window.removeNlBlock = removeNlBlock;
+
+function renderNlBlocks() {
+  var container = document.getElementById('nl-blocks');
+  if (!container) return;
+  if (!_nlBlocks.length) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">Add blocks above to build your email</div>';
+    return;
+  }
+  container.innerHTML = _nlBlocks.map(function(block) {
+    var inner = '';
+    if (block.type === 'text') {
+      inner = '<textarea id="nl-block-'+block.id+'" placeholder="Write your message here..." rows="4" style="width:100%;box-sizing:border-box;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;resize:vertical;"></textarea>';
+    } else if (block.type === 'button') {
+      inner = '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+        + '<input type="text" id="nl-block-'+block.id+'-label" placeholder="Button label" style="flex:1;font-size:13px;"/>'
+        + '<input type="url" id="nl-block-'+block.id+'-url" placeholder="https://..." style="flex:2;font-size:13px;"/>'
+        + '</div>';
+    } else if (block.type === 'video') {
+      inner = '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste Loom, YouTube, or BombBomb URL" style="width:100%;box-sizing:border-box;font-size:13px;"/>';
+    } else if (block.type === 'image') {
+      inner = '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste image URL (Google Drive, Dropbox, etc.)" style="width:100%;box-sizing:border-box;font-size:13px;"/>';
+    } else if (block.type === 'divider') {
+      inner = '<div style="border-top:1px solid var(--border);margin:4px 0;"></div>';
+    }
+    var labels = { text:'📝 Text', button:'🔗 Button', video:'🎥 Video', image:'🖼 Image', divider:'— Divider' };
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;">'
+      + '<span style="font-size:11px;font-weight:600;color:var(--text2);">' + (labels[block.type]||block.type) + '</span>'
+      + '<button onclick="removeNlBlock('+block.id+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;">✕</button>'
+      + '</div>'
+      + inner
+      + '</div>';
+  }).join('');
+}
+window.renderNlBlocks = renderNlBlocks;
+
+function buildNlBodyHtml() {
+  var parts = [];
+  _nlBlocks.forEach(function(block) {
+    if (block.type === 'text') {
+      var el = document.getElementById('nl-block-'+block.id);
+      var text = el ? el.value.trim() : '';
+      if (text) parts.push('<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">' + text.replace(/\n/g,'<br/>') + '</p>');
+    } else if (block.type === 'button') {
+      var label = (document.getElementById('nl-block-'+block.id+'-label')||{}).value||'';
+      var url = (document.getElementById('nl-block-'+block.id+'-url')||{}).value||'';
+      if (label && url) parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+url+'" style="background:#1D9E75;color:#fff;text-decoration:none;padding:11px 24px;border-radius:24px;font-size:14px;font-weight:500;display:inline-block;">'+label+'</a></div>');
+    } else if (block.type === 'video') {
+      var vurl = (document.getElementById('nl-block-'+block.id)||{}).value||'';
+      if (vurl) {
+        var thumb = vurl.includes('youtube.com') || vurl.includes('youtu.be')
+          ? 'https://img.youtube.com/vi/' + (vurl.match(/(?:v=|youtu\.be\/)([^&?]+)/)||[])[1] + '/hqdefault.jpg'
+          : 'https://cdn.loom.com/sessions/thumbnails/' + (vurl.match(/loom\.com\/share\/([a-z0-9]+)/)||[])[1] + '/thumbnail.jpg';
+        parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+vurl+'" target="_blank"><div style="position:relative;display:inline-block;"><img src="'+thumb+'" style="width:100%;max-width:480px;border-radius:8px;" onerror="this.style.display=\'none\'"/><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);border-radius:50%;width:56px;height:56px;display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:22px;">▶</span></div></div></a></div>');
+      }
+    } else if (block.type === 'image') {
+      var iurl = (document.getElementById('nl-block-'+block.id)||{}).value||'';
+      if (iurl) parts.push('<div style="text-align:center;margin:14px 0;"><img src="'+iurl+'" style="max-width:100%;border-radius:8px;" /></div>');
+    } else if (block.type === 'divider') {
+      parts.push('<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;"/>');
+    }
+  });
+  return parts.join('');
+}
+
+function previewNewsletter() {
+  var subject = (document.getElementById('nl-subject')||{}).value||'Preview';
+  var body = buildNlBodyHtml();
+  if (!body) { alert('Add some content first.'); return; }
+  var agentName = (userProfile && userProfile.name) || 'Your Agent';
+  var html = nsEmailWrap(agentName, subject, '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi [First Name],</p>' + body, userProfile);
+  var w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+window.previewNewsletter = previewNewsletter;
+
+async function sendNewsletter() {
+  var subject = (document.getElementById('nl-subject')||{}).value.trim();
+  if (!subject) { alert('Please add a subject line.'); return; }
+  var body = buildNlBodyHtml();
+  if (!body) { alert('Please add some content.'); return; }
+  var recipients = updateNlCount();
+  if (!recipients.length) { alert('No recipients match your audience selection.'); return; }
+  if (!confirm('Send to ' + recipients.length + ' contact' + (recipients.length!==1?'s':'') + '?')) return;
+
+  var btn = document.getElementById('nl-send-btn');
+  var status = document.getElementById('nl-status');
+  if (btn) btn.disabled = true;
+  if (status) { status.style.display = 'block'; status.textContent = 'Sending...'; }
+
+  var agentName = (userProfile && userProfile.name) || 'Your Agent';
+  var sent = 0, failed = 0;
+
+  for (var i = 0; i < recipients.length; i++) {
+    var client = recipients[i];
+    if (!client.email) { failed++; continue; }
+    var first = client.firstName || 'there';
+    var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + body;
+    var html = nsEmailWrap(agentName, subject, personalBody, userProfile);
+    try {
+      await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
+        body: JSON.stringify({ to: client.email, subject: subject, html: html })
+      });
+      sent++;
+      if (status) status.textContent = 'Sending... ' + sent + ' of ' + recipients.length;
+    } catch(e) { failed++; }
+    // Small delay to avoid rate limiting
+    if (i < recipients.length - 1) await new Promise(function(r){ setTimeout(r, 200); });
+  }
+
+  if (btn) btn.disabled = false;
+  if (status) status.textContent = '✓ Sent to ' + sent + ' contact' + (sent!==1?'s':'') + (failed?' · '+failed+' failed':'') + '.';
+}
+window.sendNewsletter = sendNewsletter;
+
 function openMsgThread(buyerUid) {
   var buyer = (myBuyers||[]).find(function(b){ return b.uid===buyerUid; });
   if (!buyer) return;
@@ -8581,7 +8826,7 @@ async function setBuyerAgent(uid) {
       + '</div>'
       + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Log in to Nest Track to view their full profile and pick up where they left off.</p>';
     var subject = 'You\'ve been assigned ' + clientName + ' on Nest Track';
-    var emailHtml = nsEmailWrap('Tom Garuccio', subject, bodyHtml);
+    var emailHtml = nsEmailWrap(userProfile && userProfile.name || 'Tom Garuccio', subject, bodyHtml, userProfile);
     showEmailPreview(agentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         await fetch(PROXY_URL, {
@@ -8627,7 +8872,7 @@ async function setCoAgent(uid) {
       + '</div>'
       + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Log in to Nest Track to view their full profile.</p>';
     var subject = 'You\'ve been added as co-agent for ' + clientName + ' on Nest Track';
-    var emailHtml = nsEmailWrap('Tom Garuccio', subject, bodyHtml);
+    var emailHtml = nsEmailWrap(userProfile && userProfile.name || 'Tom Garuccio', subject, bodyHtml, userProfile);
     showEmailPreview(coAgentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         var payload = { to: coAgentObj.email, subject: subject, html: finalHtml || emailHtml };
