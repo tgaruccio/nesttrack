@@ -12112,10 +12112,29 @@ async function saveListing(existingId) {
   };
 
   try {
+    var savedRef;
     if (existingId) {
       await fb.updateDoc(fb.doc(fb.db,'offer_listings',existingId), data);
     } else {
-      await fb.addDoc(fb.collection(fb.db,'offer_listings'), data);
+      savedRef = await fb.addDoc(fb.collection(fb.db,'offer_listings'), data);
+      // Auto-create a deal in deal tracker for new listings
+      try {
+        var dealData = {
+          address: address,
+          clientName: clientName,
+          clientUid: clientUid || null,
+          agentId: userProfile.agentId || 'tom',
+          status: 'On Market',
+          type: 'seller',
+          salePrice: listPrice ? parseFloat(String(listPrice).replace(/[^0-9.]/g,'')) || 0 : 0,
+          commission: 0,
+          commMode: 'dollar',
+          offerListingId: savedRef.id,
+          createdAt: fb.serverTimestamp(),
+        };
+        await fb.addDoc(fb.collection(fb.db,'deals'), dealData);
+        console.log('Deal auto-created from listing');
+      } catch(de) { console.log('Deal auto-create failed:', de.message); }
     }
     var ov = document.getElementById('listing-modal-overlay');
     if (ov) ov.remove();
