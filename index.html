@@ -1250,6 +1250,13 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Quick launch grid -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
 
+    <!-- Row 1: Clients + Messages -->
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">👥</span>
+      <span style="font-size:13px;font-weight:600;">Clients</span>
+      <span style="font-size:11px;opacity:0.85;" id="ad-clients-count">Loading...</span>
+    </button>
+
     <button onclick="go('messages',document.querySelector('[data-pg=messages]'))" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;position:relative;">
       <span style="font-size:24px;">💬</span>
       <span style="font-size:13px;font-weight:600;">Messages</span>
@@ -1257,28 +1264,11 @@ textarea{resize:vertical;min-height:68px;}
       <span id="ad-msg-tile-badge" style="display:none;position:absolute;top:10px;right:10px;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:600;"></span>
     </button>
 
-    <button onclick="go('newsletter',document.querySelector('[data-pg=newsletter]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">📧</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Newsletter</span>
-      <span style="font-size:11px;color:var(--text2);">Send to your contacts</span>
-    </button>
-
-    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('buyers')" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">👥</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Clients</span>
-      <span style="font-size:11px;color:var(--text2);" id="ad-clients-count">Loading...</span>
-    </button>
-
+    <!-- Row 2: To-Do + Showings -->
     <button onclick="go('agent-todo',document.querySelector('[data-pg=agent-todo]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">✅</span>
       <span style="font-size:13px;font-weight:600;color:var(--text);">To-Do List</span>
       <span style="font-size:11px;color:var(--text2);" id="ad-todo-count">No tasks</span>
-    </button>
-
-    <button onclick="go('agent-preapproval',document.querySelector('[data-pg=agent-preapproval]'))" style="background:var(--blue-lt);border:1.5px solid #B5D4F4;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">📧</span>
-      <span style="font-size:13px;font-weight:600;color:var(--blue-dk);">Send Pre-Approval</span>
-      <span style="font-size:11px;color:var(--blue-dk);opacity:0.85;">Email link to client</span>
     </button>
 
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings')" style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
@@ -1287,6 +1277,7 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:11px;color:#1D4ED8;opacity:0.85;">Sync from ShowingTime</span>
     </button>
 
+    <!-- Row 3: Deal Tracker + Offer Manager -->
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('deals')" style="background:#FDF4FF;border:1.5px solid #E9D5FF;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">🏠</span>
       <span style="font-size:13px;font-weight:600;color:#7E22CE;">Deal Tracker</span>
@@ -1299,18 +1290,7 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:11px;color:#065F46;opacity:0.85;" id="ad-offers-count">Manage offers</span>
     </button>
 
-    <button onclick="openReferralModal()" style="background:#FEF3E2;border:1.5px solid #F5C97A;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">🤝</span>
-      <span style="font-size:13px;font-weight:600;color:#92400E;">Send Referrals</span>
-      <span style="font-size:11px;color:#92400E;opacity:0.85;">Recommend trusted pros</span>
-    </button>
-
-    <button onclick="go('listing-desc',document.querySelector('[data-pg=listing-desc]'))" style="background:var(--purple-lt);border:1.5px solid #C4C0F5;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">✍️</span>
-      <span style="font-size:13px;font-weight:600;color:var(--purple-dk);">Listing Generator</span>
-      <span style="font-size:11px;color:var(--purple-dk);opacity:0.85;">AI listing copy</span>
-    </button>
-
+    <!-- Row 4: Net Sheet + Mortgage Calc -->
     <button onclick="go('netsheet',document.querySelector('[data-pg=netsheet]'))" style="background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">💵</span>
       <span style="font-size:13px;font-weight:600;color:#92400E;">Net Sheet</span>
@@ -1323,16 +1303,43 @@ textarea{resize:vertical;min-height:68px;}
       <span style="font-size:11px;color:var(--green-dk);opacity:0.85;">Payment estimator</span>
     </button>
 
+    <!-- Row 5: Preferred Partners + Send Referrals -->
+    <button onclick="go('partners',document.querySelector('[data-pg=partners]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">🤝</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Preferred Partners</span>
+      <span style="font-size:11px;color:var(--text2);">Your vendor list</span>
+    </button>
+
+    <button onclick="openReferralModal()" style="background:#FEF3E2;border:1.5px solid #F5C97A;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">🤝</span>
+      <span style="font-size:13px;font-weight:600;color:#92400E;">Send Referrals</span>
+      <span style="font-size:11px;color:#92400E;opacity:0.85;">Recommend trusted pros</span>
+    </button>
+
+    <!-- Row 6: Newsletter + Home Search -->
+    <button onclick="go('newsletter',document.querySelector('[data-pg=newsletter]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">📧</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Newsletter</span>
+      <span style="font-size:11px;color:var(--text2);">Send to your contacts</span>
+    </button>
+
     <button onclick="go('idx',document.querySelector('[data-pg=idx]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">🔍</span>
       <span style="font-size:13px;font-weight:600;color:var(--text);">Home Search</span>
       <span style="font-size:11px;color:var(--text2);">MLS listing search</span>
     </button>
 
-    <button onclick="go('partners',document.querySelector('[data-pg=partners]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
-      <span style="font-size:24px;">🤝</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Preferred Partners</span>
-      <span style="font-size:11px;color:var(--text2);">Your vendor list</span>
+    <!-- Row 7: Send Pre-Approval + Listing Generator -->
+    <button onclick="go('agent-preapproval',document.querySelector('[data-pg=agent-preapproval]'))" style="background:var(--blue-lt);border:1.5px solid #B5D4F4;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">📧</span>
+      <span style="font-size:13px;font-weight:600;color:var(--blue-dk);">Send Pre-Approval</span>
+      <span style="font-size:11px;color:var(--blue-dk);opacity:0.85;">Email link to client</span>
+    </button>
+
+    <button onclick="go('listing-desc',document.querySelector('[data-pg=listing-desc]'))" style="background:var(--purple-lt);border:1.5px solid #C4C0F5;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+      <span style="font-size:24px;">✍️</span>
+      <span style="font-size:13px;font-weight:600;color:var(--purple-dk);">Listing Generator</span>
+      <span style="font-size:11px;color:var(--purple-dk);opacity:0.85;">AI listing copy</span>
     </button>
 
   </div>
