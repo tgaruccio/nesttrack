@@ -12166,6 +12166,8 @@ async function createDealFromListing(listingId) {
     var agentId = userProfile.agentId || 'tom';
     await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(dealData,{createdAt:fb.serverTimestamp()}));
     alert('Deal created in Deal Tracker!');
+    await loadDeals();
+    if (typeof renderDealTracker === 'function') renderDealTracker();
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
 window.createDealFromListing = createDealFromListing;
