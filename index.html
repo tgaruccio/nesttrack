@@ -7554,7 +7554,7 @@ async function renderBuyers() {
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
         <div>${crmStatusPill(b)}</div>
         ${agentLine}${coAgentLine}
-        ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; if(!b.pending) ctBtns+=' <button onclick="event.stopPropagation();go(\'messages\',document.querySelector(\'[data-pg=messages]\'));setTimeout(function(){openMsgThread(\''+b.uid+'\')},400);" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 9px;font-size:10.5px;cursor:pointer;">&#128172; Message</button>'; } return ctBtns; })()}
+        ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; if(!b.pending) ctBtns+=' <button onclick="event.stopPropagation();go(\'messages\',document.querySelector(\'[data-pg=messages]\'));setTimeout(function(){openMsgThread(\''+b.uid+'\')},400);" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 9px;font-size:10.5px;cursor:pointer;">&#128172; Message</button>'; ctBtns+='</div>'; } return ctBtns; })()}
       </div>
       <div style="text-align:right;display:flex;align-items:center;gap:8px;">
         <div>
@@ -8307,6 +8307,7 @@ async function renderAgentDashboard() {
   var stShowingCount = 0;
   try {
     var stEvents = await fetchShowingTimeEvents();
+    window._parsedShowings = stEvents;
     stShowingCount = (stEvents||[]).filter(function(e){
       if (!e.start) return false;
       var d = e.start.split('T')[0];
@@ -13522,8 +13523,7 @@ async function renderShowingInbox() {
 
   // Load both sources in parallel
   var events = await fetchShowingTimeEvents();
-
-  // Load manual showings regardless of ShowingTime
+  window._parsedShowings = events; // Cache for seller reports
   var manualShowings = [];
   try {
     var agId = userProfile.agentId||'tom';
@@ -14471,7 +14471,7 @@ function renderSellerReports() {
   var agentId = userProfile.agentId || 'tom';
   Promise.all([
     fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings'), fb.where('agentId','==',agentId), fb.where('active','==',true))),
-    loadShowingTimeFeed()
+    (window._parsedShowings && window._parsedShowings.length ? Promise.resolve(window._parsedShowings) : loadShowingTimeFeed())
   ]).then(function(results) {
     _srListings = [];
     results[0].forEach(function(d){ _srListings.push({id:d.id,...d.data()}); });
