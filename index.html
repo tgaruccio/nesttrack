@@ -4919,6 +4919,9 @@ function agentFromField() {
   name = name.trim() || (userProfile&&userProfile.name) || 'Nest Track';
   return name + ' <notifications@mail.garucciogroup.com>';
 }
+function agentReplyTo() {
+  return (userProfile&&userProfile.email) || null;
+}
 function nsEmailBtn(label, url, color) {
   color = color || '#1D9E75';
   return '<div style="text-align:center;margin:20px 0;">'
@@ -4936,7 +4939,7 @@ async function sendClientEmail(uid, subject, bodyHtml) {
     await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-      body: JSON.stringify({ to: email, subject: subject, html: bodyHtml , from: agentFromField() })
+      body: JSON.stringify({ to: email, subject: subject, html: bodyHtml , from: agentFromField(), reply_to: agentReplyTo() })
     });
   } catch(e) { console.log('Client email failed:', e.message); }
 }
@@ -5255,7 +5258,7 @@ async function sendStepEmail(uid, stepNum, type) {
     var subject = tmpl.subject;
     var bodyHtml = tmpl.body(first, agentName);
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField() };
+    var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
 
     // Build CC prefill string for the email preview
     var ccParts = [];
@@ -5307,7 +5310,7 @@ async function sendStepEmail(uid, stepNum, type) {
           await fetch(PROXY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-            body: JSON.stringify({ to: laEmail, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField() })
+            body: JSON.stringify({ to: laEmail, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField(), reply_to: agentReplyTo() })
           });
         }
         console.log('Step email sent:', type, stepNum, client.email);
@@ -5348,7 +5351,7 @@ async function sendContractDatesEmail(uid, type, dates) {
       + nsEmailBtn('View My Timeline \u2192', APP_LINK, '#1D9E75');
 
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var datesPayload = { to: client.email, subject: subject, html: html, from: agentFromField() };
+    var datesPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
     if (agentObj && agentObj.email) datesPayload.cc = agentObj.email;
     await fetch(PROXY_URL, {
       method: 'POST',
@@ -5416,7 +5419,7 @@ async function emailNetSheet() {
             });
           }
           var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;"><div style="background:#D97706;padding:24px 28px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Net Sheet Estimate</div><div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;">Prepared by ' + agentName + '</div></div><div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><div style="background:#FEF3C7;border-radius:8px;padding:18px;text-align:center;margin-bottom:20px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#92400E;margin-bottom:6px;">Estimated Net Proceeds</div><div style="font-size:38px;font-weight:300;color:#92400E;">' + net + '</div></div><table style="width:100%;border-collapse:collapse;">' + rows + '</table><p style="font-size:11px;color:#888;margin-top:16px;">This is an estimate. Contact ' + agentName + ' for a precise net sheet.</p></div></div>';
-          await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:bc.email, subject:'Your Net Sheet Estimate from '+agentName, html:emailHtml, from:agentFromField()})});
+          await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:bc.email, subject:'Your Net Sheet Estimate from '+agentName, html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
           sent++;
           if (status) status.textContent = 'Sending... (' + sent + '/' + allClients.length + ')';
         } catch(e) { failed++; }
@@ -5464,7 +5467,7 @@ async function emailNetSheet() {
       await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html, from: agentFromField() })
+        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html, from: agentFromField(), reply_to: agentReplyTo() })
       });
       if (status) { status.textContent = '✓ Net sheet sent to ' + email; status.style.color = 'var(--green-dk)'; }
     } catch(e) {
@@ -6228,7 +6231,7 @@ async function sendReferrals() {
   var btn = document.getElementById('ref-next-btn');
   if (btn) btn.disabled = true;
   try {
-    var payload = {to:toEmail, subject:agentFirst+' sent you some referral recommendations', html:emailHtml, from:agentFromField()};
+    var payload = {to:toEmail, subject:agentFirst+' sent you some referral recommendations', html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
     if (ae && ae!==toEmail) payload.cc = ae;
     showEmailPreview(toEmail, payload.subject, emailHtml, async function(finalHtml, ccValue) {
@@ -6828,7 +6831,7 @@ async function emailMortCalc() {
     var status = document.getElementById('mort-email-status');
     try {
       if (status) { status.textContent='Sending...'; status.style.display='block'; status.style.color='var(--text2)'; }
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:finalHtml||emailHtml, from:agentFromField()}) });
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo()}) });
       if (status) { status.textContent='Sent to '+toLabel; status.style.color='var(--green-dk)'; }
     } catch(e) {
       if (status) { status.textContent='Failed to send.'; status.style.color='#E24B4A'; }
@@ -12465,6 +12468,9 @@ function agentFromField() {
   name = name.trim() || (userProfile&&userProfile.name) || 'Nest Track';
   return name + ' <notifications@mail.garucciogroup.com>';
 }
+function agentReplyTo() {
+  return (userProfile&&userProfile.email) || null;
+}
 function nsEmailBtn(label, url, color) {
   color = color || '#1D9E75';
   return '<div style="text-align:center;margin:20px 0;">'
@@ -12482,7 +12488,7 @@ async function sendClientEmail(uid, subject, bodyHtml) {
     await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-      body: JSON.stringify({ to: email, subject: subject, html: bodyHtml , from: agentFromField() })
+      body: JSON.stringify({ to: email, subject: subject, html: bodyHtml , from: agentFromField(), reply_to: agentReplyTo() })
     });
   } catch(e) { console.log('Client email failed:', e.message); }
 }
@@ -12801,7 +12807,7 @@ async function sendStepEmail(uid, stepNum, type) {
     var subject = tmpl.subject;
     var bodyHtml = tmpl.body(first, agentName);
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField() };
+    var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
 
     // Build CC prefill string for the email preview
     var ccParts = [];
@@ -12853,7 +12859,7 @@ async function sendStepEmail(uid, stepNum, type) {
           await fetch(PROXY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-            body: JSON.stringify({ to: laEmail, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField() })
+            body: JSON.stringify({ to: laEmail, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField(), reply_to: agentReplyTo() })
           });
         }
         console.log('Step email sent:', type, stepNum, client.email);
@@ -12894,7 +12900,7 @@ async function sendContractDatesEmail(uid, type, dates) {
       + nsEmailBtn('View My Timeline \u2192', APP_LINK, '#1D9E75');
 
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var datesPayload = { to: client.email, subject: subject, html: html, from: agentFromField() };
+    var datesPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
     if (agentObj && agentObj.email) datesPayload.cc = agentObj.email;
     await fetch(PROXY_URL, {
       method: 'POST',
@@ -12962,7 +12968,7 @@ async function emailNetSheet() {
             });
           }
           var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;"><div style="background:#D97706;padding:24px 28px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Net Sheet Estimate</div><div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;">Prepared by ' + agentName + '</div></div><div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><div style="background:#FEF3C7;border-radius:8px;padding:18px;text-align:center;margin-bottom:20px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#92400E;margin-bottom:6px;">Estimated Net Proceeds</div><div style="font-size:38px;font-weight:300;color:#92400E;">' + net + '</div></div><table style="width:100%;border-collapse:collapse;">' + rows + '</table><p style="font-size:11px;color:#888;margin-top:16px;">This is an estimate. Contact ' + agentName + ' for a precise net sheet.</p></div></div>';
-          await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:bc.email, subject:'Your Net Sheet Estimate from '+agentName, html:emailHtml, from:agentFromField()})});
+          await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:bc.email, subject:'Your Net Sheet Estimate from '+agentName, html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
           sent++;
           if (status) status.textContent = 'Sending... (' + sent + '/' + allClients.length + ')';
         } catch(e) { failed++; }
@@ -13010,7 +13016,7 @@ async function emailNetSheet() {
       await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html, from: agentFromField() })
+        body: JSON.stringify({ to: email, subject: 'Your Net Sheet Estimate from ' + agentName, html: finalHtml || html, from: agentFromField(), reply_to: agentReplyTo() })
       });
       if (status) { status.textContent = '✓ Net sheet sent to ' + email; status.style.color = 'var(--green-dk)'; }
     } catch(e) {
@@ -13774,7 +13780,7 @@ async function sendReferrals() {
   var btn = document.getElementById('ref-next-btn');
   if (btn) btn.disabled = true;
   try {
-    var payload = {to:toEmail, subject:agentFirst+' sent you some referral recommendations', html:emailHtml, from:agentFromField()};
+    var payload = {to:toEmail, subject:agentFirst+' sent you some referral recommendations', html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()};
     var ae = (assignedAgent&&assignedAgent.email) ? assignedAgent.email : (userProfile&&userProfile.email);
     if (ae && ae!==toEmail) payload.cc = ae;
     showEmailPreview(toEmail, payload.subject, emailHtml, async function(finalHtml, ccValue) {
@@ -14374,7 +14380,7 @@ async function emailMortCalc() {
     var status = document.getElementById('mort-email-status');
     try {
       if (status) { status.textContent='Sending...'; status.style.display='block'; status.style.color='var(--text2)'; }
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:finalHtml||emailHtml, from:agentFromField()}) });
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail, subject:'Mortgage Payment Estimate from '+agentName, html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo()}) });
       if (status) { status.textContent='Sent to '+toLabel; status.style.color='var(--green-dk)'; }
     } catch(e) {
       if (status) { status.textContent='Failed to send.'; status.style.color='#E24B4A'; }
@@ -15600,7 +15606,7 @@ async function sendNewsletter() {
     var first = client.firstName || 'there';
     var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + body;
     var html = nsEmailWrap(agentName, subject, personalBody, userProfile);
-    var payload = { to: client.email, subject: subject, html: html, from: agentFromField() };
+    var payload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
     if (ccList.length) payload.cc = ccList;
     try {
       await fetch(PROXY_URL, {
@@ -16076,7 +16082,7 @@ async function sendPreApprovalEmail() {
   showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function(finalHtml, ccValue) {
     try {
       if (status) { status.textContent = 'Sending...'; status.style.display='block'; status.style.background='var(--surface2)'; status.style.color='var(--text2)'; }
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:finalHtml||html, from:agentFromField()}) });
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify({to:toEmail,subject:'Get Pre-Approved — Start Your Home Journey',html:finalHtml||html, from:agentFromField(), reply_to: agentReplyTo()}) });
       if (status) { status.textContent='✓ Pre-approval email sent to '+toEmail; status.style.background='var(--green-lt)'; status.style.color='var(--green-dk)'; }
       if (manual) manual.value='';
       if (noteEl) noteEl.value='';
@@ -16622,7 +16628,7 @@ async function setBuyerAgent(uid) {
         await fetch(PROXY_URL, {
           method: 'POST',
           headers: {'Content-Type':'application/json','X-Action':'email'},
-          body: JSON.stringify({ to: agentObj.email, subject: subject, html: finalHtml || emailHtml , from: agentFromField() })
+          body: JSON.stringify({ to: agentObj.email, subject: subject, html: finalHtml || emailHtml , from: agentFromField(), reply_to: agentReplyTo() })
         });
       } catch(e) { console.log('Agent assignment email failed:', e.message); }
     });
@@ -16665,7 +16671,7 @@ async function setCoAgent(uid) {
     var emailHtml = nsEmailWrap(userProfile && userProfile.name || 'Tom Garuccio', subject, bodyHtml, userProfile);
     showEmailPreview(coAgentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
       try {
-        var payload = { to: coAgentObj.email, subject: subject, html: finalHtml || emailHtml, from: agentFromField() };
+        var payload = { to: coAgentObj.email, subject: subject, html: finalHtml || emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
         if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; if(_cc[1])payload.cc2=_cc[1]; }
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       } catch(e) { console.log('Co-agent assignment email failed:', e.message); }
@@ -20489,7 +20495,7 @@ async function confirmSendOffer(listingId, offerId) {
   if (sendBtn) { sendBtn.disabled=true; sendBtn.textContent='Sending...'; }
   try {
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField()})});
+      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
     if (o.agentEmail) {
       var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
         +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
@@ -20508,7 +20514,7 @@ async function confirmSendOffer(listingId, offerId) {
         +'<a href="https://app.garucciogroup.com/invite" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;">See if you qualify →</a>'
         +'</div></div>';
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField()})});
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField(), reply_to: agentReplyTo()})});
     }
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
     // Push notify seller client
@@ -20734,7 +20740,7 @@ async function submitPublicOffer(listingId) {
             +'</div></div>';
           await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
             body:JSON.stringify({to:agentEmail,
-              subject:'New Offer Received — '+partnerEsc(lData.address||''), from:agentFromField(),
+              subject:'New Offer Received — '+partnerEsc(lData.address||''), from:agentFromField(), reply_to: agentReplyTo(),
               html:alertHtml})});
         }
       }
@@ -20997,7 +21003,7 @@ async function emailComparisonToClient(listingId) {
   showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml, ccValue) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml, from:agentFromField()})});
+        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
       alert('Comparison emailed to '+clientFirst+'!');
     } catch(e) { alert('Failed to send: '+e.message); }
   });
@@ -21381,7 +21387,7 @@ async function _commitAppt(appt, sendEmail) {
   // 4. Send email if approved
   if (sendEmail && appt.clientEmail) {
     try {
-      var payload = { to: appt.clientEmail, subject: appt._emailSubject, html: appt._emailHtml, from: agentFromField() };
+      var payload = { to: appt.clientEmail, subject: appt._emailSubject, html: appt._emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
       if (appt.agentEmail) payload.cc = appt.agentEmail;
       await fetch(PROXY_URL, {
         method:'POST',
@@ -21549,7 +21555,7 @@ async function assignShowing(idx) {
       +'</div></div>';
 
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField()})});
+      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
     sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
 
     // 4. Save assignment to Firestore so inbox remembers
@@ -21699,7 +21705,7 @@ async function saveManualShowing() {
         +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
         +(agentEmail?'<div style="font-size:13px;color:#1D9E75;">'+agentEmail+'</div>':'')
         +'</div></div>';
-      var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml, from: agentFromField() };
+      var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
       if (agentEmail) payload.cc = agentEmail;
       showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
         payload.html = finalHtml || payload.html;
@@ -22970,7 +22976,7 @@ async function sendPortalInvite() {
     +agentFooter
     +'</div></div>';
 
-  var payload = { to: b.email, subject: agentName + ' has invited you to your Nest Track portal 🏠', html: emailHtml, from: agentFromField() };
+  var payload = { to: b.email, subject: agentName + ' has invited you to your Nest Track portal 🏠', html: emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
   if (agentObj && agentObj.email) payload.cc = agentObj.email;
 
   showEmailPreview(b.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
