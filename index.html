@@ -14448,8 +14448,8 @@ function srMatchShowings(address) {
   var streetNum = parts[0];
   var streetName = parts[1].toLowerCase();
   return (_srShowings||[]).filter(function(ev) {
-    // Strip iCal escape chars (\n \, etc) before matching
-    var raw = ((ev.title||ev.summary||'') + ' ' + (ev.location||''));
+    // Check address field directly plus title/summary/location
+    var raw = ((ev.address||'') + ' ' + (ev.title||ev.summary||'') + ' ' + (ev.location||'') + ' ' + (ev.description||''));
     var t = raw.replace(/\\n/g,' ').replace(/\\,/g,',').replace(/\\/g,'').toLowerCase();
     return t.includes(streetNum) && t.includes(streetName);
   });
@@ -14778,25 +14778,35 @@ async function srReadPDF(event) {
 
     if (status) status.textContent = 'Analyzing with AI...';
 
-    var response = await fetch(PROXY_URL, {
+    if (status) status.textContent = 'Analyzing with AI...';
+
+    // Send extracted text approach - more reliable than binary PDF
+    var textContent = '';
+    try {
+      // Try to extract text from PDF using basic approach
+      var text = atob(base64);
+      // Extract readable text from PDF binary
+      var matches = text.match(/BT[\s\S]*?ET/g) || [];
+      var extracted = matches.map(function(m){ return m.replace(/[^\x20-\x7E\n]/g,' ').replace(/\s+/g,' '); }).join(' ');
+      // Also try to get text between parentheses (PDF text format)
+      var paren = text.match(/\(([^)]{3,})\)/g) || [];
+      textContent = paren.map(function(p){ return p.slice(1,-1); }).join(' ') + ' ' + extracted;
+      textContent = textContent.replace(/[^\x20-\x7E\n]/g,' ').replace(/\s+/g,' ').substring(0,8000);
+    } catch(e) {
+      textContent = '';
+    }
+
+    var promptContent = textContent.length > 100
+      ? 'Here is text extracted from a ShowingTime report PDF:\n\n' + textContent + '\n\nExtract the showing data and return ONLY valid JSON, no markdown:\n{"showings":[{"date":"YYYY-MM-DD","agent":"Agent Name","brokerage":"Brokerage Name"}],"feedback":"2-3 sentence summary of buyer feedback themes, interest levels, and price opinions"}'
+      : 'I have a ShowingTime listing activity report. Unfortunately the text could not be extracted. Please return this exact JSON with empty data:\n{"showings":[],"feedback":""}';
+
+    var response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Action': 'anthropic' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: base64 }
-            },
-            {
-              type: 'text',
-              text: 'Extract showing data from this ShowingTime report. Return ONLY valid JSON, no markdown, no explanation:\n{"showings":[{"date":"YYYY-MM-DD","agent":"Agent Name","brokerage":"Brokerage Name"}],"feedback":"2-3 sentence summary of buyer feedback themes, interest levels, and price opinions from the feedback section"}'
-            }
-          ]
-        }]
+        messages: [{ role: 'user', content: promptContent }]
       })
     });
 
