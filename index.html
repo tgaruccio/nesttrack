@@ -4097,11 +4097,8 @@ function go(page, el) {
   if (page === 'messages') { renderMessagesPage(); }
   if (page === 'newsletter') {
     _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
-    if (!myBuyers || !myBuyers.length) {
-      loadBuyersForAgent().then(function(){ updateNlCount(); });
-    } else {
-      updateNlCount();
-    }
+    // Always reload full buyer list for newsletter — don't use filtered myBuyers
+    loadBuyersForAgent().then(function(){ updateNlCount(); });
   }
   if (page === 'home') {
     renderTxnTimeline();
@@ -7771,7 +7768,7 @@ var _nlBlockId = 0;
 function updateNlCount() {
   var audience = document.querySelector('input[name="nl-audience"]:checked');
   var val = audience ? audience.value : 'all';
-  var buyers = myBuyers || [];
+  var buyers = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; });
 
   // Show/hide single client selector
   var oneDiv = document.getElementById('nl-one-client');
@@ -7782,9 +7779,11 @@ function updateNlCount() {
     var searchContainer = document.getElementById('nl-one-client-search');
     if (searchContainer && !searchContainer.querySelector('input[type=text]')) {
       createClientSearchDropdown('nl-one-client-search', function(){ updateNlCount(); }, 'Search clients...');
+      // Override clients list to use allBuyers
+      window['_csdClients_nl-one-client-search'] = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; });
     }
     var selectedUid = csdGetUid('nl-one-client-search');
-    var filtered = selectedUid ? (myBuyers||[]).filter(function(b){ return b.uid === selectedUid; }) : [];
+    var filtered = selectedUid ? (allBuyers||myBuyers||[]).filter(function(b){ return b.uid === selectedUid; }) : [];
     var el = document.getElementById('nl-count');
     if (el) el.textContent = filtered.length + ' recipient' + (filtered.length !== 1 ? 's' : '');
     return filtered;
@@ -7966,7 +7965,7 @@ async function sendNewsletter() {
   var body = buildNlBodyHtml();
   if (!body) { alert('Please add some content.'); return; }
   var recipients = updateNlCount();
-  if (!recipients.length) { alert('No recipients match your audience selection.'); return; }
+  if (!recipients || !recipients.length) { alert('No recipients match your audience selection.'); return; }
   if (!confirm('Send to ' + recipients.length + ' contact' + (recipients.length!==1?'s':'') + '?')) return;
 
   var btn = document.getElementById('nl-send-btn');
