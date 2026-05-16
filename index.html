@@ -1965,6 +1965,18 @@ textarea{resize:vertical;min-height:68px;}
     <input type="text" id="nl-subject" placeholder="e.g. Cleveland Market Update — May 2026" style="font-size:14px;"/>
   </div>
 
+  <!-- Manual email + CC -->
+  <div class="card" style="gap:10px;">
+    <div>
+      <label class="flabel">Additional Recipient <span style="font-weight:400;color:var(--text3);">(optional — someone not in your list)</span></label>
+      <input type="email" id="nl-manual-email" placeholder="email@example.com" style="font-size:13px;width:100%;box-sizing:border-box;"/>
+    </div>
+    <div>
+      <label class="flabel">CC <span style="font-weight:400;color:var(--text3);">(separate multiple with commas)</span></label>
+      <input type="text" id="nl-cc" placeholder="agent@brokerage.com, assistant@office.com" style="font-size:13px;width:100%;box-sizing:border-box;"/>
+    </div>
+  </div>
+
   <!-- Email blocks -->
   <div class="card" style="gap:10px;">
     <div style="font-size:13px;font-weight:600;">Email Content</div>
@@ -9499,6 +9511,18 @@ textarea{resize:vertical;min-height:68px;}
     <input type="text" id="nl-subject" placeholder="e.g. Cleveland Market Update — May 2026" style="font-size:14px;"/>
   </div>
 
+  <!-- Manual email + CC -->
+  <div class="card" style="gap:10px;">
+    <div>
+      <label class="flabel">Additional Recipient <span style="font-weight:400;color:var(--text3);">(optional — someone not in your list)</span></label>
+      <input type="email" id="nl-manual-email" placeholder="email@example.com" style="font-size:13px;width:100%;box-sizing:border-box;"/>
+    </div>
+    <div>
+      <label class="flabel">CC <span style="font-weight:400;color:var(--text3);">(separate multiple with commas)</span></label>
+      <input type="text" id="nl-cc" placeholder="agent@brokerage.com, assistant@office.com" style="font-size:13px;width:100%;box-sizing:border-box;"/>
+    </div>
+  </div>
+
   <!-- Email blocks -->
   <div class="card" style="gap:10px;">
     <div style="font-size:13px;font-weight:600;">Email Content</div>
@@ -15547,9 +15571,19 @@ async function sendNewsletter() {
   if (!subject) { alert('Please add a subject line.'); return; }
   var body = buildNlBodyHtml(false);
   if (!body) { alert('Please add some content.'); return; }
+
+  var ccRaw = (document.getElementById('nl-cc')||{}).value||'';
+  var ccList = ccRaw.split(',').map(function(e){ return e.trim(); }).filter(function(e){ return e.includes('@'); });
+  var manualEmail = ((document.getElementById('nl-manual-email')||{}).value||'').trim();
+
   var recipients = updateNlCount();
-  if (!recipients || !recipients.length) { alert('No recipients match your audience selection.'); return; }
-  if (!confirm('Send to ' + recipients.length + ' contact' + (recipients.length!==1?'s':'') + '?')) return;
+  if (!recipients) recipients = [];
+  if (manualEmail) recipients = recipients.concat([{email: manualEmail, firstName: ''}]);
+  if (!recipients.length) { alert('No recipients — select an audience or add a manual email.'); return; }
+
+  var confirmMsg = 'Send to ' + recipients.length + ' recipient' + (recipients.length!==1?'s':'');
+  if (ccList.length) confirmMsg += ' + CC: ' + ccList.join(', ');
+  if (!confirm(confirmMsg + '?')) return;
 
   var btn = document.getElementById('nl-send-btn');
   var status = document.getElementById('nl-status');
@@ -15566,21 +15600,22 @@ async function sendNewsletter() {
     var first = client.firstName || 'there';
     var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + body;
     var html = nsEmailWrap(agentName, subject, personalBody, userProfile);
+    var payload = { to: client.email, subject: subject, html: html, from: agentFromField() };
+    if (ccList.length) payload.cc = ccList;
     try {
       await fetch(PROXY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-        body: JSON.stringify({ to: client.email, subject: subject, html: html, from: agentFromField() })
+        body: JSON.stringify(payload)
       });
       sent++;
       if (status) status.textContent = 'Sending... ' + sent + ' of ' + recipients.length;
     } catch(e) { failed++; }
-    // Small delay to avoid rate limiting
     if (i < recipients.length - 1) await new Promise(function(r){ setTimeout(r, 200); });
   }
 
   if (btn) btn.disabled = false;
-  if (status) status.textContent = '✓ Sent to ' + sent + ' contact' + (sent!==1?'s':'') + (failed?' · '+failed+' failed':'') + '.';
+  if (status) status.textContent = '✓ Sent to ' + sent + ' recipient' + (sent!==1?'s':'') + (failed?' · '+failed+' failed':'') + '.';
 }
 window.sendNewsletter = sendNewsletter;
 
