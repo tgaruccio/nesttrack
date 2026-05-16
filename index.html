@@ -501,7 +501,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="agent-dash" onclick="go('agent-dash',this)" id="agent-nav">🏠 Agent Dashboard <span id="agent-nav-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Agent Hub</button>
     <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
-    <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Newsletter</button>
+    <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Email</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
     <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet</button>
@@ -1306,7 +1306,7 @@ textarea{resize:vertical;min-height:68px;}
     <!-- Row 6: Newsletter + Home Search -->
     <button onclick="go('newsletter',document.querySelector('[data-pg=newsletter]'))" style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
       <span style="font-size:24px;">📧</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">Newsletter</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">Email</span>
       <span style="font-size:11px;color:var(--text2);">Send to your contacts</span>
     </button>
 
@@ -1935,7 +1935,7 @@ textarea{resize:vertical;min-height:68px;}
 <div class="page" id="page-newsletter" style="gap:16px;">
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <div>
-      <div style="font-size:18px;font-weight:500;">📧 Newsletter</div>
+      <div style="font-size:18px;font-weight:500;">📧 Email</div>
       <div style="font-size:12px;color:var(--text2);">Send a branded email to your contacts</div>
     </div>
   </div>
@@ -4097,8 +4097,15 @@ function go(page, el) {
   if (page === 'messages') { renderMessagesPage(); }
   if (page === 'newsletter') {
     _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
-    // Always reload full buyer list for newsletter — don't use filtered myBuyers
-    loadBuyersForAgent().then(function(){ updateNlCount(); });
+    // Load fresh complete buyer list directly — don't use myBuyers which is filtered
+    var savedMyBuyers = myBuyers;
+    loadBuyersForAgent().then(function(){
+      // allBuyers is now fully populated, store it for newsletter use
+      window._nlAllClients = (allBuyers||[]).filter(function(b){ return b.email; });
+      // Restore myBuyers so clients page isn't affected
+      myBuyers = savedMyBuyers;
+      updateNlCount();
+    });
   }
   if (page === 'home') {
     renderTxnTimeline();
@@ -7768,7 +7775,7 @@ var _nlBlockId = 0;
 function updateNlCount() {
   var audience = document.querySelector('input[name="nl-audience"]:checked');
   var val = audience ? audience.value : 'all';
-  var buyers = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; });
+  var buyers = (window._nlAllClients || allBuyers || myBuyers || []).filter(function(b){ return b.email; });
 
   // Show/hide single client selector
   var oneDiv = document.getElementById('nl-one-client');
@@ -7779,11 +7786,11 @@ function updateNlCount() {
     var searchContainer = document.getElementById('nl-one-client-search');
     if (searchContainer && !searchContainer.querySelector('input[type=text]')) {
       createClientSearchDropdown('nl-one-client-search', function(){ updateNlCount(); }, 'Search clients...');
-      // Override clients list to use allBuyers
-      window['_csdClients_nl-one-client-search'] = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; });
     }
+    // Always refresh the client list with full unfiltered set
+    window['_csdClients_nl-one-client-search'] = (window._nlAllClients || allBuyers || myBuyers || []).filter(function(b){ return b.email; });
     var selectedUid = csdGetUid('nl-one-client-search');
-    var filtered = selectedUid ? (allBuyers||myBuyers||[]).filter(function(b){ return b.uid === selectedUid; }) : [];
+    var filtered = selectedUid ? (window._nlAllClients||allBuyers||myBuyers||[]).filter(function(b){ return b.uid === selectedUid; }) : [];
     var el = document.getElementById('nl-count');
     if (el) el.textContent = filtered.length + ' recipient' + (filtered.length !== 1 ? 's' : '');
     return filtered;
