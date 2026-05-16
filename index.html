@@ -4102,6 +4102,8 @@ function go(page, el) {
     loadBuyersForAgent().then(function(){
       // allBuyers is now fully populated, store it for newsletter use
       window._nlAllClients = (allBuyers||[]).filter(function(b){ return b.email; });
+      console.log('Newsletter debug — allBuyers total:', allBuyers.length, 'with email:', window._nlAllClients.length);
+      allBuyers.forEach(function(b){ console.log('  -', b.firstName, b.lastName, '| agentId:', b.agentId, '| email:', b.email, '| pending:', b.pending); });
       // Restore myBuyers so clients page isn't affected
       myBuyers = savedMyBuyers;
       updateNlCount();
@@ -7895,18 +7897,7 @@ function buildNlBodyHtml() {
     } else if (block.type === 'video') {
       var el2 = document.getElementById('nl-block-'+block.id);
       var vurl = (el2 ? el2.value : block.value || '').trim();
-      if (vurl) {
-        var thumbUrl = getVideoThumbUrl(vurl);
-        var isLoom = vurl.includes('loom.com');
-        if (thumbUrl) {
-          parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+vurl+'" target="_blank" style="display:inline-block;position:relative;">'
-            + '<img src="'+thumbUrl+'" style="width:100%;max-width:480px;border-radius:8px;display:block;" />'
-            + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.65);border-radius:50%;width:56px;height:56px;display:flex;align-items:center;justify-content:center;"><span style="color:#fff;font-size:22px;margin-left:3px;">▶</span></div>'
-            + '</a></div>');
-        } else {
-          parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+vurl+'" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-size:14px;font-weight:500;">▶ Watch Video</a></div>');
-        }
-      }
+      if (vurl) parts.push(videoEmailBlock(vurl, ''));
     } else if (block.type === 'image') {
       var el3 = document.getElementById('nl-block-'+block.id);
       var iurl = (el3 ? el3.value : block.value || '').trim();
