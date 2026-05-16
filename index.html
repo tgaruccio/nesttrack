@@ -14523,7 +14523,7 @@ function renderSellerReports() {
 window.renderSellerReports = renderSellerReports;
 
 function loadShowingTimeFeed() {
-  var icalUrl = (userProfile && userProfile.icalUrl) || (assignedAgent && assignedAgent.icalUrl);
+  var icalUrl = (userProfile && userProfile.showingTimeUrl) || (assignedAgent && assignedAgent.showingTimeUrl) || (userProfile && userProfile.icalUrl) || (assignedAgent && assignedAgent.icalUrl);
   console.log('SR loadShowingTimeFeed URL:', icalUrl);
   if (!icalUrl) { console.log('SR loadShowingTimeFeed: no URL found'); return Promise.resolve([]); }
   return fetch(PROXY_URL, {
@@ -14778,9 +14778,9 @@ async function srReadPDF(event) {
 
     if (status) status.textContent = 'Analyzing with AI...';
 
-    var response = await fetch('https://api.anthropic.com/v1/messages', {
+    var response = await fetch(PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'anthropic' },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
