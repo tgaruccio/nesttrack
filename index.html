@@ -1954,9 +1954,7 @@ textarea{resize:vertical;min-height:68px;}
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="one" onchange="updateNlCount();document.getElementById('nl-one-client').style.display='block'"> One client</label>
     </div>
     <div id="nl-one-client" style="display:none;margin-top:6px;">
-      <select id="nl-one-client-select" style="font-size:13px;width:100%;" onchange="updateNlCount()">
-        <option value="">— Select a client —</option>
-      </select>
+      <div id="nl-one-client-search"></div>
     </div>
     <div id="nl-count" style="font-size:12px;color:var(--text2);">— recipients</div>
   </div>
@@ -4097,7 +4095,14 @@ function go(page, el) {
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
   if (page === 'messages') { renderMessagesPage(); }
-  if (page === 'newsletter') { _nlBlocks = []; _nlBlockId = 0; renderNlBlocks(); updateNlCount(); }
+  if (page === 'newsletter') {
+    _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
+    if (!myBuyers || !myBuyers.length) {
+      loadBuyersForAgent().then(function(){ updateNlCount(); });
+    } else {
+      updateNlCount();
+    }
+  }
   if (page === 'home') {
     renderTxnTimeline();
     if (currentUser) {
@@ -7772,19 +7777,14 @@ function updateNlCount() {
   var oneDiv = document.getElementById('nl-one-client');
   if (oneDiv) oneDiv.style.display = val === 'one' ? 'block' : 'none';
 
-  // Populate single client dropdown
+  // Initialize searchable dropdown for one client if needed
   if (val === 'one') {
-    var sel = document.getElementById('nl-one-client-select');
-    if (sel && sel.options.length <= 1) {
-      buyers.filter(function(b){ return !b.pending && b.email; }).forEach(function(b) {
-        var opt = document.createElement('option');
-        opt.value = b.uid;
-        opt.textContent = ((b.firstName||'') + ' ' + (b.lastName||'')).trim() || b.email;
-        sel.appendChild(opt);
-      });
+    var searchContainer = document.getElementById('nl-one-client-search');
+    if (searchContainer && !searchContainer.querySelector('input[type=text]')) {
+      createClientSearchDropdown('nl-one-client-search', function(){ updateNlCount(); }, 'Search clients...');
     }
-    var selectedUid = sel ? sel.value : '';
-    var filtered = selectedUid ? buyers.filter(function(b){ return b.uid === selectedUid; }) : [];
+    var selectedUid = csdGetUid('nl-one-client-search');
+    var filtered = selectedUid ? (myBuyers||[]).filter(function(b){ return b.uid === selectedUid; }) : [];
     var el = document.getElementById('nl-count');
     if (el) el.textContent = filtered.length + ' recipient' + (filtered.length !== 1 ? 's' : '');
     return filtered;
