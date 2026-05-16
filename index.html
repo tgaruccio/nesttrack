@@ -7881,7 +7881,7 @@ function renderNlBlocks() {
 }
 window.renderNlBlocks = renderNlBlocks;
 
-function buildNlBodyHtml() {
+function buildNlBodyHtml(previewMode) {
   saveNlBlockValues();
   var parts = [];
   _nlBlocks.forEach(function(block) {
@@ -7897,7 +7897,15 @@ function buildNlBodyHtml() {
     } else if (block.type === 'video') {
       var el2 = document.getElementById('nl-block-'+block.id);
       var vurl = (el2 ? el2.value : block.value || '').trim();
-      if (vurl) parts.push(videoEmailBlock(vurl, ''));
+      if (vurl) {
+        if (previewMode) {
+          // Use browser-safe thumbnail for in-app preview
+          parts.push(videoThumbnailHtml(vurl, 'Watch Video'));
+        } else {
+          // Use email-safe block for actual sent email
+          parts.push(videoEmailBlock(vurl, 'Watch My Personal Message'));
+        }
+      }
     } else if (block.type === 'image') {
       var el3 = document.getElementById('nl-block-'+block.id);
       var iurl = (el3 ? el3.value : block.value || '').trim();
@@ -7912,7 +7920,7 @@ function buildNlBodyHtml() {
 
 function previewNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value||'Preview';
-  var body = buildNlBodyHtml();
+  var body = buildNlBodyHtml(true);
   if (!body) { alert('Add some content first.'); return; }
   var agentName = ((userProfile && userProfile.firstName)||'') + ' ' + ((userProfile && userProfile.lastName)||'');
   agentName = agentName.trim() || (userProfile && userProfile.name) || 'Your Agent';
@@ -7923,15 +7931,18 @@ function previewNewsletter() {
   var modal = document.createElement('div');
   modal.id = 'nl-preview-modal';
   modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
-  modal.innerHTML = '<div style="background:var(--bg);width:100%;max-width:600px;max-height:90vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden;">'
-    + '<div style="padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--surface);">'
-    + '<span style="font-size:14px;font-weight:600;">Email Preview</span>'
-    + '<button onclick="document.getElementById(\'nl-preview-modal\').remove()" style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;color:var(--text);">Close</button>'
-    + '</div>'
-    + '<div style="flex:1;overflow-y:auto;padding:16px;background:#F5F4F0;-webkit-overflow-scrolling:touch;">'
-    + html
-    + '</div>'
-    + '</div>';
+  var inner = document.createElement('div');
+  inner.style.cssText = 'background:var(--bg);width:100%;max-width:600px;max-height:90vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden;';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--surface);';
+  hdr.innerHTML = '<span style="font-size:14px;font-weight:600;">Email Preview</span><button style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;color:var(--text);">Close</button>';
+  hdr.querySelector('button').addEventListener('click', function(){ modal.remove(); });
+  var body_el = document.createElement('div');
+  body_el.style.cssText = 'flex:1;overflow-y:auto;padding:16px;background:#F5F4F0;-webkit-overflow-scrolling:touch;';
+  body_el.innerHTML = html;
+  inner.appendChild(hdr);
+  inner.appendChild(body_el);
+  modal.appendChild(inner);
   document.body.appendChild(modal);
 }
 window.previewNewsletter = previewNewsletter;
@@ -7960,7 +7971,7 @@ window.uploadNlImage = uploadNlImage;
 async function sendNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value.trim();
   if (!subject) { alert('Please add a subject line.'); return; }
-  var body = buildNlBodyHtml();
+  var body = buildNlBodyHtml(false);
   if (!body) { alert('Please add some content.'); return; }
   var recipients = updateNlCount();
   if (!recipients || !recipients.length) { alert('No recipients match your audience selection.'); return; }
