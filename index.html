@@ -14778,27 +14778,46 @@ async function srReadPDF(event) {
 
     if (status) status.textContent = 'Analyzing with AI...';
 
-    if (status) status.textContent = 'Analyzing with AI...';
+    if (status) status.textContent = 'Extracting PDF text...';
 
-    // Send extracted text approach - more reliable than binary PDF
+    // Use PDF.js to extract text properly
     var textContent = '';
     try {
-      // Try to extract text from PDF using basic approach
-      var text = atob(base64);
-      // Extract readable text from PDF binary
-      var matches = text.match(/BT[\s\S]*?ET/g) || [];
-      var extracted = matches.map(function(m){ return m.replace(/[^\x20-\x7E\n]/g,' ').replace(/\s+/g,' '); }).join(' ');
-      // Also try to get text between parentheses (PDF text format)
-      var paren = text.match(/\(([^)]{3,})\)/g) || [];
-      textContent = paren.map(function(p){ return p.slice(1,-1); }).join(' ') + ' ' + extracted;
-      textContent = textContent.replace(/[^\x20-\x7E\n]/g,' ').replace(/\s+/g,' ').substring(0,8000);
+      var pdfjsLib = window['pdfjs-dist/build/pdf'];
+      if (!pdfjsLib) {
+        // Load PDF.js dynamically
+        await new Promise(function(resolve, reject) {
+          var script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      var pdfData = atob(base64);
+      var uint8 = new Uint8Array(pdfData.length);
+      for (var i = 0; i < pdfData.length; i++) uint8[i] = pdfData.charCodeAt(i);
+      var pdf = await pdfjsLib.getDocument({data: uint8}).promise;
+      var pages = [];
+      for (var p = 1; p <= Math.min(pdf.numPages, 4); p++) {
+        var page = await pdf.getPage(p);
+        var tc = await page.getTextContent();
+        pages.push(tc.items.map(function(item){ return item.str; }).join(' '));
+      }
+      textContent = pages.join('\n').substring(0, 8000);
     } catch(e) {
+      console.log('PDF.js error:', e.message);
       textContent = '';
     }
 
-    var promptContent = textContent.length > 100
-      ? 'Here is text extracted from a ShowingTime report PDF:\n\n' + textContent + '\n\nExtract the showing data and return ONLY valid JSON, no markdown:\n{"showings":[{"date":"YYYY-MM-DD","agent":"Agent Name","brokerage":"Brokerage Name"}],"feedback":"2-3 sentence summary of buyer feedback themes, interest levels, and price opinions"}'
-      : 'I have a ShowingTime listing activity report. Unfortunately the text could not be extracted. Please return this exact JSON with empty data:\n{"showings":[],"feedback":""}';
+    if (!textContent || textContent.trim().length < 50) {
+      if (status) status.textContent = 'Could not extract text from PDF. Try copy-pasting the report text instead.';
+      return;
+    }
+
+    if (status) status.textContent = 'Analyzing with AI...';
 
     var response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -14806,7 +14825,7 @@ async function srReadPDF(event) {
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
-        messages: [{ role: 'user', content: promptContent }]
+        messages: [{ role: 'user', content: 'Here is text from a ShowingTime listing activity report:\n\n' + textContent + '\n\nExtract the showing data. Return ONLY valid JSON, no markdown:\n{"showings":[{"date":"YYYY-MM-DD","agent":"Agent Name","brokerage":"Brokerage Name"}],"feedback":"2-3 sentence summary of buyer feedback themes, interest levels, and price opinions"}' }]
       })
     });
 
