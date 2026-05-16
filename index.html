@@ -14448,7 +14448,9 @@ function srMatchShowings(address) {
   var streetNum = parts[0];
   var streetName = parts[1].toLowerCase();
   return (_srShowings||[]).filter(function(ev) {
-    var t = ((ev.title||ev.summary||'') + (ev.location||'')).toLowerCase();
+    // Strip iCal escape chars (\n \, etc) before matching
+    var raw = ((ev.title||ev.summary||'') + ' ' + (ev.location||''));
+    var t = raw.replace(/\\n/g,' ').replace(/\\,/g,',').replace(/\\/g,'').toLowerCase();
     return t.includes(streetNum) && t.includes(streetName);
   });
 }
@@ -14662,12 +14664,24 @@ function srSaveCurrentTab() {
     if (v) _srCurrent.videoUrl = v.value;
     if (n) _srCurrent.personalNote = n.value;
     if (s) _srCurrent.subject = s.value;
+    // videoThumbUrl saved by srUploadVideoThumb directly
   }
 }
 
 function srTabShowings() {
   var s = _srCurrent.showings;
-  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:12px;">Showings</div>';
+  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Showings</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Showings from your calendar are shown below. Or upload your ShowingTime PDF — AI will extract showings and feedback automatically.</div>';
+
+  // ShowingTime PDF upload
+  html += '<div style="background:var(--green-lt);border:1px solid var(--green-md);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
+    + '<div style="flex:1;min-width:150px;">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">📄 Upload ShowingTime Report PDF</div>'
+    + '<div style="font-size:11px;color:var(--green-dk);">AI reads showings, agents, and feedback automatically</div>'
+    + '</div>'
+    + '<input type="file" id="sr-pdf-upload" accept=".pdf" onchange="srReadPDF(event)" style="font-size:12px;flex-shrink:0;"/>'
+    + '</div>'
+    + '<div id="sr-pdf-status" style="display:none;font-size:12px;color:var(--green-dk);margin-bottom:10px;padding:8px 12px;background:var(--green-lt);border-radius:var(--r);"></div>';
 
   // Showing rows
   html += '<div id="sr-showings-list">';
@@ -14737,6 +14751,69 @@ function srCountRP() {
   if (hidden) hidden.value = lines.length;
 }
 window.srCountRP = srCountRP;
+
+async function srReadPDF(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var status = document.getElementById('sr-pdf-status');
+  if (status) { status.style.display='block'; status.textContent='Reading PDF...'; }
+
+  try {
+    // Read file as base64
+    var base64 = await new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function(){ resolve(reader.result.split(',')[1]); };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    if (status) status.textContent = 'Analyzing with AI...';
+
+    var response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+            },
+            {
+              type: 'text',
+              text: 'Extract showing data from this ShowingTime report. Return ONLY valid JSON, no markdown, no explanation:\n{"showings":[{"date":"YYYY-MM-DD","agent":"Agent Name","brokerage":"Brokerage Name"}],"feedback":"2-3 sentence summary of buyer feedback themes, interest levels, and price opinions from the feedback section"}'
+            }
+          ]
+        }]
+      })
+    });
+
+    var data = await response.json();
+    var text = (data.content[0].text||'').replace(/```json|```/g,'').trim();
+    var parsed = JSON.parse(text);
+
+    // Update showings
+    if (parsed.showings && parsed.showings.length) {
+      _srCurrent.showings = parsed.showings.map(function(s){ return {date:s.date||'',agent:s.agent||'',brokerage:s.brokerage||'',keep:true}; });
+      if (status) status.textContent = '✅ Found ' + parsed.showings.length + ' showings' + (parsed.feedback ? ' + feedback summary' : '') + '. Review below.';
+    }
+
+    // Update feedback
+    if (parsed.feedback) {
+      _srCurrent.feedbackNotes = parsed.feedback;
+    }
+
+    // Re-render tab
+    srSwitchTab('showings');
+
+  } catch(e) {
+    if (status) { status.textContent = 'Could not read PDF: ' + e.message; }
+  }
+}
+window.srReadPDF = srReadPDF;
 
 async function srCountRPWithAI() {
   var el = document.getElementById('sr-rp-paste');
@@ -14864,7 +14941,10 @@ function srTabMessage() {
 
   html += '<div style="margin-bottom:14px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Personal Video (Loom / YouTube)</label>'
-    + '<input type="url" id="sr-video-url" placeholder="https://loom.com/share/..." value="'+partnerEsc(_srCurrent.videoUrl||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;"/>'
+    + '<input type="url" id="sr-video-url" placeholder="https://loom.com/share/..." value="'+partnerEsc(_srCurrent.videoUrl||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;margin-bottom:8px;"/>'
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Optional: upload thumbnail screenshot (recommended for Loom)</div>'
+    + '<input type="file" accept="image/*" onchange="srUploadVideoThumb(event)" style="font-size:12px;"/>'
+    + (_srCurrent.videoThumbUrl ? '<img src="'+_srCurrent.videoThumbUrl+'" style="max-height:80px;border-radius:6px;margin-top:6px;object-fit:cover;display:block;" />' : '')
     + '</div>';
 
   html += '<div>'
@@ -14921,6 +15001,28 @@ function srBuildEmailHtml() {
   html += '<div style="font-size:20px;font-weight:600;color:#fff;">'+agentName+'</div>';
   html += '<div style="font-size:13px;color:rgba(255,255,255,0.85);">'+brokerage+'</div>';
   html += '</div>';
+
+  // Personal video — moved to top for immediate personal connection
+  if (_srCurrent.personalNote || _srCurrent.videoUrl) {
+    html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
+    html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:12px;">💬 A Note From '+agentName+'</div>';
+    if (_srCurrent.personalNote) html += '<div style="font-size:14px;color:#333;line-height:1.7;margin-bottom:16px;">'+_srCurrent.personalNote.replace(/\n/g,'<br/>')+'</div>';
+    if (_srCurrent.videoUrl) {
+      if (_srCurrent.videoThumbUrl) {
+        html += '<div style="text-align:center;margin:16px 0;">'
+          + '<a href="'+_srCurrent.videoUrl+'" target="_blank" style="display:inline-block;position:relative;text-decoration:none;">'
+          + '<img src="'+_srCurrent.videoThumbUrl+'" width="480" style="max-width:100%;border-radius:10px;display:block;" alt="Watch Video"/>'
+          + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;">'
+          + '<div style="width:0;height:0;border-top:12px solid transparent;border-bottom:12px solid transparent;border-left:20px solid #fff;margin-left:4px;"></div>'
+          + '</div></a>'
+          + '<div style="margin-top:8px;"><a href="'+_srCurrent.videoUrl+'" target="_blank" style="color:'+green+';font-size:13px;font-weight:600;text-decoration:none;">▶ Watch My Personal Message</a></div>'
+          + '</div>';
+      } else {
+        html += videoEmailBlock(_srCurrent.videoUrl, 'Watch My Personal Message');
+      }
+    }
+    html += '</div>';
+  }
 
   // Report title
   html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
@@ -14989,7 +15091,7 @@ function srBuildEmailHtml() {
   if (_srCurrent.reverseProspecting > 0) {
     html += '<div style="background:#EFF6FF;padding:16px 24px;border-bottom:1px solid #e8e8e8;text-align:center;">';
     html += '<div style="font-size:28px;font-weight:800;color:#1D4ED8;">'+_srCurrent.reverseProspecting+'</div>';
-    html += '<div style="font-size:13px;color:#1D4ED8;margin-top:2px;">Agents with active buyers received your listing via MLS Reverse Prospecting</div>';
+    html += '<div style="font-size:13px;color:#1D4ED8;margin-top:4px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.5;">buyer\'s agents in the MLS were sent your property because it matches their active buyers\' search criteria — price range, location, and features.</div>';
     html += '</div>';
   }
 
@@ -15042,15 +15144,6 @@ function srBuildEmailHtml() {
       html += '<div style="font-size:13px;color:#333;line-height:1.5;">'+item+'</div>';
       html += '</div>';
     });
-    html += '</div>';
-  }
-
-  // Personal message + video
-  if (_srCurrent.personalNote || _srCurrent.videoUrl) {
-    html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
-    html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:12px;">💬 A Note From '+agentName+'</div>';
-    if (_srCurrent.personalNote) html += '<div style="font-size:14px;color:#333;line-height:1.7;margin-bottom:16px;">'+_srCurrent.personalNote.replace(/\n/g,'<br/>')+'</div>';
-    if (_srCurrent.videoUrl) html += videoEmailBlock(_srCurrent.videoUrl, 'Watch My Personal Message');
     html += '</div>';
   }
 
@@ -15151,6 +15244,30 @@ async function srSendReport() {
     alert('Failed to send: '+e.message);
   }
 }
+async function srUploadVideoThumb(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  try {
+    var path = 'sr_thumbs/' + (userProfile.agentId||'tom') + '/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+    var sRef = fb.storageRef(fb.storage, path);
+    var snapshot = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snapshot.ref);
+    _srCurrent.videoThumbUrl = url;
+    // Show preview
+    var existing = document.querySelector('#sr-tab-content img[data-sr-thumb]');
+    if (!existing) {
+      var img = document.createElement('img');
+      img.setAttribute('data-sr-thumb','1');
+      img.style.cssText = 'max-height:80px;border-radius:6px;margin-top:6px;object-fit:cover;display:block;';
+      img.src = url;
+      event.target.parentNode.appendChild(img);
+    } else {
+      existing.src = url;
+    }
+  } catch(e) { alert('Upload failed: ' + e.message); }
+}
+window.srUploadVideoThumb = srUploadVideoThumb;
+
 window.srSendReport = srSendReport;
 
 function srViewHistory(listingId) {
