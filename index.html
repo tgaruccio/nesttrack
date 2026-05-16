@@ -14476,6 +14476,14 @@ function renderSellerReports() {
     _srListings = [];
     results[0].forEach(function(d){ _srListings.push({id:d.id,...d.data()}); });
     _srShowings = results[1] || [];
+    console.log('SR Debug - Total showings from feed:', _srShowings.length);
+    if (_srShowings.length) {
+      console.log('SR Debug - First showing:', JSON.stringify(_srShowings[0]));
+    }
+    _srListings.forEach(function(l) {
+      var matched = srMatchShowings(l.address||'');
+      console.log('SR Debug - Listing "'+l.address+'" matched '+matched.length+' showings');
+    });
 
     if (!_srListings.length) {
       container.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text3);">'
@@ -14792,6 +14800,7 @@ async function srReadPDF(event) {
     });
 
     var data = await response.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
     var text = (data.content[0].text||'').replace(/```json|```/g,'').trim();
     var parsed = JSON.parse(text);
 
