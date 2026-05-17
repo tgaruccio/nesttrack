@@ -15736,6 +15736,11 @@ function ohPrintFlyer() {
 window.ohPrintFlyer = ohPrintFlyer;
 
 async function showOHFlyerById(listingId) {
+  // Open window FIRST (synchronous) before any async — prevents popup blocker
+  var w = window.open('','_blank');
+  if (!w) { alert('Please allow popups to print the flyer.'); return; }
+  w.document.write('<html><body style="background:#080808;color:#fff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;"><div style="text-align:center;opacity:0.5;">Loading flyer...</div></body></html>');
+
   var l = (_listings||[]).find(function(x){ return x.id===listingId; });
   if (!l) {
     try {
@@ -15743,19 +15748,19 @@ async function showOHFlyerById(listingId) {
       if (snap.exists()) l = {id:snap.id,...snap.data()};
     } catch(e){}
   }
-  if (!l) { alert('Could not load listing.'); return; }
-  showOHFlyer(l);
+  if (!l) { w.close(); alert('Could not load listing.'); return; }
+  showOHFlyer(l, w);
 }
 window.showOHFlyerById = showOHFlyerById;
 
 window.showOpenHouseQR = showOpenHouseQR;
 
-function showOHFlyer(l) {
+function showOHFlyer(l, w) {
   if (typeof l === 'string') {
-    // Legacy call with ID — look up from _listings
     l = (_listings||[]).find(function(x){ return x.id===l; });
     if (!l) return;
   }
+  if (!w) { w = window.open('','_blank'); if (!w) { alert('Please allow popups to print the flyer.'); return; } }
   var url = 'https://app.garucciogroup.com/openhouse.html?id='+listingId;
   var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=0D0D0D&color=C9A84C&margin=10';
   var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
