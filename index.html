@@ -14604,8 +14604,8 @@ function srOpenBuilder(listingId) {
     + '<div id="sr-tab-content" style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;"></div>'
     // Bottom bar
     + '<div style="background:var(--surface);border-top:1px solid var(--border);padding:12px 16px;display:flex;gap:8px;flex-shrink:0;">'
-    + '<button onclick="srPreviewReport()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px;font-size:13px;font-weight:500;cursor:pointer;">👁 Preview</button>'
-    + '<button onclick="srSendReport()" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:13px;font-weight:600;cursor:pointer;">📤 Send Report</button>'
+    + '<button id="sr-bottom-preview" onclick="srPreviewReport()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px;font-size:13px;font-weight:500;cursor:pointer;">👁 Preview</button>'
+    + '<button id="sr-bottom-next" onclick="srNextOrSend()" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:13px;font-weight:600;cursor:pointer;">Next →</button>'
     + '</div>';
 
   document.body.appendChild(overlay);
@@ -14631,7 +14631,34 @@ function srSwitchTab(tab) {
   else if (tab==='activity') content.innerHTML = srTabActivity();
   else if (tab==='nextweek') content.innerHTML = srTabNextWeek();
   else if (tab==='message') content.innerHTML = srTabMessage();
+  srUpdateBottomBtn();
 }
+var _srTabs = ['showings','online','activity','nextweek','message'];
+
+function srNextOrSend() {
+  var current = _srCurrent._activeTab || 'showings';
+  var idx = _srTabs.indexOf(current);
+  if (idx < _srTabs.length - 1) {
+    srSwitchTab(_srTabs[idx + 1]);
+  } else {
+    srSendReport();
+  }
+}
+window.srNextOrSend = srNextOrSend;
+
+function srUpdateBottomBtn() {
+  var btn = document.getElementById('sr-bottom-next');
+  if (!btn) return;
+  var current = _srCurrent._activeTab || 'showings';
+  var idx = _srTabs.indexOf(current);
+  if (idx >= _srTabs.length - 1) {
+    btn.textContent = '📤 Send Report';
+  } else {
+    btn.textContent = 'Next →';
+  }
+}
+window.srUpdateBottomBtn = srUpdateBottomBtn;
+
 window.srSwitchTab = srSwitchTab;
 
 function srSaveCurrentTab() {
