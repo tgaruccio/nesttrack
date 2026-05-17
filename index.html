@@ -2257,7 +2257,6 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings / Appts</button>
     <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏠 Deals</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📊 Seller Reports</button>
-    <button id="agent-tab-team" onclick="switchAgentTab('team')" style="display:none;flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">👥 My Team</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -3989,7 +3988,8 @@ async function showApp() {
   // Hide buyer journey timeline bar for agents — they have no buyer journey
   
   const mtb = document.getElementById('manage-team-btn');
-  if (mtb) mtb.style.display = (isAgent && isTeamLeader()) ? 'inline-flex' : 'none';
+  if (mtb) mtb.style.display = 'none'; // shown after mentor check below
+  checkMentorStatus(); // shows My Team tab AND Manage Team btn if mentor
   updateAgentRefs();
   renderAgentProfileEditor();
   renderYourAgent();
@@ -10309,19 +10309,30 @@ async function removeAgent(id) {
   alert(ag.name + ' removed from team.');
 }
 function openTeamModal() {
-  if (!isTeamLeader()) { alert('Only the team leader can manage the team.'); return; }
-  renderTeam();
-  renderTeamLenders();
-  // Populate mentor dropdown
-  var mentorSel = document.getElementById('ta-mentor');
-  if (mentorSel) {
-    mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
-      + DEFAULT_AGENTS.map(function(a){
-          return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
-        }).join('');
+  if (!isAgent) return;
+  if (isTeamLeader()) {
+    // Full view for team leader
+    renderTeam();
+    renderTeamLenders();
+    var mentorSel = document.getElementById('ta-mentor');
+    if (mentorSel) {
+      mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
+        + DEFAULT_AGENTS.map(function(a){
+            return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
+          }).join('');
+    }
+    document.getElementById('team-modal').style.display = 'flex';
+    renderTeamOnboardingInModal();
+  } else {
+    // Mentor view — show only onboarding progress for their agents
+    var agentSection = document.getElementById('team-list');
+    var lenderSection = document.querySelector('#team-modal .mbox > div:nth-child(3)');
+    var addSection = document.querySelector('#team-modal .mbox > div:last-child > div:first-child');
+    // Hide agent/lender management for non-leaders
+    if (agentSection) agentSection.parentElement && (agentSection.parentElement.style.display='none');
+    document.getElementById('team-modal').style.display = 'flex';
+    renderTeamOnboardingInModal();
   }
-  document.getElementById('team-modal').style.display = 'flex';
-  renderTeamOnboardingInModal();
 }
 window.openTeamModal = openTeamModal;
 window.addAgent = addAgent;
@@ -15105,10 +15116,10 @@ async function scheduleLoad() {
 }
 async function checkMentorStatus() {
   if (!isAgent || !currentUser) return;
-  // Always show for team leader
+  var manageBtn = document.getElementById('manage-team-btn');
+  // Team leader always sees both
   if (isTeamLeader()) {
-    var btn = document.getElementById('agent-tab-team');
-    if (btn) btn.style.display = 'flex';
+    if (manageBtn) manageBtn.style.display = 'inline-flex';
     return;
   }
   // Check if any agents have this agent as mentor
@@ -15118,11 +15129,11 @@ async function checkMentorStatus() {
       fb.collection(fb.db,'users'),
       fb.where('mentorAgentId','==',myId)
     ));
-    if (!snap.empty) {
-      var btn = document.getElementById('agent-tab-team');
-      if (btn) btn.style.display = 'flex';
-    }
-  } catch(e) {}
+    var isMentor = !snap.empty;
+    if (manageBtn) manageBtn.style.display = isMentor ? 'inline-flex' : 'none';
+  } catch(e) {
+    if (manageBtn) manageBtn.style.display = 'none';
+  }
 }
 window.checkMentorStatus = checkMentorStatus;
 
@@ -15967,8 +15978,18 @@ async function renderTeamOnboardingInModal() {
   if (!container) return;
   try {
     var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('role','==','agent')));
+    var myAgentId = userProfile.agentId || 'tom';
     var agents = [];
-    snap.forEach(function(d){ var data = {uid:d.id,...d.data()}; if (data.onboardingAssigned && data.uid !== currentUser.uid) agents.push(data); });
+    snap.forEach(function(d) {
+      var data = {uid:d.id,...d.data()};
+      if (!data.onboardingAssigned) return;
+      if (isTeamLeader()) {
+        if (data.uid !== currentUser.uid) agents.push(data);
+      } else {
+        // Mentors only see their assigned agents
+        if (data.mentorAgentId === myAgentId) agents.push(data);
+      }
+    });
     if (!agents.length) { container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">No agents in onboarding yet.</div>'; return; }
     var total = OB_DEFAULT_STEPS.length;
     var progData = {};
