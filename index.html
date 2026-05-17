@@ -2229,7 +2229,6 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings / Appts</button>
     <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏠 Deals</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📊 Seller Reports</button>
-    <button id="agent-tab-team" onclick="switchAgentTab('team')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">👥 My Team</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -2707,10 +2706,13 @@ textarea{resize:vertical;min-height:68px;}
         </div>
       </div>
     </div>
+    <!-- Onboarding Progress Section -->
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:10px;">🎓 Onboarding Progress</div>
+      <div id="team-ob-progress" style="font-size:12px;color:var(--text3);font-style:italic;">Loading...</div>
+    </div>
   </div>
 </div>
-
-<!-- AGENT WELCOME MODAL -->
 <div class="mo" id="agent-welcome-modal" style="display:none;">
   <div class="mbox" style="max-width:500px;padding:0;">
     <div style="background:var(--green);padding:24px;border-radius:var(--r) var(--r) 0 0;text-align:center;">
@@ -10173,6 +10175,7 @@ function openTeamModal() {
   renderTeam();
   renderTeamLenders();
   document.getElementById('team-modal').style.display = 'flex';
+  renderTeamOnboardingInModal();
 }
 window.openTeamModal = openTeamModal;
 window.addAgent = addAgent;
@@ -15213,82 +15216,76 @@ function renderOnboarding() {
   var done = steps.filter(function(s){ return _obProgress[s.id]; }).length;
   var pct = total ? Math.round(done/total*100) : 0;
 
-  // Update progress bar
   var bar = document.getElementById('ob-progress-bar');
   if (bar) bar.style.width = pct+'%';
   var pill = document.getElementById('ob-progress-pill');
   if (pill) pill.textContent = done+'/'+total+' Complete';
 
-  // Group by week
-  var weeks = {};
-  var weekOrder = [];
+  var weeks = {}, weekOrder = [];
   steps.forEach(function(s) {
     if (!weeks[s.week]) { weeks[s.week] = {title:s.weekTitle, steps:[]}; weekOrder.push(s.week); }
     weeks[s.week].steps.push(s);
   });
 
+  var weekColors = ['#1D9E75','#185FA5','#D97706','#7C3AED','#E24B4A','#059669'];
   var html = '';
-  weekOrder.forEach(function(week) {
+
+  weekOrder.forEach(function(week, wi) {
     var wData = weeks[week];
     var wDone = wData.steps.filter(function(s){ return _obProgress[s.id]; }).length;
     var wTotal = wData.steps.length;
     var allDone = wDone === wTotal;
+    var color = weekColors[wi % weekColors.length];
 
-    html += '<div style="margin-bottom:20px;">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-      + '<div>'
-      + '<div style="font-size:16px;font-weight:700;color:var(--text);">'+week+'</div>'
-      + '<div style="font-size:12px;color:var(--text3);">'+wData.title+'</div>'
-      + '</div>'
-      + '<span style="font-size:12px;background:'+(allDone?'var(--green-lt)':'var(--surface2)')+';color:'+(allDone?'var(--green-dk)':'var(--text3)')+';border-radius:20px;padding:3px 10px;font-weight:500;">'+wDone+'/'+wTotal+'</span>'
-      + '</div>';
+    html += '<div style="margin-bottom:32px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface);border-radius:12px;border-left:4px solid '+color+';margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">'
+      + '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:'+color+';margin-bottom:2px;">'+week+'</div>'
+      + '<div style="font-size:17px;font-weight:700;color:var(--text);">'+wData.title+'</div></div>'
+      + '<div style="text-align:right;"><div style="font-size:22px;font-weight:800;color:'+(allDone?color:'var(--text3)')+';">'+wDone+'/'+wTotal+'</div>'
+      + (allDone ? '<div style="font-size:10px;color:'+color+';font-weight:600;">&#10003; Done</div>' : '<div style="font-size:10px;color:var(--text3);">steps</div>')
+      + '</div></div>';
 
-    wData.steps.forEach(function(s) {
+    wData.steps.forEach(function(s, si) {
       var isDone = !!_obProgress[s.id];
       var thumb = obGetThumb(s);
-      html += '<div style="background:var(--surface);border:1px solid '+(isDone?'var(--green-md)':'var(--border)')+';border-radius:var(--r);margin-bottom:10px;overflow:hidden;">';
 
-      // Video thumbnail
+      html += '<div style="background:var(--surface);border:1.5px solid '+(isDone?color:'var(--border)')+';border-radius:12px;margin-bottom:12px;overflow:hidden;transition:box-shadow 0.15s,transform 0.15s;" onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.10)\';this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.boxShadow=\'\';this.style.transform=\'\'\'">';
+
       if (thumb && s.videoUrl) {
-        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:block;position:relative;text-decoration:none;">'
-          + '<img src="'+thumb+'" style="width:100%;max-height:180px;object-fit:cover;display:block;" onerror="this.parentNode.style.display=\'none\'" />'
-          + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;background:rgba(0,0,0,0.65);border-radius:50%;display:flex;align-items:center;justify-content:center;">'
-          + '<div style="width:0;height:0;border-top:11px solid transparent;border-bottom:11px solid transparent;border-left:18px solid #fff;margin-left:4px;"></div>'
-          + '</div></a>';
+        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:block;position:relative;text-decoration:none;height:160px;overflow:hidden;">'
+          + '<img src="'+thumb+'" style="width:100%;height:160px;object-fit:cover;display:block;" onerror="this.closest(\'a\').style.display=\'none\'" />'
+          + '<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,0.4) 0%,transparent 50%);"></div>'
+          + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,0.3);">'
+          + '<div style="width:0;height:0;border-top:9px solid transparent;border-bottom:9px solid transparent;border-left:16px solid #fff;margin-left:3px;"></div></div>'
+          + '<div style="position:absolute;bottom:8px;left:12px;font-size:11px;color:rgba(255,255,255,0.9);font-weight:500;">&#9654; Watch Video</div>'
+          + '</a>';
       }
 
-      html += '<div style="padding:12px 14px;">'
-        + '<div style="display:flex;align-items:flex-start;gap:10px;">'
-        + '<div onclick="obToggle(\''+s.id+'\')" style="width:22px;height:22px;border-radius:50%;border:2px solid '+(isDone?'var(--green)':'var(--border)')+';background:'+(isDone?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">'+(isDone?'✓':'')+'</div>'
+      html += '<div style="padding:14px 16px;">'
+        + '<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">'
+        + '<div style="width:28px;height:28px;border-radius:50%;background:'+(isDone?color:'var(--surface2)')+';border:2px solid '+(isDone?color:'var(--border)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;font-weight:700;color:'+(isDone?'#fff':'var(--text3)')+';">'+(isDone?'&#10003;':(si+1))+'</div>'
         + '<div style="flex:1;">'
-        + '<div style="font-size:14px;font-weight:600;color:var(--text);'+(isDone?'text-decoration:line-through;color:var(--text3);':'')+'">'+s.title+'</div>'
-        + (s.desc ? '<div style="font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.5;">'+s.desc+'</div>' : '')
-        + '</div></div>'
+        + '<div style="font-size:15px;font-weight:700;color:'+(isDone?'var(--text3)':'var(--text)')+';'+(isDone?'text-decoration:line-through;':'')+'">'+partnerEsc(s.title)+'</div>'
+        + (s.desc ? '<div style="font-size:13px;color:var(--text2);margin-top:5px;line-height:1.6;">'+partnerEsc(s.desc)+'</div>' : '')
+        + '</div></div>';
 
-        // Links row
-        + (s.videoUrl || s.link ? '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' : '');
-
-      if (s.videoUrl && !thumb) {
-        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;text-decoration:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;">▶ Watch Video</a>';
-      } else if (s.videoUrl && thumb) {
-        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;border-radius:20px;padding:5px 12px;font-size:12px;">▶ Watch</a>';
+      if ((s.videoUrl && !thumb) || s.link) {
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">';
+        if (s.videoUrl && !thumb) html += '<a href="'+s.videoUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:'+color+';color:#fff;text-decoration:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;">&#9654; Watch Video</a>';
+        if (s.link) html += '<a href="'+s.link+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;border-radius:20px;padding:5px 12px;font-size:12px;">&#128279; '+(s.linkLabel||'Open Link')+'</a>';
+        html += '</div>';
       }
-      if (s.link) {
-        html += '<a href="'+s.link+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;border-radius:20px;padding:5px 12px;font-size:12px;">🔗 '+(s.linkLabel||'Open Link')+'</a>';
-      }
-      if (s.videoUrl || s.link) html += '</div>';
 
-      html += '<button onclick="obToggle(\''+s.id+'\')" style="width:100%;margin-top:10px;background:'+(isDone?'var(--surface2)':'var(--green)')+';color:'+(isDone?'var(--text2)':'#fff')+';border:'+(isDone?'1px solid var(--border)':'none')+';border-radius:var(--r);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">'+(isDone?'✓ Completed — tap to undo':'Mark Complete ✓')+'</button>'
+      html += '<button onclick="obToggle(\''+s.id+'\')" style="width:100%;background:'+(isDone?'var(--surface2)':''+color)+';color:'+(isDone?'var(--text3)':'#fff')+';border:'+(isDone?'1.5px solid var(--border)':'none')+';border-radius:8px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">'+(isDone?'&#10003; Completed':'Mark Complete &#10003;')+'</button>'
         + '</div></div>';
     });
 
     html += '</div>';
   });
 
-  // Team leader editor button
   if (isTeamLeader()) {
-    html += '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);text-align:center;">'
-      + '<button onclick="obOpenEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 20px;font-size:13px;cursor:pointer;">⚙️ Edit Onboarding Content</button>'
+    html += '<div style="margin-top:8px;padding-top:20px;border-top:1px solid var(--border);text-align:center;">'
+      + '<button onclick="obOpenEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 20px;font-size:13px;cursor:pointer;">&#9881;&#65039; Edit Onboarding Content</button>'
       + '</div>';
   }
 
@@ -15307,40 +15304,107 @@ window.obToggle = obToggle;
 function obOpenEditor() {
   if (!isTeamLeader()) return;
   if (!_obSteps) return;
-
   var overlay = document.createElement('div');
   overlay.id = 'ob-editor-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9000;display:flex;flex-direction:column;overflow:hidden;';
-
   overlay.innerHTML = '<div style="background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">'
-    + '<div style="font-size:15px;font-weight:600;">⚙️ Edit Onboarding</div>'
+    + '<div style="font-size:15px;font-weight:600;">&#9881;&#65039; Edit Onboarding</div>'
     + '<div style="display:flex;gap:8px;">'
     + '<button onclick="obSaveEdits()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save All</button>'
     + '<button onclick="document.getElementById(\'ob-editor-overlay\').remove()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 14px;font-size:13px;cursor:pointer;">Close</button>'
-    + '</div>'
-    + '</div>'
+    + '</div></div>'
     + '<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;">'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Edit video URLs, links, titles, and descriptions. Changes save to Firestore and update instantly for all agents.</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Changes save to Firestore and update instantly for all agents. Add or delete steps as needed.</div>'
     + '<div id="ob-editor-steps">'
-    + _obSteps.map(function(s, i) {
-        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;">'
-          + '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">'+s.week+' · Step '+(i+1)+'</div>'
-          + '<div style="display:flex;flex-direction:column;gap:8px;">'
-          + '<input type="text" data-id="'+s.id+'" data-field="title" value="'+partnerEsc(s.title||'')+'" placeholder="Title" style="font-size:13px;font-weight:500;"/>'
-          + '<textarea data-id="'+s.id+'" data-field="desc" placeholder="Description" style="font-size:12px;height:60px;resize:vertical;">'+partnerEsc(s.desc||'')+'</textarea>'
-          + '<input type="url" data-id="'+s.id+'" data-field="videoUrl" value="'+partnerEsc(s.videoUrl||'')+'" placeholder="Video URL (YouTube or Loom)" style="font-size:12px;"/>'
-          + '<input type="url" data-id="'+s.id+'" data-field="thumb" value="'+partnerEsc(s.thumb||'')+'" placeholder="Custom thumbnail URL (optional)" style="font-size:12px;"/>'
-          + '<div style="display:flex;gap:8px;">'
-          + '<input type="url" data-id="'+s.id+'" data-field="link" value="'+partnerEsc(s.link||'')+'" placeholder="Link URL (optional)" style="font-size:12px;flex:2;"/>'
-          + '<input type="text" data-id="'+s.id+'" data-field="linkLabel" value="'+partnerEsc(s.linkLabel||'')+'" placeholder="Link label" style="font-size:12px;flex:1;"/>'
-          + '</div>'
-          + '</div></div>';
-      }).join('')
-    + '</div></div>';
-
+    + obEditorStepsHTML()
+    + '</div>'
+    + '<button onclick="obAddStep()" style="width:100%;margin-top:8px;background:var(--green-lt);border:2px dashed var(--green-md);color:var(--green-dk);border-radius:var(--r);padding:12px;font-size:13px;font-weight:600;cursor:pointer;">+ Add New Step</button>'
+    + '</div>';
   document.body.appendChild(overlay);
 }
 window.obOpenEditor = obOpenEditor;
+
+function obEditorStepsHTML() {
+  return (_obSteps||[]).map(function(s, i) {
+    var weekOpts = ['Week 1','Week 2','Week 3','Week 4','Week 5','Bonus'].map(function(w){
+      return '<option value="'+w+'"'+(w===s.week?' selected':'')+'>'+w+'</option>';
+    }).join('');
+    return '<div id="ob-edit-'+s.id+'" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">'+s.week+' &middot; Step '+(i+1)+'</div>'
+      + '<button onclick="obDeleteStep(\''+s.id+'\')" style="background:none;border:none;color:#E24B4A;font-size:12px;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #F7C1C1;">&#10005; Delete</button>'
+      + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + '<div style="display:flex;gap:8px;">'
+      + '<select data-id="'+s.id+'" data-field="week" style="flex:1;font-size:12px;">'+weekOpts+'</select>'
+      + '<input type="text" data-id="'+s.id+'" data-field="weekTitle" value="'+partnerEsc(s.weekTitle||'')+'" placeholder="Section title" style="flex:2;font-size:12px;"/>'
+      + '</div>'
+      + '<input type="text" data-id="'+s.id+'" data-field="title" value="'+partnerEsc(s.title||'')+'" placeholder="Step title" style="font-size:13px;font-weight:500;"/>'
+      + '<textarea data-id="'+s.id+'" data-field="desc" placeholder="Description" style="font-size:12px;height:56px;resize:vertical;">'+partnerEsc(s.desc||'')+'</textarea>'
+      + '<input type="url" data-id="'+s.id+'" data-field="videoUrl" value="'+partnerEsc(s.videoUrl||'')+'" placeholder="Video URL (YouTube or Loom)" style="font-size:12px;"/>'
+      + '<div style="display:flex;gap:6px;align-items:center;">'
+      + '<input type="url" data-id="'+s.id+'" data-field="thumb" id="ob-thumb-url-'+s.id+'" value="'+partnerEsc(s.thumb||'')+'" placeholder="Thumbnail URL (auto-detected if blank)" style="font-size:12px;flex:1;"/>'
+      + '<label style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">&#128247; Upload<input type="file" accept="image/*" style="display:none;" onchange="obUploadThumb(event,\''+s.id+'\')"/></label>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;">'
+      + '<input type="url" data-id="'+s.id+'" data-field="link" value="'+partnerEsc(s.link||'')+'" placeholder="Link URL (optional)" style="font-size:12px;flex:2;"/>'
+      + '<input type="text" data-id="'+s.id+'" data-field="linkLabel" value="'+partnerEsc(s.linkLabel||'')+'" placeholder="Link label" style="font-size:12px;flex:1;"/>'
+      + '</div>'
+      + '</div></div>';
+  }).join('');
+}
+window.obEditorStepsHTML = obEditorStepsHTML;
+
+async function obUploadThumb(event, stepId) {
+  var file = event.target.files[0];
+  if (!file) return;
+  try {
+    var path = 'ob_thumbs/'+(userProfile.agentId||'tom')+'/'+stepId+'_'+Date.now()+'.jpg';
+    var sRef = fb.storageRef(fb.storage, path);
+    var snap = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snap.ref);
+    var inp = document.getElementById('ob-thumb-url-'+stepId);
+    if (inp) inp.value = url;
+    // Update step in memory
+    var step = _obSteps.find(function(s){ return s.id===stepId; });
+    if (step) step.thumb = url;
+    showDealToast('&#128247; Thumbnail uploaded!', null, null);
+  } catch(e) { alert('Upload failed: '+e.message); }
+}
+window.obUploadThumb = obUploadThumb;
+
+function obDeleteStep(stepId) {
+  if (!confirm('Delete this step?')) return;
+  _obSteps = _obSteps.filter(function(s){ return s.id !== stepId; });
+  var row = document.getElementById('ob-edit-'+stepId);
+  if (row) row.remove();
+}
+window.obDeleteStep = obDeleteStep;
+
+function obAddStep() {
+  var newStep = {
+    id: 'ob_'+Date.now(),
+    week: 'Bonus',
+    weekTitle: 'Additional Training',
+    title: 'New Step',
+    desc: '',
+    videoUrl: '',
+    thumb: '',
+    link: '',
+    linkLabel: ''
+  };
+  _obSteps.push(newStep);
+  var container = document.getElementById('ob-editor-steps');
+  if (container) {
+    var div = document.createElement('div');
+    div.innerHTML = obEditorStepsHTML().split('id="ob-edit-'+newStep.id+'"')[1];
+    // Simpler: just re-render the steps list
+    container.innerHTML = obEditorStepsHTML();
+    // Scroll to bottom
+    container.lastElementChild && container.lastElementChild.scrollIntoView({behavior:'smooth'});
+  }
+}
+window.obAddStep = obAddStep;
 
 async function obSaveEdits() {
   var allInputs = document.querySelectorAll('#ob-editor-steps [data-id]');
@@ -15355,7 +15419,7 @@ async function obSaveEdits() {
     var overlay = document.getElementById('ob-editor-overlay');
     if (overlay) overlay.remove();
     renderOnboarding();
-    showDealToast('✅ Onboarding content saved!', null, null);
+    showDealToast('&#10003; Onboarding content saved!', null, null);
   } catch(e) { alert('Save failed: '+e.message); }
 }
 window.obSaveEdits = obSaveEdits;
@@ -15454,6 +15518,39 @@ async function renderTeamOnboarding() {
     container.innerHTML = '<div class="card" style="color:var(--red-dk);font-size:13px;">Error: '+e.message+'</div>';
   }
 }
+async function renderTeamOnboardingInModal() {
+  var container = document.getElementById('team-ob-progress');
+  if (!container) return;
+  try {
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('role','==','agent')));
+    var agents = [];
+    snap.forEach(function(d){ var data = {uid:d.id,...d.data()}; if (data.onboardingAssigned && data.uid !== currentUser.uid) agents.push(data); });
+    if (!agents.length) { container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">No agents in onboarding yet.</div>'; return; }
+    var total = OB_DEFAULT_STEPS.length;
+    var progData = {};
+    await Promise.all(agents.map(async function(a){
+      try { var ps = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',a.uid)); progData[a.uid] = ps.exists()?(ps.data().completed||{}):{};} catch(e){progData[a.uid]={};}
+    }));
+    container.innerHTML = agents.map(function(a){
+      var done = OB_DEFAULT_STEPS.filter(function(s){ return progData[a.uid][s.id]; }).length;
+      var pct = Math.round(done/total*100);
+      var name = ((a.firstName||'')+' '+(a.lastName||'')).trim()||a.email;
+      var mentorEntry = a.mentorAgentId ? DEFAULT_AGENTS.find(function(x){ return x.id===a.mentorAgentId; }) : null;
+      return '<div style="margin-bottom:10px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+        + '<div style="font-size:13px;font-weight:500;">'+partnerEsc(name)+'<span style="font-size:11px;color:var(--text3);margin-left:6px;">'+(mentorEntry?'· '+mentorEntry.name:'')+'</span></div>'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+        + '<span style="font-size:12px;font-weight:600;color:'+(pct===100?'var(--green-dk)':'var(--text)');+'">'+pct+'%</span>'
+        + '<button onclick="obNudge(\''+a.uid+'\',\''+partnerEsc(name)+'\')" style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;">📬 Nudge</button>'
+        + '</div></div>'
+        + '<div style="background:var(--surface2);border-radius:20px;height:5px;overflow:hidden;">'
+        + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+pct+'%;"></div>'
+        + '</div></div>';
+    }).join('');
+  } catch(e){ container.innerHTML = '<div style="font-size:12px;color:var(--text3);">Could not load.</div>'; }
+}
+window.renderTeamOnboardingInModal = renderTeamOnboardingInModal;
+
 window.renderTeamOnboarding = renderTeamOnboarding;
 
 async function obNudge(uid, name) {
