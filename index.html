@@ -517,6 +517,7 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ The Home Buyers Trail</button>
   <button class="nb" data-pg="mortgagejourney" onclick="go('mortgagejourney',this)">🏦 The Mortgage Trail</button>
   <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 The Home Sellers Trail</button>
+  <button class="nb" data-pg="listing-updates" onclick="go('listing-updates',this)">📊 Listing Updates</button>
   <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
 
   <div class="ns">Home Search</div>
@@ -2121,6 +2122,14 @@ textarea{resize:vertical;min-height:68px;}
   </div>
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;max-width:100%;box-sizing:border-box;">
     <iframe src="https://www.garucciogroup.com/blog?categoryId=30821" style="width:100%;min-height:720px;border:none;display:block;max-width:100%;"></iframe>
+  </div>
+</div>
+
+<!-- LISTING UPDATES -->
+<div class="page" id="page-listing-updates">
+  <div class="ph"><div class="pt">Listing Updates</div><span class="pill" style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;">From Your Agent</span></div>
+  <div id="listing-updates-container">
+    <div style="text-align:center;color:var(--text3);font-size:13px;padding:40px 20px;">Loading your listing reports...</div>
   </div>
 </div>
 
@@ -4198,6 +4207,7 @@ function go(page, el) {
   }
   if (page === 'valuation') { buildValuationDropdown(); }
   if (page === 'mortgagejourney') { setTimeout(function(){ renderMortgageJourney(); }, 150); }
+  if (page === 'listing-updates') { renderListingUpdates(); }
   if (page === 'sellertrail') { setTimeout(function(){ renderSellerTrail(); }, 150); }
 
 }
@@ -14335,6 +14345,70 @@ async function renderDealTracker() {
   el.innerHTML = html;
   filterDeals(_activeFilter);
 }
+// ── LISTING UPDATES (client side) ──
+async function renderListingUpdates() {
+  var container = document.getElementById('listing-updates-container');
+  if (!container) return;
+  if (!currentUser) { container.innerHTML = '<div class="notice">Sign in to see your listing reports.</div>'; return; }
+  container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:40px 20px;">Loading...</div>';
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'users',currentUser.uid,'sellerReports'),
+      fb.orderBy('sentAt','desc')
+    ));
+    if (snap.empty) {
+      container.innerHTML = '<div class="card" style="text-align:center;padding:40px 20px;">'
+        + '<div style="font-size:32px;margin-bottom:12px;">📊</div>'
+        + '<div style="font-size:15px;font-weight:500;margin-bottom:6px;">No reports yet</div>'
+        + '<div style="font-size:13px;color:var(--text3);">Your agent will send weekly listing updates here.</div>'
+        + '</div>';
+      return;
+    }
+    var html = '';
+    snap.forEach(function(d) {
+      var r = {id:d.id,...d.data()};
+      var dateStr = r.sentAt && r.sentAt.toDate ? r.sentAt.toDate().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}) : '—';
+      html += '<div class="card" style="margin-bottom:12px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">'
+        + '<div>'
+        + '<div style="font-size:14px;font-weight:600;">📊 '+dateStr+'</div>'
+        + '<div style="font-size:12px;color:var(--text3);margin-top:2px;">'+(r.address||'')+'</div>'
+        + '<div style="font-size:12px;color:var(--text3);">'+r.showingCount+' showings &nbsp;·&nbsp; '+r.subject+'</div>'
+        + '</div>'
+        + '<button onclick="luOpenReport(\''+d.id+'\')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;">View Report</button>'
+        + '</div>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div class="card" style="color:var(--red-dk);font-size:13px;">Error loading reports: '+e.message+'</div>';
+  }
+}
+window.renderListingUpdates = renderListingUpdates;
+
+async function luOpenReport(reportId) {
+  var snap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid,'sellerReports',reportId));
+  if (!snap.exists()) return;
+  var r = snap.data();
+  if (!r.emailHtml) { alert('Full report not available for this entry.'); return; }
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  var inner = document.createElement('div');
+  inner.style.cssText = 'background:#F5F4F0;width:100%;max-width:640px;max-height:92vh;border-radius:16px;display:flex;flex-direction:column;overflow:hidden;';
+  var hdr = document.createElement('div');
+  hdr.style.cssText = 'padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid var(--border);flex-shrink:0;background:var(--surface);';
+  hdr.innerHTML = '<span style="font-size:14px;font-weight:600;">📊 Listing Report</span><button style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;">Close</button>';
+  hdr.querySelector('button').addEventListener('click', function(){ modal.remove(); });
+  var body = document.createElement('div');
+  body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;';
+  body.innerHTML = r.emailHtml;
+  inner.appendChild(hdr);
+  inner.appendChild(body);
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+}
+window.luOpenReport = luOpenReport;
+
 window.renderDealTracker = renderDealTracker;
 
 // ═══════════════════════════════════════════════════
@@ -15244,9 +15318,10 @@ async function srSendReport() {
       address: l.address||'',
       subject: subject,
       sentAt: fb.serverTimestamp(),
-      showingCount: _srCurrent.showings.filter(function(s){ return s.keep!==false; }).length,
+      showingCount: _srCurrent.showings.filter(function(s){ return s.keep!==false; }).length || (_srCurrent.quickShowingCount||0),
       reverseProspecting: _srCurrent.reverseProspecting||0,
-      agentId: userProfile.agentId||'tom'
+      agentId: userProfile.agentId||'tom',
+      emailHtml: emailHtml
     };
     await fb.addDoc(fb.collection(fb.db,'users',client.uid,'sellerReports'), reportData);
 
@@ -15261,8 +15336,8 @@ async function srSendReport() {
       }
     });
 
-    // Push notification to seller
-    sendPushToUser(client.uid, '📊 Your Listing Report is Ready', 'Tom sent your weekly listing update for '+l.address+'.');
+    // Push notification — links to listing-updates page in app
+    sendPushToUser(client.uid, '📊 Your Listing Report is Ready', 'Your weekly update for '+l.address+' is ready to view in the app.');
 
     if (btn) { btn.disabled=false; btn.textContent='📤 Send Report'; }
     alert('Report sent to '+client.firstName+'!');
