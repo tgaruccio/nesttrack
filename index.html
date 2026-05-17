@@ -10150,14 +10150,21 @@ async function saveContractDates() {
         for (var di=0; di<linkedDeals.length; di++) {
           Object.assign(linkedDeals[di], dealUpdate);
           await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
+          // Remove stale auto-reminders for this deal so they re-inject with new dates
+          var dealId = linkedDeals[di].id;
+          _todos = _todos.filter(function(t){
+            return !(t.id && t.id.startsWith('dr_'+dealId+'_'));
+          });
         }
+        // Re-inject fresh reminders with updated dates
+        injectDealReminders();
       } else if (_cdmType === 'buyer') {
         // No buyer deal exists — auto-create one
         var buyer2 = allBuyers.find(function(b){ return b.uid===_cdmBuyerUid; });
         var newDeal = Object.assign({
           clientUid:   _cdmBuyerUid,
           clientName:  buyer2 ? ((buyer2.firstName||'')+' '+(buyer2.lastName||'')).trim() : 'Client',
-          address:     (buyer2 && buyer2.buyerAddress) || '',
+          address:     (buyer2 && (buyer2.propertyAddress || buyer2.buyerAddress)) || '',
           agentId:     agentId2,
           dealType:    'buyer',
           status:      'Under Contract',
