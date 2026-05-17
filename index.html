@@ -2229,6 +2229,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings / Appts</button>
     <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏠 Deals</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📊 Seller Reports</button>
+    <button id="agent-tab-team" onclick="switchAgentTab('team')" style="display:none;flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">👥 My Team</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -3957,7 +3958,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
   await loadAgentPartners(userProfile.agentId||'tom');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
@@ -14957,6 +14958,29 @@ async function scheduleLoad() {
     scheduleRender();
   } catch(e) { console.log('scheduleLoad:', e.message); }
 }
+async function checkMentorStatus() {
+  if (!isAgent || !currentUser) return;
+  // Always show for team leader
+  if (isTeamLeader()) {
+    var btn = document.getElementById('agent-tab-team');
+    if (btn) btn.style.display = 'flex';
+    return;
+  }
+  // Check if any agents have this agent as mentor
+  try {
+    var myId = userProfile.agentId || 'tom';
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'users'),
+      fb.where('mentorAgentId','==',myId)
+    ));
+    if (!snap.empty) {
+      var btn = document.getElementById('agent-tab-team');
+      if (btn) btn.style.display = 'flex';
+    }
+  } catch(e) {}
+}
+window.checkMentorStatus = checkMentorStatus;
+
 window.scheduleLoad = scheduleLoad;
 
 async function scheduleSave() {
@@ -15329,7 +15353,7 @@ function obEditorStepsHTML() {
     var weekOpts = ['Week 1','Week 2','Week 3','Week 4','Week 5','Bonus'].map(function(w){
       return '<option value="'+w+'"'+(w===s.week?' selected':'')+'>'+w+'</option>';
     }).join('');
-    return '<div id="ob-edit-'+s.id+'" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;">'
+    return '<div id="ob-edit-'+s.id+'" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:4px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
       + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">'+s.week+' &middot; Step '+(i+1)+'</div>'
       + '<button onclick="obDeleteStep(\''+s.id+'\')" style="background:none;border:none;color:#E24B4A;font-size:12px;cursor:pointer;padding:2px 8px;border-radius:4px;border:1px solid #F7C1C1;">&#10005; Delete</button>'
@@ -15350,7 +15374,10 @@ function obEditorStepsHTML() {
       + '<input type="url" data-id="'+s.id+'" data-field="link" value="'+partnerEsc(s.link||'')+'" placeholder="Link URL (optional)" style="font-size:12px;flex:2;"/>'
       + '<input type="text" data-id="'+s.id+'" data-field="linkLabel" value="'+partnerEsc(s.linkLabel||'')+'" placeholder="Link label" style="font-size:12px;flex:1;"/>'
       + '</div>'
-      + '</div></div>';
+      + '</div>'
+      + '</div>'
+      // Insert below button
+      + '<button onclick="obInsertStepAfter(\''+s.id+'\')" style="width:100%;background:none;border:1px dashed var(--border);border-radius:6px;padding:5px;font-size:11px;color:var(--text3);cursor:pointer;margin-bottom:8px;">+ Insert step here</button>';
   }).join('');
 }
 window.obEditorStepsHTML = obEditorStepsHTML;
@@ -15375,9 +15402,17 @@ window.obUploadThumb = obUploadThumb;
 
 function obDeleteStep(stepId) {
   if (!confirm('Delete this step?')) return;
+  // Save current values first
+  var allInputs = document.querySelectorAll('#ob-editor-steps [data-id]');
+  allInputs.forEach(function(el) {
+    var id = el.getAttribute('data-id');
+    var field = el.getAttribute('data-field');
+    var step = _obSteps.find(function(s){ return s.id===id; });
+    if (step) step[field] = el.value;
+  });
   _obSteps = _obSteps.filter(function(s){ return s.id !== stepId; });
-  var row = document.getElementById('ob-edit-'+stepId);
-  if (row) row.remove();
+  var container = document.getElementById('ob-editor-steps');
+  if (container) container.innerHTML = obEditorStepsHTML();
 }
 window.obDeleteStep = obDeleteStep;
 
@@ -15404,6 +15439,39 @@ function obAddStep() {
     container.lastElementChild && container.lastElementChild.scrollIntoView({behavior:'smooth'});
   }
 }
+function obInsertStepAfter(afterId) {
+  // Save current field values first
+  var allInputs = document.querySelectorAll('#ob-editor-steps [data-id]');
+  allInputs.forEach(function(el) {
+    var id = el.getAttribute('data-id');
+    var field = el.getAttribute('data-field');
+    var step = _obSteps.find(function(s){ return s.id===id; });
+    if (step) step[field] = el.value;
+  });
+  // Find index to insert after
+  var idx = _obSteps.findIndex(function(s){ return s.id===afterId; });
+  var afterStep = _obSteps[idx] || _obSteps[_obSteps.length-1];
+  var newStep = {
+    id: 'ob_'+Date.now(),
+    week: afterStep ? afterStep.week : 'Week 1',
+    weekTitle: afterStep ? afterStep.weekTitle : 'Getting Started',
+    title: 'New Step',
+    desc: '',
+    videoUrl: '',
+    thumb: '',
+    link: '',
+    linkLabel: ''
+  };
+  _obSteps.splice(idx+1, 0, newStep);
+  // Re-render editor steps
+  var container = document.getElementById('ob-editor-steps');
+  if (container) container.innerHTML = obEditorStepsHTML();
+  // Scroll to new step
+  var newEl = document.getElementById('ob-edit-'+newStep.id);
+  if (newEl) newEl.scrollIntoView({behavior:'smooth', block:'center'});
+}
+window.obInsertStepAfter = obInsertStepAfter;
+
 window.obAddStep = obAddStep;
 
 async function obSaveEdits() {
