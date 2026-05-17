@@ -8924,7 +8924,8 @@ function todoClientSearch(q) {
   if (!q.trim()) { results.style.display='none'; return; }
   var matches = (allBuyers||myBuyers||[]).filter(function(b){
     var name = ((b.firstName||'')+' '+(b.lastName||'')).toLowerCase();
-    return !b.pending && name.includes(q.toLowerCase());
+    var email = (b.email||'').toLowerCase();
+    return name.includes(q.toLowerCase()) || email.includes(q.toLowerCase());
   }).slice(0,6);
   if (!matches.length) { results.style.display='none'; return; }
   results.style.display='block';
