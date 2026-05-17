@@ -1092,6 +1092,13 @@ textarea{resize:vertical;min-height:68px;}
         </div>
       </div>
     </div>
+    <div style="position:relative;">
+      <input type="text" id="todo-client-search" placeholder="🔍 Link to client (optional)" autocomplete="off"
+        style="width:100%;box-sizing:border-box;font-size:13px;padding:7px 10px;"
+        oninput="todoClientSearch(this.value)" onfocus="todoClientSearch(this.value)"/>
+      <div id="todo-client-results" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:100;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+      <div id="todo-client-chip" style="display:none;margin-top:4px;"></div>
+    </div>
     <button class="btn btn-g" onclick="todoAdd()">Add Task</button>
   </div>
   <div id="todo-list" style="display:flex;flex-direction:column;gap:6px;margin-top:4px;"></div>
@@ -5350,10 +5357,57 @@ async function sendStepEmail(uid, stepNum, type) {
           });
         }
         console.log('Step email sent:', type, stepNum, client.email);
+        logEmailActivity(uid, subject, 'step-'+type);
       } catch(e) { console.log('Step email send err:', e.message); }
     }, stepNum, type, ccParts.join(', '));
   } catch(e) { console.log('Step email failed:', e.message); }
 }
+async function logEmailActivity(uid, subject, type) {
+  if (!uid || !subject) return;
+  try {
+    await fb.addDoc(fb.collection(fb.db,'users',uid,'emailLog'), {
+      subject: subject,
+      type: type || 'general',
+      sentAt: fb.serverTimestamp(),
+      agentId: userProfile.agentId || 'tom'
+    });
+  } catch(e) { console.log('emailLog err:', e.message); }
+}
+async function loadEmailLog(uid) {
+  var container = document.getElementById('bd-email-log-'+uid);
+  if (!container) return;
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'users',uid,'emailLog'),
+      fb.orderBy('sentAt','desc')
+    ));
+    if (snap.empty) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 0;">No emails logged yet.</div>';
+      return;
+    }
+    var typeLabels = {'step-buyer':'Buyer Trail','step-seller':'Seller Trail','step-mortgage':'Mortgage Trail','newsletter':'Email Campaign','seller-report':'Seller Report','general':'Email'};
+    var html = '';
+    snap.forEach(function(d) {
+      var r = d.data();
+      var dateStr = r.sentAt && r.sentAt.toDate ? r.sentAt.toDate().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+      var typeLabel = typeLabels[r.type] || r.type || 'Email';
+      html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">'
+        + '<div>'
+        + '<div style="font-size:12.5px;font-weight:500;color:var(--text);">'+partnerEsc(r.subject||'')+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);margin-top:1px;">'+typeLabel+' · '+dateStr+'</div>'
+        + '</div>'
+        + '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:10px;padding:2px 7px;flex-shrink:0;">Sent</span>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text3);">Could not load.</div>';
+  }
+}
+window.loadEmailLog = loadEmailLog;
+
+window.logEmailActivity = logEmailActivity;
+
 window.sendStepEmail = sendStepEmail;
 
 async function sendContractDatesEmail(uid, type, dates) {
@@ -7624,6 +7678,26 @@ function watchAllAgentChats() {
       if (msg.role === 'buyer' && msg.ts > lastSeen) {
         agentUnreadCounts[b.uid] = (agentUnreadCounts[b.uid]||0) + 1;
         updateAgentUnreadBadge();
+        // Inject reply to-do if not already there
+        var replyId = 'reply_'+b.uid;
+        var alreadyExists = _todos && _todos.some(function(t){ return t.id===replyId && !t.done; });
+        if (!alreadyExists && _todos) {
+          var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||'Client';
+          _todos.unshift({
+            id: replyId,
+            text: '💬 Reply to '+name,
+            date: new Date().toISOString().split('T')[0],
+            time: '',
+            done: false,
+            createdAt: Date.now(),
+            clientUid: b.uid,
+            clientName: name,
+            isAutoReminder: true
+          });
+          todoSave();
+          todoRender();
+          todoUpdateBadge();
+        }
       }
     });
     agentUnreadListeners.push(listener);
@@ -8106,6 +8180,7 @@ async function sendNewsletter() {
         body: JSON.stringify(payload)
       });
       sent++;
+      if (client.uid) logEmailActivity(client.uid, subject, 'newsletter');
       if (status) status.textContent = 'Sending... ' + sent + ' of ' + recipients.length;
     } catch(e) { failed++; }
     if (i < recipients.length - 1) await new Promise(function(r){ setTimeout(r, 200); });
@@ -8206,6 +8281,15 @@ function sendAgentMsg() {
   fb.push(fb.ref(fb.rtdb, 'chats/'+roomId+'/messages'), {
     text: text, senderId: currentUser.uid, senderName: agentName, ts: Date.now(), role: 'agent'
   });
+  // Auto-complete reply to-do for this client
+  var replyId = 'reply_'+_msgCurrentBuyer.uid;
+  var replyTodo = _todos && _todos.find(function(t){ return t.id===replyId && !t.done; });
+  if (replyTodo) {
+    replyTodo.done = true;
+    replyTodo.doneAt = Date.now();
+    todoSave();
+    todoUpdateBadge();
+  }
   // Push to client
   sendPushToUser(_msgCurrentBuyer.uid, 'New message from '+agentName, text.substring(0,80));
   // Push to other team members
@@ -8686,14 +8770,85 @@ async function todoAdd() {
     date: dateEl ? dateEl.value : '',
     time: timeEl ? timeEl.value : '',
     done: false,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    clientUid: _todoClientUid || null,
+    clientName: _todoClientName || null
   });
   if (input) input.value = '';
   if (dateEl) dateEl.value = '';
   if (timeEl) timeEl.value = '';
+  todoClearClient();
   await todoSave();
   todoRender();
 }
+var _todoClientUid = null;
+var _todoClientName = null;
+
+function todoClientSearch(q) {
+  var results = document.getElementById('todo-client-results');
+  if (!results) return;
+  if (!q.trim()) { results.style.display='none'; return; }
+  var matches = (allBuyers||myBuyers||[]).filter(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).toLowerCase();
+    return !b.pending && name.includes(q.toLowerCase());
+  }).slice(0,6);
+  if (!matches.length) { results.style.display='none'; return; }
+  results.style.display='block';
+  results.innerHTML = matches.map(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim();
+    return '<div onclick="todoSelectClient(\''+b.uid+'\',\''+partnerEsc(name)+'\')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:0.5px solid var(--border);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">👤 '+name+'</div>';
+  }).join('');
+}
+window.todoClientSearch = todoClientSearch;
+
+function todoSelectClient(uid, name) {
+  _todoClientUid = uid;
+  _todoClientName = name;
+  var search = document.getElementById('todo-client-search');
+  var chip = document.getElementById('todo-client-chip');
+  var results = document.getElementById('todo-client-results');
+  if (search) search.value = '';
+  if (results) results.style.display = 'none';
+  if (chip) {
+    chip.style.display = 'flex';
+    chip.style.alignItems = 'center';
+    chip.style.gap = '6px';
+    chip.innerHTML = '<span style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:500;">👤 '+name+'</span>'
+      + '<button onclick="todoClearClient()" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;">✕</button>';
+  }
+}
+window.todoSelectClient = todoSelectClient;
+
+function todoClearClient() {
+  _todoClientUid = null;
+  _todoClientName = null;
+  var chip = document.getElementById('todo-client-chip');
+  if (chip) { chip.style.display='none'; chip.innerHTML=''; }
+  var search = document.getElementById('todo-client-search');
+  if (search) search.value = '';
+}
+window.todoClearClient = todoClearClient;
+
+async function todoAddForClient(uid, name) {
+  var task = prompt('Add a task for ' + name + ':');
+  if (!task || !task.trim()) return;
+  var today = new Date().toISOString().split('T')[0];
+  _todos.unshift({
+    id: Date.now() + '_' + Math.random().toString(36).substring(2,6),
+    text: task.trim(),
+    date: today,
+    time: '',
+    done: false,
+    createdAt: Date.now(),
+    clientUid: uid,
+    clientName: name
+  });
+  await todoSave();
+  todoRender();
+  showDealToast('✅ Task added to your to-do list', null, null);
+}
+window.todoAddForClient = todoAddForClient;
+
 window.todoAdd = todoAdd;
 
 async function todoToggle(id) {
@@ -8864,11 +9019,15 @@ function todoItemHTML(t, today) {
   var delBtn = '<button onclick="todoDelete(\''+sid+'\')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:2px;color:var(--text3);">&#10005;</button>';
   var chk = '<div onclick="todoToggle(\''+sid+'\')" style="width:20px;height:20px;border-radius:4px;border:1.5px solid ' + chkBorder + ';background:' + chkBg + ';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">' + (t.done ? '&#10003;' : '') + '</div>';
   var dateRow = dateStr ? '<div style="font-size:11.5px;color:' + (isOverdue ? '#E24B4A' : 'var(--text3)') + ';margin-top:3px;">' + (isOverdue ? '&#9888; Overdue &middot; ' : '') + dateStr + '</div>' : '';
+  var clientRow = (t.clientUid && t.clientName && !t.done)
+    ? '<div style="margin-top:4px;"><span onclick="openBuyerDetail(\''+t.clientUid+'\')" style="display:inline-flex;align-items:center;gap:4px;background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:500;cursor:pointer;">👤 '+partnerEsc(t.clientName)+'</span></div>'
+    : '';
   return '<div style="background:' + bg + ';border:1px solid var(--border);border-left:' + border + ';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
     + chk
     + '<div style="flex:1;min-width:0;">'
     + '<div style="font-size:13.5px;line-height:1.4;' + textStyle + '">' + t.text + '</div>'
     + dateRow
+    + clientRow
     + '</div>'
     + '<div style="display:flex;gap:4px;flex-shrink:0;">'
     + calBtn + bellBtn + delBtn
@@ -9077,13 +9236,31 @@ async function openBuyerDetail(uid, scrollTo) {
     </details>
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:14px;">
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
+      <button class="btn" onclick="todoAddForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">＋ Task</button>
       <button class="btn" onclick="aiBuyerSummary('${uid}')">AI Summary</button>
       <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
     </div>
+    <details style="margin-top:12px;">
+      <summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border);">
+        <span style="font-size:12px;font-weight:600;color:var(--text2);">📧 Communications</span>
+        <span style="font-size:11px;color:var(--text3);">▸</span>
+      </summary>
+      <div id="bd-email-log-${uid}" style="padding-top:6px;">
+        <div style="font-size:12px;color:var(--text3);font-style:italic;">Loading...</div>
+      </div>
+    </details>
     <div id="bd-summary" style="display:none;"></div>
     </div>
 `;
   document.getElementById('buyer-modal').style.display = 'flex';
+  // Load email log
+  setTimeout(function(){
+    var details = document.querySelector('#bd-email-log-'+uid);
+    if (details) loadEmailLog(uid);
+    // Auto-load on details toggle
+    var summary = details && details.closest('details');
+    if (summary) summary.addEventListener('toggle', function(){ if(this.open) loadEmailLog(uid); }, {once:true});
+  }, 200);
   window._currentBuyer = b;
   setTimeout(function(){
     renderAgentTimelinePreview(b);
@@ -15600,6 +15777,8 @@ async function srSendReport() {
 
     // Push notification — links to listing-updates page in app
     sendPushToUser(client.uid, '📊 Your Listing Report is Ready', 'Your weekly update for '+l.address+' is ready to view in the app.');
+    // Log email activity on client record
+    logEmailActivity(client.uid, subject, 'seller-report');
 
     if (btn) { btn.disabled=false; btn.textContent='📤 Send Report'; }
     alert('Report sent to '+client.firstName+'!');
