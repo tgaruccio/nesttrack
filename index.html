@@ -15825,15 +15825,14 @@ function showOHFlyer(l, w) {
   var beds = l.beds||'';
   var baths = l.baths||'';
   var sqft = l.sqft||'';
-  var hasDocs = l.documents && l.documents.length > 0;
+  var hasDocs = !!(l.documents && l.documents.length > 0);
   var ini = agentName.split(' ').map(function(n){return n[0];}).join('').substring(0,2);
 
-  // Tax: use actual if entered, else estimate
   var priceNum = parseFloat(String(price).replace(/[^0-9.]/g,''))||0;
   var annualTax = l.taxes ? parseFloat(l.taxes) : (priceNum * 0.015);
-  var monthlyTax = annualTax ? (annualTax/12).toFixed(0) : '';
+  var monthlyTax = annualTax ? Math.round(annualTax/12) : 0;
 
-  var qrDark = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=0D0D0D&color=C9A84C&margin=10';
+  var qrDark  = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=0D0D0D&color=C9A84C&margin=10';
   var qrLight = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=FFFFFF&color=1D9E75&margin=10';
 
   var statsHtml = '';
@@ -15841,7 +15840,7 @@ function showOHFlyer(l, w) {
   if (beds)  statsHtml += '<div class="stat"><div class="stat-val">'+beds+'</div><div class="stat-label">Beds</div></div>';
   if (baths) statsHtml += '<div class="stat"><div class="stat-val">'+baths+'</div><div class="stat-label">Baths</div></div>';
   if (sqft)  statsHtml += '<div class="stat"><div class="stat-val">'+Number(sqft).toLocaleString()+'</div><div class="stat-label">Sq Ft</div></div>';
-  if (monthlyTax) statsHtml += '<div class="stat"><div class="stat-val">$'+Number(monthlyTax).toLocaleString()+'</div><div class="stat-label">Mo. Tax</div></div>';
+  if (monthlyTax) statsHtml += '<div class="stat"><div class="stat-val">$'+monthlyTax.toLocaleString()+'</div><div class="stat-label">Mo. Tax</div></div>';
 
   var agentPhotoHtml = agentPhoto
     ? '<img src="'+agentPhoto+'" class="agent-photo" alt="'+agentName+'"/>'
@@ -15854,66 +15853,38 @@ function showOHFlyer(l, w) {
   var street = (l.address||'').split(',')[0];
   var city = (l.address||'').split(',').slice(1).join(',').trim();
 
-  // Editable defaults
-  var defBadge = 'Open House Today';
-  var defQRHead = 'Scan to Explore This Home';
-  var defNote = '';
-
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
     + '<title>Open House Flyer</title>'
     + '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>'
     + '<style>'
     + '*{box-sizing:border-box;margin:0;padding:0;}'
     + 'body{font-family:"DM Sans",sans-serif;min-height:100vh;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
-    + 'body.dark{background:#080808;color:#F0EDE8;}'
-    + 'body.light{background:#F5F5F0;color:#0D0D0D;}'
-
-    // Layout
-    + '.page-wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:16px;min-height:100vh;}'
-
-    // Edit panel
-    + '.edit-panel{width:100%;max-width:8in;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;position:sticky;top:0;z-index:10;}'
-    + 'body.light .edit-panel{background:#fff;border-color:#e0e0e0;}'
-    + '.edit-panel-title{font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;margin-bottom:12px;}'
-    + 'body.light .edit-panel-title{color:#1D9E75;}'
-    + '.edit-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}'
-    + '.edit-field label{display:block;font-size:10px;color:#888;margin-bottom:4px;letter-spacing:0.06em;text-transform:uppercase;}'
-    + '.edit-field input{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;font-size:12px;color:inherit;font-family:inherit;outline:none;}'
-    + 'body.light .edit-field input{background:#f8f8f6;border-color:#ddd;}'
-    + '.edit-field input:focus{border-color:#C9A84C;}'
-    + 'body.light .edit-field input:focus{border-color:#1D9E75;}'
-
-    // Controls
-    + '.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}'
-    + '.toggle-btn{padding:7px 16px;border-radius:20px;border:2px solid transparent;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}'
+    + 'body.dark{background:#080808;}'
+    + 'body.light{background:#F5F5F0;}'
+    + '.wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:14px;}'
+    + '.controls{display:flex;gap:8px;align-items:center;}'
+    + '.toggle-btn{padding:7px 18px;border-radius:20px;border:2px solid transparent;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}'
     + '.toggle-btn.active-dark{background:#0D0D0D;color:#C9A84C;border-color:#C9A84C;}'
     + '.toggle-btn.active-light{background:#fff;color:#1D9E75;border-color:#1D9E75;}'
     + '.toggle-btn.inactive{background:#ddd;color:#666;}'
     + '.print-btn{background:#C9A84C;color:#000;border:none;border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}'
-
-    // Flyer
-    + '.flyer{width:8in;max-width:100%;border-radius:16px;overflow:hidden;transition:all 0.3s;}'
+    + '.flyer{width:8in;max-width:100%;border-radius:16px;overflow:hidden;}'
     + 'body.dark .flyer{background:#0D0D0D;box-shadow:0 20px 60px rgba(0,0,0,0.8);}'
     + 'body.light .flyer{background:#fff;box-shadow:0 8px 40px rgba(0,0,0,0.12);border:1px solid #e0e0e0;}'
-
     + '.prop-photo{width:100%;height:3.2in;object-fit:cover;display:block;}'
     + '.prop-no-photo{width:100%;height:2in;display:flex;align-items:center;justify-content:center;}'
     + 'body.dark .prop-no-photo{background:linear-gradient(135deg,#1A1A1A,#080808);}'
     + 'body.light .prop-no-photo{background:linear-gradient(135deg,#f0f0ea,#e8e8e0);}'
-
-    + '.flyer-body{padding:36px 40px;}'
+    + '.body{padding:36px 40px;}'
     + '.badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;padding:5px 14px;border-radius:20px;margin-bottom:16px;}'
     + 'body.dark .badge{background:#C9A84C;color:#000;}'
     + 'body.light .badge{background:#1D9E75;color:#fff;}'
-
     + '.address{font-family:"Cormorant Garamond",serif;font-size:32px;font-weight:600;line-height:1.15;margin-bottom:5px;}'
     + 'body.dark .address{color:#F0EDE8;}'
     + 'body.light .address{color:#0D0D0D;}'
-
     + '.city{font-size:14px;margin-bottom:22px;}'
     + 'body.dark .city{color:#6B6560;}'
     + 'body.light .city{color:#888;}'
-
     + '.stats{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:28px;}'
     + '.stat-val{font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:600;margin-bottom:2px;}'
     + 'body.dark .stat-val{color:#C9A84C;}'
@@ -15921,29 +15892,23 @@ function showOHFlyer(l, w) {
     + '.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:0.1em;}'
     + 'body.dark .stat-label{color:#6B6560;}'
     + 'body.light .stat-label{color:#aaa;}'
-
     + '.divider{border:none;border-top:1px solid;margin:22px 0;}'
     + 'body.dark .divider{border-color:#2A2A2A;}'
     + 'body.light .divider{border-color:#e8e8e8;}'
-
     + '.qr-row{display:flex;align-items:center;gap:28px;}'
     + '.qr-img{width:110px;height:110px;border-radius:10px;flex-shrink:0;}'
-
     + '.qr-title{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:600;margin-bottom:8px;}'
     + 'body.dark .qr-title{color:#F0EDE8;}'
     + 'body.light .qr-title{color:#0D0D0D;}'
-
     + '.qr-items{font-size:12px;line-height:2;}'
     + 'body.dark .qr-items{color:#6B6560;}'
     + 'body.light .qr-items{color:#888;}'
     + '.qr-hi{font-weight:600;}'
     + 'body.dark .qr-hi{color:#C9A84C;}'
     + 'body.light .qr-hi{color:#1D9E75;}'
-
     + '.agent-row{display:flex;align-items:center;gap:18px;margin-top:24px;padding-top:22px;border-top:1px solid;}'
     + 'body.dark .agent-row{border-color:#2A2A2A;}'
     + 'body.light .agent-row{border-color:#e8e8e8;}'
-
     + '.agent-photo{width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;}'
     + 'body.dark .agent-photo{border:2px solid #C9A84C;}'
     + 'body.light .agent-photo{border:2px solid #1D9E75;}'
@@ -15959,61 +15924,41 @@ function showOHFlyer(l, w) {
     + '.agent-contact{font-size:11px;}'
     + 'body.dark .agent-contact{color:#6B6560;}'
     + 'body.light .agent-contact{color:#aaa;}'
-
-    + '.flyer-note{font-size:12px;font-style:italic;text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid;}'
-    + 'body.dark .flyer-note{color:#6B6560;border-color:#2A2A2A;}'
-    + 'body.light .flyer-note{color:#aaa;border-color:#e8e8e8;}'
-
     + '.nt-footer{text-align:center;padding-top:14px;font-size:10px;letter-spacing:0.08em;}'
     + 'body.dark .nt-footer{color:#2A2A2A;}'
     + 'body.light .nt-footer{color:#ccc;}'
-
     + '@media print{'
-    + '  .controls,.edit-panel,.page-wrap > :not(.flyer){display:none!important;}'
+    + '  .controls{display:none!important;}'
     + '  body{padding:0;}'
-    + '  .page-wrap{padding:0;}'
+    + '  .wrap{padding:0;}'
     + '  .flyer{width:100%;border-radius:0;box-shadow:none;}'
     + '}'
     + '</style></head>'
     + '<body class="dark" id="fb">'
-    + '<div class="page-wrap">'
-
-    // Edit panel
-    + '<div class="edit-panel">'
-    + '<div class="edit-panel-title">&#9998; Customize Flyer</div>'
-    + '<div class="edit-grid">'
-    + '<div class="edit-field"><label>Badge / Label</label><input id="e-badge" value="'+defBadge+'" oninput="update()" placeholder="Open House Today"/></div>'
-    + '<div class="edit-field"><label>QR Code Headline</label><input id="e-qrhead" value="'+defQRHead+'" oninput="update()" placeholder="Scan to Explore This Home"/></div>'
-    + '<div class="edit-field"><label>Additional Note</label><input id="e-note" value="'+defNote+'" oninput="update()" placeholder="Showings by appointment..."/></div>'
-    + '</div>'
-    + '</div>'
-
-    // Controls
+    + '<div class="wrap">'
     + '<div class="controls">'
-    + '<button class="toggle-btn active-dark" id="btn-dark" onclick="setTheme(\'dark\')">&#x1F5A4; Dark</button>'
-    + '<button class="toggle-btn inactive" id="btn-light" onclick="setTheme(\'light\')">&#x1F90D; Light</button>'
+    + '<button class="toggle-btn active-dark" id="btn-dark" onclick="setTheme(&apos;dark&apos;)">&#x1F5A4; Dark</button>'
+    + '<button class="toggle-btn inactive" id="btn-light" onclick="setTheme(&apos;light&apos;)">&#x1F90D; Light</button>'
     + '<button class="print-btn" onclick="window.print()">&#x1F5A8; Print / Save PDF</button>'
     + '</div>'
-
-    // Flyer
-    + '<div class="flyer" id="flyer">'
+    + '<div class="flyer">'
     + photoHtml
-    + '<div class="flyer-body">'
-    + '<div class="badge" id="f-badge">'+defBadge+'</div>'
+    + '<div class="body">'
+    + '<div class="badge">&#x1F3E0; Open House Today</div>'
     + '<div class="address">'+street+'</div>'
     + (city ? '<div class="city">'+city+'</div>' : '')
     + (statsHtml ? '<div class="stats">'+statsHtml+'</div>' : '')
     + '<hr class="divider"/>'
     + '<div class="qr-row">'
-    + '<img class="qr-img" id="qr-img" src="'+qrDark+'" alt="QR Code"/>'
+    + '<img class="qr-img" id="qr-img" src="'+qrDark+'" alt="QR"/>'
     + '<div>'
-    + '<div class="qr-title" id="f-qrhead">'+defQRHead+'</div>'
+    + '<div class="qr-title">Scan to Explore This Home</div>'
     + '<div class="qr-items">'
     + '<span class="qr-hi">&#x1F4CA; Your exact monthly payment</span><br/>'
     + 'School district info &amp; ratings<br/>'
     + 'Neighborhood overview &amp; commute<br/>'
     + 'Direct line to your agent'
-    + (hasDocs ? '<br/><span class="qr-hi">&#x1F4C4; Scan to request disclosure documents</span>' : '')
+    + (hasDocs ? '<br/><span class="qr-hi">&#x1F4C4; Request disclosure documents</span>' : '')
     + '</div>'
     + '</div></div>'
     + '<div class="agent-row">'
@@ -16023,29 +15968,16 @@ function showOHFlyer(l, w) {
     + '<div class="agent-role">Real Brokerage &middot; The Garuccio Group</div>'
     + '<div class="agent-contact">'+agentPhone+(agentPhone&&agentEmail?' &middot; ':'')+agentEmail+'</div>'
     + '</div></div>'
-    + '<div class="flyer-note" id="f-note" style="display:none;"></div>'
     + '<div class="nt-footer">Powered by Nest Track</div>'
     + '</div></div>'
     + '</div>'
-
     + '<scr'+'ipt>'
-    + 'var qrDark="'+qrDark+'";'
-    + 'var qrLight="'+qrLight+'";'
+    + 'var qD="'+qrDark+'",qL="'+qrLight+'";'
     + 'function setTheme(t){'
-    + '  document.getElementById("fb").className=t;'
-    + '  document.getElementById("btn-dark").className="toggle-btn "+(t==="dark"?"active-dark":"inactive");'
-    + '  document.getElementById("btn-light").className="toggle-btn "+(t==="light"?"active-light":"inactive");'
-    + '  document.getElementById("qr-img").src=t==="dark"?qrDark:qrLight;'
-    + '}'
-    + 'function update(){'
-    + '  var badge=document.getElementById("e-badge").value||"Open House Today";'
-    + '  var qrhead=document.getElementById("e-qrhead").value||"Scan to Explore This Home";'
-    + '  var note=document.getElementById("e-note").value.trim();'
-    + '  document.getElementById("f-badge").textContent=badge;'
-    + '  document.getElementById("f-qrhead").textContent=qrhead;'
-    + '  var noteEl=document.getElementById("f-note");'
-    + '  noteEl.textContent=note;'
-    + '  noteEl.style.display=note?"block":"none";'
+    + 'document.getElementById("fb").className=t;'
+    + 'document.getElementById("btn-dark").className="toggle-btn "+(t==="dark"?"active-dark":"inactive");'
+    + 'document.getElementById("btn-light").className="toggle-btn "+(t==="light"?"active-light":"inactive");'
+    + 'document.getElementById("qr-img").src=t==="dark"?qD:qL;'
     + '}'
     + '</scr'+'ipt>'
     + '</body></html>');
