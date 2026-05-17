@@ -15813,6 +15813,7 @@ function showOHFlyer(l, w) {
     if (!l) return;
   }
   if (!w) { w = window.open('','_blank'); if (!w) { alert('Please allow popups to print the flyer.'); return; } }
+
   var url = 'https://app.garucciogroup.com/openhouse.html?id='+l.id;
   var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
   var agentPhone = userProfile.phone||userProfile.agentPhone||'';
@@ -15822,16 +15823,23 @@ function showOHFlyer(l, w) {
   var beds = l.beds||'';
   var baths = l.baths||'';
   var sqft = l.sqft||'';
+  var hasDocs = l.documents && l.documents.length > 0;
   var ini = agentName.split(' ').map(function(n){return n[0];}).join('').substring(0,2);
+
+  // Tax: use actual if entered, else estimate
+  var priceNum = parseFloat(String(price).replace(/[^0-9.]/g,''))||0;
+  var annualTax = l.taxes ? parseFloat(l.taxes) : (priceNum * 0.015);
+  var monthlyTax = annualTax ? (annualTax/12).toFixed(0) : '';
 
   var qrDark = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=0D0D0D&color=C9A84C&margin=10';
   var qrLight = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=FFFFFF&color=1D9E75&margin=10';
 
   var statsHtml = '';
   if (price) statsHtml += '<div class="stat"><div class="stat-val">'+price+'</div><div class="stat-label">List Price</div></div>';
-  if (beds) statsHtml += '<div class="stat"><div class="stat-val">'+beds+'</div><div class="stat-label">Beds</div></div>';
+  if (beds)  statsHtml += '<div class="stat"><div class="stat-val">'+beds+'</div><div class="stat-label">Beds</div></div>';
   if (baths) statsHtml += '<div class="stat"><div class="stat-val">'+baths+'</div><div class="stat-label">Baths</div></div>';
-  if (sqft) statsHtml += '<div class="stat"><div class="stat-val">'+Number(sqft).toLocaleString()+'</div><div class="stat-label">Sq Ft</div></div>';
+  if (sqft)  statsHtml += '<div class="stat"><div class="stat-val">'+Number(sqft).toLocaleString()+'</div><div class="stat-label">Sq Ft</div></div>';
+  if (monthlyTax) statsHtml += '<div class="stat"><div class="stat-val">$'+Number(monthlyTax).toLocaleString()+'</div><div class="stat-label">Mo. Tax</div></div>';
 
   var agentPhotoHtml = agentPhoto
     ? '<img src="'+agentPhoto+'" class="agent-photo" alt="'+agentName+'"/>'
@@ -15839,26 +15847,46 @@ function showOHFlyer(l, w) {
 
   var photoHtml = l.photoUrl
     ? '<img class="prop-photo" src="'+l.photoUrl+'" alt="Property"/>'
-    : '<div class="prop-no-photo"><span style="font-size:60px;opacity:0.15;">🏠</span></div>';
+    : '<div class="prop-no-photo"><span style="font-size:60px;opacity:0.15;">&#127968;</span></div>';
 
   var street = (l.address||'').split(',')[0];
   var city = (l.address||'').split(',').slice(1).join(',').trim();
 
+  // Editable defaults
+  var defBadge = 'Open House Today';
+  var defQRHead = 'Scan to Explore This Home';
+  var defNote = '';
+
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
-    + '<title>Open House Flyer — '+street+'</title>'
+    + '<title>Open House Flyer</title>'
     + '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>'
     + '<style>'
     + '*{box-sizing:border-box;margin:0;padding:0;}'
-    + 'body{font-family:"DM Sans",sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;padding:20px;-webkit-print-color-adjust:exact;print-color-adjust:exact;transition:background 0.3s;}'
-    + 'body.dark{background:#080808;}'
-    + 'body.light{background:#F5F5F0;}'
+    + 'body{font-family:"DM Sans",sans-serif;min-height:100vh;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+    + 'body.dark{background:#080808;color:#F0EDE8;}'
+    + 'body.light{background:#F5F5F0;color:#0D0D0D;}'
 
-    // Controls bar
-    + '.controls{display:flex;gap:10px;margin-bottom:16px;align-items:center;}'
-    + '.toggle-btn{padding:8px 18px;border-radius:20px;border:none;font-size:13px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}'
-    + '.toggle-btn.active-dark{background:#080808;color:#C9A84C;border:2px solid #C9A84C;}'
-    + '.toggle-btn.inactive{background:#e0e0e0;color:#666;border:2px solid transparent;}'
-    + '.toggle-btn.active-light{background:#fff;color:#1D9E75;border:2px solid #1D9E75;}'
+    // Layout
+    + '.page-wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:16px;}'
+
+    // Edit panel
+    + '.edit-panel{width:100%;max-width:8in;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;}'
+    + 'body.light .edit-panel{background:#fff;border-color:#e0e0e0;}'
+    + '.edit-panel-title{font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;margin-bottom:12px;}'
+    + 'body.light .edit-panel-title{color:#1D9E75;}'
+    + '.edit-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}'
+    + '.edit-field label{display:block;font-size:10px;color:#888;margin-bottom:4px;letter-spacing:0.06em;text-transform:uppercase;}'
+    + '.edit-field input{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;font-size:12px;color:inherit;font-family:inherit;outline:none;}'
+    + 'body.light .edit-field input{background:#f8f8f6;border-color:#ddd;}'
+    + '.edit-field input:focus{border-color:#C9A84C;}'
+    + 'body.light .edit-field input:focus{border-color:#1D9E75;}'
+
+    // Controls
+    + '.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}'
+    + '.toggle-btn{padding:7px 16px;border-radius:20px;border:2px solid transparent;font-size:12px;font-weight:600;cursor:pointer;font-family:"DM Sans",sans-serif;transition:all 0.2s;}'
+    + '.toggle-btn.active-dark{background:#0D0D0D;color:#C9A84C;border-color:#C9A84C;}'
+    + '.toggle-btn.active-light{background:#fff;color:#1D9E75;border-color:#1D9E75;}'
+    + '.toggle-btn.inactive{background:#ddd;color:#666;}'
     + '.print-btn{background:#C9A84C;color:#000;border:none;border-radius:20px;padding:8px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:"DM Sans",sans-serif;}'
 
     // Flyer
@@ -15884,7 +15912,7 @@ function showOHFlyer(l, w) {
     + 'body.dark .city{color:#6B6560;}'
     + 'body.light .city{color:#888;}'
 
-    + '.stats{display:flex;gap:28px;margin-bottom:28px;}'
+    + '.stats{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:28px;}'
     + '.stat-val{font-family:"Cormorant Garamond",serif;font-size:24px;font-weight:600;margin-bottom:2px;}'
     + 'body.dark .stat-val{color:#C9A84C;}'
     + 'body.light .stat-val{color:#1D9E75;}'
@@ -15898,19 +15926,17 @@ function showOHFlyer(l, w) {
 
     + '.qr-row{display:flex;align-items:center;gap:28px;}'
     + '.qr-img{width:110px;height:110px;border-radius:10px;flex-shrink:0;}'
-    + 'body.dark .qr-img{background:#0D0D0D;}'
-    + 'body.light .qr-img{background:#f5f5f5;border:1px solid #e0e0e0;}'
 
-    + '.qr-title{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:600;margin-bottom:7px;}'
+    + '.qr-title{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:600;margin-bottom:8px;}'
     + 'body.dark .qr-title{color:#F0EDE8;}'
     + 'body.light .qr-title{color:#0D0D0D;}'
 
-    + '.qr-items{font-size:12px;line-height:1.9;}'
+    + '.qr-items{font-size:12px;line-height:2;}'
     + 'body.dark .qr-items{color:#6B6560;}'
     + 'body.light .qr-items{color:#888;}'
-    + '.qr-highlight{font-weight:600;}'
-    + 'body.dark .qr-highlight{color:#C9A84C;}'
-    + 'body.light .qr-highlight{color:#1D9E75;}'
+    + '.qr-hi{font-weight:600;}'
+    + 'body.dark .qr-hi{color:#C9A84C;}'
+    + 'body.light .qr-hi{color:#1D9E75;}'
 
     + '.agent-row{display:flex;align-items:center;gap:18px;margin-top:24px;padding-top:22px;border-top:1px solid;}'
     + 'body.dark .agent-row{border-color:#2A2A2A;}'
@@ -15919,48 +15945,59 @@ function showOHFlyer(l, w) {
     + '.agent-photo{width:60px;height:60px;border-radius:50%;object-fit:cover;flex-shrink:0;}'
     + 'body.dark .agent-photo{border:2px solid #C9A84C;}'
     + 'body.light .agent-photo{border:2px solid #1D9E75;}'
-
     + '.agent-ini{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Cormorant Garamond",serif;font-size:22px;font-weight:600;flex-shrink:0;}'
     + 'body.dark .agent-ini{background:#C9A84C;color:#000;}'
     + 'body.light .agent-ini{background:#1D9E75;color:#fff;}'
-
     + '.agent-name{font-family:"Cormorant Garamond",serif;font-size:18px;font-weight:600;margin-bottom:2px;}'
     + 'body.dark .agent-name{color:#F0EDE8;}'
     + 'body.light .agent-name{color:#0D0D0D;}'
-
     + '.agent-role{font-size:11px;margin-bottom:2px;}'
     + 'body.dark .agent-role{color:#C9A84C;}'
     + 'body.light .agent-role{color:#1D9E75;}'
-
     + '.agent-contact{font-size:11px;}'
     + 'body.dark .agent-contact{color:#6B6560;}'
     + 'body.light .agent-contact{color:#aaa;}'
+
+    + '.flyer-note{font-size:12px;font-style:italic;text-align:center;margin-top:16px;padding-top:12px;border-top:1px solid;}'
+    + 'body.dark .flyer-note{color:#6B6560;border-color:#2A2A2A;}'
+    + 'body.light .flyer-note{color:#aaa;border-color:#e8e8e8;}'
 
     + '.nt-footer{text-align:center;padding-top:14px;font-size:10px;letter-spacing:0.08em;}'
     + 'body.dark .nt-footer{color:#2A2A2A;}'
     + 'body.light .nt-footer{color:#ccc;}'
 
     + '@media print{'
-    + '  body{padding:0;background:inherit!important;}'
-    + '  .controls{display:none!important;}'
+    + '  .controls,.edit-panel,.page-wrap > :not(.flyer){display:none!important;}'
+    + '  body{padding:0;}'
+    + '  .page-wrap{padding:0;}'
     + '  .flyer{width:100%;border-radius:0;box-shadow:none;}'
-    + '  .prop-photo{height:3in;}'
     + '}'
     + '</style></head>'
-    + '<body class="dark" id="flyerbody">'
+    + '<body class="dark" id="fb">'
+    + '<div class="page-wrap">'
+
+    // Edit panel
+    + '<div class="edit-panel">'
+    + '<div class="edit-panel-title">&#9998; Customize Flyer</div>'
+    + '<div class="edit-grid">'
+    + '<div class="edit-field"><label>Badge / Label</label><input id="e-badge" value="'+defBadge+'" oninput="update()" placeholder="Open House Today"/></div>'
+    + '<div class="edit-field"><label>QR Code Headline</label><input id="e-qrhead" value="'+defQRHead+'" oninput="update()" placeholder="Scan to Explore This Home"/></div>'
+    + '<div class="edit-field"><label>Additional Note</label><input id="e-note" value="'+defNote+'" oninput="update()" placeholder="Showings by appointment..."/></div>'
+    + '</div>'
+    + '</div>'
 
     // Controls
     + '<div class="controls">'
-    + '<button class="toggle-btn active-dark" id="btn-dark" onclick="setTheme(\'dark\')">🖤 Dark</button>'
-    + '<button class="toggle-btn inactive" id="btn-light" onclick="setTheme(\'light\')">🤍 Light</button>'
-    + '<button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>'
+    + '<button class="toggle-btn active-dark" id="btn-dark" onclick="setTheme(\'dark\')">&#x1F5A4; Dark</button>'
+    + '<button class="toggle-btn inactive" id="btn-light" onclick="setTheme(\'light\')">&#x1F90D; Light</button>'
+    + '<button class="print-btn" onclick="window.print()">&#x1F5A8; Print / Save PDF</button>'
     + '</div>'
 
     // Flyer
-    + '<div class="flyer">'
+    + '<div class="flyer" id="flyer">'
     + photoHtml
     + '<div class="flyer-body">'
-    + '<div class="badge">🏠 Open House Today</div>'
+    + '<div class="badge" id="f-badge">'+defBadge+'</div>'
     + '<div class="address">'+street+'</div>'
     + (city ? '<div class="city">'+city+'</div>' : '')
     + (statsHtml ? '<div class="stats">'+statsHtml+'</div>' : '')
@@ -15968,48 +16005,50 @@ function showOHFlyer(l, w) {
     + '<div class="qr-row">'
     + '<img class="qr-img" id="qr-img" src="'+qrDark+'" alt="QR Code"/>'
     + '<div>'
-    + '<div class="qr-title">Scan to Explore This Home</div>'
+    + '<div class="qr-title" id="f-qrhead">'+defQRHead+'</div>'
     + '<div class="qr-items">'
-    + '<span class="qr-highlight">📊 Your exact monthly payment</span><br/>'
-    + 'School district info & ratings<br/>'
-    + 'Neighborhood overview & commute<br/>'
+    + '<span class="qr-hi">&#x1F4CA; Your exact monthly payment</span>'+(monthlyTax?'<br/><span class="qr-hi">&#x1F3E6; Est. monthly tax: $'+Number(monthlyTax).toLocaleString()+'</span>':'')+'<br/>'
+    + 'School district info &amp; ratings<br/>'
+    + 'Neighborhood overview &amp; commute<br/>'
     + 'Direct line to your agent'
+    + (hasDocs ? '<br/><span class="qr-hi">&#x1F4C4; Scan to request disclosure documents</span>' : '')
     + '</div>'
     + '</div></div>'
     + '<div class="agent-row">'
     + agentPhotoHtml
     + '<div>'
     + '<div class="agent-name">'+agentName+'</div>'
-    + '<div class="agent-role">Real Brokerage · The Garuccio Group</div>'
-    + '<div class="agent-contact">'+agentPhone+(agentPhone&&agentEmail?' · ':'')+agentEmail+'</div>'
+    + '<div class="agent-role">Real Brokerage &middot; The Garuccio Group</div>'
+    + '<div class="agent-contact">'+agentPhone+(agentPhone&&agentEmail?' &middot; ':'')+agentEmail+'</div>'
     + '</div></div>'
+    + '<div class="flyer-note" id="f-note" style="display:none;"></div>'
     + '<div class="nt-footer">Powered by Nest Track</div>'
     + '</div></div>'
+    + '</div>'
+
     + '<scr'+'ipt>'
     + 'var qrDark="'+qrDark+'";'
     + 'var qrLight="'+qrLight+'";'
     + 'function setTheme(t){'
-    + '  var b=document.getElementById("flyerbody");'
-    + '  var bd=document.getElementById("btn-dark");'
-    + '  var bl=document.getElementById("btn-light");'
-    + '  var qi=document.getElementById("qr-img");'
-    + '  if(t==="dark"){'
-    + '    b.className="dark";'
-    + '    bd.className="toggle-btn active-dark";'
-    + '    bl.className="toggle-btn inactive";'
-    + '    qi.src=qrDark;'
-    + '  } else {'
-    + '    b.className="light";'
-    + '    bd.className="toggle-btn inactive";'
-    + '    bl.className="toggle-btn active-light";'
-    + '    qi.src=qrLight;'
-    + '  }'
+    + '  document.getElementById("fb").className=t;'
+    + '  document.getElementById("btn-dark").className="toggle-btn "+(t==="dark"?"active-dark":"inactive");'
+    + '  document.getElementById("btn-light").className="toggle-btn "+(t==="light"?"active-light":"inactive");'
+    + '  document.getElementById("qr-img").src=t==="dark"?qrDark:qrLight;'
+    + '}'
+    + 'function update(){'
+    + '  var badge=document.getElementById("e-badge").value||"Open House Today";'
+    + '  var qrhead=document.getElementById("e-qrhead").value||"Scan to Explore This Home";'
+    + '  var note=document.getElementById("e-note").value.trim();'
+    + '  document.getElementById("f-badge").textContent=badge;'
+    + '  document.getElementById("f-qrhead").textContent=qrhead;'
+    + '  var noteEl=document.getElementById("f-note");'
+    + '  noteEl.textContent=note;'
+    + '  noteEl.style.display=note?"block":"none";'
     + '}'
     + '</scr'+'ipt>'
     + '</body></html>');
   w.document.close();
 }
-
 window.showOHFlyer = showOHFlyer;
 
 window.obCheckAssigned = obCheckAssigned;
