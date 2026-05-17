@@ -14539,6 +14539,21 @@ var _srCurrent = {}; // current report state
 function srOpenBuilder(listingId) {
   var l = _srListings.find(function(x){ return x.id===listingId; });
   if (!l) return;
+
+  // Reload listing from Firestore to get latest portalLinks
+  fb.getDoc(fb.doc(fb.db,'offer_listings',listingId)).then(function(snap){
+    if (snap.exists()) {
+      l = {id:snap.id,...snap.data()};
+      // Update in _srListings cache
+      var idx = _srListings.findIndex(function(x){ return x.id===listingId; });
+      if (idx > -1) _srListings[idx] = l;
+    }
+    srOpenBuilderWithListing(listingId, l);
+  }).catch(function(){ srOpenBuilderWithListing(listingId, l); });
+}
+window.srOpenBuilder = srOpenBuilder;
+
+function srOpenBuilderWithListing(listingId, l) {
   var showings = srMatchShowings(l.address||'');
   _srCurrent = {
     listingId: listingId,
@@ -14611,7 +14626,7 @@ function srOpenBuilder(listingId) {
   document.body.appendChild(overlay);
   srSwitchTab('showings');
 }
-window.srOpenBuilder = srOpenBuilder;
+window.srOpenBuilderWithListing = srOpenBuilderWithListing;
 
 function srSwitchTab(tab) {
   var tabs = ['showings','online','activity','nextweek','message'];
@@ -14687,6 +14702,18 @@ function srSaveCurrentTab() {
       if (s) _srCurrent.onlineActivity[p].saves = parseInt(s.value)||0;
       if (u) _srCurrent.onlineActivity[p].url = u.value;
     });
+    // Auto-save portal links to listing so they persist for future reports
+    if (_srCurrent.listingId) {
+      var links = {
+        zillow: _srCurrent.onlineActivity.zillow.url||'',
+        realtor: _srCurrent.onlineActivity.realtor.url||'',
+        homes: _srCurrent.onlineActivity.homes.url||'',
+        social: _srCurrent.onlineActivity.social.url||''
+      };
+      if (links.zillow||links.realtor||links.homes||links.social) {
+        fb.updateDoc(fb.doc(fb.db,'offer_listings',_srCurrent.listingId),{portalLinks:links}).catch(function(){});
+      }
+    }
   } else if (tab==='activity') {
     Object.keys(SR_ACTIVITY).forEach(function(cat) {
       SR_ACTIVITY[cat].forEach(function(item, i) {
@@ -14847,7 +14874,8 @@ function srTabOnline() {
   ];
 
   var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Online Activity</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Save your listing links once — tap Open to check stats, then enter the numbers. Only filled platforms show in the report.</div>';
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Save your listing links once — tap Open to check stats, then enter the numbers. Only filled platforms show in the report.</div>'
+    + '<div style="font-size:12px;color:var(--green-dk);background:var(--green-lt);border-radius:6px;padding:7px 10px;margin-bottom:14px;">💾 Links save automatically for future reports — you only need to enter them once.</div>';
 
   platforms.forEach(function(p) {
     var d = oa[p.key]||{views:0,saves:0,url:''};
