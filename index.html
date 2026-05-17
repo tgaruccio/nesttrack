@@ -1216,6 +1216,27 @@ textarea{resize:vertical;min-height:68px;}
     </div>
   </div>
 
+  <!-- Onboarding progress card — only shows if assigned and incomplete -->
+  <div id="ad-onboarding-card" style="display:none;background:linear-gradient(135deg,#1D9E75 0%,#157A5A 100%);border-radius:14px;padding:16px 18px;color:#fff;cursor:pointer;" onclick="go('onboarding',document.querySelector('[data-pg=onboarding]'))">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;opacity:0.8;margin-bottom:2px;">🎓 Your Onboarding</div>
+        <div style="font-size:17px;font-weight:700;" id="ad-ob-week">Getting Started</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:28px;font-weight:800;" id="ad-ob-pct">0%</div>
+        <div style="font-size:11px;opacity:0.8;" id="ad-ob-count">0 of 0 steps</div>
+      </div>
+    </div>
+    <div style="background:rgba(255,255,255,0.25);border-radius:20px;height:6px;margin-bottom:10px;overflow:hidden;">
+      <div id="ad-ob-bar" style="background:#fff;height:100%;border-radius:20px;width:0%;transition:width 0.5s;"></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:12px;opacity:0.9;" id="ad-ob-next">Next: Getting started</div>
+      <div style="font-size:12px;font-weight:700;background:rgba(255,255,255,0.2);border-radius:20px;padding:4px 12px;">Continue →</div>
+    </div>
+  </div>
+
   <!-- Stat banner -->
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:0;flex-shrink:0;">
     <!-- Row 1: Clients, tasks, next appt -->
@@ -8420,6 +8441,9 @@ async function renderAgentDashboard() {
   var today = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
   el = document.getElementById('ad-sub'); if (el) el.textContent = today;
 
+  // Onboarding card
+  renderDashOnboardingCard();
+
   // Load clients if needed
   if (!myBuyers || !myBuyers.length) {
     try { await loadBuyersForAgent(); } catch(e) {}
@@ -8570,6 +8594,42 @@ async function renderAgentDashboard() {
   renderAdPipeline(active);
   populatePAClientDropdown();
 }
+function renderDashOnboardingCard() {
+  var card = document.getElementById('ad-onboarding-card');
+  if (!card) return;
+
+  // Only show if assigned and not complete
+  if (!userProfile || !userProfile.onboardingAssigned) { card.style.display='none'; return; }
+
+  var steps = _obSteps || OB_DEFAULT_STEPS;
+  var total = steps.length;
+  var done = steps.filter(function(s){ return _obProgress && _obProgress[s.id]; }).length;
+
+  // Hide if complete
+  if (done === total) { card.style.display='none'; return; }
+
+  var pct = total ? Math.round(done/total*100) : 0;
+
+  // Find current week
+  var nextStep = steps.find(function(s){ return !(_obProgress && _obProgress[s.id]); });
+  var currentWeek = nextStep ? nextStep.week + ' — ' + nextStep.weekTitle : 'Almost done!';
+  var nextTitle = nextStep ? nextStep.title : 'Final steps';
+
+  card.style.display = 'block';
+  var bar = document.getElementById('ad-ob-bar');
+  var weekEl = document.getElementById('ad-ob-week');
+  var pctEl = document.getElementById('ad-ob-pct');
+  var countEl = document.getElementById('ad-ob-count');
+  var nextEl = document.getElementById('ad-ob-next');
+
+  if (bar) bar.style.width = pct+'%';
+  if (weekEl) weekEl.textContent = currentWeek;
+  if (pctEl) pctEl.textContent = pct+'%';
+  if (countEl) countEl.textContent = done+' of '+total+' steps';
+  if (nextEl) nextEl.textContent = 'Next: '+nextTitle;
+}
+window.renderDashOnboardingCard = renderDashOnboardingCard;
+
 window.renderAgentDashboard = renderAgentDashboard;
 
 // ─── Dashboard today's tasks ───
@@ -10053,12 +10113,15 @@ window.addLenderAndInvite = addLenderAndInvite;
 window.saveOutsideLender = function(uid) { console.log('outside lender disabled'); };
 function renderTeam() {
   document.getElementById('team-list').innerHTML = DEFAULT_AGENTS.map(a => `
-    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:10px 12px;border-radius:6px;">
-      <div>
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
         <div style="font-weight:500;font-size:13px;">${a.name}${a.isDefault?' <span class="pill pill-g">Default</span>':''}</div>
         <div style="font-size:11.5px;color:var(--text2);">${a.role} · ${a.phone}${a.email?' · '+a.email:''}</div>
       </div>
-      ${a.id!=='tom'?`<button class="btn btn-sm" onclick="removeAgent('${a.id}')" style="color:var(--red-dk);">Remove</button>`:'<span style="font-size:10px;color:var(--text3);">Owner</span>'}
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+        ${a.id!=='tom' ? `<button class="btn btn-sm" onclick="assignOnboarding('${a.id}','${a.name}')" style="font-size:11px;color:var(--green-dk);border-color:var(--green-md);">🎓 Onboarding</button>` : ''}
+        ${a.id!=='tom' ? `<button class="btn btn-sm" onclick="removeAgent('${a.id}')" style="color:var(--red-dk);">Remove</button>` : '<span style="font-size:10px;color:var(--text3);">Owner</span>'}
+      </div>
     </div>`).join('');
 }
 async function sendAgentInvite() {
@@ -10098,6 +10161,45 @@ async function sendAgentInvite() {
     addAgent();
   } catch(e) { alert('Failed to send invite: '+e.message); }
 }
+async function assignOnboarding(agentId, agentName) {
+  // Find their user record by agentId
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--bg);border-radius:16px;padding:20px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;';
+  var mentorOpts = DEFAULT_AGENTS.filter(function(a){ return a.id !== agentId; }).map(function(a){
+    return '<option value="'+a.id+'">'+a.name+'</option>';
+  }).join('');
+  box.innerHTML = '<div style="font-size:15px;font-weight:600;">🎓 Assign Onboarding</div>'
+    + '<div style="font-size:13px;color:var(--text2);">Assign the onboarding program to <strong>'+agentName+'</strong>. They\'ll see it on their dashboard immediately.</div>'
+    + '<div><label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Assign Mentor</label>'
+    + '<select id="ao-mentor" style="width:100%;font-size:13px;padding:8px;"><option value="">— No mentor —</option>'+mentorOpts+'</select></div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<button id="ao-cancel" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;font-size:13px;cursor:pointer;">Cancel</button>'
+    + '<button id="ao-save" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">Assign Onboarding</button>'
+    + '</div>';
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  box.querySelector('#ao-cancel').addEventListener('click', function(){ overlay.remove(); });
+  box.querySelector('#ao-save').addEventListener('click', async function(){
+    var mentorId = box.querySelector('#ao-mentor').value;
+    var btn = box.querySelector('#ao-save');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      // Find user by agentId field
+      var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',agentId), fb.where('role','==','agent')));
+      if (snap.empty) { alert('Could not find this agent\'s account. They may not have signed up yet.'); overlay.remove(); return; }
+      var updates = { onboardingAssigned: true };
+      if (mentorId) updates.mentorAgentId = mentorId;
+      snap.forEach(async function(d){ await fb.updateDoc(fb.doc(fb.db,'users',d.id), updates); });
+      overlay.remove();
+      showDealToast('🎓 Onboarding assigned to '+agentName+'!', null, null);
+      renderTeamOnboardingInModal();
+    } catch(e) { alert('Failed: '+e.message); btn.disabled=false; btn.textContent='Assign Onboarding'; }
+  });
+}
+window.assignOnboarding = assignOnboarding;
+
 window.sendAgentInvite = sendAgentInvite;
 
 function dismissAgentWelcome() {
@@ -15214,6 +15316,8 @@ async function obLoad() {
     _obProgress = progSnap.exists() ? (progSnap.data().completed || {}) : {};
     // Show nav button if assigned
     obCheckAssigned();
+    // Update dashboard card
+    renderDashOnboardingCard();
     // Check for inactivity nudge after short delay
     if (userProfile && userProfile.onboardingAssigned) {
       setTimeout(obCheckInactivity, 3000);
@@ -15393,6 +15497,7 @@ async function obToggle(stepId) {
   }
 
   renderOnboarding();
+  renderDashOnboardingCard();
 }
 window.obToggle = obToggle;
 
