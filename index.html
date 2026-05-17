@@ -2689,6 +2689,19 @@ textarea{resize:vertical;min-height:68px;}
           <div><label class="flabel">Phone</label><input type="tel" id="ta-phone"/></div>
         </div>
         <div><label class="flabel">Email</label><input type="email" id="ta-email"/></div>
+        <div style="margin-top:8px;">
+          <label class="flabel">Assign Mentor</label>
+          <select id="ta-mentor" style="width:100%;font-size:13px;padding:7px 8px;">
+            <option value="">— No mentor assigned —</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:10px;margin-top:8px;background:var(--green-lt);border:1px solid var(--green-md);border-radius:var(--r);padding:10px 12px;cursor:pointer;">
+          <input type="checkbox" id="ta-onboarding" style="width:18px;height:18px;cursor:pointer;"/>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--green-dk);">🎓 Include Onboarding Program</div>
+            <div style="font-size:11px;color:var(--green-dk);opacity:0.85;">Agent gets the 5-week onboarding trail in their app</div>
+          </div>
+        </label>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="btn btn-g btn-sm" onclick="addAgentAndInvite()">+ Add Agent & Send Invite</button>
         </div>
@@ -3415,6 +3428,15 @@ async function signUp() {
       } catch (x) { console.log('Invite lookup failed', x); }
     }
 
+    // Load agent invite data if agent invite code present
+    var agentInviteData = null;
+    if (window._agentInviteCode) {
+      try {
+        var agInvDoc = await fb.getDoc(fb.doc(fb.db,'agentInvites',window._agentInviteCode));
+        if (agInvDoc.exists()) { agentInviteData = agInvDoc.data(); }
+      } catch(x) { console.log('Agent invite lookup failed', x); }
+    }
+
     // Check for existing contact record with same email (agent-created before signup)
     let existingContact = null;
     try {
@@ -3455,6 +3477,8 @@ async function signUp() {
       currentMortgageStep: (existingContact && existingContact.currentMortgageStep) || 0,
       portalUid: cred.user.uid,
       portalAccess: true,
+      onboardingAssigned: (agentInviteData && agentInviteData.onboardingAssigned) || (inviteData && inviteData.onboardingAssigned) || false,
+      mentorAgentId: (agentInviteData && agentInviteData.mentorAgentId) || (inviteData && inviteData.mentorAgentId) || null,
       createdAt: fb.serverTimestamp(),
       lastActive: fb.serverTimestamp(),
     };
@@ -10090,6 +10114,8 @@ async function addAgentAndInvite() {
   const name = document.getElementById('ta-name').value.trim();
   const phone = document.getElementById('ta-phone').value.trim();
   const email = document.getElementById('ta-email').value.trim();
+  const includeOnboarding = !!(document.getElementById('ta-onboarding') && document.getElementById('ta-onboarding').checked);
+  const mentorAgentId = (document.getElementById('ta-mentor') && document.getElementById('ta-mentor').value) || '';
   if (!name || !email) { alert('Name and email are required.'); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12);
   const agentData = { id, name, role: 'REALTOR®', phone, email, addedAt: new Date().toISOString() };
@@ -10122,7 +10148,9 @@ async function addAgentAndInvite() {
   try {
     await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
       name, email: email.toLowerCase(), code,
-      invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false
+      invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false,
+      onboardingAssigned: includeOnboarding,
+      mentorAgentId: mentorAgentId || null
     });
   } catch(e) { console.log('agentInvite store failed:', e.message); }
 
@@ -10175,6 +10203,14 @@ function openTeamModal() {
   if (!isTeamLeader()) { alert('Only the team leader can manage the team.'); return; }
   renderTeam();
   renderTeamLenders();
+  // Populate mentor dropdown
+  var mentorSel = document.getElementById('ta-mentor');
+  if (mentorSel) {
+    mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
+      + DEFAULT_AGENTS.map(function(a){
+          return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
+        }).join('');
+  }
   document.getElementById('team-modal').style.display = 'flex';
   renderTeamOnboardingInModal();
 }
