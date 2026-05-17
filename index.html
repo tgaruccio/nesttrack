@@ -495,6 +495,13 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- SIDEBAR -->
 <div class="sidebar" id="sidebar">
+  <!-- GLOBAL SEARCH -->
+  <div style="padding:10px 10px 6px;position:relative;">
+    <input type="text" id="global-search" placeholder="🔍 Search clients, tools, deals..." autocomplete="off"
+      style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);font-family:inherit;"
+      oninput="globalSearch(this.value)" onfocus="globalSearch(this.value)" onblur="setTimeout(function(){var r=document.getElementById('global-search-results');if(r)r.style.display='none';},200)"/>
+    <div id="global-search-results" style="display:none;position:absolute;left:10px;right:10px;top:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:200;max-height:320px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.12);"></div>
+  </div>
   <!-- AGENT TOOLS — shown only for agents, at top -->
   <div id="agent-tools-section" style="display:none;flex-direction:column;gap:2px;">
     <div class="ns" style="padding-top:6px;">Agent Tools</div>
@@ -15333,6 +15340,111 @@ async function obCheckAssigned() {
   var assigned = (userProfile && userProfile.onboardingAssigned) || isTeamLeader();
   btn.style.display = assigned ? 'block' : 'none';
 }
+// ── GLOBAL SEARCH ──
+var SEARCH_PAGES = [
+  {label:'Agent Dashboard', icon:'🏠', pg:'agent-dash'},
+  {label:'Agent Hub', icon:'🎯', pg:'agent'},
+  {label:'Messages', icon:'💬', pg:'messages'},
+  {label:'Email', icon:'📧', pg:'newsletter'},
+  {label:'To-Do List', icon:'✅', pg:'agent-todo'},
+  {label:'Listing Generator', icon:'✍️', pg:'listing-desc'},
+  {label:'Net Sheet', icon:'💵', pg:'netsheet'},
+  {label:'Mortgage Calc', icon:'💰', pg:'mortgage'},
+  {label:'Send Pre-Approval', icon:'📧', pg:'agent-preapproval'},
+  {label:'Send Referrals', icon:'🤝', pg:null, fn:'openReferralModal()'},
+  {label:'Preferred Partners', icon:'🤝', pg:'partners'},
+  {label:'Seller Reports', icon:'📊', pg:'agent', tab:'reports'},
+  {label:'My Onboarding', icon:'🎓', pg:'onboarding'},
+  {label:'Home Search', icon:'🔍', pg:'idx'},
+  {label:'Tour Mode', icon:'🚶', pg:'tour'},
+  {label:'Saved Homes', icon:'🏠', pg:'saved'},
+  {label:'Offer Strategy', icon:'💡', pg:'offer'},
+  {label:'Commute Calculator', icon:'🚗', pg:'commute'},
+  {label:'School Districts', icon:'🏫', pg:'school'},
+  {label:'Moving Checklist', icon:'📦', pg:'movinglist'},
+  {label:'Neighborhood Intel', icon:'🏘️', pg:'neighborhood'},
+  {label:'Net Sheet Calculator', icon:'💵', pg:'netsheet'},
+  {label:'Home Prep Analyzer', icon:'🏡', pg:'homeprep'},
+  {label:'Photo Checklist', icon:'📷', pg:'photochecklist'},
+  {label:'Listing Updates', icon:'📊', pg:'listing-updates'},
+  {label:'Your Team', icon:'👤', pg:'youragent'},
+];
+
+function globalSearch(q) {
+  var results = document.getElementById('global-search-results');
+  if (!results) return;
+  q = (q||'').trim().toLowerCase();
+  if (!q) { results.style.display='none'; return; }
+
+  var html = '';
+
+  // Clients
+  var clients = (allBuyers||myBuyers||[]).filter(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).toLowerCase();
+    var email = (b.email||'').toLowerCase();
+    return name.includes(q) || email.includes(q);
+  }).slice(0,4);
+
+  if (clients.length) {
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);padding:8px 12px 4px;">Clients</div>';
+    html += clients.map(function(b){
+      var name = ((b.firstName||'')+' '+(b.lastName||'')).trim();
+      var status = b.crmStatus || 'pipeline';
+      return '<div onclick="closeSidebar();openBuyerDetail(\''+b.uid+'\')" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid var(--border);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+        + '<div style="width:30px;height:30px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;">'+((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase()+'</div>'
+        + '<div><div style="font-size:13px;font-weight:500;">'+partnerEsc(name)+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);">'+partnerEsc(b.email||'')+'</div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Deals
+  var deals = (_deals||[]).filter(function(d){
+    var addr = (d.address||'').toLowerCase();
+    var client = (d.clientName||'').toLowerCase();
+    return addr.includes(q) || client.includes(q);
+  }).slice(0,3);
+
+  if (deals.length) {
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);padding:8px 12px 4px;">Deals</div>';
+    html += deals.map(function(d){
+      return '<div onclick="closeSidebar();go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'deals\')},200)" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid var(--border);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+        + '<span style="font-size:18px;">🏠</span>'
+        + '<div><div style="font-size:13px;font-weight:500;">'+partnerEsc(d.address||'No address')+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);">'+partnerEsc(d.clientName||'')+(d.status?' · '+d.status:'')+'</div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Pages/Tools
+  var pages = SEARCH_PAGES.filter(function(p){
+    return p.label.toLowerCase().includes(q);
+  }).slice(0,5);
+
+  if (pages.length) {
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);padding:8px 12px 4px;">Tools & Pages</div>';
+    html += pages.map(function(p){
+      var action = p.fn
+        ? 'closeSidebar();'+p.fn
+        : p.tab
+          ? 'closeSidebar();go(\''+p.pg+'\',document.querySelector(\'[data-pg='+p.pg+']\'));setTimeout(function(){switchAgentTab(\''+p.tab+'\')},200)'
+          : 'closeSidebar();go(\''+p.pg+'\',document.querySelector(\'[data-pg='+p.pg+']\'))';
+      return '<div onclick="'+action+';document.getElementById(\'global-search\').value=\'\';document.getElementById(\'global-search-results\').style.display=\'none\'" style="padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'
+        + '<span style="font-size:18px;">'+p.icon+'</span>'
+        + '<span style="font-size:13px;font-weight:500;">'+p.label+'</span>'
+        + '</div>';
+    }).join('');
+  }
+
+  if (!html) {
+    html = '<div style="padding:12px;font-size:13px;color:var(--text3);text-align:center;">No results for "'+partnerEsc(q)+'"</div>';
+  }
+
+  results.innerHTML = html;
+  results.style.display = 'block';
+}
+window.globalSearch = globalSearch;
+
 window.obCheckAssigned = obCheckAssigned;
 
 async function obSaveProgress() {
