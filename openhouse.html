@@ -282,9 +282,11 @@ function render(l) {
   const enc = encodeURIComponent(l.address||'');
   const photos = l.photos||(l.photoUrl?[l.photoUrl]:[]);
 
-  let dp=10, rp=6.875, tm=30, pi=0;
+  let dp=10, rp=6.0, tm=30, pi=0;
+  // Use actual taxes from listing if available, else estimate
+  const annualTax = l.taxes ? parseFloat(l.taxes) : (price * 0.015);
+  const tax_ = ()=> annualTax/12;
   const pi_ = ()=> calcPI(price,dp,rp,tm);
-  const tax_ = ()=> price*0.015/12;
   const ins_ = ()=> price*0.005/12;
   const tot_ = ()=> pi_()+tax_()+ins_();
 
@@ -353,8 +355,8 @@ function render(l) {
           <div style="font-size:11px;color:var(--text3);margin-top:4px;" id="l-dp">${$f(price*dp/100)} down</div>
         </div>
         <div class="sl-wrap">
-          <div class="sl-row"><span class="sl-name">Interest Rate</span><input type="number" class="sl-num" id="n-rp" min="4" max="10" step="0.125" value="${rp}" oninput="syncSlider('rp')"/>%</div>
-          <input type="range" id="s-rp" min="4" max="10" step="0.125" value="${rp}" oninput="cu();document.getElementById('n-rp').value=parseFloat(this.value).toFixed(3)"/>
+          <div class="sl-row"><span class="sl-name">Interest Rate</span><input type="number" class="sl-num" id="n-rp" min="4" max="10" step="0.125" value="6.0" oninput="syncSlider('rp')"/>%</div>
+          <input type="range" id="s-rp" min="4" max="10" step="0.125" value="6.0" oninput="cu();document.getElementById('n-rp').value=parseFloat(this.value).toFixed(3)"/>
         </div>
         <div class="sl-wrap">
           <div class="sl-row"><span class="sl-name">Loan Term</span><input type="number" class="sl-num" id="n-tm" min="10" max="30" step="5" value="${tm}" oninput="syncSlider('tm')"/> yrs</div>
