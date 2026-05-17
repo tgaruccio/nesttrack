@@ -385,6 +385,7 @@ function render(l) {
       <span class="form-icon">📊</span>
       <input type="text" class="inp" id="r-nm" placeholder="Your name"/>
       <input type="email" class="inp" id="r-em" placeholder="Email address"/>
+      <input type="tel" class="inp" id="r-ph" placeholder="Phone (optional)"/>
       <button class="btn-grn" id="r-btn" onclick="doReport('${l.id}','${l.agentId}','${(l.address||'').replace(/'/g,'')}')">Get My Property Report →</button>
       <div class="form-hint">No spam · Unsubscribe anytime</div>
     </div>
@@ -516,7 +517,7 @@ function render(l) {
   const docWrap = document.getElementById('doc-section-wrap');
   if (docWrap && l.documents && l.documents.length) {
     const docList = l.documents.map(d=>'<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:6px;"><span style="color:var(--gold)">📄</span>'+d.name+'</div>').join('');
-    docWrap.innerHTML = '<div class="s"><div class="eyebrow">Property Documents</div><div class="s-title">Request Disclosure Docs</div><div class="s-sub" style="margin-bottom:16px;">Full disclosure package, inspection reports, and HOA documents — sent directly to your inbox.</div><div class="form-box form-box-green" id="doc-wrap"><span class="form-icon">📄</span><div style="margin-bottom:14px;">'+docList+'</div><input type="text" class="inp" id="doc-nm" placeholder="Your name"/><input type="email" class="inp" id="doc-em" placeholder="Email address"/><button class="btn-grn" id="doc-btn" onclick="doRequestDocs()">Send Me These Documents →</button><div class="form-hint">Sent instantly · No spam</div></div></div><div class="divider"></div>';
+    docWrap.innerHTML = '<div class="s"><div class="eyebrow">Property Documents</div><div class="s-title">Request Disclosure Docs</div><div class="s-sub" style="margin-bottom:16px;">Full disclosure package, inspection reports, and HOA documents — sent directly to your inbox.</div><div class="form-box form-box-green" id="doc-wrap"><span class="form-icon">📄</span><div style="margin-bottom:14px;">'+docList+'</div><input type="text" class="inp" id="doc-nm" placeholder="Your name"/><input type="email" class="inp" id="doc-em" placeholder="Email address"/><input type="tel" class="inp" id="doc-ph" placeholder="Phone (optional)"/><button class="btn-grn" id="doc-btn" onclick="doRequestDocs()">Send Me These Documents →</button><div class="form-hint">Sent instantly · No spam</div></div></div><div class="divider"></div>';
   }
 
   // Ken Burns on hero image
@@ -570,14 +571,25 @@ function render(l) {
   window.doReport = async (lid,agId,addr) => {
     const nm=document.getElementById('r-nm').value.trim();
     const em=document.getElementById('r-em').value.trim();
+    const ph=document.getElementById('r-ph')?document.getElementById('r-ph').value.trim():'';
     if(!nm||!em){toast('Please enter your name and email.');return;}
     const btn=document.getElementById('r-btn');
     btn.disabled=true;btn.textContent='Sending...';
     try {
       await addDoc(collection(db,'open_house_leads'),{
-        listingId:lid,agentId:agId,address:addr,name:nm,email:em,
+        listingId:lid,agentId:agId,address:addr,name:nm,email:em,phone:ph||'',
         downPct:dp,ratePct:rp,term:tm,monthlyPayment:Math.round(tot_()),
         createdAt:serverTimestamp(),source:'property_report'
+      });
+      // Auto-create Pipeline contact
+      const nameParts=nm.trim().split(' ');
+      await addDoc(collection(db,'users'),{
+        firstName:nameParts[0]||nm, lastName:nameParts.slice(1).join(' ')||'',
+        email:em, phone:ph||'', agentId:agId,
+        role:'buyer', journeyType:'buyer', crmStatus:'Pipeline',
+        source:'open_house', sourceAddress:addr||'',
+        currentStep:1, isContact:true, portalAccess:false,
+        createdAt:serverTimestamp()
       });
       var firstName=nm.split(' ')[0];
       var payBlock = price>0
@@ -650,13 +662,23 @@ function render(l) {
   window.doRequestDocs = async () => {
     const nm=document.getElementById('doc-nm').value.trim();
     const em=document.getElementById('doc-em').value.trim();
+    const ph=document.getElementById('doc-ph')?document.getElementById('doc-ph').value.trim():'';
     if(!nm||!em){toast('Please enter your name and email.');return;}
     const btn=document.getElementById('doc-btn');
     btn.disabled=true;btn.textContent='Sending...';
     try {
       await addDoc(collection(db,'open_house_leads'),{
         listingId:l.id,agentId:l.agentId,address:l.address,
-        name:nm,email:em,createdAt:serverTimestamp(),source:'document_request'
+        name:nm,email:em,phone:ph||'',createdAt:serverTimestamp(),source:'document_request'
+      });
+      const docParts=nm.trim().split(' ');
+      await addDoc(collection(db,'users'),{
+        firstName:docParts[0]||nm, lastName:docParts.slice(1).join(' ')||'',
+        email:em, phone:ph||'', agentId:l.agentId,
+        role:'buyer', journeyType:'buyer', crmStatus:'Pipeline',
+        source:'open_house', sourceAddress:l.address||'',
+        currentStep:1, isContact:true, portalAccess:false,
+        createdAt:serverTimestamp()
       });
       const docLinks=(l.documents||[]).map(d=>'<div style="margin-bottom:10px;"><a href="'+d.url+'" style="color:#1D9E75;text-decoration:none;font-size:14px;">📄 '+d.name+'</a></div>').join('');
       const emailHtml='<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;"><div style="background:#0D0D0D;padding:22px 26px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Property Documents</div><div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px;">'+(l.address||'')+'</div></div><div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><p style="font-size:15px;margin-bottom:16px;">Hi '+nm.split(' ')[0]+',</p><p style="font-size:14px;color:#444;line-height:1.7;margin-bottom:20px;">Here are the documents you requested for <strong>'+(l.address||'the property')+'</strong>:</p>'+docLinks+'<p style="font-size:13px;color:#666;margin-top:24px;">Questions? '+ag.name+' is here to help.<br/><a href="tel:'+ag.phone+'" style="color:#1D9E75;">'+ag.phone+'</a></p></div></div>';
@@ -693,15 +715,15 @@ function render(l) {
       const res = await fetch('https://app.tom-b52.workers.dev',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,messages:[{role:'user',content:prompt}]})
+        body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:400,messages:[{role:'user',content:prompt}]})
       });
       const data = await res.json();
-      const text = (data.content&&data.content[0])?data.content[0].text:'Could not generate. Please try again.';
+      const text = (data.content&&data.content[0]&&data.content[0].text)?data.content[0].text:((data.error&&data.error.message)||'Could not generate. Please try again.');
       resultEl.className='ai-result show';
       resultEl.innerHTML='<div style="border-left:2px solid var(--green);padding-left:12px;margin-top:4px;">'+text.replace(/\n/g,'<br/>')+'</div>';
     } catch(e) {
       resultEl.className='ai-result show';
-      resultEl.innerHTML='<span style="color:var(--text3);">Could not generate. Please try again.</span>';
+      resultEl.innerHTML='<span style="color:var(--text3);">Could not generate: '+e.message+'</span>';
     }
     btn.disabled=false;
   };
@@ -719,6 +741,16 @@ function render(l) {
         listingId:l.id,agentId:l.agentId,address:l.address,
         name:nm,email:em,phone:ph,
         createdAt:serverTimestamp(),source:'save_home'
+      });
+      // Auto-create Pipeline contact
+      const svParts=nm.trim().split(' ');
+      await addDoc(collection(db,'users'),{
+        firstName:svParts[0]||nm, lastName:svParts.slice(1).join(' ')||'',
+        email:em, phone:ph||'', agentId:l.agentId,
+        role:'buyer', journeyType:'buyer', crmStatus:'Pipeline',
+        source:'open_house', sourceAddress:l.address||'',
+        currentStep:1, isContact:true, portalAccess:false,
+        createdAt:serverTimestamp()
       });
       document.getElementById('save-form-wrap').innerHTML=`
         <div style="text-align:center;padding:12px 0;">
