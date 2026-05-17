@@ -8923,6 +8923,7 @@ async function openBuyerDetail(uid, scrollTo) {
             <input type="text" placeholder="Mailing address" value="${b.mailingAddress||''}" onchange="saveClientField('${uid}','mailingAddress',this.value)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
           </div>
           ${!b.portalAccess ? `<button onclick="openPortalInviteModal('${uid}')" style="margin-top:5px;background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">✉ Invite to Portal</button>` : `<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">✓ Portal Access</span>`}
+          ${(()=>{ var hasDeal = (_deals||[]).some(function(d){ return d.clientUid===uid; }); return hasDeal ? '<span style="font-size:11px;background:#EFF6FF;color:#1D4ED8;border-radius:20px;padding:2px 10px;font-weight:500;cursor:pointer;" onclick="go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'deals\')},200);">🏠 In Deal Tracker</span>' : ''; })()}
           ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
         </div>
       </div>
@@ -10146,27 +10147,28 @@ async function saveContractDates() {
         financingDate:  dates.financingDeadline    || null,
       };
       if (linkedDeals.length) {
-        // Sync dates to existing deal(s)
+        // Sync dates to existing deal(s) and update status to Under Contract
         for (var di=0; di<linkedDeals.length; di++) {
-          Object.assign(linkedDeals[di], dealUpdate);
-          await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
-          // Remove stale auto-reminders for this deal so they re-inject with new dates
+          var fullUpdate = Object.assign({}, dealUpdate, { status: 'Under Contract' });
+          Object.assign(linkedDeals[di], fullUpdate);
+          await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), fullUpdate);
+          // Remove stale auto-reminders so they re-inject with new dates
           var dealId = linkedDeals[di].id;
           _todos = _todos.filter(function(t){
             return !(t.id && t.id.startsWith('dr_'+dealId+'_'));
           });
         }
-        // Re-inject fresh reminders with updated dates
         injectDealReminders();
-      } else if (_cdmType === 'buyer') {
-        // No buyer deal exists — auto-create one
+        showDealToast('Deal updated — Under Contract', 'View Deal', function(){ go('agent',document.querySelector('[data-pg=agent]')); setTimeout(function(){ switchAgentTab('deals'); }, 200); });
+      } else if (_cdmType === 'buyer' || _cdmType === 'seller') {
+        // No deal exists — auto-create one
         var buyer2 = allBuyers.find(function(b){ return b.uid===_cdmBuyerUid; });
         var newDeal = Object.assign({
           clientUid:   _cdmBuyerUid,
           clientName:  buyer2 ? ((buyer2.firstName||'')+' '+(buyer2.lastName||'')).trim() : 'Client',
-          address:     (buyer2 && (buyer2.propertyAddress || buyer2.buyerAddress)) || '',
+          address:     (buyer2 && (buyer2.propertyAddress || buyer2.listingAddress || buyer2.buyerAddress)) || '',
           agentId:     agentId2,
-          dealType:    'buyer',
+          dealType:    _cdmType,
           status:      'Under Contract',
           salePrice:   0,
           commission:  0,
@@ -10177,6 +10179,8 @@ async function saveContractDates() {
         newDeal.id = ref.id;
         if (!_deals) _deals = [];
         _deals.push(newDeal);
+        injectDealReminders();
+        showDealToast('Deal added to Deal Tracker!', 'View Deal', function(){ go('agent',document.querySelector('[data-pg=agent]')); setTimeout(function(){ switchAgentTab('deals'); }, 200); });
       }
     } catch(syncErr){ console.log('Deal date sync err:', syncErr.message); }
     // Always reopen client profile after saving dates
@@ -12399,9 +12403,9 @@ async function createDealFromListing(listingId) {
     };
     var agentId = userProfile.agentId || 'tom';
     await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(dealData,{createdAt:fb.serverTimestamp()}));
-    alert('Deal created in Deal Tracker!');
     await loadDeals();
     if (typeof renderDealTracker === 'function') renderDealTracker();
+    showDealToast('Deal added to Deal Tracker!', 'View Deal', function(){ switchAgentTab('deals'); });
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
 window.createDealFromListing = createDealFromListing;
@@ -16421,6 +16425,26 @@ function showTaskEmailPrompt(clientUid, taskText) {
   // Auto-dismiss after 5 seconds
   toast._timer = setTimeout(dismiss, 5000);
 }
+function showDealToast(message, actionLabel, actionFn) {
+  var ex = document.getElementById('deal-toast');
+  if (ex) { clearTimeout(ex._timer); ex.remove(); }
+  var toast = document.createElement('div');
+  toast.id = 'deal-toast';
+  toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9000;background:var(--surface);border:1px solid var(--green-md);border-radius:14px;padding:12px 16px;box-shadow:0 4px 24px rgba(0,0,0,0.18);display:flex;align-items:center;gap:12px;min-width:280px;max-width:90vw;animation:slideUp 0.2s ease;';
+  toast.innerHTML = '<div style="font-size:20px;">🏠</div>'
+    + '<div style="flex:1;"><div style="font-size:13px;font-weight:500;color:var(--text);">'+message+'</div></div>'
+    + (actionLabel ? '<button id="deal-toast-action" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;">'+actionLabel+'</button>' : '')
+    + '<button id="deal-toast-close" style="background:none;border:none;color:var(--text3);font-size:18px;cursor:pointer;padding:0;flex-shrink:0;">×</button>';
+  document.body.appendChild(toast);
+  var dismiss = function(){ clearTimeout(toast._timer); if(toast.parentNode) toast.remove(); };
+  document.getElementById('deal-toast-close').onclick = dismiss;
+  if (actionLabel && actionFn) {
+    document.getElementById('deal-toast-action').onclick = function(){ dismiss(); actionFn(); };
+  }
+  toast._timer = setTimeout(dismiss, 5000);
+}
+window.showDealToast = showDealToast;
+
 window.showTaskEmailPrompt = showTaskEmailPrompt;
 
 function editClientInfo(uid) {
