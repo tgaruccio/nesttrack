@@ -10132,20 +10132,44 @@ async function saveContractDates() {
     await loadBuyersForAgent();
     renderBuyers();
     sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
-    // Sync dates to linked deal card
+    // Sync dates to linked deal card, or auto-create deal if none exists
     try {
       var agentId2 = userProfile.agentId||'tom';
       var linkedDeals = _deals.filter(function(d){
         return d.clientUid===_cdmBuyerUid && (_cdmType==='seller' ? d.dealType==='seller' : d.dealType==='buyer');
       });
-      for (var di=0; di<linkedDeals.length; di++) {
-        var dealUpdate = {
-          contractDate: dates.acceptanceDate || null,
-          closingDate: dates.closingDate || null,
-          inspectionDate: dates.inspectionDeadline || null,
-        };
-        Object.assign(linkedDeals[di], dealUpdate);
-        await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
+      var dealUpdate = {
+        contractDate:   dates.acceptanceDate       || null,
+        closingDate:    dates.closingDate          || null,
+        inspectionDate: dates.inspectionDeadline   || null,
+        appraisalDate:  dates.appraisalDeadline    || null,
+        financingDate:  dates.financingDeadline    || null,
+      };
+      if (linkedDeals.length) {
+        // Sync dates to existing deal(s)
+        for (var di=0; di<linkedDeals.length; di++) {
+          Object.assign(linkedDeals[di], dealUpdate);
+          await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), dealUpdate);
+        }
+      } else if (_cdmType === 'buyer') {
+        // No buyer deal exists — auto-create one
+        var buyer2 = allBuyers.find(function(b){ return b.uid===_cdmBuyerUid; });
+        var newDeal = Object.assign({
+          clientUid:   _cdmBuyerUid,
+          clientName:  buyer2 ? ((buyer2.firstName||'')+' '+(buyer2.lastName||'')).trim() : 'Client',
+          address:     (buyer2 && buyer2.buyerAddress) || '',
+          agentId:     agentId2,
+          dealType:    'buyer',
+          status:      'Under Contract',
+          salePrice:   0,
+          commission:  0,
+          commMode:    'dollar',
+          createdAt:   fb.serverTimestamp()
+        }, dealUpdate);
+        var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId2,'deals'), newDeal);
+        newDeal.id = ref.id;
+        if (!_deals) _deals = [];
+        _deals.push(newDeal);
       }
     } catch(syncErr){ console.log('Deal date sync err:', syncErr.message); }
     // Always reopen client profile after saving dates
