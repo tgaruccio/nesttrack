@@ -12548,6 +12548,7 @@ async function renderOfferManager() {
         + '<button class="btn btn-sm btn-g" onclick="viewOffers(\''+l.id+'\')">📋 View Offers</button>'
         + '<button class="btn btn-sm" onclick="copyOfferLink(\''+encodeURIComponent(link)+'\')">🔗 Copy Link</button>'
         + '<button class="btn btn-sm" onclick="openEditListingModal(\''+l.id+'\')">✏️ Edit</button>'
+        + '<button class="btn btn-sm" onclick="showOpenHouseQRFromListing(\''+l.id+'\',\''+partnerEsc(l.address||'')+'\')">📱 Open House QR</button>'
         + '<button class="btn btn-sm" onclick="createDealFromListing(\''+l.id+'\')" style="color:var(--green-dk);border-color:var(--green-dk);">🏠 Create Deal</button>'
         + '<button class="btn btn-sm" onclick="archiveListing(\''+l.id+'\')" style="color:#E24B4A;">Archive</button>'
         + '</div></div></div></div>';
@@ -15544,6 +15545,49 @@ function showOpenHouseQR(listingId) {
     + '</div>';
   document.body.appendChild(overlay);
 }
+function showOpenHouseQRFromListing(listingId, address) {
+  // Works from Offer Manager — doesn't need _srListings
+  var url = 'https://app.garucciogroup.com/openhouse.html?id='+listingId;
+  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(url)+'&bgcolor=080808&color=C9A84C&margin=10';
+  var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
+  var agentPhone = userProfile.phone||userProfile.agentPhone||'';
+  var agentEmail = userProfile.email||'';
+  var agentPhoto = userProfile.profilePhotoUrl||'';
+
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = '<div style="background:#111;border:1px solid rgba(201,168,76,0.2);border-radius:20px;padding:28px;width:100%;max-width:360px;text-align:center;">'
+    + '<div style="font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C9A84C;margin-bottom:8px;">Open House</div>'
+    + '<div style="font-family:Georgia,serif;font-size:18px;font-weight:400;color:#F0EDE8;margin-bottom:4px;line-height:1.3;">'+partnerEsc(address)+'</div>'
+    + '<div style="font-size:12px;color:#4A4641;margin-bottom:20px;">Scan to explore this property</div>'
+    + '<div style="background:#080808;border-radius:14px;padding:16px;display:inline-block;margin-bottom:16px;border:1px solid rgba(201,168,76,0.1);">'
+    + '<img src="'+qrUrl+'" width="200" height="200" style="display:block;border-radius:8px;"/>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#4A4641;margin-bottom:18px;word-break:break-all;">'+url+'</div>'
+    + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
+    + '<button onclick="navigator.clipboard.writeText(\''+url+'\').then(function(){showDealToast(\'✓ Link copied\',null,null)})" style="flex:1;background:#1A1A1A;border:1px solid #2A2A2A;border-radius:10px;padding:10px;font-size:13px;color:#F0EDE8;cursor:pointer;font-family:inherit;">📋 Copy</button>'
+    + '<button onclick="showOHFlyerById(\''+listingId+'\')" style="flex:1;background:#C9A84C;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;color:#000;cursor:pointer;font-family:inherit;">🖨 Flyer</button>'
+    + '</div>'
+    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:none;color:#4A4641;font-size:13px;cursor:pointer;font-family:inherit;padding:6px;">Close</button>'
+    + '</div>';
+  document.body.appendChild(overlay);
+}
+window.showOpenHouseQRFromListing = showOpenHouseQRFromListing;
+
+async function showOHFlyerById(listingId) {
+  // Load listing fresh from Firestore if not in _srListings
+  var l = (_srListings||[]).find(function(x){ return x.id===listingId; });
+  if (!l) {
+    try {
+      var snap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId));
+      if (snap.exists()) l = {id:snap.id,...snap.data()};
+    } catch(e){}
+  }
+  if (!l) { alert('Could not load listing.'); return; }
+  showOHFlyer(listingId);
+}
+window.showOHFlyerById = showOHFlyerById;
+
 window.showOpenHouseQR = showOpenHouseQR;
 
 function showOHFlyer(listingId) {
