@@ -15583,11 +15583,12 @@ async function showOpenHouseQRFromListing(listingId, address) {
     + '</div>'
 
     // Fields grid
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
     + ohField('oh-beds','Beds','number',l.beds||'','4')
     + ohField('oh-baths','Baths','number',l.baths||'','2.5')
     + ohField('oh-sqft','Sq Ft','number',l.sqft||'','2400')
     + ohField('oh-year','Year','number',l.yearBuilt||'','2005')
+    + ohField('oh-taxes','Ann. Taxes ($)','number',l.taxes||'','6400')
     + '</div>'
 
     // Description
@@ -15709,6 +15710,7 @@ async function ohSaveDetails(listingId) {
   var baths = parseFloat(document.getElementById('oh-baths').value)||null;
   var sqft = parseFloat(document.getElementById('oh-sqft').value)||null;
   var yearBuilt = parseInt(document.getElementById('oh-year').value)||null;
+  var taxes = parseFloat(document.getElementById('oh-taxes').value)||null;
   var description = document.getElementById('oh-desc').value.trim()||null;
   var giveawayEnabled = document.getElementById('oh-giveaway').checked;
   var giveawayPrize = document.getElementById('oh-prize') ? document.getElementById('oh-prize').value.trim()||'$100 Amazon Gift Card' : '$100 Amazon Gift Card';
@@ -15716,7 +15718,7 @@ async function ohSaveDetails(listingId) {
   var photoUrl = photos[0]||null;
   try {
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
-      beds, baths, sqft, yearBuilt, description,
+      beds, baths, sqft, yearBuilt, taxes, description,
       giveawayEnabled, giveawayPrize,
       photos: photos,
       photoUrl: photoUrl,
@@ -15724,7 +15726,7 @@ async function ohSaveDetails(listingId) {
     });
     // Update local listing cache
     var local = (_listings||[]).find(function(x){ return x.id===listingId; });
-    if (local) Object.assign(local, {beds,baths,sqft,yearBuilt,description,giveawayEnabled,giveawayPrize,photos,photoUrl});
+    if (local) Object.assign(local, {beds,baths,sqft,yearBuilt,taxes,description,giveawayEnabled,giveawayPrize,photos,photoUrl});
     // Show QR section
     var qrSection = document.getElementById('oh-qr-section');
     var url = 'https://app.garucciogroup.com/openhouse.html?id='+listingId;
@@ -15867,10 +15869,10 @@ function showOHFlyer(l, w) {
     + 'body.light{background:#F5F5F0;color:#0D0D0D;}'
 
     // Layout
-    + '.page-wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:16px;}'
+    + '.page-wrap{display:flex;flex-direction:column;align-items:center;padding:20px;gap:16px;min-height:100vh;}'
 
     // Edit panel
-    + '.edit-panel{width:100%;max-width:8in;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;}'
+    + '.edit-panel{width:100%;max-width:8in;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:16px 20px;position:sticky;top:0;z-index:10;}'
     + 'body.light .edit-panel{background:#fff;border-color:#e0e0e0;}'
     + '.edit-panel-title{font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;margin-bottom:12px;}'
     + 'body.light .edit-panel-title{color:#1D9E75;}'
@@ -16007,7 +16009,7 @@ function showOHFlyer(l, w) {
     + '<div>'
     + '<div class="qr-title" id="f-qrhead">'+defQRHead+'</div>'
     + '<div class="qr-items">'
-    + '<span class="qr-hi">&#x1F4CA; Your exact monthly payment</span>'+(monthlyTax?'<br/><span class="qr-hi">&#x1F3E6; Est. monthly tax: $'+Number(monthlyTax).toLocaleString()+'</span>':'')+'<br/>'
+    + '<span class="qr-hi">&#x1F4CA; Your exact monthly payment</span><br/>'
     + 'School district info &amp; ratings<br/>'
     + 'Neighborhood overview &amp; commute<br/>'
     + 'Direct line to your agent'
