@@ -503,6 +503,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Email</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
+    <button class="nb" data-pg="onboarding" onclick="go('onboarding',this)" id="nb-onboarding" style="display:none;">🎓 My Onboarding</button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
     <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet</button>
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
@@ -1045,6 +1046,18 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+
+<!-- AGENT ONBOARDING TRAIL -->
+<div class="page" id="page-onboarding">
+  <div class="ph">
+    <div class="pt">🎓 My Onboarding</div>
+    <span class="pill pill-g" id="ob-progress-pill">Getting Started</span>
+  </div>
+  <div id="ob-progress-bar-wrap" style="background:var(--surface2);border-radius:20px;height:8px;margin-bottom:16px;overflow:hidden;">
+    <div id="ob-progress-bar" style="background:var(--green);height:100%;border-radius:20px;width:0%;transition:width 0.4s;"></div>
+  </div>
+  <div id="onboarding-container"></div>
+</div>
 
 <div class="page" id="page-agent-todo">
   <div class="ph"><div class="pt">To-Do List</div></div>
@@ -2216,6 +2229,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings / Appts</button>
     <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏠 Deals</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📊 Seller Reports</button>
+    <button id="agent-tab-team" onclick="switchAgentTab('team')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">👥 My Team</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -2358,6 +2372,11 @@ textarea{resize:vertical;min-height:68px;}
   <!-- SELLER REPORTS PANEL -->
   <div id="agent-reports-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
     <div id="seller-reports-container"></div>
+  </div>
+
+  <!-- TEAM ONBOARDING PANEL -->
+  <div id="agent-team-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
+    <div id="team-onboarding-container"></div>
   </div>
 
   <!-- PROFILE PANEL (via gear icon on dashboard) -->
@@ -2752,6 +2771,21 @@ textarea{resize:vertical;min-height:68px;}
     <div style="display:flex;flex-direction:column;gap:10px;">
       <div><label class="flabel">Personal Note <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
         <textarea id="pi-note" rows="2" placeholder="Hi Sarah, here's your link to get started!" style="font-size:14px;"></textarea>
+      </div>
+      <div id="pi-onboarding-wrap" style="display:none;">
+        <label style="display:flex;align-items:center;gap:10px;background:var(--green-lt);border:1px solid var(--green-md);border-radius:var(--r);padding:10px 12px;cursor:pointer;">
+          <input type="checkbox" id="pi-onboarding" style="width:18px;height:18px;cursor:pointer;"/>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--green-dk);">🎓 Include Onboarding Program</div>
+            <div style="font-size:11px;color:var(--green-dk);opacity:0.85;">Gives this agent access to the 5-week onboarding trail in their app</div>
+          </div>
+        </label>
+        <div style="margin-top:8px;">
+          <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">Assign Mentor / Sponsor</label>
+          <select id="pi-mentor" style="width:100%;font-size:13px;padding:8px;">
+            <option value="">— No mentor assigned —</option>
+          </select>
+        </div>
       </div>
       <div id="pi-no-email-warn" style="display:none;" class="warn">No email on file — add one to the contact first.</div>
     </div>
@@ -3425,7 +3459,7 @@ async function signUp() {
     // Copy over contract dates and other agent-set fields if they exist
     var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
       'buyerIsCash','sellerIsCash','inviteCode','crmStatus','notes',
-      'mortLAName','mortLAEmail','mortLACCEnabled'];
+      'mortLAName','mortLAEmail','mortLACCEnabled','onboardingAssigned','mentorAgentId'];
     copyFields.forEach(function(f) {
       if (existingContact && existingContact[f] !== undefined) newProfile[f] = existingContact[f];
     });
@@ -3921,7 +3955,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();await scheduleLoad();injectScheduleBlocks();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
   await loadAgentPartners(userProfile.agentId||'tom');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
@@ -4148,6 +4182,7 @@ function go(page, el) {
   if (page === 'dash') renderDash();
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
   if (page === 'education') renderEducation();
+  if (page === 'onboarding') { renderOnboarding(); }
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
   if (page === 'messages') { renderMessagesPage(); }
@@ -7732,10 +7767,10 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel');
-  [bb,cb,pb,ptb,otb,stb,dtb,rtb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp,otp,stp,dtp,rtp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel');
+  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -7789,6 +7824,10 @@ function switchAgentTab(tab) {
     if (rtb) { rtb.style.background='var(--green)'; rtb.style.color='#fff'; }
     if (rtp) rtp.style.display='flex';
     renderSellerReports();
+  } else if (tab==='team') {
+    if (ttb) { ttb.style.background='var(--green)'; ttb.style.color='#fff'; }
+    if (ttp) ttp.style.display='flex';
+    renderTeamOnboarding();
   } else {
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (bp) bp.style.display='flex';
@@ -15034,6 +15073,396 @@ async function injectScheduleBlocks() {
 }
 window.injectScheduleBlocks = injectScheduleBlocks;
 
+// ═══════════════════════════════════════════════════
+// AGENT ONBOARDING TRAIL
+// ═══════════════════════════════════════════════════
+
+var _obSteps = null; // cached from Firestore or defaults
+var _obProgress = {}; // {stepId: true/false}
+
+var OB_DEFAULT_STEPS = [
+  // ── WEEK 1 ──
+  {id:'w1s1', week:'Week 1', weekTitle:'Getting Started', title:'How to Use This Onboarding', desc:'Start here — a quick overview of how this program works and what to expect.', videoUrl:'https://www.loom.com/share/2d77e8d88c3c4f90b4321e1cd193a811', thumb:'', link:'', linkLabel:''},
+  {id:'w1s2', week:'Week 1', weekTitle:'Getting Started', title:'What To Expect', desc:'Short intro video on the onboarding process.', videoUrl:'https://www.loom.com/share/99945f14a632409ab9530615e60d5874', thumb:'', link:'', linkLabel:''},
+  {id:'w1s3', week:'Week 1', weekTitle:'Getting Started', title:'Getting Started', desc:'Watch this to get started! Covers joining your local Realtor association, MLS membership, business cards, virtual business cards, signs, headshots, and team logos.', videoUrl:'https://youtu.be/yuclOhZZiC0', thumb:'', link:'https://www.akronclevelandrealtors.com/members/join-acar', linkLabel:'Join ACAR'},
+  {id:'w1s4', week:'Week 1', weekTitle:'Getting Started', title:'Social Media Announcement', desc:'Create a short social media video announcing your move. Tips and script examples included — keep it authentic, 30-45 seconds, and from the heart.', videoUrl:'https://youtu.be/FBqfcD7GWEU', thumb:'', link:'', linkLabel:''},
+  {id:'w1s5', week:'Week 1', weekTitle:'Getting Started', title:'Review Team SOPs', desc:'Standard Operating Procedures — understand what to expect as part of the team.', videoUrl:'', thumb:'', link:'', linkLabel:'View SOPs'},
+  {id:'w1s6', week:'Week 1', weekTitle:'Getting Started', title:'Mindset Training', desc:'The foundation everything else is built on. Going into this with the right mindset is the #1 most important factor.', videoUrl:'https://youtu.be/LOb9puE1fyg', thumb:'', link:'', linkLabel:''},
+  {id:'w1s7', week:'Week 1', weekTitle:'Getting Started', title:'Set Up Your Team Email', desc:'Get with Tom to set up your team email. This video shows how to connect it to all your devices.', videoUrl:'https://www.loom.com/share/bfbbe82d8bbb4b34980913589000b299', thumb:'', link:'https://privateemail.com/', linkLabel:'Email Login'},
+  {id:'w1s8', week:'Week 1', weekTitle:'Getting Started', title:'Real Brokerage Platform', desc:'Get to know the Real platform — this is where all your transactions happen. Review Real Signature for online document signing.', videoUrl:'https://www.loom.com/share/10d1ae7a8fc24c31ba798187151af8f4', thumb:'', link:'https://bolt.therealbrokerage.com/', linkLabel:'Open Platform'},
+  {id:'w1s9', week:'Week 1', weekTitle:'Getting Started', title:'Check In With Mentor', desc:'Schedule a check-in call with your mentor to make sure you have everything in order and go over any questions.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+
+  // ── WEEK 2 ──
+  {id:'w2s1', week:'Week 2', weekTitle:'Docs & Transactions', title:'Overview of the MLS', desc:'Get to know the MLS — bookmark this and watch the overview video.', videoUrl:'https://www.loom.com/share/bd29014469de441c95162810db8a7f04', thumb:'', link:'https://mlsnow.com/', linkLabel:'Open MLS'},
+  {id:'w2s2', week:'Week 2', weekTitle:'Docs & Transactions', title:'Where to Find Docs', desc:'All documents live in Real Signature. Here\'s how to access them.', videoUrl:'https://www.loom.com/share/46125f7795a44082a9c21043f8edafd9', thumb:'', link:'', linkLabel:''},
+  {id:'w2s3', week:'Week 2', weekTitle:'Docs & Transactions', title:'Real Signature Deep Dive', desc:'A detailed review of the Real Signature platform for document signing.', videoUrl:'https://www.loom.com/share/db41dc99e9c84860ae59a3bc4a926af8', thumb:'', link:'', linkLabel:''},
+  {id:'w2s4', week:'Week 2', weekTitle:'Docs & Transactions', title:'Working With Buyers & Sellers', desc:'General overview of what to expect when working with buyers and sellers.', videoUrl:'https://youtu.be/mI9I5KZ_7V0', thumb:'', link:'', linkLabel:''},
+  {id:'w2s5', week:'Week 2', weekTitle:'Docs & Transactions', title:'Buyer Documents', desc:'Overview of purchase agreement documents — everything you need to write an offer.', videoUrl:'https://www.loom.com/share/67d2dbd4c9804afdb2d77dc54838682b', thumb:'', link:'https://drive.google.com/drive/folders/1QXRiwIbMMwPSm2ozpg8ogLf2W-XC4sK3', linkLabel:'Download Docs'},
+  {id:'w2s6', week:'Week 2', weekTitle:'Docs & Transactions', title:'Listing Documents', desc:'Overview of listing agreements — everything you need to sign a listing.', videoUrl:'https://www.loom.com/share/9edfda3afed844ddb4f4ae706c4bc172', thumb:'', link:'https://drive.google.com/drive/folders/1QXRiwIbMMwPSm2ozpg8ogLf2W-XC4sK3', linkLabel:'Download Docs'},
+  {id:'w2s7', week:'Week 2', weekTitle:'Docs & Transactions', title:'Transaction Management', desc:'When you get a property under contract, here\'s what you do at the brokerage level.', videoUrl:'https://www.loom.com/share/43a9fba9f8ba4570952c0d945d6e3df5', thumb:'', link:'', linkLabel:''},
+  {id:'w2s8', week:'Week 2', weekTitle:'Docs & Transactions', title:'Goal Setting for Success', desc:'Goal setting is extremely important — but only if done right.', videoUrl:'https://youtu.be/2FxHMsEHKVUUU', thumb:'', link:'', linkLabel:''},
+  {id:'w2s9', week:'Week 2', weekTitle:'Docs & Transactions', title:'Sticking to a Schedule', desc:'The most important thing you can do as a successful agent — set a schedule and stick to it.', videoUrl:'https://youtu.be/kmgsW2zzR1Y', thumb:'', link:'', linkLabel:''},
+  {id:'w2s10', week:'Week 2', weekTitle:'Docs & Transactions', title:'Check In With Mentor', desc:'Share your goals, your schedule, and any questions about paperwork.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+
+  // ── WEEK 3 ──
+  {id:'w3s1', week:'Week 3', weekTitle:'Lead Generation', title:'Lead Generation Overview', desc:'Prospecting and lead generation overview — scripts and 30 listing lead gen ideas in resources.', videoUrl:'https://youtu.be/4UCpQCSIHXE', thumb:'', link:'', linkLabel:''},
+  {id:'w3s2', week:'Week 3', weekTitle:'Lead Generation', title:'Using Landvoice', desc:'How to use Landvoice.com to get homeowner contact info for FSBOs and expireds.', videoUrl:'https://www.loom.com/share/6d0990fc7e8e49268f3a0cf0702526f0', thumb:'', link:'https://www.landvoice.com/', linkLabel:'Open Landvoice'},
+  {id:'w3s3', week:'Week 3', weekTitle:'Lead Generation', title:'Sphere of Influence', desc:'Growing your sphere of influence — the fastest path to your first deals.', videoUrl:'https://youtu.be/ySgV2J_69Fk', thumb:'', link:'', linkLabel:''},
+  {id:'w3s4', week:'Week 3', weekTitle:'Lead Generation', title:'Email Marketing', desc:'Keeping in touch forever with email marketing — consistency wins.', videoUrl:'https://youtu.be/1C4qy7tWPOk', thumb:'', link:'', linkLabel:''},
+  {id:'w3s5', week:'Week 3', weekTitle:'Lead Generation', title:'Open Houses', desc:'How to use open houses to generate leads. Great resource: listreports.com', videoUrl:'https://youtu.be/M3rTNmXGwy0', thumb:'', link:'https://www.listreports.com', linkLabel:'ListReports'},
+  {id:'w3s6', week:'Week 3', weekTitle:'Lead Generation', title:'Social Media & Video', desc:'Building your brand and generating leads through social media and video content.', videoUrl:'https://youtu.be/yU_8Z3pAifE', thumb:'', link:'', linkLabel:''},
+  {id:'w3s7', week:'Week 3', weekTitle:'Lead Generation', title:'Cold Calling', desc:'FSBOs, expireds, and geo farming — cold calling scripts and strategies.', videoUrl:'https://youtu.be/tiQXS3xPSjc', thumb:'', link:'', linkLabel:''},
+  {id:'w3s8', week:'Week 3', weekTitle:'Lead Generation', title:'Door Knocking', desc:'How to door knock effectively and build neighborhood relationships.', videoUrl:'https://youtu.be/C0GU2zTucOM', thumb:'', link:'', linkLabel:''},
+  {id:'w3s9', week:'Week 3', weekTitle:'Lead Generation', title:'Writing Letters', desc:'Sending letters to homeowners — consider handwritten or use Thanks.io for scale.', videoUrl:'', thumb:'', link:'https://www.thanks.io/', linkLabel:'Thanks.io'},
+  {id:'w3s10', week:'Week 3', weekTitle:'Lead Generation', title:'Client Events & Giveaways', desc:'Local events, client appreciation, and giveaways to grow your sphere.', videoUrl:'https://youtu.be/jQ-tU2pZJl4', thumb:'', link:'', linkLabel:''},
+  {id:'w3s11', week:'Week 3', weekTitle:'Lead Generation', title:'Paid Lead Services', desc:'Zillow, Realtor.com, and other paid lead platforms — how to evaluate them.', videoUrl:'https://youtu.be/1_4AI5aPkc4', thumb:'', link:'', linkLabel:''},
+  {id:'w3s12', week:'Week 3', weekTitle:'Lead Generation', title:'Check In', desc:'Weekly check in with mentor.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+
+  // ── WEEK 4 ──
+  {id:'w4s1', week:'Week 4', weekTitle:'Putting It All Together', title:'Your #1 Priority', desc:'Having conversations is your number one priority. Everything else comes second.', videoUrl:'https://www.youtube.com/watch?v=TfSUPC3gAWA', thumb:'', link:'', linkLabel:''},
+  {id:'w4s2', week:'Week 4', weekTitle:'Putting It All Together', title:'Buyer Consultations', desc:'How to run a buyer consultation, talk to buyer leads, and handle buyer agency agreements.', videoUrl:'https://youtu.be/RMhC2VMkjmU', thumb:'', link:'', linkLabel:''},
+  {id:'w4s3', week:'Week 4', weekTitle:'Putting It All Together', title:'How to Talk to Sellers', desc:'Seller leads, listing appointments, pricing a home, commission structure and more.', videoUrl:'https://youtu.be/sXdHpNfiquk', thumb:'', link:'', linkLabel:''},
+  {id:'w4s4', week:'Week 4', weekTitle:'Putting It All Together', title:'Lead Flow', desc:'What to do when you get a lead — your step-by-step process from contact to client.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+  {id:'w4s5', week:'Week 4', weekTitle:'Putting It All Together', title:'Scripts', desc:'Review all your scripts — practice until they feel natural, not scripted.', videoUrl:'', thumb:'', link:'', linkLabel:'View Scripts'},
+  {id:'w4s6', week:'Week 4', weekTitle:'Putting It All Together', title:'Role Play', desc:'Practice buyer consults and listing appointments with your mentor or team leader. This is where it all comes together.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+
+  // ── WEEK 5 ──
+  {id:'w5s1', week:'Week 5', weekTitle:'30 Day Action Plan', title:'Host 2-4 Open Houses', desc:'Get out there and generate leads. For each open house: 25 calls to the neighborhood, signs everywhere, and 5/5/10 door-knocking.', videoUrl:'https://youtu.be/M3rTNmXGwy0', thumb:'', link:'https://www.listreports.com/home', linkLabel:'ListReports'},
+  {id:'w5s2', week:'Week 5', weekTitle:'30 Day Action Plan', title:'Make 4 Social Media Posts', desc:'Minimum 1 post per week for 4 weeks. Open house videos and property walkthroughs are great content.', videoUrl:'https://youtu.be/yU_8Z3pAifE', thumb:'', link:'', linkLabel:''},
+  {id:'w5s3', week:'Week 5', weekTitle:'30 Day Action Plan', title:'Make 100 Calls', desc:'25 calls a week for 4 weeks. Keep track — no cheating! This is the quickest path to success.', videoUrl:'', thumb:'', link:'', linkLabel:'View Scripts'},
+  {id:'w5s4', week:'Week 5', weekTitle:'30 Day Action Plan', title:'Build Your Database', desc:'Add as many people as possible to your CRM. Name, phone, email, address, notes. The more info the better — this database will be worth gold.', videoUrl:'https://www.loom.com/share/388bafdd58f3411e9417a6239599e752', thumb:'', link:'https://docs.google.com/spreadsheets/d/1WJNVWhxBXjVSQ-qjt_TAN4PaH5eZ6WpmQfstvNG1Gbs/edit?usp=sharing', linkLabel:'Google Sheet Template'},
+  {id:'w5s5', week:'Week 5', weekTitle:'30 Day Action Plan', title:'Make a Commitment', desc:'Stick to your schedule. Commit to yourself. Be accountable. This is where most agents fail — don\'t be most agents.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+  {id:'w5s6', week:'Week 5', weekTitle:'30 Day Action Plan', title:'Final Check In', desc:'Weekly check in with your mentor/team leader. Share wins, challenges, and your plan going forward.', videoUrl:'', thumb:'', link:'', linkLabel:''},
+
+  // ── BONUS ──
+  {id:'wx1', week:'Bonus', weekTitle:'Additional Training', title:'90 Day Action Plan', desc:'The Zero to Diamond 90-day action plan — for agents who are ready to go all in.', videoUrl:'', thumb:'', link:'', linkLabel:'View Plan'},
+  {id:'wx2', week:'Bonus', weekTitle:'Additional Training', title:'Closing Out a Deal on the MLS', desc:'Step-by-step walkthrough of closing out a transaction in the MLS.', videoUrl:'https://www.loom.com/share/ebb615bf627b467d8afa6546b363e312', thumb:'', link:'', linkLabel:''},
+  {id:'wx3', week:'Bonus', weekTitle:'Additional Training', title:'AI Real Estate CMA Letters', desc:'Using AI to write CMA letters — save time and look more professional.', videoUrl:'https://www.youtube.com/watch?v=NmDggwUN0qI', thumb:'', link:'', linkLabel:''},
+];
+
+async function obLoad() {
+  if (!currentUser) return;
+  try {
+    // Load custom steps from Firestore (team leader edits)
+    var stepsSnap = await fb.getDoc(fb.doc(fb.db,'onboarding_config','steps'));
+    _obSteps = stepsSnap.exists() ? (stepsSnap.data().steps || OB_DEFAULT_STEPS) : OB_DEFAULT_STEPS;
+    // Load this agent's progress
+    var progSnap = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',currentUser.uid));
+    _obProgress = progSnap.exists() ? (progSnap.data().completed || {}) : {};
+    // Show nav button if assigned
+    obCheckAssigned();
+  } catch(e) { _obSteps = OB_DEFAULT_STEPS; _obProgress = {}; }
+}
+window.obLoad = obLoad;
+
+async function obCheckAssigned() {
+  var btn = document.getElementById('nb-onboarding');
+  if (!btn || !isAgent) return;
+  // Show if profile has onboardingAssigned or if team leader
+  var assigned = (userProfile && userProfile.onboardingAssigned) || isTeamLeader();
+  btn.style.display = assigned ? 'block' : 'none';
+}
+window.obCheckAssigned = obCheckAssigned;
+
+async function obSaveProgress() {
+  if (!currentUser) return;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agent_onboarding',currentUser.uid), {
+      completed: _obProgress,
+      updatedAt: fb.serverTimestamp(),
+      agentId: userProfile.agentId || 'tom'
+    });
+  } catch(e) {}
+}
+
+function obGetYouTubeThumbnail(url) {
+  if (!url) return '';
+  var match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+  if (match) return 'https://img.youtube.com/vi/'+match[1]+'/hqdefault.jpg';
+  return '';
+}
+
+function obGetLoomThumbnail(url) {
+  // Loom thumbnail pattern
+  if (!url) return '';
+  if (url.includes('loom.com/share/')) {
+    var id = url.split('/share/')[1].split('?')[0];
+    return 'https://cdn.loom.com/sessions/thumbnails/'+id+'-with-play.gif';
+  }
+  return '';
+}
+
+function obGetThumb(step) {
+  if (step.thumb) return step.thumb;
+  if (step.videoUrl) {
+    var yt = obGetYouTubeThumbnail(step.videoUrl);
+    if (yt) return yt;
+    var loom = obGetLoomThumbnail(step.videoUrl);
+    if (loom) return loom;
+  }
+  return '';
+}
+
+function renderOnboarding() {
+  if (!_obSteps) { obLoad().then(renderOnboarding); return; }
+  var container = document.getElementById('onboarding-container');
+  if (!container) return;
+
+  var steps = _obSteps;
+  var total = steps.length;
+  var done = steps.filter(function(s){ return _obProgress[s.id]; }).length;
+  var pct = total ? Math.round(done/total*100) : 0;
+
+  // Update progress bar
+  var bar = document.getElementById('ob-progress-bar');
+  if (bar) bar.style.width = pct+'%';
+  var pill = document.getElementById('ob-progress-pill');
+  if (pill) pill.textContent = done+'/'+total+' Complete';
+
+  // Group by week
+  var weeks = {};
+  var weekOrder = [];
+  steps.forEach(function(s) {
+    if (!weeks[s.week]) { weeks[s.week] = {title:s.weekTitle, steps:[]}; weekOrder.push(s.week); }
+    weeks[s.week].steps.push(s);
+  });
+
+  var html = '';
+  weekOrder.forEach(function(week) {
+    var wData = weeks[week];
+    var wDone = wData.steps.filter(function(s){ return _obProgress[s.id]; }).length;
+    var wTotal = wData.steps.length;
+    var allDone = wDone === wTotal;
+
+    html += '<div style="margin-bottom:20px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
+      + '<div>'
+      + '<div style="font-size:16px;font-weight:700;color:var(--text);">'+week+'</div>'
+      + '<div style="font-size:12px;color:var(--text3);">'+wData.title+'</div>'
+      + '</div>'
+      + '<span style="font-size:12px;background:'+(allDone?'var(--green-lt)':'var(--surface2)')+';color:'+(allDone?'var(--green-dk)':'var(--text3)')+';border-radius:20px;padding:3px 10px;font-weight:500;">'+wDone+'/'+wTotal+'</span>'
+      + '</div>';
+
+    wData.steps.forEach(function(s) {
+      var isDone = !!_obProgress[s.id];
+      var thumb = obGetThumb(s);
+      html += '<div style="background:var(--surface);border:1px solid '+(isDone?'var(--green-md)':'var(--border)')+';border-radius:var(--r);margin-bottom:10px;overflow:hidden;">';
+
+      // Video thumbnail
+      if (thumb && s.videoUrl) {
+        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:block;position:relative;text-decoration:none;">'
+          + '<img src="'+thumb+'" style="width:100%;max-height:180px;object-fit:cover;display:block;" onerror="this.parentNode.style.display=\'none\'" />'
+          + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:52px;height:52px;background:rgba(0,0,0,0.65);border-radius:50%;display:flex;align-items:center;justify-content:center;">'
+          + '<div style="width:0;height:0;border-top:11px solid transparent;border-bottom:11px solid transparent;border-left:18px solid #fff;margin-left:4px;"></div>'
+          + '</div></a>';
+      }
+
+      html += '<div style="padding:12px 14px;">'
+        + '<div style="display:flex;align-items:flex-start;gap:10px;">'
+        + '<div onclick="obToggle(\''+s.id+'\')" style="width:22px;height:22px;border-radius:50%;border:2px solid '+(isDone?'var(--green)':'var(--border)')+';background:'+(isDone?'var(--green)':'var(--surface)')+';display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;margin-top:1px;color:#fff;font-size:12px;">'+(isDone?'✓':'')+'</div>'
+        + '<div style="flex:1;">'
+        + '<div style="font-size:14px;font-weight:600;color:var(--text);'+(isDone?'text-decoration:line-through;color:var(--text3);':'')+'">'+s.title+'</div>'
+        + (s.desc ? '<div style="font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.5;">'+s.desc+'</div>' : '')
+        + '</div></div>'
+
+        // Links row
+        + (s.videoUrl || s.link ? '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">' : '');
+
+      if (s.videoUrl && !thumb) {
+        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--green);color:#fff;text-decoration:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;">▶ Watch Video</a>';
+      } else if (s.videoUrl && thumb) {
+        html += '<a href="'+s.videoUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;border-radius:20px;padding:5px 12px;font-size:12px;">▶ Watch</a>';
+      }
+      if (s.link) {
+        html += '<a href="'+s.link+'" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;border-radius:20px;padding:5px 12px;font-size:12px;">🔗 '+(s.linkLabel||'Open Link')+'</a>';
+      }
+      if (s.videoUrl || s.link) html += '</div>';
+
+      html += '<button onclick="obToggle(\''+s.id+'\')" style="width:100%;margin-top:10px;background:'+(isDone?'var(--surface2)':'var(--green)')+';color:'+(isDone?'var(--text2)':'#fff')+';border:'+(isDone?'1px solid var(--border)':'none')+';border-radius:var(--r);padding:10px;font-size:13px;font-weight:600;cursor:pointer;">'+(isDone?'✓ Completed — tap to undo':'Mark Complete ✓')+'</button>'
+        + '</div></div>';
+    });
+
+    html += '</div>';
+  });
+
+  // Team leader editor button
+  if (isTeamLeader()) {
+    html += '<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);text-align:center;">'
+      + '<button onclick="obOpenEditor()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 20px;font-size:13px;cursor:pointer;">⚙️ Edit Onboarding Content</button>'
+      + '</div>';
+  }
+
+  container.innerHTML = html;
+}
+window.renderOnboarding = renderOnboarding;
+
+async function obToggle(stepId) {
+  _obProgress[stepId] = !_obProgress[stepId];
+  await obSaveProgress();
+  renderOnboarding();
+}
+window.obToggle = obToggle;
+
+// ── ONBOARDING EDITOR (team leader only) ──
+function obOpenEditor() {
+  if (!isTeamLeader()) return;
+  if (!_obSteps) return;
+
+  var overlay = document.createElement('div');
+  overlay.id = 'ob-editor-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9000;display:flex;flex-direction:column;overflow:hidden;';
+
+  overlay.innerHTML = '<div style="background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">'
+    + '<div style="font-size:15px;font-weight:600;">⚙️ Edit Onboarding</div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<button onclick="obSaveEdits()" style="background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;">Save All</button>'
+    + '<button onclick="document.getElementById(\'ob-editor-overlay\').remove()" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 14px;font-size:13px;cursor:pointer;">Close</button>'
+    + '</div>'
+    + '</div>'
+    + '<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;">'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Edit video URLs, links, titles, and descriptions. Changes save to Firestore and update instantly for all agents.</div>'
+    + '<div id="ob-editor-steps">'
+    + _obSteps.map(function(s, i) {
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:10px;">'
+          + '<div style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">'+s.week+' · Step '+(i+1)+'</div>'
+          + '<div style="display:flex;flex-direction:column;gap:8px;">'
+          + '<input type="text" data-id="'+s.id+'" data-field="title" value="'+partnerEsc(s.title||'')+'" placeholder="Title" style="font-size:13px;font-weight:500;"/>'
+          + '<textarea data-id="'+s.id+'" data-field="desc" placeholder="Description" style="font-size:12px;height:60px;resize:vertical;">'+partnerEsc(s.desc||'')+'</textarea>'
+          + '<input type="url" data-id="'+s.id+'" data-field="videoUrl" value="'+partnerEsc(s.videoUrl||'')+'" placeholder="Video URL (YouTube or Loom)" style="font-size:12px;"/>'
+          + '<input type="url" data-id="'+s.id+'" data-field="thumb" value="'+partnerEsc(s.thumb||'')+'" placeholder="Custom thumbnail URL (optional)" style="font-size:12px;"/>'
+          + '<div style="display:flex;gap:8px;">'
+          + '<input type="url" data-id="'+s.id+'" data-field="link" value="'+partnerEsc(s.link||'')+'" placeholder="Link URL (optional)" style="font-size:12px;flex:2;"/>'
+          + '<input type="text" data-id="'+s.id+'" data-field="linkLabel" value="'+partnerEsc(s.linkLabel||'')+'" placeholder="Link label" style="font-size:12px;flex:1;"/>'
+          + '</div>'
+          + '</div></div>';
+      }).join('')
+    + '</div></div>';
+
+  document.body.appendChild(overlay);
+}
+window.obOpenEditor = obOpenEditor;
+
+async function obSaveEdits() {
+  var allInputs = document.querySelectorAll('#ob-editor-steps [data-id]');
+  allInputs.forEach(function(el) {
+    var id = el.getAttribute('data-id');
+    var field = el.getAttribute('data-field');
+    var step = _obSteps.find(function(s){ return s.id===id; });
+    if (step) step[field] = el.value;
+  });
+  try {
+    await fb.setDoc(fb.doc(fb.db,'onboarding_config','steps'), { steps: _obSteps, updatedAt: fb.serverTimestamp() });
+    var overlay = document.getElementById('ob-editor-overlay');
+    if (overlay) overlay.remove();
+    renderOnboarding();
+    showDealToast('✅ Onboarding content saved!', null, null);
+  } catch(e) { alert('Save failed: '+e.message); }
+}
+window.obSaveEdits = obSaveEdits;
+
+// ── TEAM ONBOARDING VIEW ──
+async function renderTeamOnboarding() {
+  var container = document.getElementById('team-onboarding-container');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading team...</div>';
+
+  try {
+    var myAgentId = userProfile.agentId || 'tom';
+
+    // Load all agent users from Firestore
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'users'),
+      fb.where('role','==','agent')
+    ));
+
+    var agents = [];
+    snap.forEach(function(d) {
+      var data = {uid:d.id,...d.data()};
+      // Team leader sees everyone with onboarding. Others see only their assigned agents.
+      if (isTeamLeader()) {
+        if (data.onboardingAssigned) agents.push(data);
+      } else {
+        if (data.mentorAgentId === myAgentId && data.onboardingAssigned) agents.push(data);
+      }
+    });
+
+    if (!agents.length) {
+      container.innerHTML = '<div class="card" style="text-align:center;padding:32px;">'
+        + '<div style="font-size:32px;margin-bottom:12px;">👥</div>'
+        + '<div style="font-size:14px;font-weight:500;margin-bottom:6px;">No agents assigned yet</div>'
+        + '<div style="font-size:12px;color:var(--text3);">When you invite agents with the onboarding program, they\'ll appear here.</div>'
+        + '</div>';
+      return;
+    }
+
+    // Load all their progress in parallel
+    var progressData = {};
+    await Promise.all(agents.map(async function(a) {
+      try {
+        var ps = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',a.uid));
+        progressData[a.uid] = ps.exists() ? (ps.data().completed||{}) : {};
+      } catch(e) { progressData[a.uid] = {}; }
+    }));
+
+    var total = OB_DEFAULT_STEPS.length;
+    var html = '<div style="padding:0 0 12px;">'
+      + '<div style="font-size:18px;font-weight:600;margin-bottom:4px;">👥 Team Onboarding</div>'
+      + '<div style="font-size:13px;color:var(--text3);">Track your team\'s onboarding progress and send nudges.</div>'
+      + '</div>';
+
+    agents.forEach(function(a) {
+      var prog = progressData[a.uid] || {};
+      var done = OB_DEFAULT_STEPS.filter(function(s){ return prog[s.id]; }).length;
+      var pct = total ? Math.round(done/total*100) : 0;
+      var name = ((a.firstName||'')+' '+(a.lastName||'')).trim() || a.email;
+      var initials = ((a.firstName||'?')[0]+(a.lastName||'?')[0]).toUpperCase();
+      var mentorEntry = a.mentorAgentId ? DEFAULT_AGENTS.find(function(x){ return x.id===a.mentorAgentId; }) : null;
+      var isMyAgent = a.mentorAgentId === myAgentId;
+      var lastWeek = '';
+      // Find furthest completed step week
+      var lastStep = OB_DEFAULT_STEPS.slice().reverse().find(function(s){ return prog[s.id]; });
+      if (lastStep) lastWeek = lastStep.week + ' — ' + lastStep.title;
+
+      html += '<div class="card" style="margin-bottom:12px;'+(isMyAgent?'border-left:3px solid var(--green);':'')+'">'
+        + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">'
+        + '<div class="avatar" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">'+initials+'</div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:14px;font-weight:600;">'+partnerEsc(name)+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);">'
+        + (mentorEntry ? 'Mentor: '+mentorEntry.name : 'No mentor assigned')
+        + (isMyAgent ? ' <span style="color:var(--green-dk);font-weight:600;">· Your agent</span>' : '')
+        + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;flex-shrink:0;">'
+        + '<div style="font-size:20px;font-weight:800;color:'+(pct===100?'var(--green)':'var(--text)')+';">'+pct+'%</div>'
+        + '<div style="font-size:10px;color:var(--text3);">'+done+'/'+total+'</div>'
+        + '</div>'
+        + '</div>'
+        // Progress bar
+        + '<div style="background:var(--surface2);border-radius:20px;height:6px;margin-bottom:8px;">'
+        + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+pct+'%;transition:width 0.4s;"></div>'
+        + '</div>'
+        // Last completed
+        + (lastWeek ? '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Last: '+partnerEsc(lastWeek)+'</div>' : '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Not started yet</div>')
+        // Nudge button — only for assigned agents or team leader
+        + ((isMyAgent || isTeamLeader()) ? '<button onclick="obNudge(\''+a.uid+'\',\''+partnerEsc(name)+'\')" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:13px;cursor:pointer;">📬 Send Nudge</button>' : '')
+        + '</div>';
+    });
+
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div class="card" style="color:var(--red-dk);font-size:13px;">Error: '+e.message+'</div>';
+  }
+}
+window.renderTeamOnboarding = renderTeamOnboarding;
+
+async function obNudge(uid, name) {
+  var myName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your mentor';
+  await sendPushToUser(uid, '📚 Keep it up, '+name.split(' ')[0]+'!', myName+' is checking in — your next onboarding step is waiting.');
+  showDealToast('📬 Nudge sent to '+name+'!', null, null);
+}
+window.obNudge = obNudge;
+
 window.renderSellerReports = renderSellerReports;
 
 function loadShowingTimeFeed() {
@@ -16901,11 +17330,25 @@ function openPortalInviteModal(uid) {
   var warnEl = document.getElementById('pi-no-email-warn');
   var sendBtn = document.getElementById('pi-send-btn');
   var noteEl = document.getElementById('pi-note');
+  var obWrap = document.getElementById('pi-onboarding-wrap');
+  var obCheck = document.getElementById('pi-onboarding');
   if (nameEl) nameEl.textContent = b ? (b.firstName+' '+b.lastName).trim() : 'this contact';
   if (noteEl) noteEl.value = '';
   var hasEmail = b && b.email;
   if (warnEl) warnEl.style.display = hasEmail ? 'none' : 'block';
   if (sendBtn) sendBtn.disabled = !hasEmail;
+  // Show onboarding checkbox for agent-role contacts (team leader only)
+  var isAgentContact = b && (b.role==='agent' || b.journeyType==='agent');
+  if (obWrap) obWrap.style.display = (isTeamLeader() && isAgentContact) ? 'block' : 'none';
+  if (obCheck) obCheck.checked = false;
+  // Populate mentor dropdown
+  var mentorSel = document.getElementById('pi-mentor');
+  if (mentorSel && isTeamLeader()) {
+    mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
+      + DEFAULT_AGENTS.filter(function(a){ return a.id !== (b && b.agentId); }).map(function(a){
+          return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
+        }).join('');
+  }
   document.getElementById('portal-invite-modal').style.display = 'flex';
 }
 window.openPortalInviteModal = openPortalInviteModal;
@@ -16922,17 +17365,25 @@ async function sendPortalInvite() {
   var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
   var first = b.firstName || 'there';
 
+  var includeOnboarding = !!(document.getElementById('pi-onboarding') && document.getElementById('pi-onboarding').checked);
+  var mentorAgentId = (document.getElementById('pi-mentor') && document.getElementById('pi-mentor').value) || '';
+
   // Save invite code to Firestore
   await fb.setDoc(fb.doc(fb.db, 'invites', code), {
     firstName: b.firstName, lastName: b.lastName, email: b.email,
     agentId: b.agentId, journeyType: b.journeyType || 'buyer',
-    contactUid: uid, // link back to existing contact record
-    invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false
+    contactUid: uid,
+    invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false,
+    onboardingAssigned: includeOnboarding,
+    mentorAgentId: mentorAgentId || null
   });
 
   // Mark contact as invited
-  await fb.updateDoc(fb.doc(fb.db, 'users', uid), { invitedAt: fb.serverTimestamp(), inviteCode: code });
-  if (b) { b.inviteCode = code; }
+  var updateData = { invitedAt: fb.serverTimestamp(), inviteCode: code };
+  if (includeOnboarding) updateData.onboardingAssigned = true;
+  if (mentorAgentId) updateData.mentorAgentId = mentorAgentId;
+  await fb.updateDoc(fb.doc(fb.db, 'users', uid), updateData);
+  if (b) { b.inviteCode = code; if (includeOnboarding) b.onboardingAssigned = true; if (mentorAgentId) b.mentorAgentId = mentorAgentId; }
 
   var ctaBtn = '<div style="text-align:center;margin:28px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:14px 38px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Create My Account →</a></div>'
     +'<p style="font-size:12px;color:#aaa;text-align:center;margin:-16px 0 20px;">Tap above to create your account — takes about a minute.</p>';
