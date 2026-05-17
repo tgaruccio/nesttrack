@@ -15545,34 +15545,194 @@ function showOpenHouseQR(listingId) {
     + '</div>';
   document.body.appendChild(overlay);
 }
-function showOpenHouseQRFromListing(listingId, address) {
-  // Works from Offer Manager — doesn't need _srListings
+async function showOpenHouseQRFromListing(listingId, address) {
+  // Load fresh listing data
+  var l = (_listings||[]).find(function(x){ return x.id===listingId; });
+  if (!l) {
+    try {
+      var snap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId));
+      if (snap.exists()) l = {id:snap.id,...snap.data()};
+    } catch(e){}
+  }
+  if (!l) { alert('Could not load listing.'); return; }
+
   var url = 'https://app.garucciogroup.com/openhouse.html?id='+listingId;
-  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data='+encodeURIComponent(url)+'&bgcolor=080808&color=C9A84C&margin=10';
-  var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
-  var agentPhone = userProfile.phone||userProfile.agentPhone||'';
-  var agentEmail = userProfile.email||'';
-  var agentPhoto = userProfile.profilePhotoUrl||'';
+  var photos = l.photos || (l.photoUrl ? [l.photoUrl] : []);
+  var hasSaved = !!(l.beds || l.baths || l.sqft || l.description);
 
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-  overlay.innerHTML = '<div style="background:#111;border:1px solid rgba(201,168,76,0.2);border-radius:20px;padding:28px;width:100%;max-width:360px;text-align:center;">'
-    + '<div style="font-size:10px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#C9A84C;margin-bottom:8px;">Open House</div>'
-    + '<div style="font-family:Georgia,serif;font-size:18px;font-weight:400;color:#F0EDE8;margin-bottom:4px;line-height:1.3;">'+partnerEsc(address)+'</div>'
-    + '<div style="font-size:12px;color:#4A4641;margin-bottom:20px;">Scan to explore this property</div>'
-    + '<div style="background:#080808;border-radius:14px;padding:16px;display:inline-block;margin-bottom:16px;border:1px solid rgba(201,168,76,0.1);">'
-    + '<img src="'+qrUrl+'" width="200" height="200" style="display:block;border-radius:8px;"/>'
+  overlay.id = 'oh-setup-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+
+  overlay.innerHTML = '<div style="background:#111;border-top:1px solid rgba(201,168,76,0.2);border-radius:20px 20px 0 0;width:100%;max-width:520px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;">'
+    // Header
+    + '<div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0;">'
+    + '<div><div style="font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;margin-bottom:2px;">Open House</div>'
+    + '<div style="font-size:15px;font-weight:600;color:#F0EDE8;">'+partnerEsc((address||'').split(',')[0])+'</div></div>'
+    + '<button onclick="document.getElementById(\'oh-setup-overlay\').remove()" style="background:none;border:none;color:#4A4641;font-size:22px;cursor:pointer;line-height:1;">×</button>'
     + '</div>'
-    + '<div style="font-size:11px;color:#4A4641;margin-bottom:18px;word-break:break-all;">'+url+'</div>'
-    + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
-    + '<button onclick="navigator.clipboard.writeText(\''+url+'\').then(function(){showDealToast(\'✓ Link copied\',null,null)})" style="flex:1;background:#1A1A1A;border:1px solid #2A2A2A;border-radius:10px;padding:10px;font-size:13px;color:#F0EDE8;cursor:pointer;font-family:inherit;">📋 Copy</button>'
-    + '<button onclick="showOHFlyerById(\''+listingId+'\')" style="flex:1;background:#C9A84C;border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;color:#000;cursor:pointer;font-family:inherit;">🖨 Flyer</button>'
+    // Scrollable body
+    + '<div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px;">'
+
+    // SECTION 1 — Details
+    + '<div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><span style="width:12px;height:1px;background:#C9A84C;display:block;"></span>Property Details</div>'
+
+    // Photos
+    + '<div style="margin-bottom:14px;">'
+    + '<div style="font-size:11px;color:#4A4641;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em;">Photos</div>'
+    + '<div id="oh-photo-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
+    + photos.map(function(p,i){ return '<div style="position:relative;"><img src="'+partnerEsc(p)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.08);"/><button onclick="ohRemovePhoto('+i+')" style="position:absolute;top:-4px;right:-4px;background:#E24B4A;border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button></div>'; }).join('')
     + '</div>'
-    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:none;border:none;color:#4A4641;font-size:13px;cursor:pointer;font-family:inherit;padding:6px;">Close</button>'
-    + '</div>';
+    + '<label style="display:inline-flex;align-items:center;gap:6px;background:#1A1A1A;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:7px 12px;font-size:12px;color:#8C877E;cursor:pointer;">📷 Add Photo<input type="file" accept="image/*" multiple style="display:none;" onchange="ohAddPhotos(event)"/></label>'
+    + '</div>'
+
+    // Fields grid
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+    + ohField('oh-beds','Beds','number',l.beds||'','4')
+    + ohField('oh-baths','Baths','number',l.baths||'','2.5')
+    + ohField('oh-sqft','Sq Ft','number',l.sqft||'','2400')
+    + ohField('oh-year','Year','number',l.yearBuilt||'','2005')
+    + '</div>'
+
+    // Description
+    + '<div style="margin-bottom:14px;">'
+    + '<div style="font-size:11px;color:#4A4641;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.08em;">Description</div>'
+    + '<textarea id="oh-desc" placeholder="Beautiful 4-bedroom colonial..." style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:12px;font-size:13px;color:#F0EDE8;font-family:inherit;height:80px;resize:vertical;outline:none;">'+partnerEsc(l.description||'')+'</textarea>'
+    + '</div>'
+
+    // Giveaway
+    + '<div style="background:rgba(201,168,76,0.05);border:1px solid rgba(201,168,76,0.15);border-radius:10px;padding:12px 14px;margin-bottom:16px;">'
+    + '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:'+(l.giveawayEnabled?'10':'0')+'px;">'
+    + '<input type="checkbox" id="oh-giveaway" style="width:18px;height:18px;" '+(l.giveawayEnabled?'checked':'')+' onchange="document.getElementById(\'oh-prize-wrap\').style.display=this.checked?\'block\':\'none\'"/>'
+    + '<div><div style="font-size:13px;font-weight:600;color:#C9A84C;">🎁 Enable Giveaway</div><div style="font-size:11px;color:#8C877E;">Show entry form on open house page</div></div>'
+    + '</label>'
+    + '<div id="oh-prize-wrap" style="display:'+(l.giveawayEnabled?'block':'none')+';">'
+    + '<input type="text" id="oh-prize" value="'+partnerEsc(l.giveawayPrize||'$100 Amazon Gift Card')+'" placeholder="Prize description" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:9px 12px;font-size:13px;color:#F0EDE8;font-family:inherit;outline:none;"/>'
+    + '</div></div>'
+
+    // Save button
+    + '<button onclick="ohSaveDetails(\''+listingId+'\')" id="oh-save-btn" style="width:100%;background:#1D9E75;color:#fff;border:none;border-radius:10px;padding:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:20px;">Save & Generate QR →</button>'
+
+    // SECTION 2 — QR
+    + '<div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#C9A84C;margin-bottom:14px;display:flex;align-items:center;gap:8px;"><span style="width:12px;height:1px;background:#C9A84C;display:block;"></span>Your QR Code</div>'
+    + '<div id="oh-qr-section">'
+    + (hasSaved ? ohQRHTML(url) : '<div style="text-align:center;padding:20px;color:#4A4641;font-size:13px;">Fill in the details above and tap Save to generate your QR code.</div>')
+    + '</div>'
+
+    + '</div></div>';
+
   document.body.appendChild(overlay);
+
+  // Store photos in memory for this session
+  window._ohPhotos = photos.slice();
 }
 window.showOpenHouseQRFromListing = showOpenHouseQRFromListing;
+
+function ohField(id, label, type, value, placeholder) {
+  return '<div><div style="font-size:10px;color:#4A4641;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.08em;">'+label+'</div>'
+    + '<input type="'+type+'" id="'+id+'" value="'+partnerEsc(String(value||''))+'" placeholder="'+placeholder+'" style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:10px 10px;font-size:13px;color:#F0EDE8;font-family:inherit;outline:none;"/></div>';
+}
+window.ohField = ohField;
+
+function ohQRHTML(url) {
+  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data='+encodeURIComponent(url)+'&bgcolor=111111&color=C9A84C&margin=8';
+  return '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;">'
+    + '<div style="background:#080808;border-radius:14px;padding:14px;border:1px solid rgba(201,168,76,0.12);">'
+    + '<img src="'+qrUrl+'" width="180" height="180" style="display:block;border-radius:6px;"/>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#4A4641;text-align:center;word-break:break-all;padding:0 10px;">'+url+'</div>'
+    + '<div style="display:flex;gap:8px;width:100%;">'
+    + '<button onclick="navigator.clipboard.writeText(\''+url+'\').then(function(){showDealToast(\'✓ Link copied\',null,null)})" style="flex:1;background:#1A1A1A;border:1px solid #2A2A2A;border-radius:10px;padding:11px;font-size:13px;color:#F0EDE8;cursor:pointer;font-family:inherit;">📋 Copy Link</button>'
+    + '<button onclick="ohPrintFlyer()" style="flex:1;background:#C9A84C;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;color:#000;cursor:pointer;font-family:inherit;">🖨 Print Flyer</button>'
+    + '</div>'
+    + '<a href="'+url+'" target="_blank" style="font-size:12px;color:#C9A84C;text-decoration:none;letter-spacing:0.04em;">Preview Open House Page →</a>'
+    + '</div>';
+}
+window.ohQRHTML = ohQRHTML;
+
+async function ohAddPhotos(event) {
+  var files = Array.from(event.target.files);
+  if (!files.length) return;
+  var btn = event.target.closest('label');
+  if (btn) btn.textContent = 'Uploading...';
+  try {
+    for (var i=0; i<files.length; i++) {
+      var file = files[i];
+      var path = 'oh_photos/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+i+'_'+file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+      var sRef = fb.storageRef(fb.storage, path);
+      var snap = await fb.uploadBytes(sRef, file);
+      var url = await fb.getDownloadURL(snap.ref);
+      window._ohPhotos = window._ohPhotos || [];
+      window._ohPhotos.push(url);
+    }
+    // Re-render photo list
+    var list = document.getElementById('oh-photo-list');
+    if (list) {
+      list.innerHTML = (window._ohPhotos||[]).map(function(p,i){
+        return '<div style="position:relative;"><img src="'+partnerEsc(p)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.08);"/>'
+          + '<button onclick="ohRemovePhoto('+i+')" style="position:absolute;top:-4px;right:-4px;background:#E24B4A;border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button></div>';
+      }).join('');
+    }
+  } catch(e) { alert('Upload failed: '+e.message); }
+  if (btn) { btn.innerHTML = '📷 Add Photo<input type="file" accept="image/*" multiple style="display:none;" onchange="ohAddPhotos(event)"/>'; }
+}
+window.ohAddPhotos = ohAddPhotos;
+
+function ohRemovePhoto(idx) {
+  window._ohPhotos = (window._ohPhotos||[]).filter(function(_,i){ return i!==idx; });
+  var list = document.getElementById('oh-photo-list');
+  if (list) {
+    list.innerHTML = (window._ohPhotos||[]).map(function(p,i){
+      return '<div style="position:relative;"><img src="'+partnerEsc(p)+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,0.08);"/>'
+        + '<button onclick="ohRemovePhoto('+i+')" style="position:absolute;top:-4px;right:-4px;background:#E24B4A;border:none;border-radius:50%;width:18px;height:18px;color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">×</button></div>';
+    }).join('');
+  }
+}
+window.ohRemovePhoto = ohRemovePhoto;
+
+async function ohSaveDetails(listingId) {
+  var btn = document.getElementById('oh-save-btn');
+  if (btn) { btn.disabled=true; btn.textContent='Saving...'; }
+  var beds = parseFloat(document.getElementById('oh-beds').value)||null;
+  var baths = parseFloat(document.getElementById('oh-baths').value)||null;
+  var sqft = parseFloat(document.getElementById('oh-sqft').value)||null;
+  var yearBuilt = parseInt(document.getElementById('oh-year').value)||null;
+  var description = document.getElementById('oh-desc').value.trim()||null;
+  var giveawayEnabled = document.getElementById('oh-giveaway').checked;
+  var giveawayPrize = document.getElementById('oh-prize') ? document.getElementById('oh-prize').value.trim()||'$100 Amazon Gift Card' : '$100 Amazon Gift Card';
+  var photos = window._ohPhotos||[];
+  var photoUrl = photos[0]||null;
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
+      beds, baths, sqft, yearBuilt, description,
+      giveawayEnabled, giveawayPrize,
+      photos: photos,
+      photoUrl: photoUrl
+    });
+    // Update local listing cache
+    var local = (_listings||[]).find(function(x){ return x.id===listingId; });
+    if (local) Object.assign(local, {beds,baths,sqft,yearBuilt,description,giveawayEnabled,giveawayPrize,photos,photoUrl});
+    // Show QR section
+    var qrSection = document.getElementById('oh-qr-section');
+    var url = 'https://app.garucciogroup.com/openhouse.html?id='+listingId;
+    if (qrSection) qrSection.innerHTML = ohQRHTML(url);
+    if (btn) { btn.disabled=false; btn.textContent='Saved ✓ — Update anytime'; btn.style.background='#157A5A'; }
+    showDealToast('✓ Open house page updated!', null, null);
+  } catch(e) {
+    if (btn) { btn.disabled=false; btn.textContent='Save & Generate QR →'; }
+    alert('Save failed: '+e.message);
+  }
+}
+window.ohSaveDetails = ohSaveDetails;
+
+function ohPrintFlyer() {
+  // Get current listing from overlay context
+  var listingId = document.querySelector('#oh-setup-overlay button[onclick*="ohSaveDetails"]');
+  if (!listingId) return;
+  var id = listingId.getAttribute('onclick').match(/'([^']+)'/)[1];
+  showOHFlyerById(id);
+}
+window.ohPrintFlyer = ohPrintFlyer;
 
 async function showOHFlyerById(listingId) {
   // Load listing fresh from Firestore if not in _srListings
