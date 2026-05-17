@@ -404,6 +404,8 @@ function render(l) {
     </div>
   </div><div class="divider"></div>`:''}
 
+  <div id="doc-section-wrap"></div>
+
   <!-- AI NEIGHBORHOOD TOOLS -->
   <div class="s">
     <div class="eyebrow">Neighborhood Intelligence</div>
@@ -510,6 +512,13 @@ function render(l) {
   <div class="footer"><div class="footer-t">Powered by <span style="color:var(--gold);">Nest Track</span> &nbsp;·&nbsp; ${ag.name} &nbsp;·&nbsp; Real Brokerage</div></div>
   </div>`;
 
+  // Render document request section if docs exist
+  const docWrap = document.getElementById('doc-section-wrap');
+  if (docWrap && l.documents && l.documents.length) {
+    const docList = l.documents.map(d=>'<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2);margin-bottom:6px;"><span style="color:var(--gold)">📄</span>'+d.name+'</div>').join('');
+    docWrap.innerHTML = '<div class="s"><div class="eyebrow">Property Documents</div><div class="s-title">Request Disclosure Docs</div><div class="s-sub" style="margin-bottom:16px;">Full disclosure package, inspection reports, and HOA documents — sent directly to your inbox.</div><div class="form-box form-box-green" id="doc-wrap"><span class="form-icon">📄</span><div style="margin-bottom:14px;">'+docList+'</div><input type="text" class="inp" id="doc-nm" placeholder="Your name"/><input type="email" class="inp" id="doc-em" placeholder="Email address"/><button class="btn-grn" id="doc-btn" onclick="doRequestDocs()">Send Me These Documents →</button><div class="form-hint">Sent instantly · No spam</div></div></div><div class="divider"></div>';
+  }
+
   // Ken Burns on hero image
   const himg = document.getElementById('himg');
   if (himg) { himg.onload=()=>himg.classList.add('ready'); if(himg.complete) himg.classList.add('ready'); }
@@ -570,13 +579,52 @@ function render(l) {
         downPct:dp,ratePct:rp,term:tm,monthlyPayment:Math.round(tot_()),
         createdAt:serverTimestamp(),source:'property_report'
       });
-      document.getElementById('rpt-wrap').innerHTML=`<div class="success">
-        <span class="success-em">📬</span>
-        <div class="success-title">Report sent!</div>
-        <div class="success-sub">Check <strong>${em}</strong> — we've sent your personalized payment breakdown and full property details.</div>
-      </div>`;
+      var firstName=nm.split(' ')[0];
+      var payBlock = price>0
+        ? '<div style="background:#f8f9fa;border-radius:10px;padding:20px;margin-bottom:24px;">'
+          + '<div style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#888;margin-bottom:12px;">Your Monthly Payment Estimate</div>'
+          + '<div style="font-size:42px;font-weight:300;color:#1D9E75;margin-bottom:4px;">'+$f(tot_())+'<span style="font-size:18px;color:#aaa">/mo</span></div>'
+          + '<div style="font-size:12px;color:#888;margin-bottom:16px;">Based on '+dp+'% down · '+rp+'% rate · '+tm+'-year term</div>'
+          + '<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+          + '<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #eee;">Principal & Interest</td><td style="text-align:right;font-weight:600;border-bottom:1px solid #eee;">'+$f(pi_())+'</td></tr>'
+          + '<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #eee;">Est. Property Tax</td><td style="text-align:right;font-weight:600;border-bottom:1px solid #eee;">'+$f(tax_())+'</td></tr>'
+          + '<tr><td style="padding:6px 0;color:#555;">Est. Insurance</td><td style="text-align:right;font-weight:600;">'+$f(ins_())+'</td></tr>'
+          + '</table></div>' : '';
+      var detBlock = (l.beds||l.baths||l.sqft||l.yearBuilt)
+        ? '<div style="background:#f8f9fa;border-radius:10px;padding:20px;margin-bottom:24px;">'
+          + '<div style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#888;margin-bottom:12px;">Property Details</div>'
+          + '<div style="display:flex;gap:20px;flex-wrap:wrap;">'
+          + (l.beds?'<div><div style="font-size:20px;font-weight:600;">'+l.beds+'</div><div style="font-size:11px;color:#888;">Beds</div></div>':'')
+          + (l.baths?'<div><div style="font-size:20px;font-weight:600;">'+l.baths+'</div><div style="font-size:11px;color:#888;">Baths</div></div>':'')
+          + (l.sqft?'<div><div style="font-size:20px;font-weight:600;">'+Number(l.sqft).toLocaleString()+'</div><div style="font-size:11px;color:#888;">Sq Ft</div></div>':'')
+          + (l.yearBuilt?'<div><div style="font-size:20px;font-weight:600;">'+l.yearBuilt+'</div><div style="font-size:11px;color:#888;">Built</div></div>':'')
+          + '</div></div>' : '';
+      var emailHtml = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;">'
+        + '<div style="background:#0D0D0D;padding:24px 28px;border-radius:10px 10px 0 0;">'
+        + '<div style="font-size:24px;font-weight:300;color:#fff;">Your Property Report</div>'
+        + '<div style="font-size:13px;color:rgba(255,255,255,0.45);margin-top:4px;">'+(addr||'')+'</div></div>'
+        + '<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+        + '<p style="font-size:16px;margin-bottom:20px;">Hi '+firstName+',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.8;margin-bottom:24px;">Thanks for visiting. Here is your full breakdown for <strong>'+(addr||'')+'</strong>.</p>'
+        + payBlock + detBlock
+        + '<div style="background:#f8f9fa;border-radius:10px;padding:20px;margin-bottom:24px;">'
+        + '<div style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#888;margin-bottom:12px;">Your Agent</div>'
+        + '<div style="font-size:16px;font-weight:600;margin-bottom:2px;">'+ag.name+'</div>'
+        + '<div style="font-size:13px;color:#666;margin-bottom:12px;">'+ag.role+' · Real Brokerage</div>'
+        + '<a href="tel:'+ag.phone+'" style="display:inline-block;background:#1D9E75;color:#fff;border-radius:8px;padding:10px 20px;font-size:14px;text-decoration:none;font-weight:600;margin-right:8px;">Call</a>'
+        + '<a href="sms:'+ag.phone+'" style="display:inline-block;background:#f0f0f0;color:#333;border-radius:8px;padding:10px 20px;font-size:14px;text-decoration:none;font-weight:600;">Text</a></div>'
+        + '<div style="text-align:center;padding:20px;background:#0D0D0D;border-radius:10px;">'
+        + '<div style="font-size:18px;color:#fff;font-weight:300;margin-bottom:8px;">Nest Track</div>'
+        + '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:16px;">Tour Mode · Rate Tracker · Saved Homes · AI Tools</div>'
+        + '<a href="https://app.garucciogroup.com" style="display:inline-block;background:#1D9E75;color:#fff;border-radius:8px;padding:10px 24px;font-size:14px;text-decoration:none;font-weight:600;">Get Free Access</a></div>'
+        + '<p style="font-size:11px;color:#aaa;text-align:center;margin-top:20px;">Estimate only. Consult your lender for exact figures.</p>'
+        + '</div></div>';
+      await fetch('https://app.tom-b52.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify({to:em,subject:'Your Property Report — '+addr,html:emailHtml,from:'Nest Track <notifications@mail.garucciogroup.com>',reply_to:ag.email})});
+      document.getElementById('rpt-wrap').innerHTML='<div class="success"><span class="success-em">📬</span><div class="success-title">Report sent!</div><div class="success-sub">Check <strong>'+em+'</strong> — your personalized payment breakdown is on the way.</div></div>';
     } catch(e){btn.disabled=false;btn.textContent='Get My Property Report →';toast('Something went wrong.');}
   };
+
 
   // Giveaway
   window.doGiveaway = async (lid,agId) => {
@@ -596,6 +644,25 @@ function render(l) {
         <div class="success-sub">Good luck, ${nm.split(' ')[0]}! The winner will be notified by email after the open house.</div>
       </div>`;
     } catch(e){btn.disabled=false;btn.textContent='Enter Drawing →';toast('Something went wrong.');}
+  };
+
+  // Request Documents
+  window.doRequestDocs = async () => {
+    const nm=document.getElementById('doc-nm').value.trim();
+    const em=document.getElementById('doc-em').value.trim();
+    if(!nm||!em){toast('Please enter your name and email.');return;}
+    const btn=document.getElementById('doc-btn');
+    btn.disabled=true;btn.textContent='Sending...';
+    try {
+      await addDoc(collection(db,'open_house_leads'),{
+        listingId:l.id,agentId:l.agentId,address:l.address,
+        name:nm,email:em,createdAt:serverTimestamp(),source:'document_request'
+      });
+      const docLinks=(l.documents||[]).map(d=>'<div style="margin-bottom:10px;"><a href="'+d.url+'" style="color:#1D9E75;text-decoration:none;font-size:14px;">📄 '+d.name+'</a></div>').join('');
+      const emailHtml='<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;"><div style="background:#0D0D0D;padding:22px 26px;border-radius:10px 10px 0 0;"><div style="font-size:22px;font-weight:300;color:#fff;">Property Documents</div><div style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:2px;">'+(l.address||'')+'</div></div><div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;"><p style="font-size:15px;margin-bottom:16px;">Hi '+nm.split(' ')[0]+',</p><p style="font-size:14px;color:#444;line-height:1.7;margin-bottom:20px;">Here are the documents you requested for <strong>'+(l.address||'the property')+'</strong>:</p>'+docLinks+'<p style="font-size:13px;color:#666;margin-top:24px;">Questions? '+ag.name+' is here to help.<br/><a href="tel:'+ag.phone+'" style="color:#1D9E75;">'+ag.phone+'</a></p></div></div>';
+      await fetch('https://app.tom-b52.workers.dev',{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:em,subject:'Your Property Documents — '+(l.address||''),html:emailHtml,from:'Nest Track <notifications@mail.garucciogroup.com>',reply_to:ag.email})});
+      document.getElementById('doc-wrap').innerHTML='<div class="success"><span class="success-em">📬</span><div class="success-title">Documents sent!</div><div class="success-sub">Check <strong>'+em+'</strong> — all documents are on their way.</div></div>';
+    } catch(e){btn.disabled=false;btn.textContent='Send Me These Documents →';toast('Something went wrong.');}
   };
 
   // AI Tools
@@ -623,7 +690,7 @@ function render(l) {
     }
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages',{
+      const res = await fetch('https://app.tom-b52.workers.dev',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,messages:[{role:'user',content:prompt}]})
