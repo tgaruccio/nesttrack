@@ -153,7 +153,45 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .footer{padding:32px 22px;text-align:center;border-top:1px solid var(--border);}
 .footer-t{font-size:11px;color:var(--text3);letter-spacing:0.07em;}
 
-/* LOADING / TOAST / ERROR */
+/* AI CARDS */
+.ai-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:10px;transition:border-color 0.2s,box-shadow 0.2s;}
+.ai-card:hover{border-color:rgba(255,255,255,0.12);box-shadow:var(--shadow);}
+.ai-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.ai-card-left{display:flex;align-items:center;gap:12px;}
+.ai-card-icon{width:42px;height:42px;background:var(--surface2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.ai-card-title{font-size:14px;font-weight:500;margin-bottom:2px;}
+.ai-card-sub{font-size:12px;color:var(--text3);}
+.ai-card-input-row{display:flex;gap:8px;align-items:center;margin-bottom:4px;}
+.ai-inp{flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;transition:border-color 0.2s;}
+.ai-inp:focus{border-color:var(--green);}
+.ai-inp::placeholder{color:var(--text3);}
+.ai-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;transition:background 0.2s,opacity 0.2s;}
+.ai-btn:hover{background:var(--green-dk);}
+.ai-btn:disabled{opacity:0.5;cursor:default;}
+.ai-result{font-size:13px;color:var(--text2);line-height:1.8;margin-top:12px;display:none;}
+.ai-result.show{display:block;}
+.ai-result.loading{display:flex;align-items:center;gap:10px;color:var(--text3);}
+.ai-spin{width:16px;height:16px;border:1.5px solid rgba(29,158,117,0.2);border-top-color:var(--green);border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0;}
+
+/* SAVE HOME BANNER */
+.save-banner{background:linear-gradient(135deg,#071510 0%,#050808 100%);border:1px solid rgba(29,158,117,0.25);border-radius:var(--r);padding:16px 18px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:border-color 0.2s,box-shadow 0.2s;}
+.save-banner:hover{border-color:rgba(29,158,117,0.5);box-shadow:0 4px 20px rgba(29,158,117,0.15);}
+.save-banner-icon{font-size:28px;flex-shrink:0;}
+.save-banner-text{flex:1;}
+.save-banner-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px;}
+.save-banner-sub{font-size:11px;color:var(--text3);line-height:1.5;}
+.save-banner-arrow{color:var(--green);font-size:20px;flex-shrink:0;}
+
+/* SAVE HOME MODAL */
+.save-modal{position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;display:none;align-items:flex-end;justify-content:center;}
+.save-modal.open{display:flex;}
+.save-modal-box{background:#111;border-top:1px solid rgba(29,158,117,0.25);border-radius:20px 20px 0 0;width:100%;max-width:520px;padding:28px;}
+
+/* SLIDER NUMBER INPUT */
+.sl-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.sl-num{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:4px 8px;font-size:13px;font-weight:600;color:var(--text);font-family:'DM Sans',sans-serif;width:80px;text-align:right;outline:none;}
+
+
 .loading{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
 .spin{width:34px;height:34px;border:1.5px solid rgba(201,168,76,0.15);border-top-color:var(--gold);border-radius:50%;animation:spin 0.75s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -166,6 +204,26 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <div class="loading">
     <div class="spin"></div>
     <div style="font-size:10px;color:var(--text3);letter-spacing:0.15em;text-transform:uppercase;">Loading Property</div>
+  </div>
+</div>
+
+<!-- SAVE HOME MODAL -->
+<div class="save-modal" id="save-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="save-modal-box" id="save-modal-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div>
+        <div style="font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:var(--green);margin-bottom:4px;">Free Account</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;">Save This Home</div>
+      </div>
+      <button onclick="document.getElementById('save-modal').classList.remove('open')" style="background:none;border:none;color:var(--text3);font-size:24px;cursor:pointer;">×</button>
+    </div>
+    <div id="save-form-wrap">
+      <input type="text" class="inp" id="sv-nm" placeholder="Your name" style="margin-bottom:10px;"/>
+      <input type="email" class="inp" id="sv-em" placeholder="Email address" style="margin-bottom:10px;"/>
+      <input type="tel" class="inp" id="sv-ph" placeholder="Phone (optional)" style="margin-bottom:16px;"/>
+      <button class="btn-grn" id="sv-btn" onclick="doSaveHome()" style="margin-bottom:12px;">Save This Home →</button>
+      <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;">Creates your free Nest Track account · Tour Mode · Rate tracker · AI tools · Direct line to your agent</div>
+    </div>
   </div>
 </div>
 
@@ -255,6 +313,18 @@ function render(l) {
     <div class="hero-scroll-hint"><span>↓</span><span>Explore</span></div>
   </div>
 
+  <!-- SAVE HOME BANNER -->
+  <div class="s" style="padding-bottom:0;">
+    <div class="save-banner" onclick="document.getElementById('save-modal').classList.add('open')">
+      <div class="save-banner-icon">💾</div>
+      <div class="save-banner-text">
+        <div class="save-banner-title">Save This Home</div>
+        <div class="save-banner-sub">Free Nest Track account · Tour Mode · rate alerts · AI tools</div>
+      </div>
+      <div class="save-banner-arrow">→</div>
+    </div>
+  </div>
+
   ${l.description?`<div class="s"><div class="eyebrow">About This Home</div><div class="desc">${l.description}</div></div><div class="divider"></div>`:''}
 
   ${(l.beds||l.baths||l.sqft||l.yearBuilt)?`<div class="s">
@@ -277,9 +347,19 @@ function render(l) {
         <div class="calc-subtitle">Estimated Total Monthly Payment</div>
       </div>
       <div class="calc-body">
-        <div class="sl-wrap"><div class="sl-row"><span class="sl-name">Down Payment</span><span class="sl-val" id="l-dp">${dp}% · ${$f(price*dp/100)}</span></div><input type="range" id="s-dp" min="3" max="30" step="1" value="${dp}" oninput="cu()"/></div>
-        <div class="sl-wrap"><div class="sl-row"><span class="sl-name">Interest Rate</span><span class="sl-val" id="l-rp">${rp.toFixed(3)}%</span></div><input type="range" id="s-rp" min="4" max="10" step="0.125" value="${rp}" oninput="cu()"/></div>
-        <div class="sl-wrap"><div class="sl-row"><span class="sl-name">Loan Term</span><span class="sl-val" id="l-tm">${tm} years</span></div><input type="range" id="s-tm" min="10" max="30" step="5" value="${tm}" oninput="cu()"/></div>
+        <div class="sl-wrap">
+          <div class="sl-row"><span class="sl-name">Down Payment</span><input type="number" class="sl-num" id="n-dp" min="3" max="30" step="1" value="${dp}" oninput="syncSlider('dp')"/>%</div>
+          <input type="range" id="s-dp" min="3" max="30" step="1" value="${dp}" oninput="cu();document.getElementById('n-dp').value=this.value"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;" id="l-dp">${$f(price*dp/100)} down</div>
+        </div>
+        <div class="sl-wrap">
+          <div class="sl-row"><span class="sl-name">Interest Rate</span><input type="number" class="sl-num" id="n-rp" min="4" max="10" step="0.125" value="${rp}" oninput="syncSlider('rp')"/>%</div>
+          <input type="range" id="s-rp" min="4" max="10" step="0.125" value="${rp}" oninput="cu();document.getElementById('n-rp').value=parseFloat(this.value).toFixed(3)"/>
+        </div>
+        <div class="sl-wrap">
+          <div class="sl-row"><span class="sl-name">Loan Term</span><input type="number" class="sl-num" id="n-tm" min="10" max="30" step="5" value="${tm}" oninput="syncSlider('tm')"/> yrs</div>
+          <input type="range" id="s-tm" min="10" max="30" step="5" value="${tm}" oninput="cu();document.getElementById('n-tm').value=this.value"/>
+        </div>
         <div class="bd-grid">
           <div class="bd-item"><div class="bd-val" id="b-pi">${$f(pi_())}</div><div class="bd-label">P&amp;I</div></div>
           <div class="bd-item"><div class="bd-val" id="b-tx">${$f(tax_())}</div><div class="bd-label">Est. Tax</div></div>
@@ -324,16 +404,66 @@ function render(l) {
     </div>
   </div><div class="divider"></div>`:''}
 
-  <!-- NEIGHBORHOOD -->
+  <!-- AI NEIGHBORHOOD TOOLS -->
   <div class="s">
-    <div class="eyebrow">Neighborhood</div>
+    <div class="eyebrow">Neighborhood Intelligence</div>
     <div class="s-title">Explore the Area</div>
-    <div class="s-sub" style="margin-bottom:18px;">Schools, commute, walkability, safety — everything you need before you decide.</div>
-    <a href="https://www.greatschools.org/search/search.page?q=${enc}" target="_blank" class="nbhd-item"><div class="nbhd-l"><div class="nbhd-em">🏫</div><div><div class="nbhd-title">School Ratings</div><div class="nbhd-sub">GreatSchools.org</div></div></div><div class="nbhd-arr">→</div></a>
-    <a href="https://www.google.com/maps/dir//${enc}" target="_blank" class="nbhd-item"><div class="nbhd-l"><div class="nbhd-em">🚗</div><div><div class="nbhd-title">Commute Calculator</div><div class="nbhd-sub">Map your drive from here</div></div></div><div class="nbhd-arr">→</div></a>
-    <a href="https://www.walkscore.com/score/loc/addr=${enc}" target="_blank" class="nbhd-item"><div class="nbhd-l"><div class="nbhd-em">🚶</div><div><div class="nbhd-title">Walk &amp; Transit Score</div><div class="nbhd-sub">How walkable is this area?</div></div></div><div class="nbhd-arr">→</div></a>
-    <a href="https://crimegrade.org/safest-places-in-${city.replace(/[^a-z0-9]+/gi,'-').toLowerCase()}/" target="_blank" class="nbhd-item"><div class="nbhd-l"><div class="nbhd-em">🔒</div><div><div class="nbhd-title">Safety &amp; Crime Data</div><div class="nbhd-sub">Neighborhood safety ratings</div></div></div><div class="nbhd-arr">→</div></a>
-    <a href="https://msc.fema.gov/portal/search?AddressQuery=${enc}" target="_blank" class="nbhd-item" style="margin-bottom:0;"><div class="nbhd-l"><div class="nbhd-em">🌊</div><div><div class="nbhd-title">Flood Zone Check</div><div class="nbhd-sub">FEMA flood map</div></div></div><div class="nbhd-arr">→</div></a>
+    <div class="s-sub" style="margin-bottom:20px;">AI-powered insights — tap any card to generate.</div>
+
+    <!-- Schools -->
+    <div class="ai-card" id="ai-schools">
+      <div class="ai-card-header">
+        <div class="ai-card-left">
+          <div class="ai-card-icon">🏫</div>
+          <div>
+            <div class="ai-card-title">School District</div>
+            <div class="ai-card-sub">Ratings, schools &amp; district overview</div>
+          </div>
+        </div>
+      </div>
+      <div class="ai-card-input-row">
+        <input type="text" class="ai-inp" id="school-city" value="${city||street}" placeholder="City or area"/>
+        <button class="ai-btn" onclick="aiGenerate('schools','${l.id}')">Generate →</button>
+      </div>
+      <div class="ai-result" id="ai-schools-result"></div>
+    </div>
+
+    <!-- Neighborhood -->
+    <div class="ai-card" id="ai-nbhd">
+      <div class="ai-card-header">
+        <div class="ai-card-left">
+          <div class="ai-card-icon">🏘️</div>
+          <div>
+            <div class="ai-card-title">Neighborhood Overview</div>
+            <div class="ai-card-sub">Character, amenities &amp; lifestyle</div>
+          </div>
+        </div>
+      </div>
+      <div class="ai-card-input-row">
+        <input type="text" class="ai-inp" id="nbhd-city" value="${city||street}" placeholder="City or area"/>
+        <button class="ai-btn" onclick="aiGenerate('neighborhood','${l.id}')">Generate →</button>
+      </div>
+      <div class="ai-result" id="ai-nbhd-result"></div>
+    </div>
+
+    <!-- Commute -->
+    <div class="ai-card" id="ai-commute" style="margin-bottom:0;">
+      <div class="ai-card-header">
+        <div class="ai-card-left">
+          <div class="ai-card-icon">🚗</div>
+          <div>
+            <div class="ai-card-title">Commute Estimator</div>
+            <div class="ai-card-sub">Drive time &amp; transit options</div>
+          </div>
+        </div>
+      </div>
+      <div class="ai-card-input-row" style="flex-direction:column;gap:8px;">
+        <input type="text" class="ai-inp" id="commute-from" value="${l.address||''}" placeholder="From (property address)"/>
+        <input type="text" class="ai-inp" id="commute-to" placeholder="To (your workplace or city)"/>
+        <button class="ai-btn" style="width:100%;" onclick="aiGenerate('commute','${l.id}')">Estimate My Commute →</button>
+      </div>
+      <div class="ai-result" id="ai-commute-result"></div>
+    </div>
   </div>
   <div class="divider"></div>
 
@@ -384,7 +514,21 @@ function render(l) {
   const himg = document.getElementById('himg');
   if (himg) { himg.onload=()=>himg.classList.add('ready'); if(himg.complete) himg.classList.add('ready'); }
 
-  // Photo gallery dots
+  // Photo gallery dots + touch swipe
+  let touchStartX = 0;
+  const heroEl = document.querySelector('.hero');
+  if (heroEl) {
+    heroEl.addEventListener('touchstart', e=>{ touchStartX = e.touches[0].clientX; }, {passive:true});
+    heroEl.addEventListener('touchend', e=>{
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 40) {
+        let idx = parseInt(document.querySelector('.gallery-dot.on')?.getAttribute('data-i')||'0');
+        idx = diff > 0 ? Math.min(idx+1, photos.length-1) : Math.max(idx-1, 0);
+        if(himg) himg.src=photos[idx];
+        document.querySelectorAll('.gallery-dot').forEach((x,j)=>x.classList.toggle('on',j===idx));
+      }
+    }, {passive:true});
+  }
   document.querySelectorAll('.gallery-dot').forEach(d=>{
     d.addEventListener('click',()=>{
       const i=parseInt(d.getAttribute('data-i'));
@@ -393,14 +537,19 @@ function render(l) {
     });
   });
 
-  // Mortgage calc
+  // Mortgage calc with number input sync
+  window.syncSlider = (field) => {
+    const num = document.getElementById('n-'+field);
+    const sl = document.getElementById('s-'+field);
+    if (num && sl) { sl.value = num.value; cu(); }
+  };
+
   window.cu = () => {
-    dp=parseFloat(document.getElementById('s-dp').value);
-    rp=parseFloat(document.getElementById('s-rp').value);
-    tm=parseInt(document.getElementById('s-tm').value);
-    document.getElementById('l-dp').textContent=`${dp}% · ${$f(price*dp/100)}`;
-    document.getElementById('l-rp').textContent=`${rp.toFixed(3)}%`;
-    document.getElementById('l-tm').textContent=`${tm} years`;
+    dp=parseFloat(document.getElementById('s-dp').value)||10;
+    rp=parseFloat(document.getElementById('s-rp').value)||6.875;
+    tm=parseInt(document.getElementById('s-tm').value)||30;
+    const dpEl=document.getElementById('l-dp');
+    if(dpEl) dpEl.textContent=$f(price*dp/100)+' down';
     document.getElementById('c-tot').innerHTML=$f(tot_())+'<span>/mo</span>';
     document.getElementById('b-pi').textContent=$f(pi_());
     document.getElementById('b-tx').textContent=$f(tax_());
@@ -447,6 +596,71 @@ function render(l) {
         <div class="success-sub">Good luck, ${nm.split(' ')[0]}! The winner will be notified by email after the open house.</div>
       </div>`;
     } catch(e){btn.disabled=false;btn.textContent='Enter Drawing →';toast('Something went wrong.');}
+  };
+
+  // AI Tools
+  window.aiGenerate = async (type) => {
+    const resultIds = {schools:'ai-schools-result', neighborhood:'ai-nbhd-result', commute:'ai-commute-result'};
+    const resultEl = document.getElementById(resultIds[type]);
+    if (!resultEl) return;
+    const btn = event.target;
+    btn.disabled=true;
+    resultEl.className='ai-result loading show';
+    resultEl.innerHTML='<div class="ai-spin"></div><span>Generating...</span>';
+
+    let prompt='';
+    if (type==='schools') {
+      const v=document.getElementById('school-city').value.trim();
+      prompt=`Provide a concise, friendly overview of schools in ${v} for a home buyer. Include the school district name, notable elementary/middle/high schools, general academic reputation, and any standout programs. 4-6 sentences. No disclaimers.`;
+    } else if (type==='neighborhood') {
+      const v=document.getElementById('nbhd-city').value.trim();
+      prompt=`Describe the neighborhood character of ${v} for a home buyer. Cover the overall vibe, types of residents, walkability, nearby amenities, dining and shopping, parks, and what makes it unique. 4-6 engaging sentences. No disclaimers.`;
+    } else if (type==='commute') {
+      const from=document.getElementById('commute-from').value.trim();
+      const to=document.getElementById('commute-to').value.trim();
+      if (!to) { resultEl.className='ai-result show'; resultEl.innerHTML='<span style="color:var(--text3);">Please enter your workplace or destination.</span>'; btn.disabled=false; return; }
+      prompt=`Estimate the commute from ${from} to ${to}. Include approximate drive time in normal traffic, drive time in rush hour, whether public transit is an option and how long, and overall assessment of the commute. 3-5 sentences. Be realistic and helpful. No disclaimers.`;
+    }
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,messages:[{role:'user',content:prompt}]})
+      });
+      const data = await res.json();
+      const text = (data.content&&data.content[0])?data.content[0].text:'Could not generate. Please try again.';
+      resultEl.className='ai-result show';
+      resultEl.innerHTML='<div style="border-left:2px solid var(--green);padding-left:12px;margin-top:4px;">'+text.replace(/\n/g,'<br/>')+'</div>';
+    } catch(e) {
+      resultEl.className='ai-result show';
+      resultEl.innerHTML='<span style="color:var(--text3);">Could not generate. Please try again.</span>';
+    }
+    btn.disabled=false;
+  };
+
+  // Save Home
+  window.doSaveHome = async () => {
+    const nm=document.getElementById('sv-nm').value.trim();
+    const em=document.getElementById('sv-em').value.trim();
+    const ph=document.getElementById('sv-ph').value.trim();
+    if(!nm||!em){toast('Please enter your name and email.');return;}
+    const btn=document.getElementById('sv-btn');
+    btn.disabled=true;btn.textContent='Saving...';
+    try {
+      await addDoc(collection(db,'open_house_leads'),{
+        listingId:l.id,agentId:l.agentId,address:l.address,
+        name:nm,email:em,phone:ph,
+        createdAt:serverTimestamp(),source:'save_home'
+      });
+      document.getElementById('save-form-wrap').innerHTML=`
+        <div style="text-align:center;padding:12px 0;">
+          <div style="font-size:42px;margin-bottom:14px;">🏠</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;margin-bottom:8px;">Home Saved!</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.7;">Your agent will be in touch. Get your free Nest Track account to access Tour Mode, rate alerts, saved homes, and more.</div>
+          <a href="https://app.garucciogroup.com" style="display:inline-block;margin-top:16px;background:var(--green);color:#fff;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;text-decoration:none;">Get Free Access →</a>
+        </div>`;
+    } catch(e){btn.disabled=false;btn.textContent='Save This Home →';toast('Something went wrong.');}
   };
 }
 
