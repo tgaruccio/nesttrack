@@ -15163,12 +15163,11 @@ async function checkOpenHouseLeads() {
   var agentId = userProfile.agentId || 'tom';
   var lastCheck = 0;
   try { lastCheck = parseInt(localStorage.getItem('oh_leads_check_'+agentId)||'0'); } catch(e){}
-  var checkFrom = lastCheck || (Date.now() - 86400000); // last 24h if never checked
+  var checkFrom = lastCheck || (Date.now() - 86400000);
   try {
     var snap = await fb.getDocs(fb.query(
       fb.collection(fb.db,'open_house_leads'),
-      fb.where('agentId','==',agentId),
-      fb.where('source','==','open_house_qr')
+      fb.where('agentId','==',agentId)
     ));
     var newLeads = [];
     snap.forEach(function(d){
@@ -15176,13 +15175,10 @@ async function checkOpenHouseLeads() {
       var ts = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
       if (ts > checkFrom) newLeads.push(data);
     });
-    if (newLeads.length) {
-      newLeads.forEach(function(lead){
-        showDealToast('🏠 New open house lead: '+lead.name+'!', 'View', function(){
-          go('agent',document.querySelector('[data-pg=agent]'));
-          setTimeout(function(){ switchAgentTab('reports'); }, 200);
-        });
-      });
+    if (newLeads.length === 1) {
+      showDealToast('🏠 New open house lead: '+newLeads[0].name+'!', null, null);
+    } else if (newLeads.length > 1) {
+      showDealToast('🏠 '+newLeads.length+' new open house leads — check your clients!', null, null);
     }
     try { localStorage.setItem('oh_leads_check_'+agentId, String(Date.now())); } catch(e){}
   } catch(e){}
