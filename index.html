@@ -15726,17 +15726,17 @@ async function ohSaveDetails(listingId) {
 window.ohSaveDetails = ohSaveDetails;
 
 function ohPrintFlyer() {
-  // Get current listing from overlay context
-  var listingId = document.querySelector('#oh-setup-overlay button[onclick*="ohSaveDetails"]');
-  if (!listingId) return;
-  var id = listingId.getAttribute('onclick').match(/'([^']+)'/)[1];
-  showOHFlyerById(id);
+  // Find listingId stored on the save button
+  var saveBtn = document.getElementById('oh-save-btn');
+  if (!saveBtn) return;
+  var match = saveBtn.getAttribute('onclick').match(/'([^']+)'/);
+  if (!match) return;
+  showOHFlyerById(match[1]);
 }
 window.ohPrintFlyer = ohPrintFlyer;
 
 async function showOHFlyerById(listingId) {
-  // Load listing fresh from Firestore if not in _srListings
-  var l = (_srListings||[]).find(function(x){ return x.id===listingId; });
+  var l = (_listings||[]).find(function(x){ return x.id===listingId; });
   if (!l) {
     try {
       var snap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId));
@@ -15744,15 +15744,18 @@ async function showOHFlyerById(listingId) {
     } catch(e){}
   }
   if (!l) { alert('Could not load listing.'); return; }
-  showOHFlyer(listingId);
+  showOHFlyer(l);
 }
 window.showOHFlyerById = showOHFlyerById;
 
 window.showOpenHouseQR = showOpenHouseQR;
 
-function showOHFlyer(listingId) {
-  var l = _srListings.find(function(x){ return x.id===listingId; });
-  if (!l) return;
+function showOHFlyer(l) {
+  if (typeof l === 'string') {
+    // Legacy call with ID — look up from _listings
+    l = (_listings||[]).find(function(x){ return x.id===l; });
+    if (!l) return;
+  }
   var url = 'https://app.garucciogroup.com/openhouse.html?id='+listingId;
   var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data='+encodeURIComponent(url)+'&bgcolor=0D0D0D&color=C9A84C&margin=10';
   var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
