@@ -13757,13 +13757,13 @@ async function submitPublicOffer(listingId) {
             +'</div></div>';
           await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
             body:JSON.stringify({to:agentEmail,
-              subject:'&#x1F3E0; New Offer — '+partnerEsc(lData.address||'')+' ('+partnerEsc(data.offerPrice||'')+')',
+              subject:'🏠 New Offer — '+partnerEsc(lData.address||'')+' ('+partnerEsc(data.offerPrice||'')+')',
               from:agentFromField(), reply_to:agentReplyTo(), html:alertHtml})});
           // Push to agent
-          sendPushToAgentByShortId(lData.agentId, '&#x1F3E0; New Offer Received', (data.offerPrice||'Offer')+' on '+partnerEsc(lData.address||'your listing')+' from '+partnerEsc(data.agentName||'buyer agent'));
+          sendPushToAgentByShortId(lData.agentId, '🏠 New Offer Received', (data.offerPrice||'Offer')+' on '+partnerEsc(lData.address||'your listing')+' from '+partnerEsc(data.agentName||'buyer agent'));
           // Push to seller client
           if (lData.clientUid) {
-            sendPushToUser(lData.clientUid, '&#x1F4CB; New Offer on Your Home!', 'A '+(data.offerPrice||'new')+' offer has been received. Your agent will be in touch shortly.');
+            sendPushToUser(lData.clientUid, '📋 New Offer on Your Home!', 'A '+(data.offerPrice||'new')+' offer has been received. Your agent will be in touch shortly.');
           }
         }
       }
