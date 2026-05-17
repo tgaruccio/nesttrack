@@ -13715,33 +13715,56 @@ async function submitPublicOffer(listingId) {
           if (aSnap.exists() && aSnap.data().email) agentEmail = aSnap.data().email;
         }
         if (agentEmail) {
-          var alertHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
+          // Build custom fields rows
+          var customRows = '';
+          if (data.customFields && data.customFields.length) {
+            data.customFields.forEach(function(f){
+              if (f.label && f.value) {
+                customRows += '<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>'+partnerEsc(f.label)+'</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+partnerEsc(String(f.value))+'</td></tr>';
+              }
+            });
+          }
+          var alertHtml = '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;">'
             +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
-            +'<div style="font-size:20px;font-weight:300;color:#fff;">New Offer Received</div>'
-            +'<div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:2px;">'
-            +partnerEsc(lData.address||'')+'</div>'
+            +'<div style="font-size:20px;font-weight:300;color:#fff;">&#x1F3E0; New Offer Received</div>'
+            +'<div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:2px;">'+partnerEsc(lData.address||'')+'</div>'
             +'</div>'
             +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
-            +'<p style="font-size:15px;color:#1a1a1a;margin:0 0 14px;">A new offer has been submitted on your listing:</p>'
-            +'<div style="background:#f0fdf4;border-radius:8px;padding:14px 16px;margin-bottom:14px;">'
-            +'<div style="font-size:24px;font-weight:700;color:#065F46;">'+(data.offerPrice||'—')+'</div>'
+            +'<div style="background:#f0fdf4;border-radius:8px;padding:16px;margin-bottom:16px;text-align:center;">'
+            +'<div style="font-size:32px;font-weight:700;color:#065F46;">'+(data.offerPrice||'&mdash;')+'</div>'
             +'<div style="font-size:12px;color:#065F46;margin-top:2px;">Offered Price</div>'
             +'</div>'
-            +'<div style="font-size:13px;color:#444;line-height:1.6;margin-bottom:14px;">'
-            +'<strong>Financing:</strong> '+(data.financingType||'—')+'<br/>'
-            +'<strong>Closing Date:</strong> '+(data.closingDate||'—')+'<br/>'
-            +'<strong>Submitted by:</strong> '+partnerEsc(data.agentName||'—')+(data.agentBrokerage?' — '+partnerEsc(data.agentBrokerage):'')+'<br/>'
-            +(data.agentPhone?'<strong>Phone:</strong> '+partnerEsc(data.agentPhone)+'<br/>':'')
-            +(data.agentEmail?'<strong>Email:</strong> '+partnerEsc(data.agentEmail)+'<br/>':'')
+            +'<table style="width:100%;border-collapse:collapse;margin-bottom:16px;">'
+            +'<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>Financing</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+(data.financingType||'&mdash;')+'</td></tr>'
+            +'<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>Closing Date</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+(data.closingDate||'&mdash;')+'</td></tr>'
+            +(data.earnestMoney?'<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>Earnest Money</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+partnerEsc(data.earnestMoney)+'</td></tr>':'')
+            +(data.inspectionDays?'<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>Inspection Period</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+partnerEsc(data.inspectionDays)+' days</td></tr>':'')
+            +(data.downPayment?'<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>Down Payment</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+partnerEsc(data.downPayment)+'</td></tr>':'')
+            +(data.loanType?'<tr><td style="padding:6px 0;color:#555;border-bottom:1px solid #f0f0f0;font-size:13px;"><strong>Loan Type</strong></td><td style="padding:6px 0;text-align:right;font-size:13px;border-bottom:1px solid #f0f0f0;">'+partnerEsc(data.loanType)+'</td></tr>':'')
+            + customRows
+            +'</table>'
+            +'<div style="background:#f9f9f9;border-radius:8px;padding:14px;margin-bottom:16px;">'
+            +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:8px;">Submitted By</div>'
+            +'<div style="font-size:15px;font-weight:600;color:#1a1a1a;">'+partnerEsc(data.agentName||'&mdash;')+(data.agentBrokerage?' &mdash; '+partnerEsc(data.agentBrokerage):'')+'</div>'
+            +(data.agentPhone?'<div style="font-size:13px;color:#555;margin-top:4px;">&#x1F4DE; '+partnerEsc(data.agentPhone)+'</div>':'')
+            +(data.agentEmail?'<div style="font-size:13px;color:#555;margin-top:2px;">&#x2709;&#xFE0F; '+partnerEsc(data.agentEmail)+'</div>':'')
+            +(data.notes?'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #eee;font-size:13px;color:#555;"><strong>Notes:</strong> '+partnerEsc(data.notes)+'</div>':'')
             +'</div>'
-            +'<p style="font-size:13px;color:#888;margin:0;">Log in to Nest Track to review, compare, and respond to this offer.</p>'
+            +(data.pdfUrl?'<div style="margin-bottom:16px;"><a href="'+data.pdfUrl+'" style="display:inline-block;background:#1D9E75;color:#fff;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;text-decoration:none;">&#x1F4C4; View Attached Offer</a></div>':'')
+            +'<p style="font-size:13px;color:#888;margin:0;">Log in to Nest Track to review, compare, and respond.</p>'
             +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
             +'<div style="font-size:12px;color:#aaa;">Sent via Nest Track Offer Portal</div>'
             +'</div></div>';
           await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
             body:JSON.stringify({to:agentEmail,
-              subject:'New Offer Received — '+partnerEsc(lData.address||''), from:agentFromField(), reply_to: agentReplyTo(),
-              html:alertHtml})});
+              subject:'&#x1F3E0; New Offer — '+partnerEsc(lData.address||'')+' ('+partnerEsc(data.offerPrice||'')+')',
+              from:agentFromField(), reply_to:agentReplyTo(), html:alertHtml})});
+          // Push to agent
+          sendPushToAgentByShortId(lData.agentId, '&#x1F3E0; New Offer Received', (data.offerPrice||'Offer')+' on '+partnerEsc(lData.address||'your listing')+' from '+partnerEsc(data.agentName||'buyer agent'));
+          // Push to seller client
+          if (lData.clientUid) {
+            sendPushToUser(lData.clientUid, '&#x1F4CB; New Offer on Your Home!', 'A '+(data.offerPrice||'new')+' offer has been received. Your agent will be in touch shortly.');
+          }
         }
       }
     } catch(alertErr){ console.log('Agent alert err:',alertErr.message); }
