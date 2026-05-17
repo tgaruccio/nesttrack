@@ -15214,6 +15214,10 @@ async function obLoad() {
     _obProgress = progSnap.exists() ? (progSnap.data().completed || {}) : {};
     // Show nav button if assigned
     obCheckAssigned();
+    // Check for inactivity nudge after short delay
+    if (userProfile && userProfile.onboardingAssigned) {
+      setTimeout(obCheckInactivity, 3000);
+    }
   } catch(e) { _obSteps = OB_DEFAULT_STEPS; _obProgress = {}; }
 }
 window.obLoad = obLoad;
@@ -15235,6 +15239,8 @@ async function obSaveProgress() {
       updatedAt: fb.serverTimestamp(),
       agentId: userProfile.agentId || 'tom'
     });
+    // Record activity timestamp for inactivity check
+    try { localStorage.setItem('ob_last_activity_'+currentUser.uid, String(Date.now())); } catch(e){}
   } catch(e) {}
 }
 
@@ -15354,11 +15360,117 @@ function renderOnboarding() {
 window.renderOnboarding = renderOnboarding;
 
 async function obToggle(stepId) {
-  _obProgress[stepId] = !_obProgress[stepId];
+  var wasDone = !!_obProgress[stepId];
+  _obProgress[stepId] = !wasDone;
   await obSaveProgress();
+
+  // Check if just completed a full week
+  if (!wasDone) {
+    var steps = _obSteps || OB_DEFAULT_STEPS;
+    var step = steps.find(function(s){ return s.id===stepId; });
+    if (step) {
+      var weekSteps = steps.filter(function(s){ return s.week===step.week; });
+      var weekDone = weekSteps.every(function(s){ return _obProgress[s.id]; });
+      if (weekDone) {
+        // Find next week
+        var weeks = [];
+        steps.forEach(function(s){ if (weeks.indexOf(s.week)===-1) weeks.push(s.week); });
+        var currentWeekIdx = weeks.indexOf(step.week);
+        var nextWeek = weeks[currentWeekIdx+1];
+        var allDone = steps.every(function(s){ return _obProgress[s.id]; });
+
+        if (allDone) {
+          // Full completion
+          sendPushToUser(currentUser.uid, '🎓 Onboarding Complete!', 'You finished the entire onboarding program. You\'re ready to go!');
+          obSendCompletionEmail('all');
+        } else if (nextWeek) {
+          // Week completion
+          sendPushToUser(currentUser.uid, '🎉 '+step.week+' Complete!', nextWeek+' is up next — keep the momentum going!');
+          obSendCompletionEmail(step.week, nextWeek);
+        }
+      }
+    }
+  }
+
   renderOnboarding();
 }
 window.obToggle = obToggle;
+
+async function obSendCompletionEmail(completedWeek, nextWeek) {
+  if (!currentUser || !userProfile) return;
+  var email = userProfile.email;
+  if (!email) return;
+  var firstName = userProfile.firstName || 'there';
+  var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim();
+  var isAll = completedWeek === 'all';
+  var subject = isAll ? '🎓 You completed your onboarding!' : '🎉 '+completedWeek+' complete — keep going!';
+  var bodyHtml = isAll
+    ? '<p style="font-size:16px;font-weight:300;margin:0 0 16px;">Hi '+firstName+',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You just completed the entire Nest Track onboarding program. That\'s a big deal — most people don\'t finish what they start. You did.</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">Now the real work begins. Go make some calls, get in front of people, and start building your business. I\'m here to help every step of the way.</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;">— Tom</p>'
+    : '<p style="font-size:16px;font-weight:300;margin:0 0 16px;">Hi '+firstName+',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You just finished <strong>'+completedWeek+'</strong> of your onboarding. Nice work — you\'re making real progress.</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;"><strong>'+nextWeek+'</strong> is waiting for you in the app whenever you\'re ready. Keep the momentum going.</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;">— Tom</p>';
+
+  var html = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    + '<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    + '<div style="font-size:22px;font-weight:300;color:#fff;">Nest Track</div>'
+    + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Agent Onboarding</div>'
+    + '</div>'
+    + '<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    + bodyHtml
+    + '</div></div>';
+
+  try {
+    await fetch(PROXY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Action':'email'},
+      body: JSON.stringify({ to: email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() })
+    });
+  } catch(e) { console.log('obSendCompletionEmail err:', e.message); }
+}
+window.obSendCompletionEmail = obSendCompletionEmail;
+
+function obCheckInactivity() {
+  if (!currentUser || !_obSteps) return;
+  var steps = _obSteps || OB_DEFAULT_STEPS;
+  var total = steps.length;
+  var done = steps.filter(function(s){ return _obProgress[s.id]; }).length;
+
+  // Don't fire if fully complete or never started
+  if (done === total || done === 0) return;
+
+  var lastKey = 'ob_last_activity_'+currentUser.uid;
+  var nudgeCountKey = 'ob_nudge_count_'+currentUser.uid;
+  var lastActivity = 0;
+  var nudgeCount = 0;
+  try {
+    lastActivity = parseInt(localStorage.getItem(lastKey)||'0');
+    nudgeCount = parseInt(localStorage.getItem(nudgeCountKey)||'0');
+  } catch(e){}
+
+  // Cap at 3 nudges
+  if (nudgeCount >= 3) return;
+
+  if (!lastActivity) {
+    try { localStorage.setItem(lastKey, String(Date.now())); } catch(e){}
+    return;
+  }
+
+  var daysSince = (Date.now() - lastActivity) / 86400000;
+  if (daysSince >= 3) {
+    var nextStep = steps.find(function(s){ return !_obProgress[s.id]; });
+    var msg = nextStep ? '"'+nextStep.title+'" is up next' : 'keep going';
+    sendPushToUser(currentUser.uid, '📚 Don\'t lose your momentum!', 'You\'re '+done+'/'+total+' steps through onboarding — '+msg+'.');
+    try {
+      localStorage.setItem(lastKey, String(Date.now()));
+      localStorage.setItem(nudgeCountKey, String(nudgeCount+1));
+    } catch(e){}
+  }
+}
+window.obCheckInactivity = obCheckInactivity;
 
 // ── ONBOARDING EDITOR (team leader only) ──
 function obOpenEditor() {
