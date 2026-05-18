@@ -9314,6 +9314,23 @@ function todoRender() {
   var today = new Date(); today.setHours(0,0,0,0);
   var active = _todos.filter(function(t){ return !t.done; });
   var done = _todos.filter(function(t){ return t.done; });
+  var todayStr = today.toISOString().split('T')[0];
+  active.sort(function(a, b) {
+    var aOver = a.date && a.date < todayStr;
+    var bOver = b.date && b.date < todayStr;
+    // Overdue first
+    if (aOver && !bOver) return -1;
+    if (!aOver && bOver) return 1;
+    // Both have dates — sort ascending
+    if (a.date && b.date) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+    // Dated before undated
+    if (a.date && !b.date) return -1;
+    if (!a.date && b.date) return 1;
+    // Both undated — sort by creation date descending (newest first)
+    var aC = a.createdAt || 0;
+    var bC = b.createdAt || 0;
+    return bC - aC;
+  });
   window._todoMap = {};
   _todos.forEach(function(t){
     var sid = t.id.replace(/[^a-zA-Z0-9_]/g, '_');
