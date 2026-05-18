@@ -2301,7 +2301,7 @@ textarea{resize:vertical;min-height:68px;}
       <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
         <div>
           <label class="flabel">Client *</label>
-          <select id="appt-client" style="width:100%;font-size:13px;"><option value="">-- Select client --</option></select>
+          <select id="appt-client" style="width:100%;font-size:13px;" onchange="apptAutoFillAddress(this.value)"><option value="">-- Select client --</option></select>
         </div>
         <div>
           <label class="flabel">Type *</label>
@@ -9051,6 +9051,36 @@ async function todoAddForClient(uid, name) {
   todoRender();
   showDealToast('✅ Task added to your to-do list', null, null);
 }
+function openApptModalForClient(uid, name) {
+  // Close client modal first
+  var cm = document.getElementById('client-modal');
+  if (cm) cm.style.display = 'none';
+  // Open appt modal
+  var modal = document.getElementById('appt-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  // Switch to showings tab if needed
+  go('agent', document.querySelector('[data-pg=agent]'));
+  setTimeout(function(){
+    switchAgentTab('showings');
+    setTimeout(function(){
+      var modal2 = document.getElementById('appt-modal');
+      if (modal2) modal2.style.display = 'flex';
+      // Pre-select client
+      var sel = document.getElementById('appt-client');
+      if (sel) {
+        var opt = Array.from(sel.options).find(function(o){ return o.value === uid; });
+        if (opt) { sel.value = uid; apptAutoFillAddress(uid); }
+      }
+      // Clear address so auto-fill works fresh
+      var addrEl = document.getElementById('appt-address');
+      if (addrEl) addrEl.value = '';
+      apptAutoFillAddress(uid);
+    }, 300);
+  }, 200);
+}
+window.openApptModalForClient = openApptModalForClient;
+
 window.todoAddForClient = todoAddForClient;
 
 window.todoAdd = todoAdd;
@@ -9441,6 +9471,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:14px;">
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
       <button class="btn" onclick="todoAddForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">＋ Task</button>
+      <button class="btn" onclick="openApptModalForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">📅 Appt</button>
       <button class="btn" onclick="aiBuyerSummary('${uid}')">AI Summary</button>
       <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
     </div>
@@ -14402,6 +14433,16 @@ async function saveAppt() {
     await _commitAppt(apptRecord, false);
   }
 }
+function apptAutoFillAddress(uid) {
+  if (!uid) return;
+  var b = (allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; });
+  if (!b) return;
+  var addr = b.listingAddress || b.mailingAddress || b.propertyAddress || '';
+  var addrEl = document.getElementById('appt-address');
+  if (addrEl && addr && !addrEl.value) addrEl.value = addr;
+}
+window.apptAutoFillAddress = apptAutoFillAddress;
+
 window.saveAppt = saveAppt;
 
 async function sendApptEmail(doSend) {
@@ -18257,7 +18298,7 @@ window.addToDealTracker = addToDealTracker;
 
 async function setListingAddress(uid) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
-  var current = b ? (b.listingAddress||'') : '';
+  var current = b ? (b.listingAddress || b.mailingAddress || '') : '';
   var newAddr = prompt('Listing address:', current);
   if (newAddr === null) return;
   newAddr = newAddr.trim();
