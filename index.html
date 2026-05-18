@@ -9052,35 +9052,23 @@ async function todoAddForClient(uid, name) {
   showDealToast('✅ Task added to your to-do list', null, null);
 }
 function openApptModalForClient(uid, name) {
-  // Close client modal first
+  // Close client modal
   var cm = document.getElementById('client-modal');
   if (cm) cm.style.display = 'none';
-  // Open appt modal
-  var modal = document.getElementById('appt-modal');
-  if (!modal) return;
-  modal.style.display = 'flex';
-  // Switch to showings tab if needed
-  go('agent', document.querySelector('[data-pg=agent]'));
+  // Open appointment modal properly
+  openApptModal();
+  // After modal populates the select, pre-select this client and fill address
   setTimeout(function(){
-    switchAgentTab('showings');
-    setTimeout(function(){
-      var modal2 = document.getElementById('appt-modal');
-      if (modal2) modal2.style.display = 'flex';
-      // Pre-select client
-      var sel = document.getElementById('appt-client');
-      if (sel) {
-        var opt = Array.from(sel.options).find(function(o){ return o.value === uid; });
-        if (opt) { sel.value = uid; apptAutoFillAddress(uid); }
-      }
-      // Clear address so auto-fill works fresh
+    var sel = document.getElementById('appt-client');
+    if (sel) {
+      sel.value = uid;
       var addrEl = document.getElementById('appt-address');
       if (addrEl) addrEl.value = '';
       apptAutoFillAddress(uid);
-    }, 300);
-  }, 200);
+    }
+  }, 50);
 }
 window.openApptModalForClient = openApptModalForClient;
-
 window.todoAddForClient = todoAddForClient;
 
 window.todoAdd = todoAdd;
