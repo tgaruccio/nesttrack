@@ -2510,6 +2510,18 @@ textarea{resize:vertical;min-height:68px;}
       <button class="btn btn-g" style="width:100%;margin-top:12px;" onclick="scheduleSave()">Save Schedule</button>
     </div>
 
+    <!-- CARD 4: DOCUMENT LIBRARY -->
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">📄 Document Library</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Update a URL here and it updates everywhere in buyer and seller trails instantly.</div>
+        </div>
+        <button class="btn btn-sm btn-g" onclick="saveDocLibrary()">Save</button>
+      </div>
+      <div id="doc-library-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
   </div>
   </div>
   <!-- MESSAGES TAB -->
@@ -3796,6 +3808,8 @@ async function loadAssignedAgentProfile() {
 }
 
 function renderAgentProfileEditor() {
+  loadDocLibrary();
+  renderDocLibrary();
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
   box.style.display = isAgent ? 'flex' : 'none';
@@ -3942,6 +3956,55 @@ function showProfileHelp(type) {
   document.body.appendChild(modal);
 }
 window.showProfileHelp = showProfileHelp;
+
+// ── DOCUMENT LIBRARY ──
+const DOC_LIBRARY_KEYS = [
+  {key:'buyer-rep',      label:'Buyer\'s Agreement'},
+  {key:'purchase',       label:'Purchase Agreement'},
+  {key:'agency',         label:'Agency Disclosure'},
+  {key:'disclosure',     label:'Property Disclosures'},
+  {key:'contingency',    label:'Removal of Contingency'},
+  {key:'closing',        label:'Closing Statement'},
+  {key:'listing-agreement', label:'Listing Agreement'},
+  {key:'consumer-guide', label:'Consumer Guide'},
+  {key:'anti-discrimination', label:'Anti-Discrimination'},
+];
+
+function renderDocLibrary() {
+  var list = document.getElementById('doc-library-list');
+  if (!list) return;
+  list.innerHTML = DOC_LIBRARY_KEYS.map(function(d){
+    var url = DOC_PDFS[d.key] || '';
+    return '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<div style="font-size:13px;font-weight:500;min-width:180px;color:var(--text2);">'+d.label+'</div>'
+      + '<input type="url" id="doc-lib-'+d.key+'" value="'+partnerEsc(url)+'" placeholder="Google Drive preview URL..." style="flex:1;font-size:12px;"/>'
+      + '</div>';
+  }).join('');
+}
+window.renderDocLibrary = renderDocLibrary;
+
+async function saveDocLibrary() {
+  var updates = {};
+  DOC_LIBRARY_KEYS.forEach(function(d){
+    var el = document.getElementById('doc-lib-'+d.key);
+    if (el) updates[d.key] = el.value.trim();
+  });
+  // Update in-memory DOC_PDFS
+  Object.assign(DOC_PDFS, updates);
+  // Save to Firestore
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agent_config','doc_library'), updates);
+    showDealToast('✅ Document library saved!', null, null);
+  } catch(e) { showDealToast('Failed to save: '+e.message, null, null); }
+}
+window.saveDocLibrary = saveDocLibrary;
+
+async function loadDocLibrary() {
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db,'agent_config','doc_library'));
+    if (snap.exists()) Object.assign(DOC_PDFS, snap.data());
+  } catch(e){}
+}
 
 window.saveAgentProfile = saveAgentProfile;
 
@@ -4533,10 +4596,8 @@ function showSellerStepEdu(i) {
   document.getElementById('step-modal').style.display = 'flex';
   // Add doc chips for seller steps
   var _sellerDocMap = {
-    0: ['listing-agreement','consumer-guide','wire-fraud'],  // Initial Consultation
-    1: ['listing-prep'],  // Home Prep & Strategy
-    4: ['listing-agreement','disclosure','anti-discrimination','consumer-guide','wire-fraud'], // Listing Creation
-    8: ['purchase','agency'],  // Under Contract
+    4: ['listing-agreement','consumer-guide','anti-discrimination','disclosure'], // Listing
+    8: ['purchase','agency','disclosure'],  // Under Contract
     11: ['closing'],  // Final Numbers
     12: ['closing']   // Closing Day
   };
@@ -4607,7 +4668,7 @@ function openStep(id) {
   `;
 
   // Add doc chips for steps that have documents
-  const _docMap = {1:['buyer-rep','consumer-guide','wire-fraud'],4:['purchase','agency','disclosure','wire-fraud','consumer-guide'],7:['contingency'],9:['purchase','agency'],10:['closing'],11:['closing']};
+  const _docMap = {1:['buyer-rep'],4:['purchase','agency','disclosure'],7:['contingency'],10:['closing']};
   const _stepDocs = _docMap[id] || [];
   if (_stepDocs.length) {
     var _docNames = {'buyer-rep':'Buyer Rep Agreement','consumer-guide':'Consumer Guide','purchase':'Purchase Agreement','agency':'Agency Disclosure','wire-fraud':'Wire Fraud Alert','disclosure':'Property Disclosure','contingency':'Removal of Contingencies','closing':'Closing Statement'};
