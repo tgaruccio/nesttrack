@@ -5676,8 +5676,6 @@ async function doSendUCEmail(uid) {
   if (btn) { btn.disabled=true; btn.textContent='Sending...'; }
   try {
     await sendContractDatesEmail(data.uid, 'seller', data.dates);
-    // Also send the step 9 congratulations email
-    await sendStepEmail(data.uid, 9, 'seller');
     document.getElementById('uc-preview-modal').remove();
     showDealToast('✅ Under Contract email sent to client!', null, null);
   } catch(e) {
@@ -9861,11 +9859,14 @@ window.saveTitleCo = saveTitleCo;
 
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
-  if (newStep !== 0) {
+  if (newStep !== 0 && newStep !== 9) {
     var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
     var choice = await stepEmailPrompt('Move seller to "'+sName+'"?');
     if (choice === 'cancel') return;
     window._pendingStepEmailChoice = choice;
+  } else if (newStep === 9) {
+    // Skip prompt for Under Contract — dates modal + preview handles the email
+    window._pendingStepEmailChoice = 'nosend';
   }
   try {
     var sellerJourneyPatch = { currentSellerStep: newStep, lastStepUpdate: fb.serverTimestamp() };
