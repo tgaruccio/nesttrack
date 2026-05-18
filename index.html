@@ -2407,65 +2407,114 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <!-- PROFILE PANEL (via gear icon on dashboard) -->
-  <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:12px;">
-  <div class="card" id="agent-profile-editor" style="display:none;flex-direction:column;gap:11px;" data-profile-card="1">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-      <div>
-        <div style="font-weight:500;font-size:14px;">My Public Agent Profile</div>
-        <div style="font-size:12px;color:var(--text2);">This feeds the buyer-facing “Your Agent” page.</div>
-      </div>
-      <button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save Profile</button>
-    </div>
-    <div class="fg2">
-      <div>
-        <label class="flabel">Profile Photo</label>
-        <input type="url" id="ap-photo" placeholder="Paste image URL, or upload below" oninput="updateAgentPhotoPreview()"/>
-        <input type="file" id="ap-photo-file" accept="image/*" style="margin-top:7px;font-size:12px;" onchange="handleAgentPhotoUpload(event)"/>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.4;">Upload is best. Google Drive share links usually do not display as images unless converted/public.</div>
-        <div id="ap-photo-preview" style="margin-top:8px;"></div>
-      </div>
-      <div><label class="flabel">Calendar / Booking Link</label><input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/></div>
-      <div><label class="flabel">Brokerage Name</label><input type="text" id="ap-brokerage" placeholder="e.g. The Garuccio Group at Real Brokerage"/></div>
-      <div><label class="flabel">Email Tagline <span style="font-weight:400;color:var(--text3);">(optional — shows under your name in emails)</span></label><input type="text" id="ap-tagline" placeholder="e.g. Your Cleveland real estate experts"/></div>
-      <div><label class="flabel">License Number <span style="font-weight:400;color:var(--text3);">(optional — shows in email footer)</span></label><input type="text" id="ap-license" placeholder="e.g. OH SAL.2019012345"/></div>
-      <div><label class="flabel">ShowingTime iCal URL</label><input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..."/><div style="font-size:11px;color:var(--text3);margin-top:3px;">ShowingTime → Settings → Calendar Sync → Subscribe link</div></div>
-      <div><label class="flabel">Zapier Webhook URL <span style="font-weight:400;color:var(--text3);">(optional — syncs new &amp; updated clients to your CRM)</span></label><input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/><div style="font-size:11px;color:var(--text3);margin-top:3px;">Zapier → Create Zap → Trigger: Webhooks → Catch Hook → paste URL here</div></div>
-      <div><label class="flabel">Google Review Link</label><input type="url" id="ap-google" placeholder="https://g.page/.../review"/></div>
-      <div><label class="flabel">Zillow Review Link</label><input type="url" id="ap-zillow" placeholder="https://www.zillow.com/reviews/write/..."/></div>
-    </div>
-    <div><label class="flabel">Short Bio</label><textarea id="ap-bio" placeholder="Write a short client-facing bio..."></textarea></div>
+  <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:16px;">
+  <div id="agent-profile-editor" style="display:none;flex-direction:column;gap:16px;" data-profile-card="1">
 
-    <!-- VIDEO LIBRARY -->
-    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <!-- CARD 1: PROFILE -->
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px;">
         <div>
-          <div style="font-size:13px;font-weight:600;">📹 Video Library</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Loom, YouTube, BombBomb — any URL. Pick one when sending step emails.</div>
+          <div style="font-size:15px;font-weight:600;">My Agent Profile</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Feeds your buyer-facing page and all emails</div>
+        </div>
+        <button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save Profile</button>
+      </div>
+
+      <!-- Photo row -->
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+        <div style="position:relative;flex-shrink:0;">
+          <div id="ap-photo-preview" style="width:80px;height:80px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px;">&#128100;</div>
+          <label style="position:absolute;bottom:0;right:0;background:var(--green);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;border:2px solid var(--surface);" title="Change photo">
+            &#9998;<input type="file" id="ap-photo-file" accept="image/*" style="display:none;" onchange="handleAgentPhotoUpload(event)"/>
+          </label>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;color:var(--text2);margin-bottom:4px;">Or paste a photo URL</div>
+          <input type="url" id="ap-photo" placeholder="https://..." oninput="updateAgentPhotoPreview()" style="font-size:12px;width:100%;"/>
+        </div>
+      </div>
+      <div id="ap-status" style="display:none;font-size:12px;margin-top:-12px;margin-bottom:10px;"></div>
+
+      <!-- Fields grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Brokerage Name</label>
+          <input type="text" id="ap-brokerage" placeholder="The Garuccio Group at Real Brokerage"/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Calendar / Booking Link</label>
+          <input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Email Tagline <span style="font-weight:400;color:var(--text3);">(under your name)</span></label>
+          <input type="text" id="ap-tagline" placeholder="#UncompromisingService"/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">License Number <span style="font-weight:400;color:var(--text3);">(email footer)</span></label>
+          <input type="text" id="ap-license" placeholder="e.g. 2019003560"/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">ShowingTime iCal URL
+            <span onclick="showProfileHelp('showingtime')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>
+          </label>
+          <input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..."/>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">ShowingTime &#8594; Settings &#8594; Calendar Sync &#8594; Subscribe link</div>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">Zapier Webhook <span style="font-weight:400;color:var(--text3);">(optional)</span>
+            <span onclick="showProfileHelp('zapier')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>
+          </label>
+          <input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">Zapier &#8594; Webhooks &#8594; Catch Hook &#8594; paste URL here</div>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Google Review Link</label>
+          <input type="url" id="ap-google" placeholder="https://g.page/r/..."/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Zillow Review Link</label>
+          <input type="url" id="ap-zillow" placeholder="https://www.zillow.com/reviews/..."/>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <label class="flabel" style="color:var(--text2);font-weight:600;">Short Bio</label>
+        <textarea id="ap-bio" placeholder="Write a short client-facing bio..." style="height:100px;resize:vertical;"></textarea>
+      </div>
+      <div style="margin-top:14px;display:flex;justify-content:flex-end;">
+        <button class="btn btn-g" onclick="saveAgentProfile()">Save Profile</button>
+      </div>
+    </div>
+
+    <!-- CARD 2: VIDEO LIBRARY -->
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">&#x1F4F9; Video Library</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Loom, YouTube, BombBomb &#8212; any URL. Pick one when sending step emails.</div>
         </div>
         <button class="btn btn-sm btn-g" onclick="openAddVideoModal()">+ Add Video</button>
       </div>
-      <div id="ap-video-library" style="display:flex;flex-direction:column;gap:6px;">
+      <div id="ap-video-library" style="display:flex;flex-direction:column;gap:8px;">
         <div style="font-size:12px;color:var(--text3);font-style:italic;">Loading...</div>
       </div>
     </div>
 
-    <div id="ap-status" style="display:none;font-size:12px;"></div>
-
-    <!-- MY WEEKLY SCHEDULE -->
-    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+    <!-- CARD 3: WEEKLY SCHEDULE -->
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
-          <div style="font-size:13px;font-weight:600;">📅 My Weekly Schedule</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Time blocks appear on your to-do list each morning with a push reminder at the start time.</div>
+          <div style="font-size:15px;font-weight:600;">&#x1F4C5; My Weekly Schedule</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Time blocks appear on your to-do list each morning with a push reminder.</div>
         </div>
         <button class="btn btn-sm btn-g" onclick="scheduleAddBlock()">+ Add Block</button>
       </div>
-      <div id="schedule-blocks-list" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;"></div>
-      <button class="btn btn-g" style="width:100%;margin-top:10px;" onclick="scheduleSave()">Save Schedule</button>
+      <div id="schedule-blocks-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      <button class="btn btn-g" style="width:100%;margin-top:12px;" onclick="scheduleSave()">Save Schedule</button>
     </div>
-  </div>
-  </div>
 
+  </div>
+  </div>
   <!-- MESSAGES TAB -->
   <div id="agent-chat-inbox" style="display:none;flex-direction:column;gap:10px;">
     <div id="agent-inbox-list">
@@ -3874,6 +3923,29 @@ async function saveAgentProfile() {
     if (status) { status.textContent = 'Save failed: ' + e.message; status.style.color = 'var(--red-dk)'; status.style.display = 'block'; }
   }
 }
+function showProfileHelp(type) {
+  var titles = {
+    showingtime: 'How to get your ShowingTime iCal URL',
+    zapier: 'How to set up Zapier Webhook'
+  };
+  var content = {
+    showingtime: 'In ShowingTime, go to <strong>Settings</strong> → <strong>Calendar Sync</strong> → <strong>Subscribe Link</strong>. Copy the webcal:// URL and paste it here. This lets Nest Track pull your showings automatically into Seller Reports.<br/><br/><em>Video walkthrough coming soon — ask Tom for help if needed.</em>',
+    zapier: 'In Zapier, create a new Zap → Trigger: <strong>Webhooks by Zapier</strong> → <strong>Catch Hook</strong>. Copy the webhook URL Zapier gives you and paste it here. This syncs new and updated clients to your external CRM automatically.<br/><br/><em>Video walkthrough coming soon — ask Tom for help if needed.</em>'
+  };
+  var modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = '<div style="background:var(--surface);border-radius:16px;padding:22px;width:100%;max-width:420px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+    + '<div style="font-size:14px;font-weight:600;">'+titles[type]+'</div>'
+    + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);">&#215;</button>'
+    + '</div>'
+    + '<div style="font-size:13px;color:var(--text2);line-height:1.8;">'+content[type]+'</div>'
+    + '</div>';
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
+window.showProfileHelp = showProfileHelp;
+
 window.saveAgentProfile = saveAgentProfile;
 
 function agentInitials(a) {
