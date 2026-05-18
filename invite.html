@@ -2301,20 +2301,26 @@ textarea{resize:vertical;min-height:68px;}
       <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
         <div>
           <label class="flabel">Client *</label>
-          <select id="appt-client" style="width:100%;font-size:13px;" onchange="apptAutoFillAddress(this.value)"><option value="">-- Select client --</option></select>
+          <input type="text" id="appt-client-search" placeholder="Search by name..." autocomplete="off" oninput="apptClientSearch(this.value)" onfocus="apptClientSearch(this.value)" style="width:100%;font-size:13px;"/>
+          <input type="hidden" id="appt-client"/>
+          <div id="appt-client-results" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:100;width:calc(100% - 40px);max-height:180px;overflow-y:auto;box-shadow:var(--shadow);"></div>
         </div>
         <div>
           <label class="flabel">Type *</label>
-          <select id="appt-type" style="width:100%;font-size:13px;">
-            <option value="Meeting">📋 Meeting</option>
-            <option value="Walkthrough">🚶 Walkthrough</option>
+          <select id="appt-type" style="width:100%;font-size:13px;" onchange="apptTypeChange(this.value)">
+            <option value="Listing Appointment">🏡 Listing Appointment</option>
+            <option value="Buyer Consultation">👥 Buyer Consultation</option>
+            <option value="Showing">🚶 Showing</option>
             <option value="Final Walkthrough">🏁 Final Walkthrough</option>
             <option value="Signing">✍️ Signing / Closing</option>
             <option value="Inspection">🔍 Inspection</option>
             <option value="Appraisal">📐 Appraisal</option>
-            <option value="Open House">🏡 Open House</option>
-            <option value="Other">📌 Other</option>
+            <option value="Open House">🏠 Open House</option>
+            <option value="Call">📞 Call</option>
+            <option value="Meeting">📋 Meeting</option>
+            <option value="Other">✏️ Custom</option>
           </select>
+          <input type="text" id="appt-type-custom" placeholder="Describe the appointment..." style="display:none;width:100%;font-size:13px;margin-top:6px;"/>
         </div>
         <div style="display:flex;gap:10px;">
           <div style="flex:1;">
@@ -9154,20 +9160,17 @@ async function todoAddForClient(uid, name) {
   showDealToast('✅ Task added to your to-do list', null, null);
 }
 function openApptModalForClient(uid, name) {
-  // Close client modal
   var cm = document.getElementById('client-modal');
   if (cm) cm.style.display = 'none';
-  // Open appointment modal properly
   openApptModal();
-  // After modal populates the select, pre-select this client and fill address
   setTimeout(function(){
-    var sel = document.getElementById('appt-client');
-    if (sel) {
-      sel.value = uid;
-      var addrEl = document.getElementById('appt-address');
-      if (addrEl) addrEl.value = '';
-      apptAutoFillAddress(uid);
-    }
+    var search = document.getElementById('appt-client-search');
+    var hidden = document.getElementById('appt-client');
+    if (search) search.value = name;
+    if (hidden) hidden.value = uid;
+    var addrEl = document.getElementById('appt-address');
+    if (addrEl) addrEl.value = '';
+    apptAutoFillAddress(uid);
   }, 50);
 }
 window.openApptModalForClient = openApptModalForClient;
@@ -9224,7 +9227,9 @@ function todoDownloadICS(sid) {
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'task.ics';
+  document.body.appendChild(a);
   a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
 }
 function todoSetReminder(sid) {
   var realId = (window._todoMap && window._todoMap[sid]) || sid;
@@ -14432,15 +14437,12 @@ window.renderShowingInbox = renderShowingInbox;
 var _pendingApptData = null; // stores appt data while email is being reviewed
 
 function openApptModal() {
-  if (!myBuyers || !myBuyers.length) { alert('No clients loaded.'); return; }
-  var sel = document.getElementById('appt-client');
-  if (sel) {
-    sel.innerHTML = '<option value="">-- Select client --</option>'
-      + (myBuyers||[]).map(function(b){
-          var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
-          return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
-        }).join('');
-  }
+  var search = document.getElementById('appt-client-search');
+  if (search) { search.value = ''; }
+  var hidden = document.getElementById('appt-client');
+  if (hidden) hidden.value = '';
+  var results = document.getElementById('appt-client-results');
+  if (results) results.style.display = 'none';
   var dateEl = document.getElementById('appt-date');
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
   var timeEl = document.getElementById('appt-time');
@@ -14450,6 +14452,43 @@ function openApptModal() {
   var overlay = document.getElementById('appt-overlay');
   if (overlay) { overlay.style.display = 'flex'; }
 }
+function apptClientSearch(q) {
+  var results = document.getElementById('appt-client-results');
+  var hidden = document.getElementById('appt-client');
+  if (!results) return;
+  if (!q || q.length < 1) { results.style.display='none'; return; }
+  var matches = (allBuyers||myBuyers||[]).filter(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).toLowerCase();
+    return name.includes(q.toLowerCase());
+  }).slice(0,8);
+  if (!matches.length) { results.style.display='none'; return; }
+  results.style.display='block';
+  results.innerHTML = matches.map(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
+    return '<div onclick="apptSelectClient(\''+b.uid+'\',\''+partnerEsc(name)+'\')" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+partnerEsc(name)+'</div>';
+  }).join('');
+}
+window.apptClientSearch = apptClientSearch;
+
+function apptSelectClient(uid, name) {
+  var search = document.getElementById('appt-client-search');
+  var hidden = document.getElementById('appt-client');
+  var results = document.getElementById('appt-client-results');
+  if (search) search.value = name;
+  if (hidden) hidden.value = uid;
+  if (results) results.style.display='none';
+  var addrEl = document.getElementById('appt-address');
+  if (addrEl) addrEl.value = '';
+  apptAutoFillAddress(uid);
+}
+window.apptSelectClient = apptSelectClient;
+
+function apptTypeChange(val) {
+  var custom = document.getElementById('appt-type-custom');
+  if (custom) custom.style.display = val === 'Other' ? 'block' : 'none';
+}
+window.apptTypeChange = apptTypeChange;
+
 window.openApptModal = openApptModal;
 
 function closeApptModal() {
@@ -14463,7 +14502,8 @@ window.closeApptModal = closeApptModal;
 
 async function saveAppt() {
   var clientUid  = (document.getElementById('appt-client')||{}).value;
-  var apptType   = (document.getElementById('appt-type')||{}).value || 'Meeting';
+  var typeRaw    = (document.getElementById('appt-type')||{}).value || 'Meeting';
+  var apptType   = typeRaw === 'Other' ? (((document.getElementById('appt-type-custom')||{}).value||'').trim() || 'Other') : typeRaw;
   var dateVal    = (document.getElementById('appt-date')||{}).value;
   var timeVal    = (document.getElementById('appt-time')||{}).value || '10:00';
   var address    = ((document.getElementById('appt-address')||{}).value||'').trim();
