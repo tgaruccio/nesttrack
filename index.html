@@ -9318,18 +9318,16 @@ function todoRender() {
   active.sort(function(a, b) {
     var aOver = a.date && a.date < todayStr;
     var bOver = b.date && b.date < todayStr;
-    // Overdue first
+    // Undated first (newest creation first)
+    if (!a.date && b.date) return -1;
+    if (a.date && !b.date) return 1;
+    // Both undated — newest first
+    if (!a.date && !b.date) return (b.createdAt||0) - (a.createdAt||0);
+    // Overdue before future dated
     if (aOver && !bOver) return -1;
     if (!aOver && bOver) return 1;
-    // Both have dates — sort ascending
-    if (a.date && b.date) return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
-    // Dated before undated
-    if (a.date && !b.date) return -1;
-    if (!a.date && b.date) return 1;
-    // Both undated — sort by creation date descending (newest first)
-    var aC = a.createdAt || 0;
-    var bC = b.createdAt || 0;
-    return bC - aC;
+    // Both dated — ascending
+    return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
   });
   window._todoMap = {};
   _todos.forEach(function(t){
