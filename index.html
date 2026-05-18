@@ -5613,9 +5613,9 @@ async function showUnderContractEmailPreview(uid, dates, type) {
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.agentId; });
   var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
   var googleReviewUrl = userProfile.googleReviewUrl || userProfile.apGoogleReview || '';
+  var isSeller = type === 'seller';
 
   // Build dates table
-  var isSeller = type === 'seller';
   var fields = isSeller ? (SELLER_CONTRACT_FIELDS||[]) : (BUYER_CONTRACT_FIELDS||[]);
   var dateRows = fields.map(function(f){
     if (!dates[f.key]) return '';
@@ -5630,59 +5630,26 @@ async function showUnderContractEmailPreview(uid, dates, type) {
   var emailObj = isSeller ? SELLER_STEP_EMAILS[9] : BUYER_STEP_EMAILS[5];
   var emailFn = emailObj && emailObj.body;
   var bodyHtml = emailFn ? emailFn(first, agentName, googleReviewUrl).replace('{{DATES_TABLE}}', datesTable) : '';
-  var subject = emailObj ? emailObj.subject : (isSeller ? '🎉 You\'re Under Contract' : '🎉 Your Offer Was Accepted');
+  var subject = emailObj ? emailObj.subject : "You're Under Contract";
   var fullHtml = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
 
-  // Build preview modal
-  var modal = document.createElement('div');
-  modal.id = 'uc-preview-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
-  modal.innerHTML = '<div style="background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;">'
-    +'<div style="padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0;">'
-    +'<div style="font-size:15px;font-weight:600;margin-bottom:2px;">📧 Preview — Under Contract Email</div>'
-    +'<div style="font-size:12px;color:var(--text3);">This is exactly what '+first+' will receive. Review before sending.</div>'
-    +'<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;">'
-    +'<div style="background:#f8f8f6;border:1px solid #e5e7eb;border-radius:10px;padding:16px;font-size:12px;margin-bottom:4px;">'
-    +'<div style="margin-bottom:6px;color:#666;"><strong>To:</strong> '+partnerEsc(buyer.email||'')+'</div>'
-    +'<div style="color:#666;"><strong>Subject:</strong> 🎉 You\'re Under Contract — Here\'s What Happens Next</div>'
-    +'</div>'
-    +'<div style="margin-top:12px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;">'
-    +'<iframe id="uc-preview-frame" style="width:100%;height:500px;border:none;" srcdoc=""></iframe>'
-    +'</div>'
-    +'</div>'
-    +'<div style="padding:16px 20px;border-top:1px solid var(--border);display:flex;gap:10px;flex-shrink:0;">'
-    +'<button onclick="doSendUCEmail(\''+uid+'\',\''+uid+'\')" style="flex:2;background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:13px;font-size:14px;font-weight:700;cursor:pointer;">Send This Email →</button>'
-    +'<button onclick="document.getElementById(\'uc-preview-modal\').remove()" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:13px;font-size:13px;cursor:pointer;">Save Dates Only</button>'
-    +'</div>'
-    +'</div>';
-  document.body.appendChild(modal);
+  // CC prefill
+  var ccParts = [];
+  if (agentObj && agentObj.email) ccParts.push(agentObj.email);
 
-  // Load iframe after append
-  setTimeout(function(){
-    var frame = document.getElementById('uc-preview-frame');
-    if (frame) frame.srcdoc = fullHtml;
-  }, 100);
-
-  // Store data for send
-  window._ucPreviewData = { uid:uid, dates:dates, type:type };
+  // Use standard email preview — full video, edit, CC support
+  showEmailPreview(buyer.email, subject, fullHtml, async function(finalHtml, ccValue) {
+    try {
+      await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify({to:buyer.email,subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),cc:ccValue||undefined})});
+      await sendContractDatesEmail(uid, type, dates);
+      showDealToast('Under Contract email sent!', null, null);
+      logEmailActivity(uid, subject, 'under_contract');
+    } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
+  }, isSeller ? 9 : 5, type, ccParts.join(', '));
 }
 window.showUnderContractEmailPreview = showUnderContractEmailPreview;
 
-async function doSendUCEmail(uid) {
-  var data = window._ucPreviewData;
-  if (!data) return;
-  var btn = document.querySelector('#uc-preview-modal button');
-  if (btn) { btn.disabled=true; btn.textContent='Sending...'; }
-  try {
-    await sendContractDatesEmail(data.uid, data.type||'seller', data.dates);
-    document.getElementById('uc-preview-modal').remove();
-    showDealToast('✅ Under Contract email sent to client!', null, null);
-  } catch(e) {
-    showDealToast('Failed to send: '+e.message, null, null);
-    if (btn) { btn.disabled=false; btn.textContent='Send This Email →'; }
-  }
-}
-window.doSendUCEmail = doSendUCEmail;
 
 window.sendContractDatesEmail = sendContractDatesEmail;
 
