@@ -12751,7 +12751,7 @@ async function saveListing(existingId) {
     clientUid:clientUid, clientName:clientName, deadline:deadline,
     agentId: userProfile.agentId||'tom', code:code||Math.random().toString(36).substring(2,8).toUpperCase(),
     customFields:fields, active:true, createdAt:fb.serverTimestamp(),
-    offerCount:0, autoSend:autoSend, listPct:listPct, taxes:taxes, county:county, mortgage:mortgage,
+    offerCount: existingId ? ((_listings.find(function(l){return l.id===existingId;})||{}).offerCount||0) : 0, autoSend:autoSend, listPct:listPct, taxes:taxes, county:county, mortgage:mortgage,
   };
 
   try {
