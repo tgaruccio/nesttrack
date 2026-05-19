@@ -5741,7 +5741,6 @@ async function showUnderContractEmailPreview(uid, dates, type) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify({to:buyer.email,subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),cc:ccValue||undefined})});
-      await sendContractDatesEmail(uid, type, dates);
       showDealToast('Under Contract email sent!', null, null);
       logEmailActivity(uid, subject, 'under_contract');
     } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
