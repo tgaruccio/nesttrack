@@ -2741,6 +2741,27 @@ textarea{resize:vertical;min-height:68px;}
     <div><label class="flabel">Email <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
     <div><label class="flabel">Phone <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
     <div><label class="flabel">Mailing Address <span style="font-weight:400;color:var(--text3);">(optional — current home address)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/></div>
+    <div>
+      <label class="flabel">Contact Type</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">
+        <label style="display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface2);border:2px solid var(--border);border-radius:8px;padding:10px 6px;cursor:pointer;font-size:11px;font-weight:600;text-align:center;" id="jt-buyer-lbl">
+          <input type="radio" name="inv-journey" id="inv-jt-buyer" value="buyer" checked style="display:none;" onchange="invJourneyChange()"/>
+          🏠 Buyer
+        </label>
+        <label style="display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface2);border:2px solid var(--border);border-radius:8px;padding:10px 6px;cursor:pointer;font-size:11px;font-weight:600;text-align:center;" id="jt-seller-lbl">
+          <input type="radio" name="inv-journey" id="inv-jt-seller" value="seller" style="display:none;" onchange="invJourneyChange()"/>
+          🏡 Seller
+        </label>
+        <label style="display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface2);border:2px solid var(--border);border-radius:8px;padding:10px 6px;cursor:pointer;font-size:11px;font-weight:600;text-align:center;" id="jt-both-lbl">
+          <input type="radio" name="inv-journey" id="inv-jt-both" value="both" style="display:none;" onchange="invJourneyChange()"/>
+          🔄 Both
+        </label>
+        <label style="display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface2);border:2px solid var(--border);border-radius:8px;padding:10px 6px;cursor:pointer;font-size:11px;font-weight:600;text-align:center;" id="jt-contact-lbl">
+          <input type="radio" name="inv-journey" id="inv-jt-contact" value="contact" style="display:none;" onchange="invJourneyChange()"/>
+          👤 Contact
+        </label>
+      </div>
+    </div>
     <div><label class="flabel">CRM Status</label>
       <select id="inv-crm-status">
         <option value="pipeline">Pipeline</option>
@@ -9464,7 +9485,8 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
           ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
-        ${(b.currentStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
+        ${((b.journeyType==='buyer'||b.journeyType==='both'||!b.journeyType)&&(b.currentStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
+        ${((b.journeyType==='seller'||b.journeyType==='both')&&(b.currentSellerStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>Manage Listing</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
         <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
       </div>
     </details>
@@ -18756,8 +18778,29 @@ function openAddContactModal() {
     }).join('');
   }
   document.getElementById('invite-result').style.display = 'none';
+  var buyerRad = document.getElementById('inv-jt-buyer');
+  if (buyerRad) { buyerRad.checked = true; invJourneyChange(); }
   document.getElementById('invite-modal').style.display = 'flex';
 }
+function invJourneyChange() {
+  var options = ['buyer','seller','both','contact'];
+  var selected = options.find(function(v){ var el = document.getElementById('inv-jt-'+v); return el && el.checked; }) || 'buyer';
+  options.forEach(function(v){
+    var lbl = document.getElementById('jt-'+v+'-lbl');
+    if (!lbl) return;
+    if (v === selected) {
+      lbl.style.borderColor = 'var(--green)';
+      lbl.style.background = 'var(--green-lt)';
+      lbl.style.color = 'var(--green-dk)';
+    } else {
+      lbl.style.borderColor = 'var(--border)';
+      lbl.style.background = 'var(--surface2)';
+      lbl.style.color = '';
+    }
+  });
+}
+window.invJourneyChange = invJourneyChange;
+
 window.openAddContactModal = openAddContactModal;
 
 async function createContact() {
@@ -18775,12 +18818,20 @@ async function createContact() {
 
   // Generate a unique contact ID
   var contactId = 'contact_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
+  var journeyOptions = ['buyer','seller','both','contact'];
+  var journeyType = journeyOptions.find(function(v){ var el = document.getElementById('inv-jt-'+v); return el && el.checked; }) || 'buyer';
+  var isBuyer = journeyType === 'buyer' || journeyType === 'both';
+  var isSeller = journeyType === 'seller' || journeyType === 'both';
+  var isContactOnly = journeyType === 'contact';
+
   var data = {
     firstName: first, lastName: last, email: email, phone: phone,
-    agentId: agentId, lenderId: lenderId, role: 'buyer',
-    journeyType: 'buyer', crmStatus: crmStatus,
+    agentId: agentId, lenderId: lenderId,
+    role: isContactOnly ? 'contact' : (isSeller && !isBuyer ? 'seller' : 'buyer'),
+    journeyType: journeyType,
+    crmStatus: crmStatus,
     currentStep: 0, currentSellerStep: 0,
-    portalAccess: false, // no portal account yet
+    portalAccess: false,
     isContact: true,
     mailingAddress: mailingAddress || null,
     createdAt: fb.serverTimestamp(),
