@@ -5775,7 +5775,7 @@ async function emailNetSheet() {
 
   // Handle "Send to All" — loop through all clients with email
   if (email === '__all__') {
-    var allClients = (myBuyers||[]).filter(function(b){ return b.email; });
+    var allClients = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; });
     if (!allClients.length) { alert('No clients with email addresses found.'); return; }
     if (!confirm('Send net sheet to all ' + allClients.length + ' clients?')) return;
     // Send to each client sequentially
@@ -7096,7 +7096,7 @@ function createClientSearchDropdown(containerId, onSelect, placeholder) {
   container.appendChild(wrapper);
 
   window['_csdCb_'+containerId] = onSelect;
-  function populate() { window['_csdClients_'+containerId] = (myBuyers||[]).filter(function(b){ return b.email; }); }
+  function populate() { window['_csdClients_'+containerId] = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; }); }
   if (myBuyers && myBuyers.length) { populate(); }
   else { loadBuyersForAgent().then(populate); }
 }
@@ -7158,7 +7158,7 @@ function _populateToolDropdown(selId) {
   var sel = document.getElementById(selId);
   if (!sel) return;
   function fill() {
-    var clients = (myBuyers||[]).filter(function(b){ return b.email; });
+    var clients = (allBuyers||myBuyers||[]).filter(function(b){ return b.email; });
     sel.innerHTML = '<option value="">— Choose a client —</option>'
       + clients.map(function(b){
           var n = (((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email);
@@ -7684,7 +7684,7 @@ async function enterClientPreview() {
 
   // Pick a client to preview as — show selector if multiple
   if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
-  var clients = (myBuyers || []).filter(function(b){ return !b.pending; });
+  var clients = (allBuyers||myBuyers||[]).filter(function(b){ return !b.pending; });
   if (!clients.length) { alert('No active clients to preview. Add a client first.'); return; }
 
   // Build a simple picker modal
@@ -8677,7 +8677,7 @@ async function renderAgentDashboard() {
   if (!myBuyers || !myBuyers.length) {
     try { await loadBuyersForAgent(); } catch(e) {}
   }
-  var active = (myBuyers||[]).filter(function(b){ return !b.pending; });
+  var active = (allBuyers||myBuyers||[]).filter(function(b){ return !b.pending; });
   var pending = (myBuyers||[]).filter(function(b){ return b.pending; });
 
   // ── Stat banner ──
@@ -14452,7 +14452,7 @@ async function renderShowingInbox() {
     var dt = ev.start ? new Date(ev.start) : null;
     var dateStr = dt ? dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
     var timeStr = dt ? dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
-    var buyers = myBuyers || [];
+    var buyers = allBuyers || myBuyers || [];
     var buyerOpts = '<option value="">— Assign to client —</option>'
       + buyers.map(function(b){
           var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
@@ -14942,7 +14942,7 @@ function openManualShowingModal() {
   var sel = document.getElementById('ms-client');
   if (sel) {
     sel.innerHTML = '<option value="">-- Select client --</option>'
-      + (myBuyers||[]).map(function(b){
+      + (allBuyers||myBuyers||[]).map(function(b){
           var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
           return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
         }).join('');
@@ -18166,7 +18166,7 @@ function openNewDealModal() {
 
   // Build buyer options
   var buyerOpts = '<option value="">— Unlinked (manual) —</option>'
-    + (myBuyers||[]).map(function(b){
+    + (allBuyers||myBuyers||[]).map(function(b){
         var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
         return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
       }).join('');
