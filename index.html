@@ -2768,6 +2768,7 @@ textarea{resize:vertical;min-height:68px;}
         <option value="nurture">Nurture</option>
         <option value="cold">Cold</option>
         <option value="past">Past Client</option>
+        <option value="contact">Contact Only</option>
       </select>
     </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
@@ -7808,6 +7809,23 @@ async function loadBuyersForAgent() {
     const snap = await fb.getDocs(q);
     allBuyers = [];
     snap.forEach(d => allBuyers.push({ uid: d.id, ...d.data() }));
+
+    // Also load contacts and seller-only clients assigned to this agent
+    if (isAgent || isTeamLeader()) {
+      try {
+        var extraRoles = ['contact','seller'];
+        for (var ri = 0; ri < extraRoles.length; ri++) {
+          var rq = fb.query(fb.collection(fb.db,'users'),
+            fb.where('role','==',extraRoles[ri]),
+            fb.where('agentId','==',userProfile.agentId));
+          var rSnap = await fb.getDocs(rq);
+          rSnap.forEach(function(d){
+            if (!allBuyers.find(function(b){ return b.uid===d.id; }))
+              allBuyers.push({uid:d.id,...d.data()});
+          });
+        }
+      } catch(e) { console.log('contact/seller load err:',e.message); }
+    }
     // Also load clients where this agent is co-agent (second query, merge)
     if (isAgent && !(isTeamLeader() && _adminShowAll)) {
       try {
@@ -9463,7 +9481,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid var(--border);">
       <div style="display:flex;gap:10px;align-items:center;">
         <div style="font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;">CRM Status</div>
-        <select onchange="saveClientStatus('${uid}',this.value)" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="auto" ${(!b.crmStatus||b.crmStatus==='auto')?'selected':''}>Auto</option><option value="pipeline" ${b.crmStatus==='pipeline'?'selected':''}>Pipeline</option><option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option><option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option><option value="cold" ${b.crmStatus==='cold'?'selected':''}>Cold</option><option value="past" ${(b.crmStatus==='past'||b.crmStatus==='closed')?'selected':''}>Past Client</option></select>
+        <select onchange="saveClientStatus('${uid}',this.value)" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="pipeline" ${(!b.crmStatus||b.crmStatus==='auto'||b.crmStatus==='pipeline')?'selected':''}>Pipeline</option><option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option><option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option><option value="cold" ${b.crmStatus==='cold'?'selected':''}>Cold</option><option value="past" ${(b.crmStatus==='past'||b.crmStatus==='closed')?'selected':''}>Past Client</option><option value="contact" ${b.crmStatus==='contact'?'selected':''}>Contact Only</option></select>
       </div>
       <div style="display:flex;gap:10px;align-items:center;">
         <div style="font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;">Journey Type</div>
@@ -18705,7 +18723,7 @@ function crmStatusPill(b) {
   var cs = getClientStatus(b);
   var colors = {active:'#1D9E75',pipeline:'#185FA5',nurture:'#D97706',cold:'#6366F1',past:'#059669',closed:'#888'};
   var bgs = {active:'#f0fdf4',pipeline:'#eff6ff',nurture:'#fef9f0',cold:'#eef2ff',past:'#ecfdf5',closed:'#f5f5f5'};
-  var labels = {active:'Active',pipeline:'Pipeline',nurture:'Nurture',cold:'Cold',past:'Past Client',closed:'Past Client'};
+  var labels = {active:'Active',pipeline:'Pipeline',contact:'Contact Only',nurture:'Nurture',cold:'Cold',past:'Past Client',closed:'Past Client',auto:'Pipeline'};
   return '<span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:'+(bgs[cs]||'#f5f5f5')+';color:'+(colors[cs]||'#888')+'">'+(labels[cs]||cs)+'</span>';
 }
 window.crmStatusPill = crmStatusPill;
@@ -18827,6 +18845,7 @@ async function createContact() {
   var agentId = document.getElementById('inv-agent').value;
   var lenderId = document.getElementById('inv-lender').value || 'none';
   var crmStatus = (document.getElementById('inv-crm-status')||{}).value || 'pipeline';
+  if (isContactOnly && crmStatus === 'pipeline') crmStatus = 'contact';
   var resultEl = document.getElementById('invite-result');
   if (!first) { alert('First name is required.'); return; }
 
