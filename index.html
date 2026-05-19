@@ -19237,6 +19237,19 @@ function videoThumbnailHtml(url, title) {
 }
 
 // Email-safe video block (no iframes — works in all email clients)
+function videoEmailBlockWithThumb(url, title, thumbUrl) {
+  var label = title || 'Watch My Personal Message';
+  return '<div style="margin:20px 0;text-align:center;">'
+    +'<div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:8px;">&#x1F4F9; Personal Video from Your Agent</div>'
+    +'<a href="'+url+'" target="_blank" style="display:inline-block;position:relative;text-decoration:none;">'
+    +'<img src="'+thumbUrl+'" width="480" style="max-width:100%;border-radius:10px;display:block;" alt="'+label+'"/>'
+    +'<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60px;height:60px;background:rgba(0,0,0,0.7);border-radius:50%;display:flex;align-items:center;justify-content:center;">'
+    +'<div style="width:0;height:0;border-top:12px solid transparent;border-bottom:12px solid transparent;border-left:20px solid #fff;margin-left:4px;"></div>'
+    +'</div></a>'
+    +'<div style="margin-top:8px;"><a href="'+url+'" target="_blank" style="color:#1D9E75;font-size:13px;font-weight:600;text-decoration:none;">&#9654; '+label+'</a></div>'
+    +'</div>';
+}
+
 function videoEmailBlock(url, title) {
   var meta = getVideoMeta(url);
   var thumb = meta ? meta.thumb : '';
@@ -19415,21 +19428,47 @@ function epoVideoUrlChanged() {
   if (!url) { _restoreEpoBody(); return; }
   _injectVideoIntoEmail(url, '');
 }
+async function epoUploadThumb(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var status = document.getElementById('epo-thumb-status');
+  if (status) status.textContent = 'Uploading...';
+  try {
+    var path = 'email_thumbs/'+(currentUser?currentUser.uid:'agent')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    var sRef = fb.storageRef(fb.storage, path);
+    var snap = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snap.ref);
+    window._epoCustomThumb = url;
+    if (status) status.textContent = '✓ Thumbnail ready';
+    // Show preview
+    var prevEl = document.getElementById('epo-video-preview');
+    if (prevEl) {
+      prevEl.style.display = 'block';
+      prevEl.innerHTML = '<img src="'+url+'" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
+    }
+  } catch(e) {
+    if (status) status.textContent = 'Upload failed';
+  }
+}
+window.epoUploadThumb = epoUploadThumb;
+
 window.epoVideoUrlChanged = epoVideoUrlChanged;
 
 function _injectVideoIntoEmail(url, title) {
   var bodyEl = document.getElementById('epo-body');
   if (!bodyEl) return;
+  var customThumb = window._epoCustomThumb || null;
   // Show thumbnail preview above email
   var prevEl = document.getElementById('epo-video-preview');
-  if (prevEl) {
+  if (prevEl && !customThumb) {
     var th = videoThumbnailHtml(url, title||'Your video');
     if (th) { prevEl.innerHTML = '<div style="margin-bottom:8px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Video Preview</div>'+th; prevEl.style.display='block'; }
   }
-  // Inject into email body HTML
-  var videoBlock = videoEmailBlock(url, title||'Watch My Personal Message');
+  // Inject into email body HTML — use custom thumb if provided
+  var videoBlock = customThumb
+    ? videoEmailBlockWithThumb(url, title||'Watch My Personal Message', customThumb)
+    : videoEmailBlock(url, title||'Watch My Personal Message');
   var currentHtml = _epoBaseHtml || bodyEl.innerHTML;
-  // Insert after the first <p> greeting
   var insertAfter = '</p>';
   var insertIdx = currentHtml.indexOf(insertAfter);
   var newHtml = insertIdx > -1
@@ -19442,6 +19481,11 @@ function _injectVideoIntoEmail(url, title) {
 var _origShowEmailPreview = showEmailPreview;
 function showEmailPreview(toLabel, subject, emailHtml, onApprove, stepNum, stepType, ccPrefill) {
   _epoBaseHtml = emailHtml;
+  window._epoCustomThumb = null;
+  var thumbStatus = document.getElementById('epo-thumb-status');
+  if (thumbStatus) thumbStatus.textContent = '';
+  var thumbFile = document.getElementById('epo-thumb-file');
+  if (thumbFile) thumbFile.value = '';
   // Reset video panel
   var toggle = document.getElementById('epo-video-toggle');
   var panel = document.getElementById('epo-video-panel');
@@ -19595,6 +19639,11 @@ window.showEmailPreview = showEmailPreview;
             <span style="font-size:12px;color:var(--text3);align-self:center;">or</span>
           </div>
           <input type="url" id="epo-video-url" placeholder="Paste any video URL (Loom, YouTube, BombBomb...)" style="font-size:13px;" oninput="epoVideoUrlChanged()"/>
+          <div style="font-size:11px;color:var(--text3);">Optional: upload a thumbnail screenshot (overrides auto-thumbnail)</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">📷 Upload Thumbnail<input type="file" id="epo-thumb-file" accept="image/*" style="display:none;" onchange="epoUploadThumb(event)"/></label>
+            <span id="epo-thumb-status" style="font-size:11px;color:var(--text3);"></span>
+          </div>
           <div id="epo-video-preview" style="display:none;"></div>
         </div>
       </div>
