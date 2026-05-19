@@ -14409,14 +14409,32 @@ async function renderShowingInbox() {
   _pendingShowings = events;
 
   // Load buyers for assignment dropdown
-  if (!myBuyers || !myBuyers.length) await loadBuyersForAgent();
+  if (!allBuyers || !allBuyers.length) await loadBuyersForAgent();
 
-  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
-    +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'
-    +'<button class="btn btn-sm" onclick="renderShowingInbox()" style="font-size:11px;">↺ Refresh</button>'
-    +'</div>';
+  // Split into listing showings vs buyer showings by address match
+  var listingShowings = [];
+  var buyerShowings = [];
+  events.forEach(function(ev) {
+    var matched = (_listings||[]).find(function(l){
+      if (!l.address || !ev.address) return false;
+      var la = l.address.toLowerCase().replace(/[^a-z0-9]/g,'');
+      var ea = ev.address.toLowerCase().replace(/[^a-z0-9]/g,'');
+      return ea.includes(la.substring(0,12)) || la.includes(ea.substring(0,12));
+    });
+    if (matched) listingShowings.push(Object.assign({},ev,{_listing:matched}));
+    else buyerShowings.push(ev);
+  });
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'    +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'    +'<button class="btn btn-sm" onclick="renderShowingInbox()" style="font-size:11px;">↺ Refresh</button>'    +'</div>';
+
+  // ── LISTING SHOWINGS ──
+  var totalListingSide = listingShowings.length + manualShowings.length;
+  if (totalListingSide > 0) {
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--green-dk);margin-bottom:8px;">'      +'🏡 Showings on My Listings ('+totalListingSide+')</div>';
+  }
 
   if (manualShowings.length) {
+
     html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">Manual Showings</div>';
     html += manualShowings.map(function(m) {
       var mDt = new Date(m.date);
@@ -14486,6 +14504,20 @@ async function renderShowingInbox() {
       +'<div id="showing-status-'+i+'" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"></div>'
       +'</div>';
   }).join('');
+
+  // ── BUYER SHOWINGS ──
+  if (buyerShowings.length) {
+    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:16px 0 8px;">'      +'&#x1F3E0; Buyer Showings ('+buyerShowings.length+')</div>';
+    html += buyerShowings.map(function(ev, ei) {
+      var dt = new Date(ev.start||ev.date||Date.now());
+      var dateStr = dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      var assigned = _showingAssignments && _showingAssignments[ev.uid||ei];
+      var assignedBuyer = assigned ? (allBuyers||[]).find(function(b){ return b.uid===assigned.buyerUid; }) : null;
+      var assignedName = assignedBuyer ? ((assignedBuyer.firstName||'')+' '+(assignedBuyer.lastName||'')).trim() : '';
+      return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'        +'<div style="display:flex;align-items:flex-start;gap:10px;">'        +'<div style="background:var(--surface2);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'        +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">'+dateStr.split(' ')[0]+'</div>'        +'<div style="font-size:18px;font-weight:700;color:var(--text);line-height:1;">'+dateStr.split(' ')[2]+'</div>'        +'<div style="font-size:10px;color:var(--text3);">'+dateStr.split(' ')[1]+'</div>'        +'</div>'        +'<div style="flex:1;min-width:0;">'        +'<div style="font-size:13px;font-weight:500;margin-bottom:2px;">'+partnerEsc(ev.address||ev.summary||'Showing')+'</div>'        +'<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">'+timeStr+'</div>'        +(assignedName?'<div style="font-size:12px;color:var(--green-dk);font-weight:500;">&#x1F464; '+partnerEsc(assignedName)+'</div>':'')        +'</div></div></div>';
+    }).join('');
+  }
 
   el.innerHTML = html;
 }
