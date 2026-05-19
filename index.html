@@ -9294,6 +9294,9 @@ function todoSetReminder(sid) {
     t.reminderSet = false;
     t.reminderTime = null;
     todoSave(); todoRender();
+    // Remove from Firestore
+    var agentId = userProfile.agentId || 'tom';
+    fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'todoReminders',t.id)).catch(function(){});
     return;
   }
   // Build reminder modal
@@ -9326,6 +9329,15 @@ function todoSetReminder(sid) {
     t.time = t.time || ti;
     todoSave(); todoRender();
     overlay.remove();
+    // Save to Firestore for server-side push
+    var agentId = userProfile.agentId || 'tom';
+    fb.setDoc(fb.doc(fb.db,'agents',agentId,'todoReminders',t.id), {
+      reminderTime: d + 'T' + ti,
+      text: t.text,
+      uid: currentUser.uid,
+      fired: false,
+      createdAt: Date.now()
+    }).catch(function(){});
     // Schedule the push check
     todoScheduleReminderCheck();
   });
