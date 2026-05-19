@@ -14399,6 +14399,14 @@ async function renderShowingInbox() {
   _pendingShowings = events;
   if (!allBuyers || !allBuyers.length) await loadBuyersForAgent();
 
+  // Load showing assignments
+  window._showingAssignments = {};
+  try {
+    var agId2 = userProfile.agentId||'tom';
+    var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agId2,'showingAssignments'));
+    asnSnap.forEach(function(d){ window._showingAssignments[d.id] = d.data(); });
+  } catch(ae){ console.log('showingAssignments load err:', ae.message); }
+
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
     +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'
     +'<button class="btn btn-sm" onclick="renderShowingInbox()" style="font-size:11px;">&#8635; Refresh</button>'
@@ -14440,7 +14448,7 @@ async function renderShowingInbox() {
       var addr = partnerEsc(ev.address||ev.summary||'Showing');
       var desc = partnerEsc((ev.description||'').substring(0,200));
       var evKey = ev.uid||ev.id||ei;
-      var assigned = _showingAssignments && _showingAssignments[evKey];
+      var assigned = (window._showingAssignments) && window._showingAssignments[evKey];
       var assignedUid = assigned ? assigned.buyerUid : '';
       var buyerOpts = (allBuyers||[]).map(function(b){
         var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'';
