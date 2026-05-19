@@ -14366,9 +14366,8 @@ async function renderShowingInbox() {
   if (!el) return;
   el.innerHTML = '<div style="color:var(--text3);font-size:13px;text-align:center;padding:20px;">Loading showings...</div>';
 
-  // Load both sources in parallel
   var events = await fetchShowingTimeEvents();
-  window._parsedShowings = events; // Cache for seller reports
+  window._parsedShowings = events;
   var manualShowings = [];
   try {
     var agId = userProfile.agentId||'tom';
@@ -14383,144 +14382,137 @@ async function renderShowingInbox() {
     manualShowings.sort(function(a,b){ return new Date(a.date)-new Date(b.date); });
   } catch(me){ console.log('manualShowings load err:', me.message); }
 
-  // If nothing at all, show appropriate message
   if (!events.length && !manualShowings.length) {
-    var stUrl = null;
+    var stUrl2 = null;
     try {
-      var aSnap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
-      if (aSnap.exists()) stUrl = aSnap.data().showingTimeUrl;
+      var aSnap2 = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+      if (aSnap2.exists()) stUrl2 = aSnap2.data().showingTimeUrl;
     } catch(e) {}
-
-    if (!stUrl) {
-      el.innerHTML = '<div class="notice" style="text-align:center;">'
-        +'<div style="font-size:32px;margin-bottom:8px;">📅</div>'
-        +'<div style="font-size:14px;font-weight:500;margin-bottom:6px;">No showings yet</div>'
-        +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Add a manual showing above or connect ShowingTime in My Profile to sync upcoming showings.</div>'
-        +'<button class="btn btn-sm btn-g" onclick="switchAgentTab(\'profile\')">Connect ShowingTime →</button>'
-        +'</div>';
+    if (!stUrl2) {
+      el.innerHTML = '<div class="notice" style="text-align:center;"><div style="font-size:32px;margin-bottom:8px;">&#128197;</div><div style="font-size:14px;font-weight:500;margin-bottom:6px;">No showings yet</div><div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Add a manual showing above or connect ShowingTime in My Profile to sync upcoming showings.</div><button class="btn btn-sm btn-g" onclick="switchAgentTab(\'profile\')">Connect ShowingTime &#8594;</button></div>';
     } else {
-      el.innerHTML = '<div class="notice" style="text-align:center;">'
-        +'<div style="font-size:13px;color:var(--text3);">No upcoming showings in the next 60 days.</div>'
-        +'</div>';
+      el.innerHTML = '<div class="notice" style="text-align:center;"><div style="font-size:13px;color:var(--text3);">No upcoming showings in the next 60 days.</div></div>';
     }
     return;
   }
 
   _pendingShowings = events;
-
-  // Load buyers for assignment dropdown
   if (!allBuyers || !allBuyers.length) await loadBuyersForAgent();
 
-  // Split into listing showings vs buyer showings by address match
-  var listingShowings = [];
-  var buyerShowings = [];
-  events.forEach(function(ev) {
-    var matched = (_listings||[]).find(function(l){
-      if (!l.address || !ev.address) return false;
-      var la = l.address.toLowerCase().replace(/[^a-z0-9]/g,'');
-      var ea = ev.address.toLowerCase().replace(/[^a-z0-9]/g,'');
-      return ea.includes(la.substring(0,12)) || la.includes(ea.substring(0,12));
-    });
-    if (matched) listingShowings.push(Object.assign({},ev,{_listing:matched}));
-    else buyerShowings.push(ev);
+  // Load showing tags from Firestore
+  var showingTags = {};
+  try {
+    var tagSnap = await fb.getDoc(fb.doc(fb.db,'agents',userProfile.agentId||'tom','showingTags','tags'));
+    if (tagSnap.exists()) showingTags = tagSnap.data();
+  } catch(e){}
+  window._showingTags = showingTags;
+
+  // Current filter
+  var stFilter = window._stFilter || 'all';
+
+  // Tab bar
+  var html = '<div style="display:flex;gap:6px;margin-bottom:14px;">'
+    + ['all','listing','buyer'].map(function(f){
+        var label = f==='all'?'All':f==='listing'?'&#x1F3E1; My Listings':'&#x1F3E0; Buyers';
+        var active = stFilter===f;
+        return '<button onclick="setShowingFilter(\''+f+'\')" style="padding:6px 14px;border-radius:20px;border:1.5px solid '+(active?'var(--green)':'var(--border)')+';background:'+(active?'var(--green)':'var(--surface)')+';color:'+(active?'#fff':'var(--text2)')+';font-size:12px;font-weight:600;cursor:pointer;">'+label+'</button>';
+      }).join('')
+    + '<button class="btn btn-sm" onclick="renderShowingInbox()" style="margin-left:auto;font-size:11px;">&#8635; Refresh</button>'
+    + '</div>';
+
+  // Combine and sort all showings
+  var allShowings = events.map(function(ev){ return Object.assign({},ev,{_type:'ical'}); });
+  manualShowings.forEach(function(m){ allShowings.push(Object.assign({},m,{_type:'manual'})); });
+  allShowings.sort(function(a,b){
+    var ad = new Date(a.start||a.date||0);
+    var bd = new Date(b.start||b.date||0);
+    return ad-bd;
   });
 
-  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'    +'<div style="font-size:14px;font-weight:500;">Upcoming Showings</div>'    +'<button class="btn btn-sm" onclick="renderShowingInbox()" style="font-size:11px;">↺ Refresh</button>'    +'</div>';
+  // Filter by tab
+  var filtered = allShowings.filter(function(ev){
+    var tag = showingTags[ev.id||ev.uid||ev.summary||''] || '';
+    if (stFilter==='listing') return tag==='listing';
+    if (stFilter==='buyer') return tag==='buyer';
+    return true;
+  });
 
-  // ── LISTING SHOWINGS ──
-  var totalListingSide = listingShowings.length + manualShowings.length;
-  if (totalListingSide > 0) {
-    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--green-dk);margin-bottom:8px;">'      +'🏡 Showings on My Listings ('+totalListingSide+')</div>';
+  if (!filtered.length) {
+    html += '<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px;">No showings in this category.</div>';
+    el.innerHTML = html;
+    return;
   }
 
-  if (manualShowings.length) {
+  html += filtered.map(function(ev) {
+    var isManual = ev._type==='manual';
+    var dt = new Date(ev.start||ev.date||Date.now());
+    var dt2 = ev.end ? new Date(ev.end) : null;
+    var dayStr = dt.toLocaleDateString('en-US',{weekday:'short'}).toUpperCase();
+    var dateNum = dt.getDate();
+    var monStr = dt.toLocaleDateString('en-US',{month:'short'}).toUpperCase();
+    var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    if (dt2) timeStr += ' \u2014 '+dt2.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    var addr = partnerEsc(ev.address||ev.summary||'Showing');
+    var desc = partnerEsc(ev.description||ev.notes||'');
+    var evKey = ev.id||ev.uid||ev.summary||'';
+    var tag = showingTags[evKey] || '';
 
-    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">Manual Showings</div>';
-    html += manualShowings.map(function(m) {
-      var mDt = new Date(m.date);
-      var mDateStr = mDt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      var mTimeStr = mDt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-      return '<div style="background:var(--surface);border:0.5px solid var(--green-md);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
-        +'<div style="display:flex;align-items:flex-start;gap:10px;">'
-        +'<div style="background:var(--green-lt);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'
-        +'<div style="font-size:11px;font-weight:700;color:var(--green-dk);text-transform:uppercase;">'+mDateStr.split(' ')[0]+'</div>'
-        +'<div style="font-size:18px;font-weight:700;color:var(--green-dk);line-height:1;">'+mDateStr.split(' ')[2]+'</div>'
-        +'<div style="font-size:10px;color:var(--green-dk);">'+mDateStr.split(' ')[1]+'</div>'
-        +'</div>'
-        +'<div style="flex:1;min-width:0;">'
-        +'<div style="font-size:14px;font-weight:600;">'+partnerEsc(m.address||'Showing')+'</div>'
-        +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+mTimeStr+(m.price?' · '+m.price:'')+'</div>'
-        +'<div style="font-size:12px;color:var(--green-dk);margin-top:4px;font-weight:500;">✓ '+partnerEsc(m.clientName||'Client')+'</div>'
-        +(m.notes?'<div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic;">'+partnerEsc(m.notes)+'</div>':'')
-        +'<button onclick="deleteManualShowing(\''+m.id+'\')" style="margin-top:8px;background:none;border:none;font-size:11px;color:#E24B4A;cursor:pointer;padding:0;">Remove</button>'
-        +'</div></div></div>';
+    // Assigned buyer
+    var assigned = _showingAssignments && _showingAssignments[evKey];
+    var assignedUid = assigned ? assigned.buyerUid : '';
+    var buyerOpts = (allBuyers||[]).map(function(b){
+      var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'';
+      return '<option value="'+b.uid+'"'+(b.uid===assignedUid?' selected':'')+'>'+partnerEsc(n)+'</option>';
     }).join('');
-    if (events.length) html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:10px 0 6px;">ShowingTime</div>';
-  }
 
-  // Load assignments from Firestore
-  var _showingAssignments = {};
-  try {
-    var agentId2 = userProfile.agentId||'tom';
-    var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agentId2,'showingAssignments'));
-    asnSnap.forEach(function(d){ _showingAssignments[d.id] = d.data(); });
-  } catch(ae){ console.log('Load assignments err:', ae.message); }
+    // Tag button
+    var tagHtml = '<div style="display:flex;gap:4px;margin-bottom:8px;">'
+      + '<span style="font-size:10px;font-weight:600;color:var(--text3);padding-top:4px;">Tag:</span>'
+      + '<button onclick="setShowingTag(\''+partnerEsc(evKey)+'\',\'listing\')" style="padding:3px 10px;border-radius:12px;border:1.5px solid '+(tag==='listing'?'var(--green)':'var(--border)')+';background:'+(tag==='listing'?'var(--green-lt)':'var(--surface)')+';color:'+(tag==='listing'?'var(--green-dk)':'var(--text3)')+';font-size:11px;font-weight:600;cursor:pointer;">&#x1F3E1; Listing</button>'
+      + '<button onclick="setShowingTag(\''+partnerEsc(evKey)+'\',\'buyer\')" style="padding:3px 10px;border-radius:12px;border:1.5px solid '+(tag==='buyer'?'var(--green)':'var(--border)')+';background:'+(tag==='buyer'?'var(--green-lt)':'var(--surface)')+';color:'+(tag==='buyer'?'var(--green-dk)':'var(--text3)')+';font-size:11px;font-weight:600;cursor:pointer;">&#x1F3E0; Buyer</button>'
+      + (tag?'<button onclick="setShowingTag(\''+partnerEsc(evKey)+'\',\'\')" style="padding:3px 8px;border-radius:12px;border:1px solid var(--border);background:none;color:var(--text3);font-size:11px;cursor:pointer;">&#x2715;</button>':'')
+      + '</div>';
 
-  html += events.map(function(ev, i) {
-    var dt = ev.start ? new Date(ev.start) : null;
-    var dateStr = dt ? dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '—';
-    var timeStr = dt ? dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
-    var buyers = allBuyers || myBuyers || [];
-    var buyerOpts = '<option value="">— Assign to client —</option>'
-      + buyers.map(function(b){
-          var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
-          return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
-        }).join('');
-
-    var assignKey = ((ev.address||'')+(ev.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80)||('st_'+i);
-    var existing = _showingAssignments[assignKey];
-    return '<div style="background:var(--surface);border:0.5px solid '+(existing?'var(--green-md)':'var(--border)')+';border-radius:var(--r);padding:14px 16px;margin-bottom:10px;" id="showing-card-'+i+'">'
+    return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
       +'<div style="display:flex;align-items:flex-start;gap:10px;">'
-      +'<div style="background:var(--green-lt);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--green-dk);text-transform:uppercase;">'+dateStr.split(' ')[0]+'</div>'
-      +'<div style="font-size:18px;font-weight:700;color:var(--green-dk);line-height:1;">'+dateStr.split(' ')[2]+'</div>'
-      +'<div style="font-size:10px;color:var(--green-dk);">'+dateStr.split(' ')[1]+'</div>'
+      +'<div style="background:var(--surface2);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'
+      +'<div style="font-size:11px;font-weight:700;color:var(--text3);">'+dayStr+'</div>'
+      +'<div style="font-size:18px;font-weight:700;color:var(--text);line-height:1;">'+dateNum+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);">'+monStr+'</div>'
       +'</div>'
       +'<div style="flex:1;min-width:0;">'
-      +'<div style="font-size:14px;font-weight:600;color:var(--text);">'+partnerEsc(ev.address||'Unknown Address')+'</div>'
-      +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+timeStr+(ev.end?' — '+new Date(ev.end).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'')+'</div>'
-      +(ev.description?'<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic;">'+partnerEsc(ev.description.substring(0,100))+'</div>':'')
-      +'<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">'
-      +(existing
-        ? '<div style="display:flex;align-items:center;justify-content:space-between;width:100%;background:var(--green-lt);border-radius:8px;padding:6px 10px;">'
-          +'<div style="font-size:12px;font-weight:500;color:var(--green-dk);">&#10003; Assigned to '+partnerEsc(existing.clientName||'client')+'</div>'
-          +'<button class="btn btn-sm" onclick="unassignShowing('+i+',\''+assignKey+'\')" style="font-size:11px;">Change</button>'
-          +'</div>'
-        : '<select id="showing-client-'+i+'" style="flex:1;font-size:12px;">'+buyerOpts+'</select>'
-          +'<button class="btn btn-sm btn-g" onclick="assignShowing('+i+')">Assign →</button>'
-      )
-      +'</div>'
-      +'</div></div>'
-      +'<div id="showing-status-'+i+'" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);"></div>'
-      +'</div>';
+      +'<div style="font-size:13px;font-weight:500;margin-bottom:2px;">'+addr+'</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">'+timeStr+'</div>'
+      +(desc?'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;white-space:pre-line;">'+desc.substring(0,120)+'</div>':'')
+      + tagHtml
+      +(!isManual?'<div style="display:flex;gap:6px;align-items:center;">'
+        +'<select onchange="assignShowingToBuyer(\''+partnerEsc(evKey)+'\',this.value)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);">'
+        +'<option value="">&#x2014; Assign to client &#x2014;</option>'+buyerOpts
+        +'</select>'
+        +'<button onclick="assignShowingToBuyer(\''+partnerEsc(evKey)+'\',document.querySelector(\'[onchange*=\\\''+partnerEsc(evKey.substring(0,8))+'\\\'] \')&&document.querySelector(\'[onchange*=\\\''+partnerEsc(evKey.substring(0,8))+'\\\'] \').value)" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Assign &#8594;</button>'
+        +'</div>':'')
+      +'</div></div></div>';
   }).join('');
-
-  // ── BUYER SHOWINGS ──
-  if (buyerShowings.length) {
-    html += '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:16px 0 8px;">'      +'&#x1F3E0; Buyer Showings ('+buyerShowings.length+')</div>';
-    html += buyerShowings.map(function(ev, ei) {
-      var dt = new Date(ev.start||ev.date||Date.now());
-      var dateStr = dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-      var assigned = _showingAssignments && _showingAssignments[ev.uid||ei];
-      var assignedBuyer = assigned ? (allBuyers||[]).find(function(b){ return b.uid===assigned.buyerUid; }) : null;
-      var assignedName = assignedBuyer ? ((assignedBuyer.firstName||'')+' '+(assignedBuyer.lastName||'')).trim() : '';
-      return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'        +'<div style="display:flex;align-items:flex-start;gap:10px;">'        +'<div style="background:var(--surface2);border-radius:8px;padding:8px 10px;text-align:center;flex-shrink:0;min-width:52px;">'        +'<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;">'+dateStr.split(' ')[0]+'</div>'        +'<div style="font-size:18px;font-weight:700;color:var(--text);line-height:1;">'+dateStr.split(' ')[2]+'</div>'        +'<div style="font-size:10px;color:var(--text3);">'+dateStr.split(' ')[1]+'</div>'        +'</div>'        +'<div style="flex:1;min-width:0;">'        +'<div style="font-size:13px;font-weight:500;margin-bottom:2px;">'+partnerEsc(ev.address||ev.summary||'Showing')+'</div>'        +'<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">'+timeStr+'</div>'        +(assignedName?'<div style="font-size:12px;color:var(--green-dk);font-weight:500;">&#x1F464; '+partnerEsc(assignedName)+'</div>':'')        +'</div></div></div>';
-    }).join('');
-  }
 
   el.innerHTML = html;
 }
+function setShowingFilter(f) {
+  window._stFilter = f;
+  renderShowingInbox();
+}
+window.setShowingFilter = setShowingFilter;
+
+async function setShowingTag(evKey, tag) {
+  if (!window._showingTags) window._showingTags = {};
+  if (tag) window._showingTags[evKey] = tag;
+  else delete window._showingTags[evKey];
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agents',userProfile.agentId||'tom','showingTags','tags'), window._showingTags);
+  } catch(e){}
+  renderShowingInbox();
+}
+window.setShowingTag = setShowingTag;
+
 window.renderShowingInbox = renderShowingInbox;
 
 // ═══════════════════════════════════════════════════════
