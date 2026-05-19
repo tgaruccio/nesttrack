@@ -9490,9 +9490,7 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
           ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
-        ${((b.journeyType==='buyer'||b.journeyType==='both'||!b.journeyType)&&(b.currentStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>Manage Buy-Side Transaction</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add Buy Side to Deal Tracker</button>`;})():''}
-        ${((b.journeyType==='seller'||b.journeyType==='both')&&(b.currentSellerStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>Manage Listing</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
-        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
+        ${((b.journeyType==='buyer'||b.journeyType==='both'||!b.journeyType)&&(b.currentStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>View in Deal Tracker &rarr;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add to Deal Tracker</button>`;})():''}        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
       </div>
     </details>
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
@@ -9536,7 +9534,7 @@ async function openBuyerDetail(uid, scrollTo) {
             <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
           </div>
         </div>
-        ${(b.currentSellerStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>Manage Listing</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
+        ${(b.currentSellerStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>View Listing in Deal Tracker &rarr;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
         <div id="bd-timeline-seller" style="margin-top:8px;"></div>
       </div>
     </details>
@@ -10801,10 +10799,13 @@ async function saveContractDates() {
       } else if (_cdmType === 'buyer' || _cdmType === 'seller') {
         // No deal exists — auto-create one
         var buyer2 = allBuyers.find(function(b){ return b.uid===_cdmBuyerUid; });
+        var dealAddr = _cdmType === 'seller'
+          ? (buyer2 && (buyer2.listingAddress || buyer2.propertyAddress)) || ''
+          : (buyer2 && (buyer2.propertyAddress || buyer2.buyerAddress)) || '';
         var newDeal = Object.assign({
           clientUid:   _cdmBuyerUid,
           clientName:  buyer2 ? ((buyer2.firstName||'')+' '+(buyer2.lastName||'')).trim() : 'Client',
-          address:     (buyer2 && (buyer2.propertyAddress || buyer2.listingAddress || buyer2.buyerAddress)) || '',
+          address:     dealAddr,
           agentId:     agentId2,
           dealType:    _cdmType,
           status:      'Under Contract',
