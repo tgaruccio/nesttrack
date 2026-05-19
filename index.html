@@ -2417,8 +2417,19 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:16px;">
   <div id="agent-profile-editor" style="display:none;flex-direction:column;gap:16px;" data-profile-card="1">
 
+    <!-- Profile section dropdown -->
+    <div style="position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0;">
+      <select onchange="switchProfileSection(this.value)" id="profile-section-select" style="width:100%;font-size:14px;font-weight:600;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);">
+        <option value="profile">👤 My Profile</option>
+        <option value="videos">🎬 Video Library</option>
+        <option value="schedule">📅 Weekly Schedule</option>
+        <option value="documents">📄 Document Library</option>
+        <option value="emails">✉️ Email Templates</option>
+      </select>
+    </div>
+
     <!-- CARD 1: PROFILE -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-profile" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px;">
         <div>
           <div style="font-size:15px;font-weight:600;">My Agent Profile</div>
@@ -2490,7 +2501,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 2: VIDEO LIBRARY -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-videos" style="display:none;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:600;">&#x1F4F9; Video Library</div>
@@ -2504,7 +2515,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 3: WEEKLY SCHEDULE -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-schedule" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:600;">&#x1F4C5; My Weekly Schedule</div>
@@ -2517,7 +2528,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 4: DOCUMENT LIBRARY -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-documents" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:600;">📄 Document Library</div>
@@ -3859,6 +3870,15 @@ function renderAgentProfileEditor() {
   loadDocLibrary();
   renderDocLibrary();
   loadEmailTemplates().then(renderEmailTemplateLibrary);
+  // Show profile section by default, hide emails option for non-TL
+  switchProfileSection('profile');
+  var sel = document.getElementById('profile-section-select');
+  if (sel) {
+    var emailOpt = sel.querySelector('option[value="emails"]');
+    if (emailOpt) emailOpt.style.display = isTeamLeader() ? '' : 'none';
+    var docOpt = sel.querySelector('option[value="documents"]');
+    if (docOpt) docOpt.style.display = isTeamLeader() ? '' : 'none';
+  }
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
   box.style.display = isAgent ? 'flex' : 'none';
@@ -4141,8 +4161,17 @@ function renderEmailTemplateLibrary() {
         var emailMap = d.stepType==='seller' ? SELLER_STEP_EMAILS : d.stepType==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
         var defaultTmpl = emailMap[d.stepNum];
         var currentSubj = custom ? custom.subject : (defaultTmpl ? defaultTmpl.subject : '');
-        var currentBody = custom ? custom.body : '';
+        // Get body — custom stored body OR render default with placeholders
+        var currentBody = '';
+        if (custom && custom.body) {
+          currentBody = custom.body;
+        } else if (defaultTmpl && typeof defaultTmpl.body === 'function') {
+          try {
+            currentBody = defaultTmpl.body('{{FIRST_NAME}}', '{{AGENT_NAME}}', '');
+          } catch(e) { currentBody = ''; }
+        }
         var isCustom = !!custom;
+        var hasDatesTbl = d.key.includes('_5') || d.key.indexOf('seller_9') > -1;
         return '<div style="border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;margin-bottom:6px;">'
           +'<div onclick="etToggle(\''+d.key+'\')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:var(--surface);">'
           +'<div style="display:flex;align-items:center;gap:8px;">'
@@ -4152,11 +4181,11 @@ function renderEmailTemplateLibrary() {
           +'</div>'
           +'</div>'
           +'<div id="et-editor-'+d.key+'" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2);">'
-          +'<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Available variables: <code>{{FIRST_NAME}}</code> <code>{{AGENT_NAME}}</code>'+(d.key.includes('_5')||d.key.includes('_9')?' <code>{{DATES_TABLE}}</code>':'')+'</div>'
-          +'<label class="flabel" style="margin-top:8px;">Subject</label>'
+          +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Variables: <code>{{FIRST_NAME}}</code> <code>{{AGENT_NAME}}</code>'+(hasDatesTbl?' <code>{{DATES_TABLE}}</code>':'')+'</div>'
+          +'<label class="flabel">Subject</label>'
           +'<input type="text" id="et-subj-'+d.key+'" value="'+partnerEsc(currentSubj)+'" style="width:100%;font-size:13px;margin-bottom:8px;"/>'
-          +'<label class="flabel">Body <span style="font-weight:400;color:var(--text3);">(HTML — branded wrapper is added automatically)</span></label>'
-          +'<textarea id="et-body-'+d.key+'" rows="8" style="width:100%;font-size:12px;font-family:monospace;resize:vertical;">'+partnerEsc(currentBody||'')+'</textarea>'
+          +'<label class="flabel">Body <span style="font-weight:400;color:var(--text3);">(branded wrapper added automatically)</span></label>'
+          +'<textarea id="et-body-'+d.key+'" rows="10" style="width:100%;font-size:12px;font-family:monospace;resize:vertical;">'+partnerEsc(currentBody)+'</textarea>'
           +'<div style="display:flex;gap:8px;margin-top:8px;">'
           +'<button id="et-save-'+d.key+'" class="btn btn-sm btn-g" onclick="saveEmailTemplate(\''+d.key+'\')">Save</button>'
           +(isCustom ? '<button class="btn btn-sm" onclick="resetEmailTemplate(\''+d.key+'\')">Reset to Default</button>' : '')
@@ -4167,6 +4196,23 @@ function renderEmailTemplateLibrary() {
       +'</div>';
   }).join('');
 }
+function switchProfileSection(section) {
+  var sections = ['profile','videos','schedule','documents','emails'];
+  sections.forEach(function(s) {
+    var card = document.getElementById('profile-card-'+s);
+    if (card) card.style.display = s === section ? 'flex' : 'none';
+  });
+  // Email template card is handled by renderEmailTemplateLibrary but needs display set
+  var emailCard = document.getElementById('email-template-card');
+  if (emailCard && isTeamLeader()) emailCard.style.display = section === 'emails' ? 'flex' : 'none';
+  // Update dropdown
+  var sel = document.getElementById('profile-section-select');
+  if (sel) sel.value = section;
+  // Lazy load emails section
+  if (section === 'emails') loadEmailTemplates().then(renderEmailTemplateLibrary);
+}
+window.switchProfileSection = switchProfileSection;
+
 window.renderEmailTemplateLibrary = renderEmailTemplateLibrary;
 
 // Override getStepEmailTemplate to check Firestore first
