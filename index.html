@@ -2528,6 +2528,17 @@ textarea{resize:vertical;min-height:68px;}
       <div id="doc-library-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
+    <!-- CARD 5: EMAIL TEMPLATE LIBRARY (TL only) -->
+    <div class="card" id="email-template-card" style="display:none;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">✉️ Email Templates</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Edit subject and body for any auto email. Changes apply immediately. Agents can still edit in preview before sending.</div>
+        </div>
+      </div>
+      <div id="email-template-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
   </div>
   </div>
   <!-- MESSAGES TAB -->
@@ -3847,6 +3858,7 @@ async function loadAssignedAgentProfile() {
 function renderAgentProfileEditor() {
   loadDocLibrary();
   renderDocLibrary();
+  loadEmailTemplates().then(renderEmailTemplateLibrary);
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
   box.style.display = isAgent ? 'flex' : 'none';
@@ -4035,6 +4047,138 @@ async function saveDocLibrary() {
     showDealToast('✅ Document library saved!', null, null);
   } catch(e) { showDealToast('Failed to save: '+e.message, null, null); }
 }
+// ── EMAIL TEMPLATE LIBRARY ──
+var _emailTemplates = {}; // loaded from Firestore
+
+const EMAIL_TEMPLATE_DEFS = [
+  { group:'Buyer', key:'buyer_1', label:'Step 1 — File Open', stepType:'buyer', stepNum:1 },
+  { group:'Buyer', key:'buyer_2', label:'Step 2 — Pre-Approval', stepType:'buyer', stepNum:2 },
+  { group:'Buyer', key:'buyer_3', label:'Step 3 — Start Touring', stepType:'buyer', stepNum:3 },
+  { group:'Buyer', key:'buyer_4', label:'Step 4 — Write an Offer', stepType:'buyer', stepNum:4 },
+  { group:'Buyer', key:'buyer_5', label:'Step 5 — Under Contract', stepType:'buyer', stepNum:5 },
+  { group:'Buyer', key:'buyer_6', label:'Step 6 — Mortgage Application', stepType:'buyer', stepNum:6 },
+  { group:'Buyer', key:'buyer_7', label:'Step 7 — Inspection', stepType:'buyer', stepNum:7 },
+  { group:'Buyer', key:'buyer_8', label:'Step 8 — Appraisal', stepType:'buyer', stepNum:8 },
+  { group:'Buyer', key:'buyer_9', label:'Step 9 — Final Walkthrough', stepType:'buyer', stepNum:9 },
+  { group:'Buyer', key:'buyer_10', label:'Step 10 — Closing Disclosure', stepType:'buyer', stepNum:10 },
+  { group:'Buyer', key:'buyer_11', label:'Step 11 — Closing Day', stepType:'buyer', stepNum:11 },
+  { group:'Seller', key:'seller_1', label:'Step 1 — File Open', stepType:'seller', stepNum:1 },
+  { group:'Seller', key:'seller_2', label:'Step 2 — Home Prep', stepType:'seller', stepNum:2 },
+  { group:'Seller', key:'seller_3', label:'Step 3 — Pricing', stepType:'seller', stepNum:3 },
+  { group:'Seller', key:'seller_4', label:'Step 4 — Listing Created', stepType:'seller', stepNum:4 },
+  { group:'Seller', key:'seller_5', label:'Step 5 — Live on MLS', stepType:'seller', stepNum:5 },
+  { group:'Seller', key:'seller_6', label:'Step 6 — First Week', stepType:'seller', stepNum:6 },
+  { group:'Seller', key:'seller_7', label:'Step 7 — Price Strategy', stepType:'seller', stepNum:7 },
+  { group:'Seller', key:'seller_8', label:'Step 8 — Offer Received', stepType:'seller', stepNum:8 },
+  { group:'Seller', key:'seller_9', label:'Step 9 — Under Contract', stepType:'seller', stepNum:9 },
+  { group:'Seller', key:'seller_10', label:'Step 10 — Inspection', stepType:'seller', stepNum:10 },
+  { group:'Seller', key:'seller_11', label:'Step 11 — Appraisal', stepType:'seller', stepNum:11 },
+  { group:'Seller', key:'seller_12', label:'Step 12 — Final Numbers', stepType:'seller', stepNum:12 },
+  { group:'Seller', key:'seller_13', label:'Step 13 — Closing Day', stepType:'seller', stepNum:13 },
+  { group:'Mortgage', key:'mortgage_1', label:'Step 1 — Application', stepType:'mortgage', stepNum:1 },
+  { group:'Mortgage', key:'mortgage_2', label:'Step 2 — Processing', stepType:'mortgage', stepNum:2 },
+  { group:'Mortgage', key:'mortgage_3', label:'Step 3 — Clear to Close', stepType:'mortgage', stepNum:3 },
+];
+
+async function loadEmailTemplates() {
+  try {
+    var agentId = userProfile.agentId || 'tom';
+    var snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'));
+    if (snap.exists()) _emailTemplates = snap.data();
+  } catch(e){}
+}
+
+async function saveEmailTemplate(key) {
+  var subj = (document.getElementById('et-subj-'+key)||{}).value||'';
+  var body = (document.getElementById('et-body-'+key)||{}).value||'';
+  if (!subj && !body) return;
+  _emailTemplates[key] = { subject: subj, body: body };
+  try {
+    var agentId = userProfile.agentId || 'tom';
+    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'), _emailTemplates);
+    var btn = document.getElementById('et-save-'+key);
+    if (btn) { btn.textContent = '✓ Saved'; setTimeout(function(){ btn.textContent = 'Save'; }, 2000); }
+  } catch(e) { alert('Save failed: '+e.message); }
+}
+window.saveEmailTemplate = saveEmailTemplate;
+
+async function resetEmailTemplate(key) {
+  if (!confirm('Reset to default? Your custom version will be deleted.')) return;
+  delete _emailTemplates[key];
+  try {
+    var agentId = userProfile.agentId || 'tom';
+    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'), _emailTemplates);
+    renderEmailTemplateLibrary();
+    showDealToast('Reset to default', null, null);
+  } catch(e){}
+}
+window.resetEmailTemplate = resetEmailTemplate;
+
+function etToggle(key) {
+  var body = document.getElementById('et-editor-'+key);
+  var arrow = document.getElementById('et-arrow-'+key);
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (arrow) arrow.textContent = open ? '▶' : '▼';
+}
+window.etToggle = etToggle;
+
+function renderEmailTemplateLibrary() {
+  var card = document.getElementById('email-template-card');
+  var list = document.getElementById('email-template-list');
+  if (!card || !list) return;
+  if (!isTeamLeader()) { card.style.display = 'none'; return; }
+  card.style.display = 'flex';
+
+  var groups = ['Buyer','Seller','Mortgage'];
+  list.innerHTML = groups.map(function(grp) {
+    var defs = EMAIL_TEMPLATE_DEFS.filter(function(d){ return d.group === grp; });
+    return '<div style="margin-bottom:16px;">'
+      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px;">'+grp+'</div>'
+      + defs.map(function(d) {
+        var custom = _emailTemplates[d.key];
+        var emailMap = d.stepType==='seller' ? SELLER_STEP_EMAILS : d.stepType==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
+        var defaultTmpl = emailMap[d.stepNum];
+        var currentSubj = custom ? custom.subject : (defaultTmpl ? defaultTmpl.subject : '');
+        var currentBody = custom ? custom.body : '';
+        var isCustom = !!custom;
+        return '<div style="border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;margin-bottom:6px;">'
+          +'<div onclick="etToggle(\''+d.key+'\')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:var(--surface);">'
+          +'<div style="display:flex;align-items:center;gap:8px;">'
+          +'<span id="et-arrow-'+d.key+'" style="font-size:10px;color:var(--text3);">▶</span>'
+          +'<span style="font-size:13px;font-weight:500;">'+d.label+'</span>'
+          +(isCustom ? '<span style="font-size:10px;background:#ECFDF5;color:#065F46;padding:2px 7px;border-radius:10px;font-weight:600;">Custom</span>' : '<span style="font-size:10px;color:var(--text3);">Default</span>')
+          +'</div>'
+          +'</div>'
+          +'<div id="et-editor-'+d.key+'" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2);">'
+          +'<div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Available variables: <code>{{FIRST_NAME}}</code> <code>{{AGENT_NAME}}</code>'+(d.key.includes('_5')||d.key.includes('_9')?' <code>{{DATES_TABLE}}</code>':'')+'</div>'
+          +'<label class="flabel" style="margin-top:8px;">Subject</label>'
+          +'<input type="text" id="et-subj-'+d.key+'" value="'+partnerEsc(currentSubj)+'" style="width:100%;font-size:13px;margin-bottom:8px;"/>'
+          +'<label class="flabel">Body <span style="font-weight:400;color:var(--text3);">(HTML — branded wrapper is added automatically)</span></label>'
+          +'<textarea id="et-body-'+d.key+'" rows="8" style="width:100%;font-size:12px;font-family:monospace;resize:vertical;">'+partnerEsc(currentBody||'')+'</textarea>'
+          +'<div style="display:flex;gap:8px;margin-top:8px;">'
+          +'<button id="et-save-'+d.key+'" class="btn btn-sm btn-g" onclick="saveEmailTemplate(\''+d.key+'\')">Save</button>'
+          +(isCustom ? '<button class="btn btn-sm" onclick="resetEmailTemplate(\''+d.key+'\')">Reset to Default</button>' : '')
+          +'</div>'
+          +'</div>'
+          +'</div>';
+      }).join('')
+      +'</div>';
+  }).join('');
+}
+window.renderEmailTemplateLibrary = renderEmailTemplateLibrary;
+
+// Override getStepEmailTemplate to check Firestore first
+function getStepEmailTemplate(stepNum, type) {
+  var key = type + '_' + stepNum;
+  var custom = _emailTemplates[key];
+  if (custom && custom.subject) return custom;
+  var emailMap = type==='seller' ? SELLER_STEP_EMAILS : type==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
+  return emailMap[stepNum] || null;
+}
+window.getStepEmailTemplate = getStepEmailTemplate;
+
 window.saveDocLibrary = saveDocLibrary;
 
 async function loadDocLibrary() {
@@ -5549,10 +5693,24 @@ async function sendStepEmail(uid, stepNum, type) {
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
     var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
     var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : type === 'mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
-    var tmpl = emailMap[stepNum];
+    var tmpl = getStepEmailTemplate(stepNum, type);
     if (!tmpl) return;
     var subject = tmpl.subject;
-    var bodyHtml = tmpl.body(first, agentName);
+    var bodyHtml;
+    // Check if this is a custom Firestore template (has plain body string) or hardcoded (has body function)
+    var customKey = type + '_' + stepNum;
+    var customTmpl = _emailTemplates[customKey];
+    if (customTmpl && customTmpl.body) {
+      // Substitute variables in custom template
+      bodyHtml = customTmpl.body
+        .replace(/\{\{FIRST_NAME\}\}/g, first)
+        .replace(/\{\{AGENT_NAME\}\}/g, agentName)
+        .replace(/\{\{DATES_TABLE\}\}/g, '');
+    } else if (typeof tmpl.body === 'function') {
+      bodyHtml = tmpl.body(first, agentName);
+    } else {
+      bodyHtml = tmpl.body || '';
+    }
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
     var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
 
