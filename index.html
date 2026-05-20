@@ -10804,6 +10804,7 @@ async function saveContractDates() {
     closeM('contract-dates-modal');
     await loadBuyersForAgent();
     renderBuyers();
+    var client = (allBuyers||[]).find(function(b){ return b.uid===_cdmBuyerUid; });
     var isSellerUC = _cdmType === 'seller' && window._cdmFromStep === 9;
     var isBuyerUC  = _cdmType === 'buyer'  && window._cdmFromStep === 5;
     window._cdmFromStep = null;
@@ -19330,6 +19331,10 @@ function renderVideoLibrary() {
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(v.title||'Untitled')+'</div>'
       + '<div style="font-size:11px;color:var(--text3);">'+typeLabel+stepLabel+'</div>'
+      + '<div style="margin-top:4px;display:flex;align-items:center;gap:6px;">'
+      + '<label style="font-size:11px;color:var(--green-dk);cursor:pointer;white-space:nowrap;">📷 Update thumb<input type="file" accept="image/*" style="display:none;" onchange="avUploadThumb(event,\''+v.id+'\')"/></label>'
+      + '<span id="av-lib-thumb-status-'+v.id+'" style="font-size:11px;color:var(--text3);"></span>'
+      + '</div>'
       + '</div>'
       + '<button onclick="deleteAgentVideo(\''+v.id+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;flex-shrink:0;">✕</button>'
       + '</div>';
@@ -19358,10 +19363,10 @@ function openAddVideoModal() {
 }
 window.openAddVideoModal = openAddVideoModal;
 
-async function avUploadThumb(event) {
+async function avUploadThumb(event, videoId) {
   var file = event.target.files[0];
   if (!file) return;
-  var status = document.getElementById('av-thumb-status');
+  var status = document.getElementById(videoId ? 'av-lib-thumb-status-'+videoId : 'av-thumb-status');
   var preview = document.getElementById('av-thumb-preview');
   var hidden = document.getElementById('av-thumb-url');
   if (status) status.textContent = 'Uploading...';
@@ -19370,17 +19375,27 @@ async function avUploadThumb(event) {
     var sRef = fb.storageRef(fb.storage, path);
     var snap = await fb.uploadBytes(sRef, file);
     var url = await fb.getDownloadURL(snap.ref);
-    if (hidden) hidden.value = url;
-    if (status) status.textContent = '✓ Ready';
-    if (preview) {
-      preview.style.display = 'block';
-      preview.innerHTML = '<img src="'+url+'" style="width:100%;max-height:100px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
+    if (videoId) {
+      // Updating existing video in library
+      var agentId = userProfile.agentId||'tom';
+      await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'videoLibrary',videoId), {thumb: url});
+      var v = _agentVideos.find(function(x){ return x.id === videoId; });
+      if (v) v.thumb = url;
+      renderVideoLibrary();
+      if (status) status.textContent = '✓ Saved';
+    } else {
+      // New video being added
+      if (hidden) hidden.value = url;
+      if (status) status.textContent = '✓ Ready';
+      if (preview) {
+        preview.style.display = 'block';
+        preview.innerHTML = '<img src="'+url+'" style="width:100%;max-height:100px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
+      }
     }
   } catch(e) {
     if (status) status.textContent = 'Upload failed';
   }
 }
-window.avUploadThumb = avUploadThumb;
 
 function previewAddVideo() {
   var url = (document.getElementById('av-url')||{}).value||'';
