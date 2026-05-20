@@ -5857,7 +5857,7 @@ async function loadEmailLog(uid) {
       container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;padding:4px 0;">No emails logged yet.</div>';
       return;
     }
-    var typeLabels = {'step-buyer':'Buyer Trail','step-seller':'Seller Trail','step-mortgage':'Mortgage Trail','newsletter':'Email Campaign','seller-report':'Seller Report','general':'Email'};
+    var typeLabels = {'step-buyer':'Buyer Trail','step-seller':'Seller Trail','step-mortgage':'Mortgage Trail','newsletter':'Email Campaign','seller-report':'Seller Report','appointment':'Appointment','under_contract':'Under Contract','general':'Email'};
     var html = '';
     snap.forEach(function(d) {
       var r = d.data();
@@ -14990,9 +14990,30 @@ async function renderApptList() {
     var agentId = userProfile.agentId||'tom';
     var now = Date.now();
     var cutoff = now + 60*24*60*60*1000; // 60 days ahead
+    var clearBefore = now - 3*60*60*1000; // 3 hours ago
     var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'appointments'));
     var appts = [];
     snap.forEach(function(d){ appts.push(Object.assign({id:d.id},d.data())); });
+
+    // Auto-clear past appointments and log to client activity
+    var pastAppts = appts.filter(function(a){ return new Date(a.date).getTime() < clearBefore; });
+    for (var pi = 0; pi < pastAppts.length; pi++) {
+      var pa = pastAppts[pi];
+      // Log to client activity if linked to a client
+      if (pa.clientUid) {
+        try {
+          await fb.addDoc(fb.collection(fb.db,'users',pa.clientUid,'emailLog'), {
+            subject: '📅 ' + (pa.type||'Appointment') + (pa.address ? ' — ' + pa.address : ''),
+            type: 'appointment',
+            sentAt: fb.Timestamp ? fb.Timestamp.fromDate(new Date(pa.date)) : fb.serverTimestamp(),
+            agentId: agentId
+          });
+        } catch(le){}
+      }
+      // Delete from appointments collection
+      try { await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'appointments',pa.id)); } catch(de){}
+    }
+
     var todayStart = new Date(); todayStart.setHours(0,0,0,0);
     appts = appts.filter(function(a){
       var t = new Date(a.date).getTime();
