@@ -5334,20 +5334,31 @@ var BUYER_STEP_EMAILS = {
         + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Compare it line-by-line to your original Loan Estimate — most numbers should match</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Confirm the exact amount you need to bring to closing (cashier\'s check or wire)</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Bring photo ID and any remaining documents your lender requests</li></ul>'
         + '<div style=\"background:#FEF3C7;border-left:3px solid #F59E0B;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#92400E;\">⚠️ If wiring closing funds — ALWAYS verify wire instructions by phone with the title company before sending. Call the number on their official website, not from the email.</div>';
     }},
-  11: {
-    subject: 'Closing day 🎉 — here\'s what to expect',
-    body: function(first, agentName) {
-      return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
-        + '<div style=\"background:#ECFDF5;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;\">'
-        + '<div style=\"font-size:32px;margin-bottom:6px;\">🎉</div>'
-        + '<div style=\"font-size:20px;font-weight:600;color:#065F46;margin-bottom:4px;\">Today you get your keys.</div>'
+  11: { subject: 'You\'re a Homeowner \U0001F389 — Congratulations!',
+    body: function(first, agentName, googleReviewUrl) {
+      var reviewBox = googleReviewUrl
+        ? '<div style="background:#f9f9f9;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;margin:20px 0;">'
+          + '<p style="font-size:13px;color:#444;margin:0 0 10px;">&#11088; One quick favor — if you enjoyed working with ' + agentName + ', a Google review takes less than a minute and means the world. A few stars or a few sentences, whatever you\'re comfortable with.</p>'
+          + '<a href="' + googleReviewUrl + '" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600;">Leave a Review &#8594;</a>'
+          + '</div>' : '';
+      return '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + first + ',</p>'
+        + '<div style="background:#ECFDF5;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;">'
+        + '<div style="font-size:36px;margin-bottom:6px;">&#x1F389;</div>'
+        + '<div style="font-size:22px;font-weight:700;color:#065F46;margin-bottom:4px;">You\'re a homeowner.</div>'
+        + '<div style="font-size:14px;color:#065F46;">Let that sink in. Congratulations.</div>'
         + '</div>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">Here\'s what happens at the closing table:</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">You\'ll sign 30-60 documents — takes about an hour</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Review the Closing Settlement Statement — every dollar accounted for</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Once the loan funds, the deed is recorded and you\'re the legal owner</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Bring: photo ID, cashier\'s check or wire confirmation, any final documents</li></ul>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:10px 0 0;\">' + agentName + ' is with you at the table. Congratulations — this is a big deal.</p>'
-        + nsEmailBtn('Open My App', APP_LINK);
-    }
-  }
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;">The keys are yours. Everything you worked toward just became real. Here are a few things to take care of in the next day or two:</p>'
+        + '<div style="background:#f9fafb;border-radius:8px;padding:16px 18px;margin-bottom:18px;">'
+        + '<div style="font-size:13px;color:#1a1a1a;line-height:2;">'
+        + '&#x1F511; <strong>Change the locks</strong> — you never know who has a copy of the old keys<br/>'
+        + '&#x1F4A1; <strong>Transfer utilities</strong> — electric, gas, water, internet<br/>'
+        + '&#x1F3E0; <strong>Set up homeowner\'s insurance</strong> if not already active<br/>'
+        + '&#x1F4EC; <a href="https://moversguide.usps.com" target="_blank" style="color:#1D9E75;font-weight:600;">Update your address with USPS</a> — takes 2 minutes online<br/>'
+        + '&#x1F4C2; <strong>Keep your closing documents</strong> somewhere safe — you\'ll need them at tax time'
+        + '</div></div>'
+        + reviewBox
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">It has been an honor working with you. Reach out anytime.</p>';
+    }},
 };
 var SELLER_STEP_EMAILS = {
   1: { subject: 'Your seller file is open — here\'s what\'s ahead',
@@ -5419,13 +5430,18 @@ var SELLER_STEP_EMAILS = {
       var reviewBox = googleReviewUrl
         ? '<div style="background:#f9f9f9;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;margin:20px 0;">'          + '<p style="font-size:13px;color:#444;margin:0 0 10px;">&#11088; If you\'ve enjoyed working with ' + agentName + ' so far, a quick Google review goes a long way. It only takes a minute and means the world to a small business.</p>'          + '<a href="' + googleReviewUrl + '" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600;">Leave a Google Review &#8594;</a>'          + '</div>' : '';
       return '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + first + ',</p>'        + '<div style="background:#ECFDF5;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;">'        + '<div style="font-size:32px;margin-bottom:6px;">&#x1F3E1;</div>'        + '<div style="font-size:20px;font-weight:600;color:#065F46;margin-bottom:4px;">Your home is under contract.</div>'        + '<div style="font-size:14px;color:#065F46;">Congratulations — this is a big deal.</div>'        + '</div>'        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;">Here\'s exactly what happens between now and closing so there are no surprises.</p>'        + '{{DATES_TABLE}}'        + '<p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:20px 0 12px;">What happens now — step by step:</p>'        + '<p style="font-size:13px;color:#444;line-height:1.8;margin:0 0 10px;"><strong>&#x1F50D; Inspection</strong> — The buyer will have a licensed inspector walk through the property. After the inspection the buyer has a few options: they can accept the home as-is, request specific repairs or credits, or in rare cases if something truly unexpected comes up, they may choose to walk away. If they request repairs or credits, you are not obligated to agree — ' + agentName + ' will review every request with you and you can accept, reject, or counter. Most inspections resolve quickly and smoothly.</p>'        + '<p style="font-size:13px;color:#444;line-height:1.8;margin:0 0 10px;"><strong>&#x1F4DC; Title Work</strong> — The title company will reach out to begin the title search and prepare closing documents. Expect a call or email from them within a few days.</p>'        + '<p style="font-size:13px;color:#444;line-height:1.8;margin:0 0 10px;"><strong>&#x1F4D0; Appraisal</strong> — The buyer\'s lender orders an independent appraisal to confirm the home is worth the contract price. ' + agentName + ' has already prepared comparable sales to support your value. If it comes in at or above price — full speed ahead. If it comes in low — we have options.</p>'        + '<p style="font-size:13px;color:#444;line-height:1.8;margin:0 0 10px;"><strong>&#x2705; Clear to Close</strong> — Once financing is fully approved, inspections are resolved, and the appraisal is done — you get the green light. This is the finish line.</p>'        + '<p style="font-size:13px;color:#444;line-height:1.8;margin:0 0 18px;"><strong>&#x1F3E0; Closing Day</strong> — You\'ll sign the deed and transfer documents. Funds are wired, the deed is recorded, and the home officially belongs to the buyer.</p>'                + reviewBox        + '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px 18px;margin:0 0 18px;"><p style="font-size:13px;font-weight:600;color:#065F46;margin:0 0 6px;">&#x1F4F1; Your Nest Track Portal</p><p style="font-size:13px;color:#444;line-height:1.7;margin:0 0 12px;">Everything is live in your account &#8212; your transaction timeline, each milestone with what to expect, your net sheet showing your estimated proceeds, and a direct line to ' + agentName + '.</p><a href="' + APP_LINK + '" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:600;">Open My Portal &#8594;</a></div>'        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Questions at any point? ' + agentName + ' is your first call.</p>';    }},
-  10: { subject: 'Buyer inspection underway — know your options',
+  10: { subject: 'The Inspection is Underway \u2014 Here\'s How This Works',
     body: function(first, agentName) {
-      return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">The buyer\'s inspection is underway. Almost every inspection turns up something — that\'s normal. What matters is how we respond to their requests.</p>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 8px;\">Your three options when the inspection report comes in:</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\"><strong>Repair:</strong> Fix specific items before closing</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\"><strong>Credit:</strong> Give the buyer a price reduction or closing cost credit</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\"><strong>Decline:</strong> Sell as-is — buyer can accept or walk away</li></ul>'
-        + '<div style=\"background:#f0fdf4;border-left:3px solid #1D9E75;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#065F46;\">💡 Don\'t agree to repairs you can\'t control the quality of. Credits are often cleaner.</div>';
+      return '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + first + ',</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">Good news \u2014 you\'re almost there. The buyer\'s inspector is walking through the property, and this is a completely normal part of every transaction.</p>'
+        + '<p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 8px;">Here\'s what to expect:</p>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">Inspectors are paid to find things. Their report will likely list items \u2014 some minor, some more significant. That doesn\'t mean anything is wrong with your home, and it doesn\'t mean the deal is in trouble. It\'s just part of the process.</p>'
+        + '<p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 8px;">After the inspection, the buyer has three options:</p>'
+        + '<ul style="padding-left:18px;margin:0 0 14px;"><li style="font-size:13px;color:#444;line-height:1.8;margin-bottom:4px;"><strong>Accept as-is</strong> \u2014 happy with what they found, no requests</li><li style="font-size:13px;color:#444;line-height:1.8;margin-bottom:4px;"><strong>Request repairs or credits</strong> \u2014 ask you to fix specific items or reduce the price</li><li style="font-size:13px;color:#444;line-height:1.8;margin-bottom:4px;"><strong>Walk away</strong> \u2014 only if something truly unexpected came up (this is rare)</li></ul>'
+        + '<p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 8px;">If they do make requests, you have three options:</p>'
+        + '<ul style="padding-left:18px;margin:0 0 14px;"><li style="font-size:13px;color:#444;line-height:1.8;margin-bottom:4px;"><strong>Agree</strong> \u2014 fix the items or offer a credit</li><li style="font-size:13px;color:#444;line-height:1.8;margin-bottom:4px;"><strong>Counter</strong> \u2014 negotiate a different number or fewer items</li><li style="font-size:13px;color:#444;line-height:1.8;margin-bottom:4px;"><strong>Decline</strong> \u2014 hold firm, buyer decides if they want to proceed</li></ul>'
+        + '<div style="background:#f0fdf4;border-left:3px solid #1D9E75;padding:12px 16px;border-radius:0 6px 6px 0;margin:0 0 14px;font-size:13px;color:#065F46;">Most inspections resolve quickly and smoothly. ' + agentName + ' will review every request with you and advise on what\'s reasonable. You\'re never obligated to agree to anything.</div>'
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Questions at any point? ' + agentName + ' is your first call.</p>';
     }},
   11: { subject: 'Appraisal ordered — here\'s what it means for you',
     body: function(first, agentName) {
@@ -5440,17 +5456,32 @@ var SELLER_STEP_EMAILS = {
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">' + agentName + ' is reviewing the final settlement statement with you. Every deduction — commission, title fees, taxes, payoff — is itemized. Know exactly what you\'re walking away with before you sit at the closing table.</p>'
         + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Compare to your net sheet estimate — numbers should be close</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Confirm mortgage payoff amount is accurate</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Bring photo ID to closing</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">You\'ll sign the deed, settlement statement, and transfer documents</li></ul>';
     }},
-  13: { subject: 'Closing day — you did it 🎉',
-    body: function(first, agentName) {
-      return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
-        + '<div style=\"background:#FEF3C7;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;\">'
-        + '<div style=\"font-size:32px;margin-bottom:6px;\">🎉</div>'
-        + '<div style=\"font-size:20px;font-weight:600;color:#92400E;margin-bottom:4px;\">Your home is sold.</div>'
+  13: { subject: 'It\'s Official &#x1F389; — Your Home is Sold!',
+    body: function(first, agentName, googleReviewUrl) {
+      var reviewBox = googleReviewUrl
+        ? '<div style="background:#f9f9f9;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;margin:20px 0;">'
+          + '<p style="font-size:13px;color:#444;margin:0 0 10px;">&#11088; If you enjoyed working with ' + agentName + ', a quick Google review goes a long way. A few stars or a sentence is all it takes.</p>'
+          + '<a href="' + googleReviewUrl + '" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600;">Leave a Review &#8594;</a>'
+          + '</div>' : '';
+      return '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + first + ',</p>'
+        + '<div style="background:#FEF9EC;border-radius:8px;padding:18px;text-align:center;margin-bottom:18px;">'
+        + '<div style="font-size:36px;margin-bottom:6px;">&#x1F389;</div>'
+        + '<div style="font-size:22px;font-weight:700;color:#92400E;margin-bottom:4px;">Your home is sold.</div>'
+        + '<div style="font-size:14px;color:#92400E;">Congratulations — you did it.</div>'
         + '</div>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">Today you sign, funds transfer, and the deed is recorded. At that point, the home officially belongs to the buyer.</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Bring photo ID</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Leave keys, garage openers, and any manuals or warranties</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Cancel homeowner\'s insurance after deed transfer is confirmed</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Transfer utilities effective today</li></ul>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:10px 0 0;\">' + agentName + ' is proud to have guided you through this. Congratulations!</p>'
-        + nsEmailBtn('Open My App', APP_LINK);
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;">This took preparation, patience, and trust — and you delivered on all of it. Your proceeds have been wired or will be available within 1-2 business days depending on your bank.</p>'
+        + '<p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:0 0 10px;">A few things to wrap up:</p>'
+        + '<div style="background:#f9fafb;border-radius:8px;padding:16px 18px;margin-bottom:18px;">'
+        + '<div style="font-size:13px;color:#1a1a1a;line-height:2;">'
+        + '&#x1F511; <strong>Leave all keys</strong> on the kitchen counter or in the lockbox for the buyer<br/>'
+        + '&#x1F4A1; <strong>Cancel or transfer utilities</strong> — electric, gas, water, internet<br/>'
+        + '&#x1F4A7; <strong>Pay your final water bill</strong> — easy one to miss<br/>'
+        + '&#x1F3E0; <strong>Cancel homeowner\'s insurance</strong> once closing is confirmed<br/>'
+        + '&#x1F4EC; <a href="https://moversguide.usps.com" target="_blank" style="color:#1D9E75;font-weight:600;">Forward your mail with USPS</a> — takes 2 minutes online<br/>'
+        + '&#x1F9F9; <strong>Leave the home broom clean</strong> — a small gesture that goes a long way'
+        + '</div></div>'
+        + reviewBox
+        + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">It has been a pleasure representing you. Reach out anytime.</p>';
     }}
 };
 var MORTGAGE_STEP_EMAILS = {
