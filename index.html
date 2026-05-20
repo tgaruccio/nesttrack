@@ -2417,25 +2417,13 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:16px;">
   <div id="agent-profile-editor" style="display:none;flex-direction:column;gap:16px;" data-profile-card="1">
 
-    <!-- Profile section dropdown -->
-    <div style="position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0;">
-      <select onchange="switchProfileSection(this.value)" id="profile-section-select" style="width:100%;font-size:14px;font-weight:600;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);">
-        <option value="profile">👤 My Profile</option>
-        <option value="videos">🎬 Video Library</option>
-        <option value="schedule">📅 Weekly Schedule</option>
-        <option value="documents">📄 Document Library</option>
-        <option value="emails">✉️ Email Templates</option>
-      </select>
-    </div>
-
     <!-- CARD 1: PROFILE -->
-    <div class="card" id="profile-card-profile" style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px;">
-        <div>
-          <div style="font-size:15px;font-weight:600;">My Agent Profile</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Feeds your buyer-facing page and all emails</div>
-        </div>
-        <button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save Profile</button>
+    <div class="card" id="profile-card-profile" style="flex-direction:column;gap:0;">
+      <div onclick="toggleProfileCard('profile-card-profile')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div><div style="font-size:15px;font-weight:600;">👤 My Profile</div><div style="font-size:12px;color:var(--text3);margin-top:2px;">Feeds your buyer-facing page and all emails</div></div></div>
+        <button class="btn btn-sm btn-g" onclick="event.stopPropagation();saveAgentProfile()">Save</button>
+      </div>
+      <div class="profile-card-body" style="padding-top:14px;margin-top:2px;">
       </div>
 
       <!-- Photo row -->
@@ -2501,12 +2489,9 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 2: VIDEO LIBRARY -->
-    <div class="card" id="profile-card-videos" style="display:none;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
-        <div>
-          <div style="font-size:15px;font-weight:600;">&#x1F4F9; Video Library</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Loom, YouTube, BombBomb &#8212; any URL. Pick one when sending step emails.</div>
-        </div>
+    <div class="card" id="profile-card-videos" style="flex-direction:column;gap:0;">
+      <div onclick="toggleProfileCard('profile-card-videos')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div><div style="font-size:15px;font-weight:600;">🎬 Video Library</div><div style="font-size:12px;color:var(--text3);margin-top:2px;">Loom, YouTube, BombBomb — any URL.</div></div></div>
         <button class="btn btn-sm btn-g" onclick="openAddVideoModal()">+ Add Video</button>
       </div>
       <div id="ap-video-library" style="display:flex;flex-direction:column;gap:8px;">
@@ -2516,9 +2501,9 @@ textarea{resize:vertical;min-height:68px;}
 
     <!-- CARD 3: WEEKLY SCHEDULE -->
     <div class="card" id="profile-card-schedule" style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
-        <div>
-          <div style="font-size:15px;font-weight:600;">&#x1F4C5; My Weekly Schedule</div>
+      <div onclick="toggleProfileCard('profile-card-schedule')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div>
+          <div style="font-size:15px;font-weight:600;">📅 Weekly Schedule</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px;">Time blocks appear on your to-do list each morning with a push reminder.</div>
         </div>
         <button class="btn btn-sm btn-g" onclick="scheduleAddBlock()">+ Add Block</button>
@@ -2529,8 +2514,8 @@ textarea{resize:vertical;min-height:68px;}
 
     <!-- CARD 4: DOCUMENT LIBRARY -->
     <div class="card" id="profile-card-documents" style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
-        <div>
+      <div onclick="toggleProfileCard('profile-card-documents')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div>
           <div style="font-size:15px;font-weight:600;">📄 Document Library</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px;">Update a URL here and it updates everywhere in buyer and seller trails instantly.</div>
         </div>
@@ -2539,16 +2524,6 @@ textarea{resize:vertical;min-height:68px;}
       <div id="doc-library-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
 
-    <!-- CARD 5: EMAIL TEMPLATE LIBRARY (TL only) -->
-    <div class="card" id="email-template-card" style="display:none;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
-        <div>
-          <div style="font-size:15px;font-weight:600;">✉️ Email Templates</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Edit subject and body for any auto email. Changes apply immediately. Agents can still edit in preview before sending.</div>
-        </div>
-      </div>
-      <div id="email-template-list" style="display:flex;flex-direction:column;gap:6px;"></div>
-    </div>
 
   </div>
   </div>
@@ -3869,16 +3844,8 @@ async function loadAssignedAgentProfile() {
 function renderAgentProfileEditor() {
   loadDocLibrary();
   renderDocLibrary();
-  loadEmailTemplates().then(renderEmailTemplateLibrary);
-  // Show profile section by default, hide emails option for non-TL
-  switchProfileSection('profile');
-  var sel = document.getElementById('profile-section-select');
-  if (sel) {
-    var emailOpt = sel.querySelector('option[value="emails"]');
-    if (emailOpt) emailOpt.style.display = isTeamLeader() ? '' : 'none';
-    var docOpt = sel.querySelector('option[value="documents"]');
-    if (docOpt) docOpt.style.display = isTeamLeader() ? '' : 'none';
-  }
+  setTimeout(initProfileCardStates, 100);
+
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
   box.style.display = isAgent ? 'flex' : 'none';
@@ -4067,163 +4034,6 @@ async function saveDocLibrary() {
     showDealToast('✅ Document library saved!', null, null);
   } catch(e) { showDealToast('Failed to save: '+e.message, null, null); }
 }
-// ── EMAIL TEMPLATE LIBRARY ──
-var _emailTemplates = {}; // loaded from Firestore
-
-const EMAIL_TEMPLATE_DEFS = [
-  { group:'Buyer', key:'buyer_1', label:'Step 1 — File Open', stepType:'buyer', stepNum:1 },
-  { group:'Buyer', key:'buyer_2', label:'Step 2 — Pre-Approval', stepType:'buyer', stepNum:2 },
-  { group:'Buyer', key:'buyer_3', label:'Step 3 — Start Touring', stepType:'buyer', stepNum:3 },
-  { group:'Buyer', key:'buyer_4', label:'Step 4 — Write an Offer', stepType:'buyer', stepNum:4 },
-  { group:'Buyer', key:'buyer_5', label:'Step 5 — Under Contract', stepType:'buyer', stepNum:5 },
-  { group:'Buyer', key:'buyer_6', label:'Step 6 — Mortgage Application', stepType:'buyer', stepNum:6 },
-  { group:'Buyer', key:'buyer_7', label:'Step 7 — Inspection', stepType:'buyer', stepNum:7 },
-  { group:'Buyer', key:'buyer_8', label:'Step 8 — Appraisal', stepType:'buyer', stepNum:8 },
-  { group:'Buyer', key:'buyer_9', label:'Step 9 — Final Walkthrough', stepType:'buyer', stepNum:9 },
-  { group:'Buyer', key:'buyer_10', label:'Step 10 — Closing Disclosure', stepType:'buyer', stepNum:10 },
-  { group:'Buyer', key:'buyer_11', label:'Step 11 — Closing Day', stepType:'buyer', stepNum:11 },
-  { group:'Seller', key:'seller_1', label:'Step 1 — File Open', stepType:'seller', stepNum:1 },
-  { group:'Seller', key:'seller_2', label:'Step 2 — Home Prep', stepType:'seller', stepNum:2 },
-  { group:'Seller', key:'seller_3', label:'Step 3 — Pricing', stepType:'seller', stepNum:3 },
-  { group:'Seller', key:'seller_4', label:'Step 4 — Listing Created', stepType:'seller', stepNum:4 },
-  { group:'Seller', key:'seller_5', label:'Step 5 — Live on MLS', stepType:'seller', stepNum:5 },
-  { group:'Seller', key:'seller_6', label:'Step 6 — First Week', stepType:'seller', stepNum:6 },
-  { group:'Seller', key:'seller_7', label:'Step 7 — Price Strategy', stepType:'seller', stepNum:7 },
-  { group:'Seller', key:'seller_8', label:'Step 8 — Offer Received', stepType:'seller', stepNum:8 },
-  { group:'Seller', key:'seller_9', label:'Step 9 — Under Contract', stepType:'seller', stepNum:9 },
-  { group:'Seller', key:'seller_10', label:'Step 10 — Inspection', stepType:'seller', stepNum:10 },
-  { group:'Seller', key:'seller_11', label:'Step 11 — Appraisal', stepType:'seller', stepNum:11 },
-  { group:'Seller', key:'seller_12', label:'Step 12 — Final Numbers', stepType:'seller', stepNum:12 },
-  { group:'Seller', key:'seller_13', label:'Step 13 — Closing Day', stepType:'seller', stepNum:13 },
-  { group:'Mortgage', key:'mortgage_1', label:'Step 1 — Application', stepType:'mortgage', stepNum:1 },
-  { group:'Mortgage', key:'mortgage_2', label:'Step 2 — Processing', stepType:'mortgage', stepNum:2 },
-  { group:'Mortgage', key:'mortgage_3', label:'Step 3 — Clear to Close', stepType:'mortgage', stepNum:3 },
-];
-
-async function loadEmailTemplates() {
-  try {
-    var agentId = userProfile.agentId || 'tom';
-    var snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'));
-    if (snap.exists()) _emailTemplates = snap.data();
-  } catch(e){}
-}
-
-async function saveEmailTemplate(key) {
-  var subj = (document.getElementById('et-subj-'+key)||{}).value||'';
-  var body = (document.getElementById('et-body-'+key)||{}).value||'';
-  if (!subj && !body) return;
-  _emailTemplates[key] = { subject: subj, body: body };
-  try {
-    var agentId = userProfile.agentId || 'tom';
-    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'), _emailTemplates);
-    var btn = document.getElementById('et-save-'+key);
-    if (btn) { btn.textContent = '✓ Saved'; setTimeout(function(){ btn.textContent = 'Save'; }, 2000); }
-  } catch(e) { alert('Save failed: '+e.message); }
-}
-window.saveEmailTemplate = saveEmailTemplate;
-
-async function resetEmailTemplate(key) {
-  if (!confirm('Reset to default? Your custom version will be deleted.')) return;
-  delete _emailTemplates[key];
-  try {
-    var agentId = userProfile.agentId || 'tom';
-    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'), _emailTemplates);
-    renderEmailTemplateLibrary();
-    showDealToast('Reset to default', null, null);
-  } catch(e){}
-}
-window.resetEmailTemplate = resetEmailTemplate;
-
-function etToggle(key) {
-  var body = document.getElementById('et-editor-'+key);
-  var arrow = document.getElementById('et-arrow-'+key);
-  if (!body) return;
-  var open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  if (arrow) arrow.textContent = open ? '▶' : '▼';
-}
-window.etToggle = etToggle;
-
-function renderEmailTemplateLibrary() {
-  var card = document.getElementById('email-template-card');
-  var list = document.getElementById('email-template-list');
-  if (!card || !list) return;
-  if (!isTeamLeader()) { card.style.display = 'none'; return; }
-  card.style.display = 'flex';
-
-  var groups = ['Buyer','Seller','Mortgage'];
-  list.innerHTML = groups.map(function(grp) {
-    var defs = EMAIL_TEMPLATE_DEFS.filter(function(d){ return d.group === grp; });
-    return '<div style="margin-bottom:16px;">'
-      +'<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px;">'+grp+'</div>'
-      + defs.map(function(d) {
-        var custom = _emailTemplates[d.key];
-        var emailMap = d.stepType==='seller' ? SELLER_STEP_EMAILS : d.stepType==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
-        var defaultTmpl = emailMap[d.stepNum];
-        var currentSubj = custom ? custom.subject : (defaultTmpl ? defaultTmpl.subject : '');
-        // Get body — custom stored body OR render default with placeholders
-        var currentBody = '';
-        if (custom && custom.body) {
-          currentBody = custom.body;
-        } else if (defaultTmpl && typeof defaultTmpl.body === 'function') {
-          try {
-            currentBody = defaultTmpl.body('{{FIRST_NAME}}', '{{AGENT_NAME}}', '');
-          } catch(e) { currentBody = ''; }
-        }
-        var isCustom = !!custom;
-        var hasDatesTbl = d.key.includes('_5') || d.key.indexOf('seller_9') > -1;
-        return '<div style="border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;margin-bottom:6px;">'
-          +'<div onclick="etToggle(\''+d.key+'\')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:var(--surface);">'
-          +'<div style="display:flex;align-items:center;gap:8px;">'
-          +'<span id="et-arrow-'+d.key+'" style="font-size:10px;color:var(--text3);">▶</span>'
-          +'<span style="font-size:13px;font-weight:500;">'+d.label+'</span>'
-          +(isCustom ? '<span style="font-size:10px;background:#ECFDF5;color:#065F46;padding:2px 7px;border-radius:10px;font-weight:600;">Custom</span>' : '<span style="font-size:10px;color:var(--text3);">Default</span>')
-          +'</div>'
-          +'</div>'
-          +'<div id="et-editor-'+d.key+'" style="display:none;padding:12px 14px;border-top:1px solid var(--border);background:var(--surface2);">'
-          +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Variables: <code>{{FIRST_NAME}}</code> <code>{{AGENT_NAME}}</code>'+(hasDatesTbl?' <code>{{DATES_TABLE}}</code>':'')+'</div>'
-          +'<label class="flabel">Subject</label>'
-          +'<input type="text" id="et-subj-'+d.key+'" value="'+partnerEsc(currentSubj)+'" style="width:100%;font-size:13px;margin-bottom:8px;"/>'
-          +'<label class="flabel">Body <span style="font-weight:400;color:var(--text3);">(branded wrapper added automatically)</span></label>'
-          +'<textarea id="et-body-'+d.key+'" rows="10" style="width:100%;font-size:12px;font-family:monospace;resize:vertical;">'+partnerEsc(currentBody)+'</textarea>'
-          +'<div style="display:flex;gap:8px;margin-top:8px;">'
-          +'<button id="et-save-'+d.key+'" class="btn btn-sm btn-g" onclick="saveEmailTemplate(\''+d.key+'\')">Save</button>'
-          +(isCustom ? '<button class="btn btn-sm" onclick="resetEmailTemplate(\''+d.key+'\')">Reset to Default</button>' : '')
-          +'</div>'
-          +'</div>'
-          +'</div>';
-      }).join('')
-      +'</div>';
-  }).join('');
-}
-function switchProfileSection(section) {
-  var sections = ['profile','videos','schedule','documents','emails'];
-  sections.forEach(function(s) {
-    var card = document.getElementById('profile-card-'+s);
-    if (card) card.style.display = s === section ? 'flex' : 'none';
-  });
-  // Email template card is handled by renderEmailTemplateLibrary but needs display set
-  var emailCard = document.getElementById('email-template-card');
-  if (emailCard && isTeamLeader()) emailCard.style.display = section === 'emails' ? 'flex' : 'none';
-  // Update dropdown
-  var sel = document.getElementById('profile-section-select');
-  if (sel) sel.value = section;
-  // Lazy load emails section
-  if (section === 'emails') loadEmailTemplates().then(renderEmailTemplateLibrary);
-}
-window.switchProfileSection = switchProfileSection;
-
-window.renderEmailTemplateLibrary = renderEmailTemplateLibrary;
-
-// Override getStepEmailTemplate to check Firestore first
-function getStepEmailTemplate(stepNum, type) {
-  var key = type + '_' + stepNum;
-  var custom = _emailTemplates[key];
-  if (custom && custom.subject) return custom;
-  var emailMap = type==='seller' ? SELLER_STEP_EMAILS : type==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
-  return emailMap[stepNum] || null;
-}
-window.getStepEmailTemplate = getStepEmailTemplate;
 
 window.saveDocLibrary = saveDocLibrary;
 
@@ -4233,6 +4043,34 @@ async function loadDocLibrary() {
     if (snap.exists()) Object.assign(DOC_PDFS, snap.data());
   } catch(e){}
 }
+
+function toggleProfileCard(cardId) {
+  var card = document.getElementById(cardId);
+  if (!card) return;
+  var body = card.querySelector('.profile-card-body');
+  var arrow = card.querySelector('.profile-card-arrow');
+  if (!body) return;
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  if (arrow) arrow.textContent = open ? '▶' : '▼';
+  localStorage.setItem('profile_card_'+cardId, open ? 'closed' : 'open');
+}
+window.toggleProfileCard = toggleProfileCard;
+
+function initProfileCardStates() {
+  ['profile-card-profile','profile-card-videos','profile-card-schedule','profile-card-documents'].forEach(function(id) {
+    var saved = localStorage.getItem('profile_card_'+id);
+    if (saved === 'closed') {
+      var card = document.getElementById(id);
+      if (!card) return;
+      var body = card.querySelector('.profile-card-body');
+      var arrow = card.querySelector('.profile-card-arrow');
+      if (body) body.style.display = 'none';
+      if (arrow) arrow.textContent = '▶';
+    }
+  });
+}
+window.initProfileCardStates = initProfileCardStates;
 
 window.saveAgentProfile = saveAgentProfile;
 
@@ -5739,24 +5577,10 @@ async function sendStepEmail(uid, stepNum, type) {
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
     var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
     var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : type === 'mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
-    var tmpl = getStepEmailTemplate(stepNum, type);
+    var tmpl = emailMap[stepNum];
     if (!tmpl) return;
     var subject = tmpl.subject;
-    var bodyHtml;
-    // Check if this is a custom Firestore template (has plain body string) or hardcoded (has body function)
-    var customKey = type + '_' + stepNum;
-    var customTmpl = _emailTemplates[customKey];
-    if (customTmpl && customTmpl.body) {
-      // Substitute variables in custom template
-      bodyHtml = customTmpl.body
-        .replace(/\{\{FIRST_NAME\}\}/g, first)
-        .replace(/\{\{AGENT_NAME\}\}/g, agentName)
-        .replace(/\{\{DATES_TABLE\}\}/g, '');
-    } else if (typeof tmpl.body === 'function') {
-      bodyHtml = tmpl.body(first, agentName);
-    } else {
-      bodyHtml = tmpl.body || '';
-    }
+    var bodyHtml = tmpl.body(first, agentName);
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
     var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
 
