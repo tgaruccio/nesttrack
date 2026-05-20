@@ -2595,7 +2595,8 @@ textarea{resize:vertical;min-height:68px;}
     <div style="display:flex;flex-direction:column;gap:12px;" id="cdm-fields"></div>
     <div style="display:flex;gap:8px;margin-top:18px;">
       <button class="btn" style="flex:1;" onclick="closeM('contract-dates-modal')">Cancel</button>
-      <button class="btn btn-g" style="flex:2;" onclick="saveContractDates()">Save Dates & Update Timeline</button>
+      <button class="btn" style="flex:1;" onclick="saveContractDates(false)">Save</button>
+      <button class="btn btn-g" style="flex:2;" onclick="saveContractDates(true)">Save & Send to Client</button>
     </div>
     <div style="margin-top:10px;font-size:12px;color:var(--text3);text-align:center;">Client will see these dates immediately when they log in.</div>
     <div id="cdm-titleco-reminder" style="display:none;margin-top:8px;padding:8px 12px;background:var(--green-lt);border-radius:var(--r);font-size:12px;color:var(--green-dk);text-align:center;">💡 Don't forget to add title company info in the client's profile.</div>
@@ -9738,7 +9739,6 @@ async function setBuyerStep(uid) {
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
-      window._cdmFromStep = 5;
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
@@ -10013,7 +10013,6 @@ async function setSellerStep(uid) {
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = (buyer && buyer.sellerContractDates) || {};
-      window._cdmFromStep = 9;
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
@@ -10784,7 +10783,7 @@ function toggleCdmCash() {
 window.toggleCdmCash = toggleCdmCash;
 
 
-async function saveContractDates() {
+async function saveContractDates(sendEmail) {
   if (!_cdmBuyerUid) return;
   var rawFields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : _cdmType === 'mortgage' ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var fields = (_cdmIsCash && _cdmType !== 'mortgage') ? rawFields.filter(function(f){ return f.key !== 'financingDeadline' && f.key !== 'appraisalDeadline'; }) : rawFields;
@@ -10805,16 +10804,7 @@ async function saveContractDates() {
     await loadBuyersForAgent();
     renderBuyers();
     var client = (allBuyers||[]).find(function(b){ return b.uid===_cdmBuyerUid; });
-    var isSellerUC = _cdmType === 'seller' && window._cdmFromStep === 9;
-    var isBuyerUC  = _cdmType === 'buyer'  && window._cdmFromStep === 5;
-    window._cdmFromStep = null;
-    if (isSellerUC) {
-      showUnderContractEmailPreview(_cdmBuyerUid, dates, 'seller');
-    } else if (isBuyerUC) {
-      showUnderContractEmailPreview(_cdmBuyerUid, dates, 'buyer');
-    } else {
-      sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
-    }
+    if (sendEmail) sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
     // Sync dates to linked deal card, or auto-create deal if none exists
     try {
       var agentId2 = userProfile.agentId||'tom';
