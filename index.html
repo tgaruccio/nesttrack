@@ -2418,7 +2418,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-profile-editor" style="display:none;flex-direction:column;gap:16px;" data-profile-card="1">
 
     <!-- CARD 1: PROFILE -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-profile" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px;">
         <div>
           <div style="font-size:15px;font-weight:600;">My Agent Profile</div>
@@ -2490,7 +2490,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 2: VIDEO LIBRARY -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-videos" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:600;">&#x1F4F9; Video Library</div>
@@ -2504,7 +2504,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 3: WEEKLY SCHEDULE -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-schedule" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:600;">&#x1F4C5; My Weekly Schedule</div>
@@ -2517,7 +2517,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 4: DOCUMENT LIBRARY -->
-    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+    <div class="card" id="profile-card-documents" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
         <div>
           <div style="font-size:15px;font-weight:600;">📄 Document Library</div>
@@ -2527,6 +2527,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div id="doc-library-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
+
 
   </div>
   </div>
@@ -3847,6 +3848,7 @@ async function loadAssignedAgentProfile() {
 function renderAgentProfileEditor() {
   loadDocLibrary();
   renderDocLibrary();
+
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
   box.style.display = isAgent ? 'flex' : 'none';
@@ -4035,6 +4037,7 @@ async function saveDocLibrary() {
     showDealToast('✅ Document library saved!', null, null);
   } catch(e) { showDealToast('Failed to save: '+e.message, null, null); }
 }
+
 window.saveDocLibrary = saveDocLibrary;
 
 async function loadDocLibrary() {
@@ -5741,7 +5744,6 @@ async function showUnderContractEmailPreview(uid, dates, type) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify({to:buyer.email,subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),cc:ccValue||undefined})});
-      await sendContractDatesEmail(uid, type, dates);
       showDealToast('Under Contract email sent!', null, null);
       logEmailActivity(uid, subject, 'under_contract');
     } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
@@ -9736,6 +9738,7 @@ async function setBuyerStep(uid) {
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
     var existingDates = (buyer && buyer.buyerContractDates) || {};
     if (newStep === 5) {
+      window._cdmFromStep = 5;
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
     }
@@ -10010,6 +10013,7 @@ async function setSellerStep(uid) {
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = (buyer && buyer.sellerContractDates) || {};
+      window._cdmFromStep = 9;
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
@@ -10800,12 +10804,9 @@ async function saveContractDates() {
     closeM('contract-dates-modal');
     await loadBuyersForAgent();
     renderBuyers();
-    // For seller step 9 (Under Contract) - show preview before sending
-    var buyer9 = (allBuyers||[]).find(function(b){ return b.uid===_cdmBuyerUid; });
-    var isSellerUC = _cdmType === 'seller' && buyer9 && buyer9.currentSellerStep === 9;
-    // For buyer step 5 (Under Contract) - show preview before sending
-    var buyer5 = (allBuyers||[]).find(function(b){ return b.uid===_cdmBuyerUid; });
-    var isBuyerUC = _cdmType === 'buyer' && buyer5 && buyer5.currentStep === 5;
+    var isSellerUC = _cdmType === 'seller' && window._cdmFromStep === 9;
+    var isBuyerUC  = _cdmType === 'buyer'  && window._cdmFromStep === 5;
+    window._cdmFromStep = null;
     if (isSellerUC) {
       showUnderContractEmailPreview(_cdmBuyerUid, dates, 'seller');
     } else if (isBuyerUC) {
