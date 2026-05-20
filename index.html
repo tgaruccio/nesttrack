@@ -2418,12 +2418,13 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-profile-editor" style="display:none;flex-direction:column;gap:16px;" data-profile-card="1">
 
     <!-- CARD 1: PROFILE -->
-    <div class="card" id="profile-card-profile" style="flex-direction:column;gap:0;">
-      <div onclick="toggleProfileCard('profile-card-profile')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
-        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div><div style="font-size:15px;font-weight:600;">👤 My Profile</div><div style="font-size:12px;color:var(--text3);margin-top:2px;">Feeds your buyer-facing page and all emails</div></div></div>
-        <button class="btn btn-sm btn-g" onclick="event.stopPropagation();saveAgentProfile()">Save</button>
-      </div>
-      <div class="profile-card-body" style="padding-top:14px;margin-top:2px;">
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">My Agent Profile</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Feeds your buyer-facing page and all emails</div>
+        </div>
+        <button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save Profile</button>
       </div>
 
       <!-- Photo row -->
@@ -2489,9 +2490,12 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 2: VIDEO LIBRARY -->
-    <div class="card" id="profile-card-videos" style="flex-direction:column;gap:0;">
-      <div onclick="toggleProfileCard('profile-card-videos')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
-        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div><div style="font-size:15px;font-weight:600;">🎬 Video Library</div><div style="font-size:12px;color:var(--text3);margin-top:2px;">Loom, YouTube, BombBomb — any URL.</div></div></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">&#x1F4F9; Video Library</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Loom, YouTube, BombBomb &#8212; any URL. Pick one when sending step emails.</div>
+        </div>
         <button class="btn btn-sm btn-g" onclick="openAddVideoModal()">+ Add Video</button>
       </div>
       <div id="ap-video-library" style="display:flex;flex-direction:column;gap:8px;">
@@ -2500,10 +2504,10 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 3: WEEKLY SCHEDULE -->
-    <div class="card" id="profile-card-schedule" style="display:flex;flex-direction:column;gap:0;">
-      <div onclick="toggleProfileCard('profile-card-schedule')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
-        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div>
-          <div style="font-size:15px;font-weight:600;">📅 Weekly Schedule</div>
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div>
+          <div style="font-size:15px;font-weight:600;">&#x1F4C5; My Weekly Schedule</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px;">Time blocks appear on your to-do list each morning with a push reminder.</div>
         </div>
         <button class="btn btn-sm btn-g" onclick="scheduleAddBlock()">+ Add Block</button>
@@ -2513,9 +2517,9 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD 4: DOCUMENT LIBRARY -->
-    <div class="card" id="profile-card-documents" style="display:flex;flex-direction:column;gap:0;">
-      <div onclick="toggleProfileCard('profile-card-documents')" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:0;cursor:pointer;">
-        <div style="display:flex;align-items:center;gap:8px;"><span class="profile-card-arrow" style="font-size:11px;color:var(--text3);">▼</span><div>
+    <div class="card" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div>
           <div style="font-size:15px;font-weight:600;">📄 Document Library</div>
           <div style="font-size:12px;color:var(--text3);margin-top:2px;">Update a URL here and it updates everywhere in buyer and seller trails instantly.</div>
         </div>
@@ -2523,7 +2527,6 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div id="doc-library-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     </div>
-
 
   </div>
   </div>
@@ -3844,8 +3847,6 @@ async function loadAssignedAgentProfile() {
 function renderAgentProfileEditor() {
   loadDocLibrary();
   renderDocLibrary();
-  setTimeout(initProfileCardStates, 100);
-
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
   box.style.display = isAgent ? 'flex' : 'none';
@@ -4034,7 +4035,6 @@ async function saveDocLibrary() {
     showDealToast('✅ Document library saved!', null, null);
   } catch(e) { showDealToast('Failed to save: '+e.message, null, null); }
 }
-
 window.saveDocLibrary = saveDocLibrary;
 
 async function loadDocLibrary() {
@@ -4043,34 +4043,6 @@ async function loadDocLibrary() {
     if (snap.exists()) Object.assign(DOC_PDFS, snap.data());
   } catch(e){}
 }
-
-function toggleProfileCard(cardId) {
-  var card = document.getElementById(cardId);
-  if (!card) return;
-  var body = card.querySelector('.profile-card-body');
-  var arrow = card.querySelector('.profile-card-arrow');
-  if (!body) return;
-  var open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : '';
-  if (arrow) arrow.textContent = open ? '▶' : '▼';
-  localStorage.setItem('profile_card_'+cardId, open ? 'closed' : 'open');
-}
-window.toggleProfileCard = toggleProfileCard;
-
-function initProfileCardStates() {
-  ['profile-card-profile','profile-card-videos','profile-card-schedule','profile-card-documents'].forEach(function(id) {
-    var saved = localStorage.getItem('profile_card_'+id);
-    if (saved === 'closed') {
-      var card = document.getElementById(id);
-      if (!card) return;
-      var body = card.querySelector('.profile-card-body');
-      var arrow = card.querySelector('.profile-card-arrow');
-      if (body) body.style.display = 'none';
-      if (arrow) arrow.textContent = '▶';
-    }
-  });
-}
-window.initProfileCardStates = initProfileCardStates;
 
 window.saveAgentProfile = saveAgentProfile;
 
@@ -5769,6 +5741,7 @@ async function showUnderContractEmailPreview(uid, dates, type) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify({to:buyer.email,subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),cc:ccValue||undefined})});
+      await sendContractDatesEmail(uid, type, dates);
       showDealToast('Under Contract email sent!', null, null);
       logEmailActivity(uid, subject, 'under_contract');
     } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
