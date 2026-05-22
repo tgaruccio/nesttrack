@@ -19491,6 +19491,34 @@ async function addToDealTracker(uid, dealType) {
     data.id = ref.id;
     _deals.push(data);
     _dedupeDeals();
+
+    // For seller deals — auto-create listing in Offer Manager if not already there
+    if (dealType === 'seller' && addr) {
+      try {
+        var existingListing = await fb.getDocs(fb.query(
+          fb.collection(fb.db,'offer_listings'),
+          fb.where('agentId','==',agentId),
+          fb.where('address','==',addr)
+        ));
+        if (existingListing.empty) {
+          await fb.addDoc(fb.collection(fb.db,'offer_listings'), {
+            address: addr,
+            clientUid: uid,
+            clientName: name,
+            agentId: agentId,
+            active: true,
+            code: Math.random().toString(36).substring(2,8).toUpperCase(),
+            offerCount: 0,
+            customFields: [],
+            createdAt: fb.serverTimestamp()
+          });
+          showDealToast('Added to Deal Tracker + Offer Manager', null, null);
+        } else {
+          showDealToast('Added to Deal Tracker', null, null);
+        }
+      } catch(e) { console.log('Offer listing auto-create err:', e.message); }
+    }
+
     closeM('buyer-modal');
     switchAgentTab('deals');
   } catch(e) { alert('Failed to create deal: '+e.message); }
