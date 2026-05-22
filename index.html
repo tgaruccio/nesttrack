@@ -2259,7 +2259,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 Showings</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📊 Seller Reports</button>
     <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🤝 Partners</button>
-    <button id="agent-tab-teamstats" onclick="switchAgentTab('teamstats')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏆 Team</button>
+    <button id="agent-tab-teamstats" onclick="switchAgentTab('teamstats')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;position:relative;">🏆 Team <span id="ad-team-chat-badge" style="display:none;position:absolute;top:4px;right:4px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;">!</span></button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -2416,6 +2416,27 @@ textarea{resize:vertical;min-height:68px;}
   <!-- TEAM STATS PANEL -->
   <div id="agent-teamstats-panel" style="display:none;flex-direction:column;gap:12px;">
     <div id="team-onboarding-container"></div>
+
+    <!-- TEAM CHAT -->
+    <div id="team-chat-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
+      <div class="chat-hdr">
+        <div style="font-weight:500;font-size:14px;flex:1;">💬 Team Chat</div>
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer;font-weight:400;">
+          <input type="checkbox" id="team-chat-mute-chk" onchange="teamChatToggleMute(this.checked)" style="cursor:pointer;"/> 🔕 Mute
+        </label>
+      </div>
+      <div class="chat-messages" id="team-chat-messages" style="height:340px;"></div>
+      <div class="chat-input">
+        <label style="cursor:pointer;color:var(--text3);font-size:20px;padding:4px 0;flex-shrink:0;">
+          📷<input type="file" id="team-chat-photo-input" accept="image/*" style="display:none;" onchange="teamChatSendPhoto(event)"/>
+        </label>
+        <textarea id="team-chat-input-box" placeholder="Message team..." rows="1"
+          style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:var(--surface2);"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();teamChatSend();}"></textarea>
+        <button onclick="teamChatSend()" style="width:40px;height:40px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">&#8593;</button>
+      </div>
+    </div>
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <div style="font-size:18px;font-weight:700;">🏆 Team Leaderboard</div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -8968,8 +8989,11 @@ function switchAgentTab(tab) {
     var ttsp = document.getElementById('agent-teamstats-panel');
     if (ttsb) { ttsb.style.background='var(--green)'; ttsb.style.color='#fff'; }
     if (ttsp) ttsp.style.display='flex';
+    var badge = document.getElementById('ad-team-chat-badge');
+    if (badge) badge.style.display = 'none';
     initTeamStatsYearSelect();
     renderTeamOnboarding();
+    teamChatInit();
     loadTeamStats().then(function(){
       // Hide tab if agent not on leaderboard and not TL
       var ttsb2 = document.getElementById('agent-tab-teamstats');
@@ -17893,6 +17917,142 @@ async function renderTeamOnboarding() {
     container.innerHTML = '<div class="card" style="color:var(--red-dk);font-size:13px;">Error: '+e.message+'</div>';
   }
 }
+// ── TEAM CHAT ──
+var teamChatListener = null;
+var TEAM_CHAT_ROOM = 'team_chat';
+
+function teamChatInit() {
+  if (teamChatListener) return; // already listening
+
+  // Mute state
+  var muted = localStorage.getItem('team_chat_muted') === 'true';
+  var muteChk = document.getElementById('team-chat-mute-chk');
+  if (muteChk) muteChk.checked = muted;
+
+  var messagesEl = document.getElementById('team-chat-messages');
+  if (!messagesEl) return;
+
+  var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+  var firstLoad = true;
+
+  teamChatListener = fb.onChildAdded(chatRef, function(snapshot) {
+    var msg = snapshot.val();
+    if (!msg) return;
+
+    var el = document.getElementById('team-chat-messages');
+    if (!el) return;
+
+    var isMine = msg.senderId === currentUser.uid;
+    var time = msg.ts ? new Date(msg.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+    var date = msg.ts ? new Date(msg.ts).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) : '';
+
+    // Day divider
+    var lastDate = el.getAttribute('data-last-date');
+    if (date && date !== lastDate) {
+      var div = document.createElement('div');
+      div.className = 'chat-day-divider';
+      div.textContent = date;
+      el.appendChild(div);
+      el.setAttribute('data-last-date', date);
+    }
+
+    var wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.alignItems = isMine ? 'flex-end' : 'flex-start';
+
+    var bubble = document.createElement('div');
+    bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
+
+    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+'</div>' : '';
+
+    if (msg.photoUrl) {
+      bubble.innerHTML = senderLabel + '<img src="'+msg.photoUrl+'" style="max-width:180px;border-radius:8px;display:block;cursor:pointer;" onclick="window.open(\''+msg.photoUrl+'\',\'_blank\')" /><div class="ts">'+time+'</div>';
+    } else {
+      bubble.innerHTML = senderLabel + escapeHtml(msg.text||'') + '<div class="ts">'+time+'</div>';
+    }
+
+    wrapper.appendChild(bubble);
+    el.appendChild(wrapper);
+    el.scrollTop = el.scrollHeight;
+
+    // Badge when not viewing team tab
+    if (!isMine && !firstLoad) {
+      var panel = document.getElementById('agent-teamstats-panel');
+      var visible = panel && panel.style.display !== 'none';
+      if (!visible) {
+        var badge = document.getElementById('ad-team-chat-badge');
+        if (badge) { badge.style.display = 'inline'; badge.textContent = '!'; }
+      }
+    }
+    firstLoad = false;
+  });
+}
+window.teamChatInit = teamChatInit;
+
+function teamChatSend() {
+  var input = document.getElementById('team-chat-input-box');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+
+  var senderName = ((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'');
+  var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+  fb.push(chatRef, {
+    text: text, senderId: currentUser.uid, senderName: senderName.trim(), ts: Date.now()
+  });
+  input.value = '';
+  input.style.height = 'auto';
+
+  // Push to all leaderboard agents (skip self, skip muted)
+  teamChatPush(senderName.trim()+': '+text.substring(0,80));
+}
+window.teamChatSend = teamChatSend;
+
+async function teamChatSendPhoto(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var input = document.getElementById('team-chat-photo-input');
+  try {
+    var path = 'team_chat_photos/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    var sRef = fb.storageRef(fb.storage, path);
+    var snap = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snap.ref);
+    var senderName = ((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'');
+    var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+    fb.push(chatRef, { photoUrl: url, senderId: currentUser.uid, senderName: senderName.trim(), ts: Date.now() });
+    teamChatPush(senderName.trim()+' sent a photo');
+    if (input) input.value = '';
+  } catch(e){ console.log('team chat photo err:', e.message); }
+}
+window.teamChatSendPhoto = teamChatSendPhoto;
+
+async function teamChatPush(body) {
+  var hasAnySettings = Object.keys(_lbSettings).length > 0;
+  var agents = (DEFAULT_AGENTS||[]).filter(function(a){
+    if (a.id === userProfile.agentId) return false;
+    if (!hasAnySettings) return false;
+    return _lbSettings[a.id] !== false;
+  });
+  for (var i = 0; i < agents.length; i++) {
+    try {
+      var agentSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',agents[i].id), fb.where('role','==','agent')));
+      agentSnap.forEach(async function(doc) {
+        if (doc.data().teamChatMuted) return;
+        await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
+          body: JSON.stringify({ uid: doc.id, title: '💬 Team Chat', body: body, url: 'https://app.garucciogroup.com' })
+        });
+      });
+    } catch(e){}
+  }
+}
+
+function teamChatToggleMute(muted) {
+  localStorage.setItem('team_chat_muted', muted ? 'true' : 'false');
+  if (currentUser) fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {teamChatMuted: muted}).catch(function(){});
+}
+window.teamChatToggleMute = teamChatToggleMute;
+
 window.renderTeamOnboarding = renderTeamOnboarding;
 
 async function obNudge(uid, name) {
