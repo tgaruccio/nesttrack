@@ -17854,20 +17854,23 @@ async function renderTeamOnboarding() {
       fb.where('role','==','agent')
     ));
 
+    var agentOnboardingSnap = await fb.getDocs(fb.collection(fb.db,'agent_onboarding'));
+    var agentOnboardingIds = new Set();
+    agentOnboardingSnap.forEach(function(d){ agentOnboardingIds.add(d.id); });
+
     var agents = [];
     snap.forEach(function(d) {
       var data = {uid:d.id,...d.data()};
-      // Team leader sees everyone with onboarding. Others see only their assigned agents.
+      var hasOnboarding = data.onboardingAssigned || agentOnboardingIds.has(d.id);
       if (isTeamLeader()) {
-        if (data.onboardingAssigned) agents.push(data);
+        if (hasOnboarding) agents.push(data);
       } else {
-        if (data.mentorAgentId === myAgentId && data.onboardingAssigned) agents.push(data);
+        if (data.mentorAgentId === myAgentId && hasOnboarding) agents.push(data);
       }
     });
 
     if (!agents.length) {
       container.innerHTML = '';
-      container.style.display = 'none';
       return;
     }
 
