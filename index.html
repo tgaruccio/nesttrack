@@ -4131,21 +4131,25 @@ function renderTeamStats() {
   if (tlSec) tlSec.style.display = isTL ? 'block' : 'none';
   if (exportBtn) exportBtn.style.display = isTL ? 'inline-block' : 'none';
 
-  // Filter to leaderboard agents only
-  // TL sees all agents on leaderboard; other agents only see if they're on leaderboard
   var myId = userProfile.agentId;
+  var hasAnySettings = Object.keys(_lbSettings).length > 0;
+
+  // If TL and no settings saved yet, show all agents
+  // Otherwise filter by leaderboard flag
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
-    // Include if explicitly set to true, or if TL and not explicitly excluded
+    if (!hasAnySettings) return true; // no settings yet — show everyone
     var flag = _lbSettings[a.id];
-    return flag === true || (flag === undefined && isTL);
+    if (isTL) return flag !== false; // TL sees all unless explicitly excluded
+    return flag === true; // agents only see if explicitly included
   });
 
-  // If current agent not on leaderboard and not TL, show empty state
-  var myOnLB = isTL || _lbSettings[myId] === true;
-  if (!myOnLB) {
-    lb.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px;">Leaderboard not available.</div>';
+  var myOnLB = isTL || !hasAnySettings || _lbSettings[myId] === true;
+  if (!myOnLB || agents.length === 0) {
+    lb.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px;">No agents on leaderboard yet. Add agents via Manage Team.</div>';
+    if (isTL) renderTeamStatsFinancials();
     return;
+
   }
 
   // Sort by units descending for leaderboard
