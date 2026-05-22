@@ -1217,6 +1217,10 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Dashboard header -->
   <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('profile')" style="position:absolute;top:-4px;right:0;background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;display:flex;flex-direction:column;align-items:center;gap:1px;" title="My Profile"><span style="font-size:20px;">⚙️</span><span style="font-size:9px;font-weight:600;letter-spacing:0.04em;color:var(--text3);">Profile</span></button>
+    <button id="dash-team-chat-btn" onclick="go('agent',document.querySelector('[data-pg=agent]'));setTimeout(function(){switchAgentTab('teamstats');},200)" style="position:absolute;top:-4px;right:52px;background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;display:none;flex-direction:column;align-items:center;gap:1px;position:absolute;" title="Team Chat">
+      <span style="font-size:20px;position:relative;">💬<span id="dash-team-chat-badge" style="display:none;position:absolute;top:-4px;right:-6px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;min-width:14px;text-align:center;line-height:14px;"></span></span>
+      <span style="font-size:9px;font-weight:600;letter-spacing:0.04em;color:var(--text3);">Team Chat</span>
+    </button>
 
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
     <div>
@@ -2420,7 +2424,10 @@ textarea{resize:vertical;min-height:68px;}
     <!-- TEAM CHAT -->
     <div id="team-chat-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
       <div class="chat-hdr">
-        <div style="font-weight:500;font-size:14px;flex:1;">💬 Team Chat</div>
+        <div style="flex:1;">
+          <div style="font-weight:500;font-size:14px;">💬 Team Chat</div>
+          <div id="team-chat-members" style="font-size:11px;color:var(--text3);margin-top:1px;"></div>
+        </div>
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer;font-weight:400;">
           <input type="checkbox" id="team-chat-mute-chk" onchange="teamChatToggleMute(this.checked)" style="cursor:pointer;"/> 🔕 Mute
         </label>
@@ -4998,7 +5005,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} }
   await loadAgentPartners(userProfile.agentId||'tom');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
@@ -8991,6 +8998,8 @@ function switchAgentTab(tab) {
     if (ttsp) ttsp.style.display='flex';
     var badge = document.getElementById('ad-team-chat-badge');
     if (badge) badge.style.display = 'none';
+    teamChatSetBadge(0);
+    localStorage.setItem('team_chat_last_seen', Date.now());
     initTeamStatsYearSelect();
     renderTeamOnboarding();
     teamChatInit();
@@ -17922,18 +17931,39 @@ var teamChatListener = null;
 var TEAM_CHAT_ROOM = 'team_chat';
 
 function teamChatInit() {
-  if (teamChatListener) return; // already listening
+  if (teamChatListener) return;
 
   // Mute state
   var muted = localStorage.getItem('team_chat_muted') === 'true';
   var muteChk = document.getElementById('team-chat-mute-chk');
   if (muteChk) muteChk.checked = muted;
 
+  // Show dashboard button for leaderboard members
+  loadLeaderboardSettings().then(function(){
+    var onLB = isTeamLeader() || _lbSettings[userProfile.agentId] !== false;
+    var dashBtn = document.getElementById('dash-team-chat-btn');
+    if (dashBtn) dashBtn.style.display = onLB ? 'flex' : 'none';
+
+    // Populate member names
+    var hasAnySettings = Object.keys(_lbSettings).length > 0;
+    var members = (DEFAULT_AGENTS||[]).filter(function(a){
+      if (!a.id || !a.name) return false;
+      if (!hasAnySettings) return false;
+      return _lbSettings[a.id] !== false;
+    });
+    var membersEl = document.getElementById('team-chat-members');
+    if (membersEl) membersEl.textContent = members.map(function(a){ return a.name.split(' ')[0]; }).join(', ');
+  });
+
   var messagesEl = document.getElementById('team-chat-messages');
   if (!messagesEl) return;
 
+  // Track last seen for unread count
+  var lastSeen = parseInt(localStorage.getItem('team_chat_last_seen')||'0');
+
   var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
   var firstLoad = true;
+  var unreadCount = 0;
 
   teamChatListener = fb.onChildAdded(chatRef, function(snapshot) {
     var msg = snapshot.val();
@@ -17946,7 +17976,6 @@ function teamChatInit() {
     var time = msg.ts ? new Date(msg.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
     var date = msg.ts ? new Date(msg.ts).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) : '';
 
-    // Day divider
     var lastDate = el.getAttribute('data-last-date');
     if (date && date !== lastDate) {
       var div = document.createElement('div');
@@ -17963,7 +17992,6 @@ function teamChatInit() {
 
     var bubble = document.createElement('div');
     bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
-
     var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+'</div>' : '';
 
     if (msg.photoUrl) {
@@ -17976,13 +18004,13 @@ function teamChatInit() {
     el.appendChild(wrapper);
     el.scrollTop = el.scrollHeight;
 
-    // Badge when not viewing team tab
-    if (!isMine && !firstLoad) {
+    // Unread tracking
+    if (!isMine && !firstLoad && msg.ts > lastSeen) {
       var panel = document.getElementById('agent-teamstats-panel');
       var visible = panel && panel.style.display !== 'none';
       if (!visible) {
-        var badge = document.getElementById('ad-team-chat-badge');
-        if (badge) { badge.style.display = 'inline'; badge.textContent = '!'; }
+        unreadCount++;
+        teamChatSetBadge(unreadCount);
       }
     }
     firstLoad = false;
@@ -18007,6 +18035,19 @@ function teamChatSend() {
   // Push to all leaderboard agents (skip self, skip muted)
   teamChatPush(senderName.trim()+': '+text.substring(0,80));
 }
+function teamChatSetBadge(count) {
+  var b1 = document.getElementById('ad-team-chat-badge');
+  var b2 = document.getElementById('dash-team-chat-badge');
+  if (count > 0) {
+    if (b1) { b1.style.display = 'inline'; b1.textContent = count > 9 ? '9+' : count; }
+    if (b2) { b2.style.display = 'inline-block'; b2.textContent = count > 9 ? '9+' : count; }
+  } else {
+    if (b1) b1.style.display = 'none';
+    if (b2) b2.style.display = 'none';
+  }
+}
+window.teamChatSetBadge = teamChatSetBadge;
+
 window.teamChatSend = teamChatSend;
 
 async function teamChatSendPhoto(event) {
