@@ -17880,9 +17880,12 @@ async function renderTeamOnboarding() {
         + '<div style="background:var(--surface2);border-radius:20px;height:6px;margin-bottom:8px;">'
         + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+pct+'%;transition:width 0.4s;"></div></div>'
         + (lastWeek?'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Last: '+partnerEsc(lastWeek)+'</div>':'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Not started yet</div>');
-      if (isMyAgent || isTeamLeader()) {
-        html += '<button data-uid="'+r.uid+'" data-name="'+partnerEsc(name)+'" onclick="obNudge(this.dataset.uid,this.dataset.name)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:13px;cursor:pointer;">&#x1F4EC; Send Nudge</button>';
+      html += '<div style="display:flex;gap:8px;margin-top:6px;">'
+        + '<button data-uid="'+r.uid+'" data-name="'+partnerEsc(name)+'" onclick="obNudge(this.dataset.uid,this.dataset.name)" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:13px;cursor:pointer;">&#x1F4EC; Send Nudge</button>';
+      if (isTeamLeader()) {
+        html += '<button data-uid="'+r.uid+'" data-name="'+partnerEsc(name)+'" onclick="obRemove(this.dataset.uid,this.dataset.name)" style="background:none;border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--text3);cursor:pointer;">Remove</button>';
       }
+      html += '</div>';
       html += '</div>';
     });
     container.innerHTML = html;
@@ -17897,6 +17900,16 @@ async function obNudge(uid, name) {
   await sendPushToUser(uid, '📚 Keep it up, '+name.split(' ')[0]+'!', myName+' is checking in — your next onboarding step is waiting.');
   showDealToast('📬 Nudge sent to '+name+'!', null, null);
 }
+async function obRemove(uid, name) {
+  if (!confirm('Remove '+name+' from onboarding tracker? Their progress data will be deleted.')) return;
+  try {
+    await fb.deleteDoc(fb.doc(fb.db,'agent_onboarding',uid));
+    showDealToast(name+' removed from onboarding', null, null);
+    renderTeamOnboarding();
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.obRemove = obRemove;
+
 window.obNudge = obNudge;
 
 window.renderSellerReports = renderSellerReports;
