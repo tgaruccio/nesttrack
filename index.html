@@ -4138,10 +4138,9 @@ function renderTeamStats() {
   // Otherwise filter by leaderboard flag
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
-    if (!hasAnySettings) return true; // no settings yet — show everyone
+    if (!hasAnySettings) return true;
     var flag = _lbSettings[a.id];
-    if (isTL) return flag !== false; // TL sees all unless explicitly excluded
-    return flag === true; // agents only see if explicitly included
+    return flag !== false; // everyone on leaderboard sees all leaderboard agents
   });
 
   var myOnLB = isTL || !hasAnySettings || _lbSettings[myId] === true;
