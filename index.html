@@ -2258,6 +2258,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📅 Showings / Appts</button>
     <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏠 Deals</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">📊 Seller Reports</button>
+    <button id="agent-tab-teamstats" onclick="switchAgentTab('teamstats')" style="flex:1;padding:9px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);">🏆 Team</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -2410,6 +2411,22 @@ textarea{resize:vertical;min-height:68px;}
 
   <!-- TEAM ONBOARDING PANEL -->
   <div id="agent-team-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
+
+  <!-- TEAM STATS PANEL -->
+  <div id="agent-teamstats-panel" style="display:none;flex-direction:column;gap:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:18px;font-weight:700;">🏆 Team Leaderboard</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select id="teamstats-year" onchange="loadTeamStats()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
+        <button class="btn btn-sm btn-g" id="teamstats-export-btn" onclick="exportTeamStatsCSV()" style="display:none;">⬇ CSV</button>
+      </div>
+    </div>
+    <div id="teamstats-leaderboard"></div>
+    <div id="teamstats-tl-section" style="display:none;">
+      <div style="font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 8px;">Team Financials</div>
+      <div id="teamstats-financials"></div>
+    </div>
+  </div>
     <div id="team-onboarding-container"></div>
   </div>
 
@@ -4036,6 +4053,222 @@ function renderDocLibrary() {
       + '</div>';
   }).join('');
 }
+// ── TEAM STATS ──
+var _teamStatsData = {};
+var _teamStatsYear = new Date().getFullYear();
+
+function initTeamStatsYearSelect() {
+  var sel = document.getElementById('teamstats-year');
+  if (!sel) return;
+  var current = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (var y = current; y >= current - 3; y--) {
+    var opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    if (y === _teamStatsYear) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+async function loadTeamStats() {
+  var sel = document.getElementById('teamstats-year');
+  _teamStatsYear = sel ? parseInt(sel.value) : new Date().getFullYear();
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)));
+    _teamStatsData = snap.exists() ? snap.data() : {};
+  } catch(e){ _teamStatsData = {}; }
+  await loadLeaderboardSettings();
+  renderTeamStats();
+}
+var _lbSettings = {}; // leaderboard flags per agent
+
+async function loadLeaderboardSettings() {
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db,'team_stats','_settings'));
+    _lbSettings = snap.exists() ? (snap.data().leaderboard || {}) : {};
+  } catch(e){ _lbSettings = {}; }
+}
+
+async function toggleLeaderboard(agentId, checked) {
+  _lbSettings[agentId] = checked;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'team_stats','_settings'), {leaderboard: _lbSettings}, {merge: true});
+  } catch(e){}
+}
+window.toggleLeaderboard = toggleLeaderboard;
+
+window.loadTeamStats = loadTeamStats;
+
+async function saveTeamStatCell(agentId, field, value) {
+  if (!_teamStatsData[agentId]) _teamStatsData[agentId] = {};
+  var num = parseFloat(value.replace(/[^0-9.-]/g,'')) || 0;
+  _teamStatsData[agentId][field] = num;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+  } catch(e){ console.log('saveTeamStatCell err:',e.message); }
+  renderTeamStatsFinancials();
+}
+window.saveTeamStatCell = saveTeamStatCell;
+
+async function saveTeamFinancials(field, value) {
+  if (!_teamStatsData._totals) _teamStatsData._totals = {};
+  var num = parseFloat(value.replace(/[^0-9.-]/g,'')) || 0;
+  _teamStatsData._totals[field] = num;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+  } catch(e){}
+  renderTeamStatsFinancials();
+}
+window.saveTeamFinancials = saveTeamFinancials;
+
+function renderTeamStats() {
+  var lb = document.getElementById('teamstats-leaderboard');
+  var tlSec = document.getElementById('teamstats-tl-section');
+  var exportBtn = document.getElementById('teamstats-export-btn');
+  if (!lb) return;
+
+  var isTL = isTeamLeader();
+  if (tlSec) tlSec.style.display = isTL ? 'block' : 'none';
+  if (exportBtn) exportBtn.style.display = isTL ? 'inline-block' : 'none';
+
+  // Filter to leaderboard agents only
+  // TL sees all agents on leaderboard; other agents only see if they're on leaderboard
+  var myId = userProfile.agentId;
+  var agents = (DEFAULT_AGENTS||[]).filter(function(a){
+    if (!a.id || !a.name) return false;
+    // Include if explicitly set to true, or if TL and not explicitly excluded
+    var flag = _lbSettings[a.id];
+    return flag === true || (flag === undefined && isTL);
+  });
+
+  // If current agent not on leaderboard and not TL, show empty state
+  var myOnLB = isTL || _lbSettings[myId] === true;
+  if (!myOnLB) {
+    lb.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:20px;">Leaderboard not available.</div>';
+    return;
+  }
+
+  // Sort by units descending for leaderboard
+  var sorted = agents.slice().sort(function(a,b){
+    var au = (_teamStatsData[a.id]||{}).units || 0;
+    var bu = (_teamStatsData[b.id]||{}).units || 0;
+    return bu - au;
+  });
+
+  var medals = ['🥇','🥈','🥉'];
+  var myId = userProfile.agentId;
+
+  lb.innerHTML = sorted.map(function(agent, i) {
+    var row = _teamStatsData[agent.id] || {};
+    var units = row.units || 0;
+    var volume = row.volume || 0;
+    var isMe = agent.id === myId;
+    var canEdit = isTL || isMe;
+    var medal = medals[i] || '';
+    var rank = i + 1;
+
+    return '<div style="background:var(--surface);border:'+(isMe?'2px solid var(--green)':'0.5px solid var(--border)')+';border-radius:var(--r);padding:14px 16px;margin-bottom:8px;">'
+      +'<div style="display:flex;align-items:center;gap:12px;">'
+      +'<div style="font-size:20px;font-weight:800;color:var(--text3);min-width:32px;">'+( medal || ('#'+rank) )+'</div>'
+      +'<div style="flex:1;">'
+      +'<div style="font-size:14px;font-weight:600;">'+partnerEsc(agent.name)+(isMe?' <span style="font-size:11px;color:var(--green);font-weight:500;">(you)</span>':'')+'</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:16px;align-items:center;">'
+      +'<div style="text-align:center;">'
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:2px;">UNITS</div>'
+      +(canEdit
+        ? '<input type="number" min="0" value="'+units+'" onchange="saveTeamStatCell(\''+agent.id+'\',\'units\',this.value)" style="width:60px;text-align:center;font-size:16px;font-weight:700;border:none;background:transparent;color:var(--text);" />'
+        : '<div style="font-size:18px;font-weight:700;">'+units+'</div>')
+      +'</div>'
+      +'<div style="text-align:center;">'
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:2px;">VOLUME</div>'
+      +(canEdit
+        ? '<input type="text" value="'+(volume?volume.toLocaleString():'')+'" onchange="saveTeamStatCell(\''+agent.id+'\',\'volume\',this.value)" style="width:100px;text-align:center;font-size:13px;font-weight:600;border:none;background:transparent;color:var(--text);" placeholder="0" />'
+        : '<div style="font-size:13px;font-weight:600;">'+(volume?'$'+volume.toLocaleString():'-')+'</div>')
+      +'</div>'
+      +'</div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+
+  if (isTL) renderTeamStatsFinancials();
+}
+window.renderTeamStats = renderTeamStats;
+
+function renderTeamStatsFinancials() {
+  var el = document.getElementById('teamstats-financials');
+  if (!el) return;
+  var t = _teamStatsData._totals || {};
+
+  // Calculate totals from agent rows
+  var agents = (DEFAULT_AGENTS||[]).filter(function(a){ return a.id && a.name; });
+  var totalUnits = 0, totalVolume = 0, totalNetPay = 0;
+  agents.forEach(function(a){
+    var row = _teamStatsData[a.id] || {};
+    totalUnits += row.units || 0;
+    totalVolume += row.volume || 0;
+    totalNetPay += row.netPay || 0;
+  });
+
+  var finFields = [
+    {key:'expenses', label:'Team Expenses', sign:-1},
+    {key:'mortgageIncome', label:'Mortgage Income'},
+    {key:'revShare', label:'Rev Share'},
+  ];
+
+  var profit = totalNetPay;
+  finFields.forEach(function(f){
+    profit += (t[f.key]||0) * (f.sign||1);
+  });
+
+  el.innerHTML = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;">'
+    // Agent net pay rows
+    + agents.map(function(a){
+        var row = _teamStatsData[a.id]||{};
+        var np = row.netPay||0;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">'
+          +'<div style="font-size:13px;color:var(--text2);">'+partnerEsc(a.name)+' net pay</div>'
+          +'<input type="text" value="'+(np?'$'+np.toLocaleString():'')+'" onchange="saveTeamStatCell(\''+a.id+'\',\'netPay\',this.value)" placeholder="$0" style="width:100px;text-align:right;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text);" />'
+          +'</div>';
+      }).join('')
+    // Financial fields
+    + finFields.map(function(f){
+        var val = t[f.key]||0;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);">'
+          +'<div style="font-size:13px;color:var(--text2);">'+f.label+'</div>'
+          +'<input type="text" value="'+(val?'$'+val.toLocaleString():'')+'" onchange="saveTeamFinancials(\''+f.key+'\',this.value)" placeholder="$0" style="width:100px;text-align:right;font-size:13px;font-weight:500;border:none;background:transparent;color:var(--text);" />'
+          +'</div>';
+      }).join('')
+    // Totals
+    + '<div style="display:flex;justify-content:space-between;padding:10px 0 4px;border-top:2px solid var(--border);margin-top:4px;">'
+    + '<div style="font-size:13px;font-weight:700;">Team Units</div><div style="font-size:13px;font-weight:700;">'+totalUnits+'</div></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:4px 0;">'
+    + '<div style="font-size:13px;font-weight:700;">Team Volume</div><div style="font-size:13px;font-weight:700;">$'+totalVolume.toLocaleString()+'</div></div>'
+    + '<div style="display:flex;justify-content:space-between;padding:8px 0 4px;background:var(--green-lt);border-radius:6px;padding:10px 12px;margin-top:8px;">'
+    + '<div style="font-size:14px;font-weight:700;color:var(--green-dk);">Profit</div><div style="font-size:14px;font-weight:700;color:var(--green-dk);">$'+profit.toLocaleString()+'</div></div>'
+    +'</div>';
+}
+
+function exportTeamStatsCSV() {
+  var agents = (DEFAULT_AGENTS||[]).filter(function(a){ return a.id && a.name; });
+  var rows = [['Agent','Units','Volume','Net Pay']];
+  agents.forEach(function(a){
+    var row = _teamStatsData[a.id]||{};
+    rows.push([a.name, row.units||0, row.volume||0, row.netPay||0]);
+  });
+  var t = _teamStatsData._totals||{};
+  rows.push([]);
+  rows.push(['Expenses','','',(t.expenses||0)*-1]);
+  rows.push(['Mortgage Income','','',t.mortgageIncome||0]);
+  rows.push(['Rev Share','','',t.revShare||0]);
+  var csv = rows.map(function(r){ return r.join(','); }).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'team-stats-'+_teamStatsYear+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+window.exportTeamStatsCSV = exportTeamStatsCSV;
+
 window.renderDocLibrary = renderDocLibrary;
 
 async function saveDocLibrary() {
@@ -8279,10 +8512,10 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel');
-  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel');
+  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -8340,6 +8573,19 @@ function switchAgentTab(tab) {
     if (ttb) { ttb.style.background='var(--green)'; ttb.style.color='#fff'; }
     if (ttp) ttp.style.display='flex';
     renderTeamOnboarding();
+  } else if (tab==='teamstats') {
+    var ttsb = document.getElementById('agent-tab-teamstats');
+    var ttsp = document.getElementById('agent-teamstats-panel');
+    if (ttsb) { ttsb.style.background='var(--green)'; ttsb.style.color='#fff'; }
+    if (ttsp) ttsp.style.display='flex';
+    initTeamStatsYearSelect();
+    loadTeamStats().then(function(){
+      // Hide tab if agent not on leaderboard and not TL
+      var ttsb2 = document.getElementById('agent-tab-teamstats');
+      if (ttsb2 && !isTeamLeader() && _lbSettings[userProfile.agentId] !== true) {
+        ttsb2.style.display = 'none';
+      }
+    });
   } else {
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (bp) bp.style.display='flex';
@@ -10636,17 +10882,36 @@ window.addLenderAndInvite = addLenderAndInvite;
 
 window.saveOutsideLender = function(uid) { console.log('outside lender disabled'); };
 function renderTeam() {
-  document.getElementById('team-list').innerHTML = DEFAULT_AGENTS.map(a => `
-    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:500;font-size:13px;">${a.name}${a.isDefault?' <span class="pill pill-g">Default</span>':''}</div>
-        <div style="font-size:11.5px;color:var(--text2);">${a.role} · ${a.phone}${a.email?' · '+a.email:''}</div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
-        ${a.id!=='tom' ? `<button class="btn btn-sm" onclick="assignOnboarding('${a.id}','${a.name}')" style="font-size:11px;color:var(--green-dk);border-color:var(--green-md);">🎓 Onboarding</button>` : ''}
-        ${a.id!=='tom' ? `<button class="btn btn-sm" onclick="removeAgent('${a.id}')" style="color:var(--red-dk);">Remove</button>` : '<span style="font-size:10px;color:var(--text3);">Owner</span>'}
-      </div>
-    </div>`).join('');
+  // Load leaderboard flags
+  var lbFlags = {};
+  fb.getDoc(fb.doc(fb.db,'team_stats','_settings')).then(function(snap){
+    if (snap.exists()) lbFlags = snap.data().leaderboard || {};
+    document.getElementById('team-list').innerHTML = DEFAULT_AGENTS.map(function(a) {
+      var onLB = lbFlags[a.id] !== false && a.id !== undefined; // default ON for existing agents
+      return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;">'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-weight:500;font-size:13px;">'+a.name+(a.isDefault?' <span class="pill pill-g">Default</span>':'')+'</div>'
+        +'<div style="font-size:11.5px;color:var(--text2);">'+a.role+' · '+a.phone+(a.email?' · '+a.email:'')+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">'
+        +'<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);cursor:pointer;">'
+        +'<input type="checkbox" '+(onLB?'checked':'')+' onchange="toggleLeaderboard(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> 🏆 Leaderboard'
+        +'</label>'
+        +(a.id!=='tom' ? '<button class="btn btn-sm" onclick="assignOnboarding(\''+a.id+'\',\''+a.name+'\')" style="font-size:11px;color:var(--green-dk);border-color:var(--green-md);">🎓 Onboarding</button>' : '')
+        +(a.id!=='tom' ? '<button class="btn btn-sm" onclick="removeAgent(\''+a.id+'\')" style="color:var(--red-dk);">Remove</button>' : '<span style="font-size:10px;color:var(--text3);">Owner</span>')
+        +'</div>'
+        +'</div>';
+    }).join('');
+  }).catch(function(){ 
+    document.getElementById('team-list').innerHTML = DEFAULT_AGENTS.map(function(a) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;">'
+        +'<div style="flex:1;min-width:0;"><div style="font-weight:500;font-size:13px;">'+a.name+'</div>'
+        +'<div style="font-size:11.5px;color:var(--text2);">'+a.role+'</div></div>'
+        +'<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">'
+        +(a.id!=='tom'?'<button class="btn btn-sm" onclick="removeAgent(\''+a.id+'\')">Remove</button>':'<span style="font-size:10px;color:var(--text3);">Owner</span>')
+        +'</div></div>';
+    }).join('');
+  });
 }
 async function sendAgentInvite() {
   var name = (document.getElementById('ta-name')||{}).value.trim();
