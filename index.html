@@ -4354,131 +4354,39 @@ function openTeamSendPanel() {
   var panel = document.createElement('div');
   panel.id = 'team-send-panel';
   panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-  panel.innerHTML = '<div style="background:var(--surface);border-radius:16px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;">'
+  panel.innerHTML = '<div style="background:var(--surface);border-radius:16px;width:100%;max-width:500px;display:flex;flex-direction:column;">'
     +'<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">'
-    +'<div><div style="font-size:15px;font-weight:600;">📣 Send to Team</div>'
-    +'<div style="font-size:12px;color:var(--text3);">Push notification + email to all leaderboard agents</div></div>'
-    +'<button onclick="document.getElementById(\'team-send-panel\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);">✕</button>'
+    +'<div><div style="font-size:15px;font-weight:600;">&#x1F4E3; Send to Team</div>'
+    +'<div style="font-size:12px;color:var(--text3);">Add a message then preview before sending</div></div>'
+    +'<button onclick="document.getElementById(\'team-send-panel\').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);">&#x2715;</button>'
     +'</div>'
-    +'<div style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px;">'
+    +'<div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">'
     +'<div>'
-    +'<label class="flabel">Your Message</label>'
-    +'<textarea id="team-send-message" rows="4" placeholder="What\'s working this week? A quick note of encouragement, market tip, or update goes a long way..." style="width:100%;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;"></textarea>'
+    +'<label class="flabel">Your Message <span style="font-weight:400;color:var(--text3);">(optional)</span></label>'
+    +'<textarea id="team-send-message" rows="4" placeholder="What\'s working this week? A tip, market update, or encouragement..." style="width:100%;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;"></textarea>'
     +'</div>'
-    +'<div>'
-    +'<label class="flabel">Training Video <span style="font-weight:400;color:var(--text3);">(optional)</span></label>'
-    +'<input type="text" id="team-send-video-url" placeholder="Paste Loom, YouTube, or BombBomb URL..." style="width:100%;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;" />'
-    +'<div style="display:flex;align-items:center;gap:8px;">'
-    +'<label style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">📷 Upload Thumbnail<input type="file" id="team-send-thumb-file" accept="image/*" style="display:none;" onchange="teamSendUploadThumb(event)"/></label>'
-    +'<span id="team-send-thumb-status" style="font-size:11px;color:var(--text3);"></span>'
-    +'<input type="hidden" id="team-send-thumb-url"/>'
-    +'</div>'
-    +'<div id="team-send-thumb-preview" style="display:none;margin-top:6px;"></div>'
-    +'<div style="margin-top:6px;">'
-    +'<select id="team-send-video-lib" onchange="teamSendSelectLibVideo(this.value)" style="width:100%;font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text3);">'
-    +'<option value="">— Or pick from library —</option>'
-    +(_agentVideos||[]).map(function(v){ return '<option value="'+v.url+'|'+encodeURIComponent(v.title||'')+'|'+encodeURIComponent(v.thumb||'')+'">'+partnerEsc(v.title||v.url.substring(0,40))+'</option>'; }).join('')
-    +'</select>'
-    +'</div>'
-    +'</div>'
-    +'<div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px 14px;">'
-    +'<div style="font-size:12px;font-weight:600;color:var(--text3);margin-bottom:8px;">LEADERBOARD PREVIEW</div>'
-    +'<div id="team-send-lb-preview" style="font-size:13px;"></div>'
-    +'</div>'
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">'
+    +'<input type="checkbox" id="team-send-include-lb" checked style="cursor:pointer;"/> Include leaderboard in email'
+    +'</label>'
     +'</div>'
     +'<div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;">'
     +'<button onclick="document.getElementById(\'team-send-panel\').remove()" class="btn" style="flex:1;">Cancel</button>'
-    +'<button onclick="previewTeamSend()" class="btn btn-g" style="flex:2;">👁 Preview & Send</button>'
+    +'<button onclick="previewTeamSend()" class="btn btn-g" style="flex:2;">&#x1F441; Preview Email</button>'
     +'</div>'
     +'</div>';
 
   document.body.appendChild(panel);
-
-  // Populate leaderboard preview
-  var hasAnySettings = Object.keys(_lbSettings).length > 0;
-  var agents = (DEFAULT_AGENTS||[]).filter(function(a){
-    if (!a.id || !a.name) return false;
-    if (!hasAnySettings) return true;
-    return _lbSettings[a.id] !== false;
-  }).sort(function(a,b){
-    var av = (_teamStatsData[a.id]||{}).volume||0;
-    var bv = (_teamStatsData[b.id]||{}).volume||0;
-    return bv - av;
-  });
-  var medals = ['🥇','🥈','🥉'];
-  var preview = document.getElementById('team-send-lb-preview');
-  if (preview) {
-    preview.innerHTML = agents.map(function(a,i){
-      var row = _teamStatsData[a.id]||{};
-      var units = row.units||0;
-      var volume = row.volume||0;
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">'
-        +'<div style="display:flex;align-items:center;gap:8px;">'
-        +'<span style="font-size:14px;min-width:22px;">'+(medals[i]||'')+'</span>'
-        +'<span style="font-size:13px;font-weight:500;">'+partnerEsc(a.name)+'</span>'
-        +'</div>'
-        +'<div style="font-size:12px;color:var(--text3);">'+units+' units &nbsp;·&nbsp; $'+volume.toLocaleString()+'</div>'
-        +'</div>';
-    }).join('');
-  }
+  setTimeout(function(){ var t=document.getElementById('team-send-message'); if(t) t.focus(); }, 100);
 }
-async function teamSendUploadThumb(event) {
-  var file = event.target.files[0];
-  if (!file) return;
-  var status = document.getElementById('team-send-thumb-status');
-  var preview = document.getElementById('team-send-thumb-preview');
-  var hidden = document.getElementById('team-send-thumb-url');
-  if (status) status.textContent = 'Uploading...';
-  try {
-    var path = 'team_send_thumbs/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
-    var sRef = fb.storageRef(fb.storage, path);
-    var snap = await fb.uploadBytes(sRef, file);
-    var url = await fb.getDownloadURL(snap.ref);
-    if (hidden) hidden.value = url;
-    if (status) status.textContent = '✓ Ready';
-    if (preview) {
-      preview.style.display = 'block';
-      preview.innerHTML = '<img src="'+url+'" style="width:100%;max-height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
-    }
-  } catch(e) { if (status) status.textContent = 'Upload failed'; }
-}
-window.teamSendUploadThumb = teamSendUploadThumb;
-
-function teamSendSelectLibVideo(val) {
-  if (!val) return;
-  var parts = val.split('|');
-  var url = parts[0];
-  var thumb = parts[2] ? decodeURIComponent(parts[2]) : '';
-  var urlEl = document.getElementById('team-send-video-url');
-  var hidden = document.getElementById('team-send-thumb-url');
-  var preview = document.getElementById('team-send-thumb-preview');
-  var status = document.getElementById('team-send-thumb-status');
-  if (urlEl) urlEl.value = url;
-  if (thumb) {
-    if (hidden) hidden.value = thumb;
-    if (status) status.textContent = '✓ Library thumb';
-    if (preview) {
-      preview.style.display = 'block';
-      preview.innerHTML = '<img src="'+thumb+'" style="width:100%;max-height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
-    }
-  }
-}
-window.teamSendSelectLibVideo = teamSendSelectLibVideo;
-
 window.openTeamSendPanel = openTeamSendPanel;
 
 function previewTeamSend() {
   var message = (document.getElementById('team-send-message')||{}).value || '';
-  var videoUrl = ((document.getElementById('team-send-video-url')||{}).value || '').trim();
-  var videoThumb = (document.getElementById('team-send-thumb-url')||{}).value || '';
-  if (videoUrl && !videoThumb) {
-    var meta = getVideoMeta(videoUrl);
-    if (meta && meta.thumb) videoThumb = meta.thumb;
-  }
+  var includeLB = document.getElementById('team-send-include-lb') ? document.getElementById('team-send-include-lb').checked : true;
+  var panel = document.getElementById('team-send-panel');
+  if (panel) panel.remove();
 
-  var agentName = userProfile.firstName + ' ' + (userProfile.lastName||'');
-
-  // Build leaderboard rows
+  var agentName = (userProfile.firstName||'') + ' ' + (userProfile.lastName||'');
   var hasAnySettings = Object.keys(_lbSettings).length > 0;
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
@@ -4488,47 +4396,39 @@ function previewTeamSend() {
     return ((_teamStatsData[b.id]||{}).volume||0) - ((_teamStatsData[a.id]||{}).volume||0);
   });
 
-  var medals = ['🥇','🥈','🥉'];
-  var lbRows = agents.map(function(a,i){
-    var row = _teamStatsData[a.id]||{};
-    return '<tr>'
-      +'<td style="padding:10px 12px;font-size:18px;">'+(medals[i]||'')+'</td>'
-      +'<td style="padding:10px 12px;font-size:14px;font-weight:600;">'+a.name+'</td>'
-      +'<td style="padding:10px 12px;font-size:13px;color:#666;text-align:center;">'+(row.units||0)+'</td>'
-      +'<td style="padding:10px 12px;font-size:13px;color:#666;text-align:right;">$'+((row.volume||0).toLocaleString())+'</td>'
-      +'</tr>';
-  }).join('');
-
-  var videoHtml = '';
-  if (videoUrl) {
-    videoHtml = videoThumb
-      ? '<div style="margin:20px 0;"><a href="'+videoUrl+'" target="_blank"><img src="'+videoThumb+'" style="width:100%;border-radius:8px;" /></a></div>'
-      : '<div style="margin:20px 0;"><a href="'+videoUrl+'" target="_blank" style="display:inline-block;background:#1D9E75;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;">▶ Watch Video</a></div>';
+  var medals = ['&#x1F947;','&#x1F948;','&#x1F949;'];
+  var lbHtml = '';
+  if (includeLB) {
+    var lbRows = agents.map(function(a,i){
+      var row = _teamStatsData[a.id]||{};
+      return '<tr>'
+        +'<td style="padding:10px 12px;font-size:18px;">'+(medals[i]||'')+'</td>'
+        +'<td style="padding:10px 12px;font-size:14px;font-weight:600;">'+a.name+'</td>'
+        +'<td style="padding:10px 12px;font-size:13px;color:#666;text-align:center;">'+(row.units||0)+'</td>'
+        +'<td style="padding:10px 12px;font-size:13px;color:#666;text-align:right;">$'+((row.volume||0).toLocaleString())+'</td>'
+        +'</tr>';
+    }).join('');
+    lbHtml = '<div style="margin-top:20px;">'
+      +'<table style="width:100%;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">'
+      +'<thead><tr style="background:#1D9E75;color:#fff;">'
+      +'<th style="padding:10px 12px;text-align:left;font-size:11px;"></th>'
+      +'<th style="padding:10px 12px;text-align:left;font-size:11px;">AGENT</th>'
+      +'<th style="padding:10px 12px;text-align:center;font-size:11px;">UNITS</th>'
+      +'<th style="padding:10px 12px;text-align:right;font-size:11px;">VOLUME</th>'
+      +'</tr></thead>'
+      +'<tbody>'+lbRows+'</tbody>'
+      +'</table></div>';
   }
 
+  // Order: greeting, message, {{VIDEO_PLACEHOLDER}}, leaderboard
   var bodyHtml = '<p style="font-size:16px;font-weight:300;margin:0 0 16px;">Hi {{FIRST_NAME}},</p>'
-    +(message ? '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">'+message.replace(/\n/g,'<br/>')+'</p>' : '')
-    +'<div style="margin-bottom:20px;">'
-    +'<table style="width:100%;border-collapse:collapse;background:#f9fafb;border-radius:8px;overflow:hidden;">'
-    +'<thead><tr style="background:#1D9E75;color:#fff;">'
-    +'<th style="padding:10px 12px;text-align:left;font-size:11px;"></th>'
-    +'<th style="padding:10px 12px;text-align:left;font-size:11px;">AGENT</th>'
-    +'<th style="padding:10px 12px;text-align:center;font-size:11px;">UNITS</th>'
-    +'<th style="padding:10px 12px;text-align:right;font-size:11px;">VOLUME</th>'
-    +'</tr></thead>'
-    +'<tbody>'+lbRows+'</tbody>'
-    +'</table></div>'
-    +videoHtml;
+    +(message ? '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;">'+message.replace(/\n/g,'<br/>')+'</p>' : '')
+    + lbHtml;
 
-  var subject = '🏆 Team Update from '+agentName+' — '+_teamStatsYear;
-  var fullHtml = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
+  var subject = '&#x1F3C6; Team Update from '+agentName+' \u2014 '+_teamStatsYear;
+  var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
 
-  // Close compose panel
-  var panel = document.getElementById('team-send-panel');
-  if (panel) panel.remove();
-
-  // Show preview — on approve fire the team send
-  showEmailPreview('Team ('+agents.length+' agents)', subject, fullHtml, function(finalHtml) {
+  showEmailPreview('Team ('+agents.length+' agents)', subject, html, function(finalHtml, ccValue) {
     sendToTeam(finalHtml, subject, agents);
   });
 }
@@ -4538,48 +4438,27 @@ async function sendToTeam(finalHtml, subject, agents) {
   var errors = [];
   for (var i = 0; i < agents.length; i++) {
     var agent = agents[i];
-    if (agent.id === userProfile.agentId) continue; // skip self
-
-    // Email
+    if (agent.id === userProfile.agentId) continue;
     if (agent.email) {
       try {
         var personalHtml = finalHtml.replace(/\{\{FIRST_NAME\}\}/g, agent.name.split(' ')[0]);
         await fetch(PROXY_URL, {
-          method:'POST',
-          headers:{'Content-Type':'application/json','X-Action':'email'},
-          body: JSON.stringify({
-            to: agent.email,
-            subject: subject,
-            html: personalHtml,
-            from: agentFromField(),
-            reply_to: agentReplyTo()
-          })
+          method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
+          body: JSON.stringify({ to: agent.email, subject: subject, html: personalHtml, from: agentFromField(), reply_to: agentReplyTo() })
         });
       } catch(e){ errors.push(agent.name+' email'); }
     }
-
-    // Push — look up Firebase UID from Firestore
     try {
-      var agentSnap = await fb.getDocs(fb.query(
-        fb.collection(fb.db,'users'),
-        fb.where('agentId','==',agent.id),
-        fb.where('role','==','agent')
-      ));
+      var agentSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',agent.id), fb.where('role','==','agent')));
       agentSnap.forEach(async function(doc) {
         await fetch(PROXY_URL, {
-          method:'POST',
-          headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
-          body: JSON.stringify({
-            uid: doc.id,
-            title: '🏆 Team Update',
-            body: subject,
-            url: 'https://app.garucciogroup.com'
-          })
+          method:'POST', headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
+          body: JSON.stringify({ uid: doc.id, title: '\U0001F3C6 Team Update', body: subject, url: 'https://app.garucciogroup.com' })
         });
       });
     } catch(e){ errors.push(agent.name+' push'); }
   }
-  showDealToast(errors.length ? 'Sent with some errors: '+errors.join(', ') : '📣 Sent to team!', null, null);
+  showDealToast(errors.length ? 'Sent with some errors: '+errors.join(', ') : '&#x1F4E3; Sent to team!', null, null);
 }
 window.sendToTeam = sendToTeam;
 
