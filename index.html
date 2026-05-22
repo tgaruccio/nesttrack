@@ -18106,7 +18106,7 @@ async function teamChatClear() {
   if (!confirm('Clear all team chat messages? This cannot be undone.')) return;
   try {
     var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
-    await fb.remove(chatRef);
+    await fb.rtSet(chatRef, null);
     var el = document.getElementById('team-chat-messages');
     if (el) { el.innerHTML = ''; el.removeAttribute('data-last-date'); }
     showDealToast('Team chat cleared', null, null);
