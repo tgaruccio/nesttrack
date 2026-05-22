@@ -2430,6 +2430,7 @@ textarea{resize:vertical;min-height:68px;}
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer;font-weight:400;">
           <input type="checkbox" id="team-chat-mute-chk" onchange="teamChatToggleMute(this.checked)" style="cursor:pointer;"/> 🔕 Mute
         </label>
+        <button id="team-chat-clear-btn" onclick="teamChatClear()" style="display:none;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;padding:4px 6px;white-space:nowrap;">🗑 Clear</button>
       </div>
       <div class="chat-messages" id="team-chat-messages" style="height:340px;"></div>
       <div class="chat-input">
@@ -17943,7 +17944,11 @@ function teamChatInit() {
   var muteChk = document.getElementById('team-chat-mute-chk');
   if (muteChk) muteChk.checked = muted;
 
-  // Show dashboard button for leaderboard members
+  // Show clear button for TL
+  if (isTeamLeader()) {
+    var clearBtn = document.getElementById('team-chat-clear-btn');
+    if (clearBtn) clearBtn.style.display = 'inline-block';
+  }
   loadLeaderboardSettings().then(function(){
     var onLB = isTeamLeader() || _lbSettings[userProfile.agentId] !== false;
     var dashBtn = document.getElementById('dash-team-chat-btn');
@@ -18097,6 +18102,18 @@ function teamChatToggleMute(muted) {
   localStorage.setItem('team_chat_muted', muted ? 'true' : 'false');
   if (currentUser) fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {teamChatMuted: muted}).catch(function(){});
 }
+async function teamChatClear() {
+  if (!confirm('Clear all team chat messages? This cannot be undone.')) return;
+  try {
+    var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+    await fb.remove(chatRef);
+    var el = document.getElementById('team-chat-messages');
+    if (el) { el.innerHTML = ''; el.removeAttribute('data-last-date'); }
+    showDealToast('Team chat cleared', null, null);
+  } catch(e) { alert('Failed: '+e.message); }
+}
+window.teamChatClear = teamChatClear;
+
 window.teamChatToggleMute = teamChatToggleMute;
 
 window.renderTeamOnboarding = renderTeamOnboarding;
