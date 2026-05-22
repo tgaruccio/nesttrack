@@ -4139,19 +4139,18 @@ function openTeamChat() {
   var muteChk = document.getElementById('team-chat-mute');
   if (muteChk) muteChk.checked = muted;
 
-  // Member names
-  var hasAnySettings = Object.keys(_lbSettings).length > 0;
-  var members = (DEFAULT_AGENTS||[]).filter(function(a){
-    if (!a.id || !a.name) return false;
-    if (!hasAnySettings) return true;
-    return _lbSettings[a.id] !== false;
+  // Load leaderboard settings first then show members
+  loadLeaderboardSettings().then(function(){
+    var hasAnySettings = Object.keys(_lbSettings).length > 0;
+    var members = (DEFAULT_AGENTS||[]).filter(function(a){
+      if (!a.id || !a.name) return false;
+      if (!hasAnySettings) return isTeamLeader();
+      return _lbSettings[a.id] !== false;
+    });
+    var membersEl = document.getElementById('team-chat-members');
+    if (membersEl) membersEl.textContent = members.map(function(a){ return a.name.split(' ')[0]; }).join(', ');
   });
-  var membersEl = document.getElementById('team-chat-members');
-  if (membersEl) membersEl.textContent = members.map(function(a){ return a.name.split(' ')[0]; }).join(', ');
 
-  // Mark seen
-  _teamChatLastSeen = parseInt(localStorage.getItem('team_chat_last_seen')||'0');
-  localStorage.setItem('team_chat_last_seen', Date.now());
   clearTeamChatBadge();
 
   // Start listening if not already
@@ -4167,25 +4166,55 @@ function openTeamChat() {
 window.openTeamChat = openTeamChat;
 
 function teamChatListen() {
-  var msgsEl = document.getElementById('team-chat-messages');
   var chatRef = fb.ref(fb.rtdb, TEAM_CHAT_ROOM + '/messages');
+  var firstLoad = true;
 
   _teamChatListener = fb.onChildAdded(chatRef, function(snap) {
     var msg = snap.val();
     if (!msg) return;
-    var el = document.getElementById('team-chat-messages');
-    if (el) {
-      teamChatRenderMsg(el, msg, snap.key);
-      var nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-      if (nearBottom) el.scrollTop = el.scrollHeight;
+
+    var msgsEl = document.getElementById('team-chat-messages');
+    if (!msgsEl) return;
+
+    var isMine = msg.senderId === (currentUser && currentUser.uid);
+    var time = msg.ts ? new Date(msg.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+    var date = msg.ts ? new Date(msg.ts).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) : '';
+
+    // Day divider
+    var lastDate = msgsEl.getAttribute('data-last-date');
+    if (date && date !== lastDate) {
+      var div = document.createElement('div');
+      div.className = 'chat-day-divider';
+      div.textContent = date;
+      msgsEl.appendChild(div);
+      msgsEl.setAttribute('data-last-date', date);
     }
-    // Badge for new messages when chat not visible
-    if (msg.senderId !== (currentUser && currentUser.uid)) {
+
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:'+(isMine?'flex-end':'flex-start')+';';
+
+    var bubble = document.createElement('div');
+    bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
+    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:700;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+'</div>' : '';
+    if (msg.photoUrl) {
+      bubble.innerHTML = senderLabel + '<img src="'+msg.photoUrl+'" style="max-width:180px;border-radius:8px;display:block;cursor:pointer;" onclick="window.open(\''+msg.photoUrl+'\',\'_blank\')" /><div class="ts">'+time+'</div>';
+    } else {
+      bubble.innerHTML = senderLabel + escapeHtml(msg.text||'') + '<div class="ts">'+time+'</div>';
+    }
+    wrapper.appendChild(bubble);
+    msgsEl.appendChild(wrapper);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+
+    // Badge when chat not visible
+    if (!isMine && !firstLoad) {
       var container = document.getElementById('team-chat-container');
-      var visible = container && container.offsetParent !== null && container.style.display !== 'none';
-      if (!visible) teamChatShowBadge();
+      var teamPanel = document.getElementById('agent-team-panel');
+      var chatVisible = container && teamPanel && teamPanel.style.display !== 'none' && container.style.display !== 'none';
+      if (!chatVisible) teamChatShowBadge();
     }
   });
+
+  setTimeout(function(){ firstLoad = false; }, 1500);
 }
 
 function teamChatRenderMsg(container, msg, key) {
