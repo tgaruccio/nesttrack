@@ -2268,7 +2268,6 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-sm" onclick="openImportModal()">⬆ Import CSV</button>
     <button class="btn btn-sm" onclick="exportContactsCSV()">⬇ Export CSV</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
-    <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()">⚙️ Manage Team</button>
     <button class="btn btn-sm" id="admin-show-all-btn" onclick="toggleAdminShowAll()" style="display:none;">👤 My Clients Only</button>
   </div>
   <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
@@ -2411,6 +2410,8 @@ textarea{resize:vertical;min-height:68px;}
 
   <!-- TEAM ONBOARDING PANEL -->
   <div id="agent-team-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
+    <div id="team-onboarding-container"></div>
+  </div>
 
   <!-- TEAM STATS PANEL -->
   <div id="agent-teamstats-panel" style="display:none;flex-direction:column;gap:12px;">
@@ -2419,6 +2420,7 @@ textarea{resize:vertical;min-height:68px;}
       <div style="display:flex;align-items:center;gap:8px;">
         <select id="teamstats-year" onchange="loadTeamStats()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
         <button class="btn btn-sm btn-g" id="teamstats-export-btn" onclick="exportTeamStatsCSV()" style="display:none;">⬇ CSV</button>
+        <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()" style="display:none;">⚙️ Manage Team</button>
       </div>
     </div>
     <div id="teamstats-leaderboard"></div>
@@ -2426,8 +2428,6 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin:12px 0 8px;">Team Financials</div>
       <div id="teamstats-financials"></div>
     </div>
-  </div>
-    <div id="team-onboarding-container"></div>
   </div>
 
   <!-- PROFILE PANEL (via gear icon on dashboard) -->
@@ -8340,6 +8340,20 @@ async function renderBuyers() {
   const teamLeader = isTeamLeader();
   const manageBtn = document.getElementById('manage-team-btn');
   if (manageBtn) manageBtn.style.display = teamLeader ? 'inline-flex' : 'none';
+
+  // Hide/show team stats tab based on leaderboard membership
+  var ttsTab = document.getElementById('agent-tab-teamstats');
+  if (ttsTab) {
+    if (teamLeader) {
+      ttsTab.style.display = '';
+    } else {
+      // Load settings to check if this agent is on leaderboard
+      loadLeaderboardSettings().then(function(){
+        var onLB = _lbSettings[userProfile.agentId] === true;
+        ttsTab.style.display = onLB ? '' : 'none';
+      });
+    }
+  }
 
   // Update admin toggle button visibility
   var adminToggleBtn = document.getElementById('admin-show-all-btn');
