@@ -15356,12 +15356,13 @@ async function renderShowingInbox() {
         +'<div style="font-size:13px;font-weight:500;margin-bottom:2px;">'+addr+'</div>'
         +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">'+timeStr+'</div>'
         +(desc?'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;line-height:1.5;">'+desc+'</div>':'')
-        +'<div style="display:flex;gap:6px;align-items:center;">'
-        +'<select onchange="assignShowingToBuyer(\''+evKey+'\',this.value)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);">'
-        +'<option value="">— Assign to client —</option>'+buyerOpts
-        +'</select>'
-        +'<button onclick="assignShowingToBuyer(\''+evKey+'\',this.previousElementSibling.value)" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Assign →</button>'
+        +'<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">'
+        +'<input type="text" id="showing-search-'+evKey+'" placeholder="Search client..." oninput="showingSearchFilter(\''+evKey+'\')" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);min-width:120px;" />'
+        +'<input type="hidden" id="showing-client-'+evKey+'" value="'+assignedUid+'" />'
+        +'<button onclick="assignShowingToBuyer(\''+evKey+'\')" style="background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Assign →</button>'
         +'</div>'
+        +'<div id="showing-results-'+evKey+'" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);max-height:140px;overflow-y:auto;margin-top:4px;"></div>'
+        +(assigned ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">&#10003; Assigned to '+partnerEsc(assigned.buyerName||'client')+'&nbsp;&nbsp;<button onclick="unassignShowing(\''+evKey+'\')" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;">Remove</button></div>' : '')
         +'</div></div></div>';
     }).join('');
   }
@@ -15833,6 +15834,90 @@ async function assignShowing(idx) {
     if (btn) { btn.disabled=false; btn.textContent='Assign →'; }
   }
 }
+function showingSearchFilter(evKey) {
+  var inp = document.getElementById('showing-search-'+evKey);
+  var results = document.getElementById('showing-results-'+evKey);
+  var hidden = document.getElementById('showing-client-'+evKey);
+  if (!inp || !results) return;
+  var q = inp.value.trim().toLowerCase();
+  if (!q) { results.style.display = 'none'; return; }
+  var matches = (allBuyers||[]).filter(function(b){
+    var n = ((b.firstName||'')+' '+(b.lastName||'')).trim().toLowerCase();
+    return n.includes(q) || (b.email||'').toLowerCase().includes(q);
+  }).slice(0,8);
+  if (!matches.length) { results.style.display = 'none'; return; }
+  results.style.display = 'block';
+  results.innerHTML = matches.map(function(b){
+    var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'';
+    return '<div onclick="showingSelectClient(\''+evKey+'\',\''+b.uid+'\',\''+partnerEsc(n)+'\')" style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">'+partnerEsc(n)+'</div>';
+  }).join('');
+}
+window.showingSearchFilter = showingSearchFilter;
+
+function showingSelectClient(evKey, uid, name) {
+  var hidden = document.getElementById('showing-client-'+evKey);
+  var inp = document.getElementById('showing-search-'+evKey);
+  var results = document.getElementById('showing-results-'+evKey);
+  if (hidden) hidden.value = uid;
+  if (inp) inp.value = name;
+  if (results) results.style.display = 'none';
+}
+window.showingSelectClient = showingSelectClient;
+
+async function assignShowingToBuyer(evKey) {
+  var hidden = document.getElementById('showing-client-'+evKey);
+  var clientUid = hidden ? hidden.value : '';
+  if (!clientUid) { alert('Please select a client first.'); return; }
+
+  var buyer = (allBuyers||[]).find(function(b){ return b.uid===clientUid; });
+  if (!buyer) return;
+
+  var ev = null;
+  var ei = -1;
+  (_pendingShowings||[]).forEach(function(e,i){
+    var k = e.uid||e.id||i;
+    if (String(k) === String(evKey)) { ev = e; ei = i; }
+  });
+  if (!ev) { alert('Showing not found.'); return; }
+
+  var agentId = userProfile.agentId||'tom';
+  var dt = ev.start ? new Date(ev.start) : new Date();
+  var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+  try {
+    // Add to client tour list
+    await fb.addDoc(fb.collection(fb.db,'users',clientUid,'tours'), {
+      address: ev.address||ev.summary||'Showing',
+      price:'', bedbath:'', date: dt.toLocaleDateString(), time: timeStr,
+      rooms:{}, rating:0, saved:false, createdAt: new Date().toISOString(),
+      source:'showingtime', showingUid: ev.uid||('st-'+Date.now()),
+    });
+    // Save assignment
+    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',String(evKey)), {
+      buyerUid: clientUid,
+      buyerName: ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim(),
+      address: ev.address||ev.summary||'',
+      date: dt.toISOString(),
+      assignedAt: fb.serverTimestamp()
+    });
+    if (!window._showingAssignments) window._showingAssignments = {};
+    window._showingAssignments[evKey] = { buyerUid: clientUid, buyerName: ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim() };
+    showDealToast('Showing assigned to '+((buyer.firstName||'client')), null, null);
+    renderShowingInbox();
+  } catch(e) { alert('Failed to assign: '+e.message); }
+}
+window.assignShowingToBuyer = assignShowingToBuyer;
+
+async function unassignShowing(evKey) {
+  var agentId = userProfile.agentId||'tom';
+  try {
+    await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',String(evKey)));
+    if (window._showingAssignments) delete window._showingAssignments[evKey];
+    renderShowingInbox();
+  } catch(e) { alert('Failed to remove: '+e.message); }
+}
+window.unassignShowing = unassignShowing;
+
 window.assignShowing = assignShowing;
 
 
