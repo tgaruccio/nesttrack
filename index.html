@@ -17897,7 +17897,27 @@ window.renderTeamOnboarding = renderTeamOnboarding;
 
 async function obNudge(uid, name) {
   var myName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your mentor';
-  await sendPushToUser(uid, '📚 Keep it up, '+name.split(' ')[0]+'!', myName+' is checking in — your next onboarding step is waiting.');
+  var firstName = name.split(' ')[0];
+  var pushBody = myName+' is checking in — your next onboarding step is waiting.';
+
+  // Push
+  await sendPushToUser(uid, '📚 Keep it up, '+firstName+'!', pushBody);
+
+  // Find agent email from DEFAULT_AGENTS
+  var agentEntry = (DEFAULT_AGENTS||[]).find(function(a){ return a.name === name; });
+  if (agentEntry && agentEntry.email) {
+    var bodyHtml = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi '+firstName+',</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;">'+myName+' is checking in on your onboarding progress. Your next step is waiting — keep the momentum going!</p>'
+      + '<div style="text-align:center;margin-top:20px;">'
+      + '<a href="https://app.garucciogroup.com" style="background:#1D9E75;color:#fff;padding:12px 28px;border-radius:30px;font-size:14px;text-decoration:none;display:inline-block;font-weight:500;">Continue Onboarding →</a>'
+      + '</div>';
+    var html = nsEmailWrap(myName, '📚 Keep it up, '+firstName+'!', bodyHtml, userProfile);
+    await fetch(PROXY_URL, {
+      method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
+      body: JSON.stringify({ to: agentEntry.email, subject: '📚 Keep it up, '+firstName+'! — Onboarding nudge from '+myName, html: html, from: agentFromField(), reply_to: agentReplyTo() })
+    }).catch(function(){});
+  }
+
   showDealToast('📬 Nudge sent to '+name+'!', null, null);
 }
 async function obRemove(uid, name) {
