@@ -11366,7 +11366,7 @@ async function assignOnboarding(agentId, agentName) {
     btn.disabled = true; btn.textContent = 'Saving...';
     try {
       // Find user by agentId field
-      var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',agentId), fb.where('role','==','agent')));
+      var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',agentId)));
       if (snap.empty) { alert('Could not find this agent\'s account. They may not have signed up yet.'); overlay.remove(); return; }
       var updates = { onboardingAssigned: true };
       if (mentorId) updates.mentorAgentId = mentorId;
@@ -17843,143 +17843,52 @@ window.obSaveEdits = obSaveEdits;
 async function renderTeamOnboarding() {
   var container = document.getElementById('team-onboarding-container');
   if (!container) return;
-  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading team...</div>';
-
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading...</div>';
   try {
     var myAgentId = userProfile.agentId || 'tom';
-
-    // Load all agents with onboarding records
-    var agentOnboardingSnap = await fb.getDocs(fb.collection(fb.db,'agent_onboarding'));
-    if (agentOnboardingSnap.empty) {
-      return;
-    }
-
-    // Get UIDs
-    var onboardingUids = [];
-    agentOnboardingSnap.forEach(function(d){ onboardingUids.push(d.id); });
-
-    // Load user records for those UIDs
-    var agents = [];
-    await Promise.all(onboardingUids.map(async function(uid) {
-      try {
-        var userSnap = await fb.getDoc(fb.doc(fb.db,'users',uid));
-        if (userSnap.exists()) {
-          var data = userSnap.data();
-          data.uid = uid;
-          agents.push(data);
-        }
-      } catch(e){}
-    }));
-
-    if (!agents.length) {
-      return;
-    }
-
-    // Show container now we have agents
-    container.style.display = 'block';
-
-    // Load all their progress in parallel
-    var progressData = {};
-    await Promise.all(agents.map(async function(a) {
-      try {
-        var ps = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',a.uid));
-        progressData[a.uid] = ps.exists() ? (ps.data().completed||{}) : {};
-      } catch(e) { progressData[a.uid] = {}; }
-    }));
-
-    var total = OB_DEFAULT_STEPS.length;
-    var html = '<div style="padding:0 0 12px;">'
-      + '<div style="font-size:18px;font-weight:600;margin-bottom:4px;">👥 Team Onboarding</div>'
-      + '<div style="font-size:13px;color:var(--text3);">Track your team\'s onboarding progress and send nudges.</div>'
-      + '</div>';
-
-    agents.forEach(function(a) {
-      var prog = progressData[a.uid] || {};
-      var done = OB_DEFAULT_STEPS.filter(function(s){ return prog[s.id]; }).length;
+    var snap = await fb.getDocs(fb.collection(fb.db,'agent_onboarding'));
+    if (snap.empty) { container.innerHTML = ''; return; }
+    var records = [];
+    snap.forEach(function(d){ var r=d.data(); r.uid=d.id; records.push(r); });
+    var filtered = records.filter(function(r){
+      if (isTeamLeader()) return true;
+      var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===r.agentId; });
+      return ae && ae.mentorAgentId === myAgentId;
+    });
+    if (!filtered.length) { container.innerHTML = ''; return; }
+    var total = OB_DEFAULT_STEPS ? OB_DEFAULT_STEPS.length : 0;
+    var html = '<div style="padding:0 0 12px;"><div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#x1F465; Team Onboarding</div></div>';
+    filtered.forEach(function(r) {
+      var prog = r.completed || {};
+      var done = OB_DEFAULT_STEPS ? OB_DEFAULT_STEPS.filter(function(s){ return prog[s.id]; }).length : 0;
       var pct = total ? Math.round(done/total*100) : 0;
-      var name = ((a.firstName||'')+' '+(a.lastName||'')).trim() || a.email;
-      var initials = ((a.firstName||'?')[0]+(a.lastName||'?')[0]).toUpperCase();
-      var mentorEntry = a.mentorAgentId ? DEFAULT_AGENTS.find(function(x){ return x.id===a.mentorAgentId; }) : null;
-      var isMyAgent = a.mentorAgentId === myAgentId;
-      var lastWeek = '';
-      // Find furthest completed step week
-      var lastStep = OB_DEFAULT_STEPS.slice().reverse().find(function(s){ return prog[s.id]; });
-      if (lastStep) lastWeek = lastStep.week + ' — ' + lastStep.title;
-
+      var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===r.agentId; });
+      var name = ae ? ae.name : (r.agentId||'Unknown');
+      var initials = name.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,2).toUpperCase();
+      var mentorEntry = ae && ae.mentorAgentId ? (DEFAULT_AGENTS||[]).find(function(a){ return a.id===ae.mentorAgentId; }) : null;
+      var isMyAgent = ae && ae.mentorAgentId === myAgentId;
+      var lastStep = OB_DEFAULT_STEPS ? OB_DEFAULT_STEPS.slice().reverse().find(function(s){ return prog[s.id]; }) : null;
+      var lastWeek = lastStep ? lastStep.week + ' — ' + lastStep.title : '';
       html += '<div class="card" style="margin-bottom:12px;'+(isMyAgent?'border-left:3px solid var(--green);':'')+'">'
         + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">'
         + '<div class="avatar" style="width:40px;height:40px;font-size:14px;flex-shrink:0;">'+initials+'</div>'
-        + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-size:14px;font-weight:600;">'+partnerEsc(name)+'</div>'
-        + '<div style="font-size:11px;color:var(--text3);">'
-        + (mentorEntry ? 'Mentor: '+mentorEntry.name : 'No mentor assigned')
-        + (isMyAgent ? ' <span style="color:var(--green-dk);font-weight:600;">· Your agent</span>' : '')
-        + '</div>'
-        + '</div>'
-        + '<div style="text-align:right;flex-shrink:0;">'
-        + '<div style="font-size:20px;font-weight:800;color:'+(pct===100?'var(--green)':'var(--text)')+';">'+pct+'%</div>'
-        + '<div style="font-size:10px;color:var(--text3);">'+done+'/'+total+'</div>'
-        + '</div>'
-        + '</div>'
-        // Progress bar
+        + '<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;">'+partnerEsc(name)+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);">'+(mentorEntry?'Mentor: '+mentorEntry.name:'No mentor')+(isMyAgent?' <span style="color:var(--green-dk);font-weight:600;">· Your agent</span>':'')+'</div></div>'
+        + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:20px;font-weight:800;color:'+(pct===100?'var(--green)':'var(--text)')+';">'+pct+'%</div>'
+        + '<div style="font-size:10px;color:var(--text3);">'+done+'/'+total+'</div></div></div>'
         + '<div style="background:var(--surface2);border-radius:20px;height:6px;margin-bottom:8px;">'
-        + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+pct+'%;transition:width 0.4s;"></div>'
-        + '</div>'
-        // Last completed
-        + (lastWeek ? '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Last: '+partnerEsc(lastWeek)+'</div>' : '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Not started yet</div>')
-        // Nudge button — only for assigned agents or team leader
-        + ((isMyAgent || isTeamLeader()) ? '<button onclick="obNudge(\''+a.uid+'\',\''+partnerEsc(name)+'\')" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:13px;cursor:pointer;">📬 Send Nudge</button>' : '')
-        + '</div>';
+        + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+pct+'%;transition:width 0.4s;"></div></div>'
+        + (lastWeek?'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Last: '+partnerEsc(lastWeek)+'</div>':'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Not started yet</div>');
+      if (isMyAgent || isTeamLeader()) {
+        html += '<button data-uid="'+r.uid+'" data-name="'+partnerEsc(name)+'" onclick="obNudge(this.dataset.uid,this.dataset.name)" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:13px;cursor:pointer;">&#x1F4EC; Send Nudge</button>';
+      }
+      html += '</div>';
     });
-
     container.innerHTML = html;
   } catch(e) {
     container.innerHTML = '<div class="card" style="color:var(--red-dk);font-size:13px;">Error: '+e.message+'</div>';
   }
 }
-async function renderTeamOnboardingInModal() {
-  var container = document.getElementById('team-ob-progress');
-  if (!container) return;
-  try {
-    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('role','==','agent')));
-    var myAgentId = userProfile.agentId || 'tom';
-    var agents = [];
-    snap.forEach(function(d) {
-      var data = {uid:d.id,...d.data()};
-      if (!data.onboardingAssigned) return;
-      if (isTeamLeader()) {
-        if (data.uid !== currentUser.uid) agents.push(data);
-      } else {
-        // Mentors only see their assigned agents
-        if (data.mentorAgentId === myAgentId) agents.push(data);
-      }
-    });
-    if (!agents.length) { container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">No agents in onboarding yet.</div>'; return; }
-    var total = OB_DEFAULT_STEPS.length;
-    var progData = {};
-    await Promise.all(agents.map(async function(a){
-      try { var ps = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',a.uid)); progData[a.uid] = ps.exists()?(ps.data().completed||{}):{};} catch(e){progData[a.uid]={};}
-    }));
-    container.innerHTML = agents.map(function(a){
-      var done = OB_DEFAULT_STEPS.filter(function(s){ return progData[a.uid][s.id]; }).length;
-      var pct = Math.round(done/total*100);
-      var name = ((a.firstName||'')+' '+(a.lastName||'')).trim()||a.email;
-      var mentorEntry = a.mentorAgentId ? DEFAULT_AGENTS.find(function(x){ return x.id===a.mentorAgentId; }) : null;
-      return '<div style="margin-bottom:10px;">'
-        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
-        + '<div style="font-size:13px;font-weight:500;">'+partnerEsc(name)+'<span style="font-size:11px;color:var(--text3);margin-left:6px;">'+(mentorEntry?'· '+mentorEntry.name:'')+'</span></div>'
-        + '<div style="display:flex;align-items:center;gap:8px;">'
-        + '<span style="font-size:12px;font-weight:600;color:'+(pct===100?'var(--green-dk)':'var(--text)');+'">'+pct+'%</span>'
-        + '<button onclick="obNudge(\''+a.uid+'\',\''+partnerEsc(name)+'\')" style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;">📬 Nudge</button>'
-        + '</div></div>'
-        + '<div style="background:var(--surface2);border-radius:20px;height:5px;overflow:hidden;">'
-        + '<div style="background:var(--green);height:100%;border-radius:20px;width:'+pct+'%;"></div>'
-        + '</div></div>';
-    }).join('');
-  } catch(e){ container.innerHTML = '<div style="font-size:12px;color:var(--text3);">Could not load.</div>'; }
-}
-window.renderTeamOnboardingInModal = renderTeamOnboardingInModal;
-
 window.renderTeamOnboarding = renderTeamOnboarding;
 
 async function obNudge(uid, name) {
