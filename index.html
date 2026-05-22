@@ -1217,6 +1217,7 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Dashboard header -->
   <div style="display:flex;align-items:center;gap:14px;padding:4px 0 2px;position:relative;">
     <button onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('profile')" style="position:absolute;top:-4px;right:0;background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;display:flex;flex-direction:column;align-items:center;gap:1px;" title="My Profile"><span style="font-size:20px;">⚙️</span><span style="font-size:9px;font-weight:600;letter-spacing:0.04em;color:var(--text3);">Profile</span></button>
+    <button onclick="go('agent',document.querySelector('[data-pg=agent]'));setTimeout(function(){switchAgentTab('team');openTeamChat();},200)" id="ad-team-chat-btn" style="position:absolute;top:-4px;right:44px;background:none;border:none;cursor:pointer;padding:4px;display:none;flex-direction:column;align-items:center;gap:1px;position:absolute;" title="Team Chat"><span style="font-size:20px;">💬</span><span style="font-size:9px;font-weight:600;letter-spacing:0.04em;color:var(--text3);">Chat</span><span id="ad-team-chat-badge" style="display:none;position:absolute;top:-2px;right:-2px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;min-width:14px;text-align:center;"></span></button>
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
     <div>
       <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="ad-greeting">Good morning</div>
@@ -2411,6 +2412,31 @@ textarea{resize:vertical;min-height:68px;}
   <!-- TEAM ONBOARDING PANEL -->
   <div id="agent-team-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
     <div id="team-onboarding-container"></div>
+
+    <!-- TEAM CHAT -->
+    <div id="team-chat-container" style="display:none;flex-direction:column;height:70vh;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">💬</span>
+          <div>
+            <div style="font-size:14px;font-weight:600;">Team Chat</div>
+            <div style="font-size:11px;color:var(--text3);" id="team-chat-members"></div>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3);cursor:pointer;">
+          <input type="checkbox" id="team-chat-mute" onchange="teamChatToggleMute(this.checked)" style="cursor:pointer;"/>
+          🔕 Mute
+        </label>
+      </div>
+      <div id="team-chat-messages" style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:6px;background:#ECE5DD;"></div>
+      <div style="padding:10px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;gap:8px;align-items:flex-end;">
+        <label style="cursor:pointer;color:var(--text3);font-size:20px;padding:4px;" title="Send photo">
+          📷<input type="file" id="team-chat-photo" accept="image/*" style="display:none;" onchange="teamChatSendPhoto(event)"/>
+        </label>
+        <textarea id="team-chat-input" placeholder="Message team..." rows="1" style="flex:1;border:none;border-radius:20px;padding:8px 14px;font-size:14px;resize:none;background:#fff;outline:none;max-height:100px;overflow-y:auto;" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px';" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();teamChatSend();}"></textarea>
+        <button onclick="teamChatSend()" style="background:var(--green);color:#fff;border:none;border-radius:50%;width:38px;height:38px;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">➤</button>
+      </div>
+    </div>
   </div>
 
   <!-- TEAM STATS PANEL -->
@@ -4097,6 +4123,187 @@ async function toggleLeaderboard(agentId, checked) {
   } catch(e){}
 }
 window.toggleLeaderboard = toggleLeaderboard;
+
+// ── TEAM CHAT ──
+var _teamChatListener = null;
+var _teamChatLastSeen = 0;
+var TEAM_CHAT_ROOM = 'team_chat';
+
+function openTeamChat() {
+  var container = document.getElementById('team-chat-container');
+  if (!container) return;
+  container.style.display = 'flex';
+
+  // Mute state
+  var muted = localStorage.getItem('team_chat_muted') === 'true';
+  var muteChk = document.getElementById('team-chat-mute');
+  if (muteChk) muteChk.checked = muted;
+
+  // Member count
+  var hasAnySettings = Object.keys(_lbSettings).length > 0;
+  var members = (DEFAULT_AGENTS||[]).filter(function(a){
+    if (!hasAnySettings) return true;
+    return _lbSettings[a.id] !== false;
+  });
+  var membersEl = document.getElementById('team-chat-members');
+  if (membersEl) membersEl.textContent = members.length + ' members';
+
+  // Mark seen
+  _teamChatLastSeen = Date.now();
+  localStorage.setItem('team_chat_last_seen', _teamChatLastSeen);
+  clearTeamChatBadge();
+
+  // Start listening
+  if (!_teamChatListener) teamChatListen();
+
+  setTimeout(function(){
+    var msgs = document.getElementById('team-chat-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    var inp = document.getElementById('team-chat-input');
+    if (inp) inp.focus();
+  }, 200);
+}
+window.openTeamChat = openTeamChat;
+
+function teamChatListen() {
+  var chatRef = fb.ref(fb.rtdb, TEAM_CHAT_ROOM + '/messages');
+  var msgsEl = document.getElementById('team-chat-messages');
+  var loaded = false;
+
+  _teamChatListener = fb.onChildAdded(chatRef, function(snap) {
+    var msg = snap.val();
+    if (!msg) return;
+    if (msgsEl) teamChatRenderMsg(msgsEl, msg, snap.key);
+
+    // Badge for new messages after last seen
+    if (loaded && msg.ts > _teamChatLastSeen && msg.senderId !== (currentUser && currentUser.uid)) {
+      var container = document.getElementById('team-chat-container');
+      var visible = container && container.style.display !== 'none';
+      if (!visible) {
+        teamChatShowBadge();
+      } else {
+        _teamChatLastSeen = Date.now();
+        localStorage.setItem('team_chat_last_seen', _teamChatLastSeen);
+      }
+    }
+    // Auto scroll if near bottom
+    if (msgsEl) {
+      var nearBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 100;
+      if (nearBottom) msgsEl.scrollTop = msgsEl.scrollHeight;
+    }
+  });
+
+  // After initial load
+  fb.ref(fb.rtdb, TEAM_CHAT_ROOM + '/messages').once ? null : setTimeout(function(){ loaded = true; }, 1000);
+  setTimeout(function(){ loaded = true; }, 1500);
+}
+
+function teamChatRenderMsg(container, msg, key) {
+  var isMe = msg.senderId === (currentUser && currentUser.uid);
+  var time = msg.ts ? new Date(msg.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+  var bubble = document.createElement('div');
+  bubble.id = 'tcmsg-'+key;
+  bubble.style.cssText = 'display:flex;flex-direction:column;align-items:'+(isMe?'flex-end':'flex-start')+';margin-bottom:2px;';
+
+  var inner = '<div style="max-width:75%;background:'+(isMe?'#DCF8C6':'#fff')+';border-radius:'+(isMe?'16px 16px 4px 16px':'16px 16px 16px 4px')+';padding:8px 12px;box-shadow:0 1px 2px rgba(0,0,0,0.1);">';
+  if (!isMe) inner += '<div style="font-size:11px;font-weight:700;color:var(--green-dk);margin-bottom:3px;">'+partnerEsc(msg.senderName||'')+'</div>';
+  if (msg.photoUrl) {
+    inner += '<img src="'+msg.photoUrl+'" style="max-width:200px;border-radius:8px;display:block;cursor:pointer;" onclick="window.open(\''+msg.photoUrl+'\',\'_blank\')" />';
+  }
+  if (msg.text) inner += '<div style="font-size:14px;color:#1a1a1a;word-break:break-word;white-space:pre-wrap;">'+partnerEsc(msg.text)+'</div>';
+  inner += '<div style="font-size:10px;color:#999;text-align:right;margin-top:3px;">'+time+'</div>';
+  inner += '</div>';
+  bubble.innerHTML = inner;
+  container.appendChild(bubble);
+}
+
+async function teamChatSend() {
+  var inp = document.getElementById('team-chat-input');
+  if (!inp) return;
+  var text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  inp.style.height = 'auto';
+
+  var senderName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim();
+  var chatRef = fb.ref(fb.rtdb, TEAM_CHAT_ROOM+'/messages');
+  fb.push(chatRef, {
+    text: text, senderId: currentUser.uid, senderName: senderName,
+    ts: Date.now(), type: 'text'
+  });
+
+  teamChatPushToTeam(senderName+': '+text.substring(0,80));
+}
+window.teamChatSend = teamChatSend;
+
+async function teamChatSendPhoto(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+  var input = document.getElementById('team-chat-photo');
+  try {
+    var path = 'team_chat_photos/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    var sRef = fb.storageRef(fb.storage, path);
+    var snap = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snap.ref);
+    var senderName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim();
+    var chatRef = fb.ref(fb.rtdb, TEAM_CHAT_ROOM+'/messages');
+    fb.push(chatRef, {
+      photoUrl: url, senderId: currentUser.uid, senderName: senderName,
+      ts: Date.now(), type: 'photo'
+    });
+    teamChatPushToTeam(senderName+' sent a photo');
+    if (input) input.value = '';
+  } catch(e) { console.log('team chat photo err:', e.message); }
+}
+window.teamChatSendPhoto = teamChatSendPhoto;
+
+async function teamChatPushToTeam(body) {
+  var hasAnySettings = Object.keys(_lbSettings).length > 0;
+  var agents = (DEFAULT_AGENTS||[]).filter(function(a){
+    if (a.id === userProfile.agentId) return false; // skip self
+    if (!hasAnySettings) return true;
+    return _lbSettings[a.id] !== false;
+  });
+
+  for (var i = 0; i < agents.length; i++) {
+    try {
+      var agentSnap = await fb.getDocs(fb.query(
+        fb.collection(fb.db,'users'),
+        fb.where('agentId','==',agents[i].id),
+        fb.where('role','==','agent')
+      ));
+      agentSnap.forEach(async function(doc) {
+        // Check if agent has muted
+        // We store mute in their profile — skip push if muted
+        var agentData = doc.data();
+        if (agentData.teamChatMuted) return;
+        await fetch(PROXY_URL, {
+          method:'POST', headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
+          body: JSON.stringify({ uid: doc.id, title: '💬 Team Chat', body: body, url: 'https://app.garucciogroup.com' })
+        });
+      });
+    } catch(e){}
+  }
+}
+
+function teamChatToggleMute(muted) {
+  localStorage.setItem('team_chat_muted', muted ? 'true' : 'false');
+  // Save to Firestore so push skips muted agents
+  if (currentUser) {
+    fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {teamChatMuted: muted}).catch(function(){});
+  }
+}
+window.teamChatToggleMute = teamChatToggleMute;
+
+function teamChatShowBadge() {
+  var badge = document.getElementById('ad-team-chat-badge');
+  if (badge) { badge.style.display = 'block'; badge.textContent = '●'; }
+}
+
+function clearTeamChatBadge() {
+  var badge = document.getElementById('ad-team-chat-badge');
+  if (badge) badge.style.display = 'none';
+}
 
 window.loadTeamStats = loadTeamStats;
 
@@ -8707,14 +8914,16 @@ async function renderBuyers() {
 
   // Hide/show team stats tab based on leaderboard membership
   var ttsTab = document.getElementById('agent-tab-teamstats');
+  var chatBtn = document.getElementById('ad-team-chat-btn');
   if (ttsTab) {
     if (teamLeader) {
       ttsTab.style.display = '';
+      if (chatBtn) chatBtn.style.display = 'flex';
     } else {
-      // Load settings to check if this agent is on leaderboard
       loadLeaderboardSettings().then(function(){
         var onLB = _lbSettings[userProfile.agentId] === true;
         ttsTab.style.display = onLB ? '' : 'none';
+        if (chatBtn) chatBtn.style.display = onLB ? 'flex' : 'none';
       });
     }
   }
@@ -8955,6 +9164,7 @@ function switchAgentTab(tab) {
     if (ttb) { ttb.style.background='var(--green)'; ttb.style.color='#fff'; }
     if (ttp) ttp.style.display='flex';
     renderTeamOnboarding();
+    openTeamChat();
   } else if (tab==='teamstats') {
     var ttsb = document.getElementById('agent-tab-teamstats');
     var ttsp = document.getElementById('agent-teamstats-panel');
