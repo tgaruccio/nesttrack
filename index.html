@@ -13701,8 +13701,10 @@ var DEFAULT_OFFER_FIELDS = [
   {key:'inspectionDays', label:'Inspection Days',                type:'number',   required:false},
   {key:'financingCont',  label:'Financing Contingency',          type:'select',   options:['Yes','No'], required:true},
   {key:'appraisalCont',  label:'Appraisal Contingency',          type:'select',   options:['Yes','No'], required:true},
+  {key:'homeSaleCont',   label:'Contingent on Home Sale',        type:'select',   options:['No','Yes'], required:false},
+  {key:'homeSaleAddr',   label:'Home Sale Address',              type:'text',     required:false},
   {key:'closingDate',    label:'Requested Closing Date',         type:'date',     required:true},
-  {key:'escalation',     label:'Escalation Clause',              type:'select',   options:['Yes','No'], required:false},
+  {key:'escalation',     label:'Escalation Clause',              type:'select',   options:['No','Yes'], required:false},
   {key:'escalationMax',  label:'Escalation Max Price',           type:'currency', required:false},
   {key:'closingCosts',   label:'Closing Cost Assistance ($)',    type:'currency', required:false},
   {key:'buyerAgentComm', label:'Buyer Agent Commission (%)',     type:'text',     required:false},
@@ -14463,7 +14465,7 @@ async function sendOfferToClient(listingId, offerId) {
     ['Financing Cont.', o.financingCont],
     ['Appraisal Cont.', o.appraisalCont],
     ['Closing Date', o.closingDate],
-    ['Escalation', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):o.escalation],
+    ['Escalation', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):(o.escalation==='No'?'No':null)],
     ['Closing Costs', o.closingCosts?'$'+o.closingCosts:null],
     ['Buyer Agent Comm.', o.buyerAgentComm?o.buyerAgentComm+'%':null],
     ['Submitted By', o.agentName+(o.agentBrokerage?' — '+o.agentBrokerage:'')],
@@ -14652,8 +14654,9 @@ async function confirmSendOffer(listingId, offerId) {
     ['Inspection Contingency', o.inspectionCont==='Yes'?'Yes — '+(o.inspectionDays||'?')+' days':o.inspectionCont],
     ['Financing Contingency', o.financingCont],
     ['Appraisal Contingency', o.appraisalCont],
+    ['Contingent on Home Sale', o.homeSaleCont==='Yes'?'Yes'+(o.homeSaleAddr?' — '+o.homeSaleAddr:''):o.homeSaleCont==='No'?null:null],
     ['Requested Closing Date', o.closingDate],
-    ['Escalation Clause', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):o.escalation],
+    ['Escalation Clause', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):(o.escalation==='No'?'No':null)],
     ['Closing Cost Assistance', o.closingCosts?'$'+o.closingCosts:null],
     ['Buyer Agent Commission', o.buyerAgentComm?o.buyerAgentComm+'%':null],
     ['Offer Expires', o.expiration],
@@ -14717,42 +14720,38 @@ async function confirmSendOffer(listingId, offerId) {
   var sendBtn = document.getElementById('sor-send-btn');
   if (sendBtn) { sendBtn.disabled=true; sendBtn.textContent='Sending...'; }
   try {
-    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
-    if (o.agentEmail) {
-      var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
-        +'<div style="background:#1D9E75;padding:20px 24px;border-radius:10px 10px 0 0;">'
-        +'<div style="font-size:20px;font-weight:300;color:#fff;">Offer Submitted Successfully</div>'
-        +'<div style="font-size:12px;color:rgba(255,255,255,0.7);margin-top:2px;">Nest Track Offer Portal</div>'
-        +'</div>'
-        +'<div style="background:#fff;padding:22px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
-        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Hi '+partnerEsc(o.agentName||'there')+',</p>'
-        +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 14px;">Your offer of <strong>'+(o.offerPrice||'—')+'</strong> on <strong>'+partnerEsc(listing.address||'')+'</strong> has been forwarded to the seller for review.</p>'
-        +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:14px 0;"/>'
-        +'<div style="font-size:13px;color:#888;">'+agentName+' — Nest Track</div>'
-        +'</div>'
-        +'<div style="background:#f0fdf4;border:1px solid #d1fae5;border-radius:0 0 10px 10px;padding:16px 22px;text-align:center;">'
-        +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#065F46;margin-bottom:6px;">Powered by Nest Track</div>'
-        +'<div style="font-size:13px;color:#065F46;line-height:1.6;margin-bottom:10px;">Behind this offer portal is a full real estate platform — client trails, deal tracking, offer management, push notifications, and more. Free for agents who qualify.</div>'
-        +'<a href="https://app.garucciogroup.com/invite" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;">See if you qualify →</a>'
-        +'</div></div>';
-      await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField(), reply_to: agentReplyTo()})});
-    }
+    // 1. Update Firestore immediately — fast
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
-    // Push notify seller client
-    if (ctx.listing && ctx.listing.clientUid) {
-      sendPushToUser(ctx.listing.clientUid, 'New Offer 🎉', 'An offer has come in on '+(ctx.listing.address||'your listing')+'. Check the app to review it.');
-    }
+
+    // 2. Show confirmation right away — no more waiting
     var overlay = document.getElementById('sor-overlay');
     if (overlay) overlay.remove();
-    alert('Offer sent to '+clientFirst+'!'+(includeNS?' Net sheet included.':''));
+    showDealToast('\u2705 Offer sent to '+clientFirst+'!'+(includeNS?' Net sheet included.':''), null, null);
     viewOffers(listingId);
+
+    // 3. Push to seller client
+    if (ctx.listing && ctx.listing.clientUid) {
+      sendPushToUser(ctx.listing.clientUid, 'New Offer \U0001F389', 'An offer has come in on '+(ctx.listing.address||'your listing')+'. Check the app to review it.');
+    }
+
+    // 4. Push to listing agent (you)
+    if (currentUser) {
+      sendPushToUser(currentUser.uid, '\U0001F4CB New Offer Received', (o.offerPrice||'An offer')+' on '+(ctx.listing&&ctx.listing.address||'your listing'));
+    }
+
+    // 5. Emails in background — non-blocking
+    fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo()})}).catch(function(){});
+
+    if (o.agentEmail) {
+      fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted \u2014 '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField(), reply_to:agentReplyTo()})}).catch(function(){});
+    }
+
   } catch(e) {
     alert('Failed to send: '+e.message);
     if (sendBtn) { sendBtn.disabled=false; sendBtn.innerHTML='&#128228; Send to Client'; }
-  }
-}
+  }}
 window.confirmSendOffer = confirmSendOffer;
 
 
@@ -15058,7 +15057,7 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
       ['Financing Cont.', o.financingCont],
       ['Appraisal Cont.', o.appraisalCont],
       ['Closing Date', o.closingDate],
-      ['Escalation', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):o.escalation],
+      ['Escalation', o.escalation==='Yes'?'Yes — max '+(o.escalationMax||'?'):(o.escalation==='No'?'No':null)],
       ['Closing Costs', o.closingCosts?'$'+o.closingCosts:null],
       ['Buyer Agent Comm.', o.buyerAgentComm?o.buyerAgentComm+'%':null],
       ['Submitted By', o.agentName+(o.agentBrokerage?' — '+o.agentBrokerage:'')],
