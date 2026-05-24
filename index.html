@@ -13736,6 +13736,13 @@ async function loadListings() {
     ));
     _listings = [];
     snap.forEach(function(d){ _listings.push(Object.assign({id:d.id},d.data())); });
+    // Sync actual offer counts from subcollections
+    await Promise.all(_listings.map(async function(l) {
+      try {
+        var offSnap = await fb.getDocs(fb.collection(fb.db,'offer_listings',l.id,'offers'));
+        l.offerCount = offSnap.size;
+      } catch(e){}
+    }));
   } catch(e) { console.log('loadListings:',e.message); _listings = []; }
 }
 window.loadListings = loadListings;
@@ -14991,6 +14998,7 @@ async function submitPublicOffer(listingId) {
             body:JSON.stringify({to:agentEmail,
               subject:'🏠 New Offer — '+partnerEsc(lData.address||'')+' ('+partnerEsc(data.offerPrice||'')+')',
               from:agentFromField(), reply_to:agentReplyTo(), html:alertHtml})});
+          // Push to agent
           // Push to agent
           sendPushToAgentByShortId(lData.agentId, '🏠 New Offer Received', (data.offerPrice||'Offer')+' on '+partnerEsc(lData.address||'your listing')+' from '+partnerEsc(data.agentName||'buyer agent'));
           // Push to seller client
