@@ -4355,7 +4355,7 @@ function openAddSalePanel(agentId, agentName) {
   var panel = document.createElement('div');
   panel.id = 'add-sale-panel';
   panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-  panel.innerHTML = '<div style="background:var(--surface);border-radius:16px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;">'
+  panel.innerHTML = '<div style="background:var(--surface);border-radius:16px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">'
     +'<div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">'
     +'<div><div style="font-size:15px;font-weight:600;">'+partnerEsc(agentName)+' — Sales</div>'
     +'<div style="font-size:12px;color:var(--text3);">Total: $'+total.toLocaleString()+'</div></div>'
@@ -4511,8 +4511,9 @@ async function addSale(agentId) {
   if (!_teamStatsData[agentId]) _teamStatsData[agentId] = {};
   if (!_teamStatsData[agentId].sales) _teamStatsData[agentId].sales = [];
   _teamStatsData[agentId].sales.push({ amount: amount, address: address, date: Date.now() });
-  // Recalculate volume from sales
+  // Recalculate volume AND units from sales log
   _teamStatsData[agentId].volume = _teamStatsData[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
+  _teamStatsData[agentId].units = _teamStatsData[agentId].sales.length;
   try {
     await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
   } catch(e){}
@@ -4669,6 +4670,7 @@ async function deleteSale(agentId, idx) {
   if (!_teamStatsData[agentId] || !_teamStatsData[agentId].sales) return;
   _teamStatsData[agentId].sales.splice(idx, 1);
   _teamStatsData[agentId].volume = _teamStatsData[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
+  _teamStatsData[agentId].units = _teamStatsData[agentId].sales.length;
   try {
     await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
   } catch(e){}
