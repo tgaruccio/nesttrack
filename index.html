@@ -18181,7 +18181,7 @@ function loadShowingTimeFeed() {
   return fetch(PROXY_URL, {
     method: 'POST',
     headers: {'Content-Type':'application/json','X-Action':'fetch-showings'},
-    body: JSON.stringify({url: icalUrl})
+    body: JSON.stringify({url: icalUrl, includeHistory: true})
   }).then(function(r){ return r.json(); }).then(function(d){ console.log('SR feed returned', (d.events||[]).length, 'events'); return d.events||[]; }).catch(function(e){ console.log('SR feed error:', e); return []; });
 }
 
@@ -18219,7 +18219,7 @@ function srOpenBuilderWithListing(listingId, l) {
       if (displayAgent.includes('Confirmed Showing')) displayAgent = '';
       return {date:dateStr, agent:displayAgent, keep:true};
     }),
-    onlineActivity: {zillow:{views:0,saves:0,url:''},realtor:{views:0,saves:0,url:''},homes:{views:0,saves:0,url:''},social:{views:0,url:''}},
+    onlineActivity: {zillow:{views:0,saves:0,url:''},realtor:{views:0,saves:0,url:''},redfin:{views:0,saves:0,url:''},homes:{views:0,saves:0,url:''},social:{views:0,url:''}},
     checkedItems: {},
     customItems: {},
     nextWeek: {},
@@ -18232,7 +18232,9 @@ function srOpenBuilderWithListing(listingId, l) {
     offers: [],
     quickShowingCount: 0,
     pdfAttachBase64: null,
-    pdfAttachName: null
+    pdfAttachName: null,
+    compsActive: [],
+    compsSold: []
   };
 
   // Load offers for this listing
@@ -18245,6 +18247,7 @@ function srOpenBuilderWithListing(listingId, l) {
   var savedLinks = (l.portalLinks)||{};
   _srCurrent.onlineActivity.zillow.url = savedLinks.zillow||'';
   _srCurrent.onlineActivity.realtor.url = savedLinks.realtor||'';
+  _srCurrent.onlineActivity.redfin.url = savedLinks.redfin||'';
   _srCurrent.onlineActivity.homes.url = savedLinks.homes||'';
   _srCurrent.onlineActivity.social.url = savedLinks.social||'';
 
@@ -18265,6 +18268,7 @@ function srOpenBuilderWithListing(listingId, l) {
     + '<button id="sr-tab-btn-online" onclick="srSwitchTab(\'online\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Online</button>'
     + '<button id="sr-tab-btn-activity" onclick="srSwitchTab(\'activity\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Activity</button>'
     + '<button id="sr-tab-btn-nextweek" onclick="srSwitchTab(\'nextweek\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Next Week</button>'
+    + '<button id="sr-tab-btn-comps" onclick="srSwitchTab(\'comps\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Comps</button>'
     + '<button id="sr-tab-btn-message" onclick="srSwitchTab(\'message\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Message</button>'
     + '</div>'
     // Tab content
@@ -18281,7 +18285,7 @@ function srOpenBuilderWithListing(listingId, l) {
 window.srOpenBuilderWithListing = srOpenBuilderWithListing;
 
 function srSwitchTab(tab) {
-  var tabs = ['showings','online','activity','nextweek','message'];
+  var tabs = ['showings','online','activity','nextweek','comps','message'];
   tabs.forEach(function(t) {
     var btn = document.getElementById('sr-tab-btn-'+t);
     if (btn) { btn.style.background='var(--surface2)'; btn.style.color='var(--text2)'; }
@@ -18297,10 +18301,11 @@ function srSwitchTab(tab) {
   else if (tab==='online') content.innerHTML = srTabOnline();
   else if (tab==='activity') content.innerHTML = srTabActivity();
   else if (tab==='nextweek') content.innerHTML = srTabNextWeek();
+  else if (tab==='comps') content.innerHTML = srTabComps();
   else if (tab==='message') content.innerHTML = srTabMessage();
   srUpdateBottomBtn();
 }
-var _srTabs = ['showings','online','activity','nextweek','message'];
+var _srTabs = ['showings','online','activity','nextweek','comps','message'];
 
 function srNextOrSend() {
   var current = _srCurrent._activeTab || 'showings';
@@ -18346,7 +18351,7 @@ function srSaveCurrentTab() {
     var fbEl = document.getElementById('sr-feedback-notes');
     if (fbEl) _srCurrent.feedbackNotes = fbEl.value;
   } else if (tab==='online') {
-    ['zillow','realtor','homes','social'].forEach(function(p) {
+    ['zillow','realtor','redfin','homes','social'].forEach(function(p) {
       var v = document.getElementById('sr-'+p+'-views');
       var s = document.getElementById('sr-'+p+'-saves');
       var u = document.getElementById('sr-'+p+'-url');
@@ -18359,10 +18364,11 @@ function srSaveCurrentTab() {
       var links = {
         zillow: _srCurrent.onlineActivity.zillow.url||'',
         realtor: _srCurrent.onlineActivity.realtor.url||'',
+        redfin: _srCurrent.onlineActivity.redfin.url||'',
         homes: _srCurrent.onlineActivity.homes.url||'',
         social: _srCurrent.onlineActivity.social.url||''
       };
-      if (links.zillow||links.realtor||links.homes||links.social) {
+      if (links.zillow||links.realtor||links.redfin||links.homes||links.social) {
         fb.updateDoc(fb.doc(fb.db,'offer_listings',_srCurrent.listingId),{portalLinks:links}).catch(function(){});
       }
     }
@@ -18382,6 +18388,13 @@ function srSaveCurrentTab() {
     });
     var cnw = document.getElementById('sr-custom-nextweek');
     if (cnw) _srCurrent.customNextWeek = cnw.value;
+  } else if (tab==='comps') {
+    _srCurrent.compsActive = Array.from(document.querySelectorAll('.sr-comp-active-row')).map(function(row){
+      return { address:(row.querySelector('.sr-comp-addr')||{}).value||'', url:(row.querySelector('.sr-comp-url')||{}).value||'' };
+    }).filter(function(r){ return r.address; });
+    _srCurrent.compsSold = Array.from(document.querySelectorAll('.sr-comp-sold-row')).map(function(row){
+      return { address:(row.querySelector('.sr-comp-addr')||{}).value||'', url:(row.querySelector('.sr-comp-url')||{}).value||'' };
+    }).filter(function(r){ return r.address; });
   } else if (tab==='message') {
     var v = document.getElementById('sr-video-url');
     var n = document.getElementById('sr-personal-note');
@@ -18521,6 +18534,7 @@ function srTabOnline() {
   var platforms = [
     {key:'zillow', label:'Zillow', color:'#006AFF'},
     {key:'realtor', label:'Realtor.com', color:'#D92228'},
+    {key:'redfin', label:'Redfin', color:'#CC0000'},
     {key:'homes', label:'Homes.com', color:'#00A86B'},
     {key:'social', label:'Social Media', color:'#E1306C', noSaves:true}
   ];
@@ -18604,6 +18618,61 @@ function srTabNextWeek() {
   return html;
 }
 
+function srCompRow(type, data) {
+  return '<div class="sr-comp-'+type+'-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">'
+    + '<input type="text" class="sr-comp-addr" placeholder="Address" value="'+partnerEsc((data&&data.address)||'')+'" style="flex:2;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+    + '<input type="text" class="sr-comp-url" placeholder="Link (optional)" value="'+partnerEsc((data&&data.url)||'')+'" style="flex:3;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+    + '<button onclick="this.closest(\'.sr-comp-'+type+'-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">✕</button>'
+    + '</div>';
+}
+
+function srTabComps() {
+  var active = _srCurrent.compsActive || [];
+  var sold = _srCurrent.compsSold || [];
+
+  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Market Comparables</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Add active listings and recent sales to give your seller market context. Only shows in email if filled in.</div>';
+
+  // Active on market
+  html += '<div style="margin-bottom:16px;">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">'
+    + '<span>🏠 Currently Active on Market</span>'
+    + '<button onclick="srAddCompRow(\'active\')" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;">+ Add</button>'
+    + '</div>'
+    + '<div id="sr-comps-active">';
+  if (active.length) {
+    active.forEach(function(r){ html += srCompRow('active', r); });
+  } else {
+    html += srCompRow('active', null);
+  }
+  html += '</div></div>';
+
+  // Recently sold
+  html += '<div>'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">'
+    + '<span>✅ Recently Sold Comparables</span>'
+    + '<button onclick="srAddCompRow(\'sold\')" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:4px 12px;font-size:11px;cursor:pointer;">+ Add</button>'
+    + '</div>'
+    + '<div id="sr-comps-sold">';
+  if (sold.length) {
+    sold.forEach(function(r){ html += srCompRow('sold', r); });
+  } else {
+    html += srCompRow('sold', null);
+  }
+  html += '</div></div>';
+
+  return html;
+}
+
+function srAddCompRow(type) {
+  var container = document.getElementById('sr-comps-'+type);
+  if (!container) return;
+  var div = document.createElement('div');
+  div.innerHTML = srCompRow(type, null);
+  container.appendChild(div.firstChild);
+}
+window.srAddCompRow = srAddCompRow;
+
 function srTabMessage() {
   var html = '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
 
@@ -18638,7 +18707,7 @@ function srBuildEmailHtml() {
   var address = l.address || '';
   var dom = srDom(l);
   var showings = _srCurrent.showings.filter(function(s){ return s.keep!==false && (s.date||s.agent); });
-  var totalShowings = showings.length || (_srCurrent.quickShowingCount||0);
+  var totalShowings = (_srCurrent.quickShowingCount > 0) ? _srCurrent.quickShowingCount : showings.length;
   var thisWeekCount = showings.length ? showings.filter(function(s){
     if (!s.date) return false;
     var d = new Date(s.date); var now = new Date();
@@ -18649,7 +18718,7 @@ function srBuildEmailHtml() {
   // Totals
   var totalViews = 0;
   var oa = _srCurrent.onlineActivity;
-  ['zillow','realtor','homes','social'].forEach(function(p){ totalViews += (parseInt(oa[p].views)||0); });
+  ['zillow','realtor','redfin','homes','social'].forEach(function(p){ totalViews += (parseInt(oa[p]&&oa[p].views)||0); });
 
   // Checked activity items
   var checkedByCategory = {};
@@ -18726,16 +18795,23 @@ function srBuildEmailHtml() {
   html += '</div></div>';
 
   // Online presence
-  var filledPlatforms = Object.entries({'Zillow':oa.zillow,'Realtor.com':oa.realtor,'Homes.com':oa.homes,'Social Media':oa.social}).filter(function(e){ return parseInt(e[1].views)>0; });
+  var filledPlatforms = [
+    {name:'Zillow', data:oa.zillow, color:'#006AFF'},
+    {name:'Realtor.com', data:oa.realtor, color:'#D92228'},
+    {name:'Redfin', data:oa.redfin, color:'#CC0000'},
+    {name:'Homes.com', data:oa.homes, color:'#00A86B'},
+    {name:'Social Media', data:oa.social, color:'#E1306C'}
+  ].filter(function(e){ return e.data && parseInt(e.data.views)>0; });
   if (filledPlatforms.length) {
     html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
     html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:14px;">🌐 Online Presence</div>';
     html += '<div style="display:grid;grid-template-columns:repeat('+Math.min(filledPlatforms.length,2)+',1fr);gap:10px;">';
     filledPlatforms.forEach(function(e) {
-      var name=e[0], data=e[1];
+      var name=e.name, data=e.data, color=e.color;
+      var nameHtml = data.url ? '<a href="'+data.url+'" target="_blank" style="font-size:13px;font-weight:600;color:'+color+';text-decoration:none;">'+name+' ↗</a>' : '<div style="font-size:13px;font-weight:600;color:'+color+';">'+name+'</div>';
       html += '<div style="background:#F9FAFB;border-radius:8px;padding:12px;text-align:center;">';
-      html += '<div style="font-size:13px;font-weight:600;color:#333;margin-bottom:6px;">'+name+'</div>';
-      html += '<div style="font-size:22px;font-weight:800;color:'+green+';">'+(data.views||0)+'</div>';
+      html += nameHtml;
+      html += '<div style="font-size:22px;font-weight:800;color:'+green+';margin-top:6px;">'+(data.views||0)+'</div>';
       html += '<div style="font-size:10px;color:#888;">Views</div>';
       if (parseInt(data.saves)>0) html += '<div style="font-size:14px;font-weight:600;color:#555;margin-top:4px;">'+(data.saves||0)+' <span style="font-size:10px;font-weight:400;color:#888;">saves</span></div>';
       html += '</div>';
@@ -18791,6 +18867,35 @@ function srBuildEmailHtml() {
 
   // What I did
   if (Object.keys(checkedByCategory).length) {
+  // Market comparables
+  var hasActive = (_srCurrent.compsActive||[]).length > 0;
+  var hasSold = (_srCurrent.compsSold||[]).length > 0;
+  if (hasActive || hasSold) {
+    html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
+    html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:14px;">📊 Market Comparables</div>';
+    if (hasActive) {
+      html += '<div style="font-size:13px;font-weight:700;color:#D97706;margin-bottom:8px;">🏠 Currently Active on Market</div>';
+      html += '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">';
+      (_srCurrent.compsActive||[]).forEach(function(r) {
+        html += '<tr><td style="padding:7px 10px;font-size:13px;border-bottom:1px solid #f0f0f0;">'
+          + (r.url ? '<a href="'+r.url+'" target="_blank" style="color:#1D4ED8;text-decoration:none;">'+r.address+' ↗</a>' : r.address)
+          + '</td></tr>';
+      });
+      html += '</table>';
+    }
+    if (hasSold) {
+      html += '<div style="font-size:13px;font-weight:700;color:#065F46;margin-bottom:8px;">✅ Recently Sold</div>';
+      html += '<table style="width:100%;border-collapse:collapse;">';
+      (_srCurrent.compsSold||[]).forEach(function(r) {
+        html += '<tr><td style="padding:7px 10px;font-size:13px;border-bottom:1px solid #f0f0f0;">'
+          + (r.url ? '<a href="'+r.url+'" target="_blank" style="color:#065F46;text-decoration:none;">'+r.address+' ↗</a>' : r.address)
+          + '</td></tr>';
+      });
+      html += '</table>';
+    }
+    html += '</div>';
+  }
+
     html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
     html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:6px;">💼 What I Did For You This Week</div>';
     html += '<div style="font-size:12px;color:#888;margin-bottom:14px;">A full account of the work done on your behalf.</div>';
