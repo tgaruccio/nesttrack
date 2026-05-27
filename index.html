@@ -18390,10 +18390,26 @@ function srSaveCurrentTab() {
     if (cnw) _srCurrent.customNextWeek = cnw.value;
   } else if (tab==='comps') {
     _srCurrent.compsActive = Array.from(document.querySelectorAll('.sr-comp-active-row')).map(function(row){
-      return { address:(row.querySelector('.sr-comp-addr')||{}).value||'', url:(row.querySelector('.sr-comp-url')||{}).value||'' };
+      return {
+        address:(row.querySelector('.sr-comp-addr')||{}).value||'',
+        url:(row.querySelector('.sr-comp-url')||{}).value||'',
+        price:(row.querySelector('.sr-comp-price')||{}).value||'',
+        sqft:(row.querySelector('.sr-comp-sqft')||{}).value||'',
+        beds:(row.querySelector('.sr-comp-beds')||{}).value||'',
+        condition:(row.querySelector('.sr-comp-cond')||{}).value||'',
+        notes:(row.querySelector('.sr-comp-notes')||{}).value||''
+      };
     }).filter(function(r){ return r.address; });
     _srCurrent.compsSold = Array.from(document.querySelectorAll('.sr-comp-sold-row')).map(function(row){
-      return { address:(row.querySelector('.sr-comp-addr')||{}).value||'', url:(row.querySelector('.sr-comp-url')||{}).value||'' };
+      return {
+        address:(row.querySelector('.sr-comp-addr')||{}).value||'',
+        url:(row.querySelector('.sr-comp-url')||{}).value||'',
+        price:(row.querySelector('.sr-comp-price')||{}).value||'',
+        sqft:(row.querySelector('.sr-comp-sqft')||{}).value||'',
+        beds:(row.querySelector('.sr-comp-beds')||{}).value||'',
+        condition:(row.querySelector('.sr-comp-cond')||{}).value||'',
+        notes:(row.querySelector('.sr-comp-notes')||{}).value||''
+      };
     }).filter(function(r){ return r.address; });
   } else if (tab==='message') {
     var v = document.getElementById('sr-video-url');
@@ -18619,10 +18635,23 @@ function srTabNextWeek() {
 }
 
 function srCompRow(type, data) {
-  return '<div class="sr-comp-'+type+'-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">'
-    + '<input type="text" class="sr-comp-addr" placeholder="Address" value="'+partnerEsc((data&&data.address)||'')+'" style="flex:2;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
-    + '<input type="text" class="sr-comp-url" placeholder="Link (optional)" value="'+partnerEsc((data&&data.url)||'')+'" style="flex:3;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+  var d = data || {};
+  var condOpts = ['','Below Average','Average','Above Average','Similar'].map(function(c){
+    return '<option value="'+c+'"'+(d.condition===c?' selected':'')+'>'+( c||'— Condition —')+'</option>';
+  }).join('');
+  return '<div class="sr-comp-'+type+'-row" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;">'
+    + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">'
+    + '<input type="text" class="sr-comp-addr" placeholder="Address" value="'+partnerEsc(d.address||'')+'" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+    + '<input type="text" class="sr-comp-url" placeholder="Link (optional)" value="'+partnerEsc(d.url||'')+'" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
     + '<button onclick="this.closest(\'.sr-comp-'+type+'-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">✕</button>'
+    + '</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">'
+    + '<input type="text" class="sr-comp-price" placeholder="'+(type==='sold'?'Sold Price':'List Price')+'" value="'+partnerEsc(d.price||'')+'" style="flex:1;min-width:90px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+    + '<input type="text" class="sr-comp-sqft" placeholder="Sq Ft" value="'+partnerEsc(d.sqft||'')+'" style="width:70px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+    + '<input type="text" class="sr-comp-beds" placeholder="Bed/Bath" value="'+partnerEsc(d.beds||'')+'" style="width:80px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+    + '<select class="sr-comp-cond" style="flex:1;min-width:120px;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);">'+condOpts+'</select>'
+    + '</div>'
+    + '<textarea class="sr-comp-notes" placeholder="Notes (optional)" rows="1" style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;">'+partnerEsc(d.notes||'')+'</textarea>'
     + '</div>';
 }
 
@@ -18871,28 +18900,31 @@ function srBuildEmailHtml() {
   var hasActive = (_srCurrent.compsActive||[]).length > 0;
   var hasSold = (_srCurrent.compsSold||[]).length > 0;
   if (hasActive || hasSold) {
+    var condColor = {'Below Average':'#DC2626','Average':'#D97706','Above Average':'#16A34A','Similar':'#2563EB'};
     html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
     html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:14px;">📊 Market Comparables</div>';
-    if (hasActive) {
-      html += '<div style="font-size:13px;font-weight:700;color:#D97706;margin-bottom:8px;">🏠 Currently Active on Market</div>';
-      html += '<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">';
-      (_srCurrent.compsActive||[]).forEach(function(r) {
-        html += '<tr><td style="padding:7px 10px;font-size:13px;border-bottom:1px solid #f0f0f0;">'
-          + (r.url ? '<a href="'+r.url+'" target="_blank" style="color:#1D4ED8;text-decoration:none;">'+r.address+' ↗</a>' : r.address)
-          + '</td></tr>';
+    ['active','sold'].forEach(function(type) {
+      var comps = type==='active' ? _srCurrent.compsActive : _srCurrent.compsSold;
+      if (!comps || !comps.length) return;
+      var label = type==='active' ? '🏠 Currently Active on Market' : '✅ Recently Sold';
+      var priceLabel = type==='active' ? 'List Price' : 'Sold Price';
+      var labelColor = type==='active' ? '#D97706' : '#065F46';
+      html += '<div style="font-size:13px;font-weight:700;color:'+labelColor+';margin-bottom:8px;">'+label+'</div>';
+      comps.forEach(function(r) {
+        var addrHtml = r.url ? '<a href="'+r.url+'" target="_blank" style="color:#1D4ED8;text-decoration:none;font-weight:600;">'+r.address+' ↗</a>' : '<span style="font-weight:600;">'+r.address+'</span>';
+        html += '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-bottom:8px;">';
+        html += '<div style="font-size:14px;margin-bottom:8px;">'+addrHtml+'</div>';
+        var details = [];
+        if (r.price) details.push('<div style="text-align:center;"><div style="font-size:11px;color:#888;margin-bottom:2px;">'+priceLabel+'</div><div style="font-size:14px;font-weight:700;color:#111;">'+r.price+'</div></div>');
+        if (r.sqft) details.push('<div style="text-align:center;"><div style="font-size:11px;color:#888;margin-bottom:2px;">Sq Ft</div><div style="font-size:14px;font-weight:700;color:#111;">'+r.sqft+'</div></div>');
+        if (r.beds) details.push('<div style="text-align:center;"><div style="font-size:11px;color:#888;margin-bottom:2px;">Bed/Bath</div><div style="font-size:14px;font-weight:700;color:#111;">'+r.beds+'</div></div>');
+        if (r.condition) details.push('<div style="text-align:center;"><div style="font-size:11px;color:#888;margin-bottom:2px;">Condition</div><div style="font-size:12px;font-weight:700;color:'+(condColor[r.condition]||'#333')+';">'+r.condition+'</div></div>');
+        if (details.length) html += '<div style="display:grid;grid-template-columns:repeat('+details.length+',1fr);gap:8px;margin-bottom:8px;background:#F9FAFB;border-radius:6px;padding:10px;">'+details.join('')+'</div>';
+        if (r.notes) html += '<div style="font-size:12px;color:#555;line-height:1.5;border-top:1px solid #f0f0f0;padding-top:8px;margin-top:4px;">'+r.notes+'</div>';
+        html += '</div>';
       });
-      html += '</table>';
-    }
-    if (hasSold) {
-      html += '<div style="font-size:13px;font-weight:700;color:#065F46;margin-bottom:8px;">✅ Recently Sold</div>';
-      html += '<table style="width:100%;border-collapse:collapse;">';
-      (_srCurrent.compsSold||[]).forEach(function(r) {
-        html += '<tr><td style="padding:7px 10px;font-size:13px;border-bottom:1px solid #f0f0f0;">'
-          + (r.url ? '<a href="'+r.url+'" target="_blank" style="color:#065F46;text-decoration:none;">'+r.address+' ↗</a>' : r.address)
-          + '</td></tr>';
-      });
-      html += '</table>';
-    }
+      html += '<div style="margin-bottom:14px;"></div>';
+    });
     html += '</div>';
   }
 
