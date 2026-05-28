@@ -13808,7 +13808,7 @@ window.openEditListingModal = openEditListingModal;
 
 function openListingModal(l) {
   var isEdit = !!l;
-  var existingFields = l && l.customFields ? l.customFields : DEFAULT_OFFER_FIELDS.map(function(f){ return Object.assign({},f); });
+  var existingFields = (l && l.customFields && l.customFields.length) ? l.customFields : DEFAULT_OFFER_FIELDS.map(function(f){ return Object.assign({},f); });
   var fieldRows = existingFields.map(function(f,i) {
     return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);" id="lf-row-'+i+'">'
       + '<div style="flex:1;font-size:12px;color:var(--text);">'+partnerEsc(f.label)+'</div>'
@@ -14355,7 +14355,7 @@ async function openEditOfferModal(listingId, offerId) {
   if (!snap.exists()) return;
   var o = snap.data();
   var listing = _listings.find(function(l){ return l.id===listingId; });
-  var fields = (listing&&listing.customFields)||DEFAULT_OFFER_FIELDS;
+  var fields = (listing&&listing.customFields&&listing.customFields.length) ? listing.customFields : DEFAULT_OFFER_FIELDS;
 
   var formFields = fields.map(function(f) {
     var val = o[f.key]||'';
@@ -14389,7 +14389,7 @@ window.openEditOfferModal = openEditOfferModal;
 
 async function saveEditedOffer(listingId, offerId) {
   var listing = _listings.find(function(l){ return l.id===listingId; });
-  var fields = (listing&&listing.customFields)||DEFAULT_OFFER_FIELDS;
+  var fields = (listing&&listing.customFields&&listing.customFields.length) ? listing.customFields : DEFAULT_OFFER_FIELDS;
   var updates = {};
   fields.forEach(function(f) {
     var el = document.getElementById('eo-'+f.key);
