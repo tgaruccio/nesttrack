@@ -11723,11 +11723,12 @@ async function saveContractDates(sendEmail) {
     closeM('contract-dates-modal');
     await loadBuyersForAgent();
     renderBuyers();
-    if (sendEmail) sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
-    // Show UC email preview for buyer step 5 and seller step 9
+    // Check UC first — if on UC step, show UC preview instead of plain timeline
     var clientForUC = (allBuyers||[]).find(function(b){ return b.uid===_cdmBuyerUid; });
     var isUC = (_cdmType==='buyer' && clientForUC && clientForUC.currentStep===5)
             || (_cdmType==='seller' && clientForUC && clientForUC.currentSellerStep===9);
+    // Only send plain timeline email if NOT on UC step (UC preview includes timeline)
+    if (sendEmail && !isUC) sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
     if (isUC) showUnderContractEmailPreview(_cdmBuyerUid, dates, _cdmType);
     // Sync dates to linked deal card, or auto-create deal if none exists
     try {
