@@ -10434,7 +10434,7 @@ async function openBuyerDetail(uid, scrollTo) {
           </div>
           ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">Tap Dates to set up the live transaction timeline</div>`:''}
         </div>
-        ${((b.journeyType==='buyer'||b.journeyType==='both'||!b.journeyType)&&(b.currentStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>View in Deal Tracker &rarr;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add to Deal Tracker</button>`;})():''}        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
+        ${((b.journeyType==='buyer'||b.journeyType==='both')&&(b.currentStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>View in Deal Tracker &rarr;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add to Deal Tracker</button>`;})():''}        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
       </div>
     </details>
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
@@ -15363,7 +15363,15 @@ async function renderShowingInbox() {
   try {
     var agId2 = userProfile.agentId||'tom';
     var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agId2,'showingAssignments'));
-    asnSnap.forEach(function(d){ window._showingAssignments[d.id] = d.data(); });
+    asnSnap.forEach(function(d){
+      var data = d.data();
+      window._showingAssignments[d.id] = data;
+      // Also index by address+start so evKey lookup works
+      if (data.address && data.start) {
+        var altKey = ((data.address||'')+(data.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80);
+        window._showingAssignments[altKey] = data;
+      }
+    });
   } catch(ae){ console.log('showingAssignments load err:', ae.message); }
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
@@ -15407,7 +15415,8 @@ async function renderShowingInbox() {
       var addr = partnerEsc(ev.address||ev.summary||'Showing');
       var desc = partnerEsc((ev.description||'').substring(0,200));
       var evKey = ev.uid||ev.id||ei;
-      var assigned = (window._showingAssignments) && window._showingAssignments[evKey];
+      var stableKey = ((ev.address||'')+(ev.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80);
+      var assigned = (window._showingAssignments) && (window._showingAssignments[evKey] || window._showingAssignments[stableKey]);
       var assignedUid = assigned ? assigned.buyerUid : '';
       var buyerOpts = (allBuyers||[]).map(function(b){
         var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'';
@@ -15941,36 +15950,77 @@ async function assignShowingToBuyer(evKey) {
   if (!buyer) return;
 
   var ev = null;
-  var ei = -1;
   (_pendingShowings||[]).forEach(function(e,i){
     var k = e.uid||e.id||i;
-    if (String(k) === String(evKey)) { ev = e; ei = i; }
+    if (String(k) === String(evKey)) { ev = e; }
   });
   if (!ev) { alert('Showing not found.'); return; }
 
   var agentId = userProfile.agentId||'tom';
   var dt = ev.start ? new Date(ev.start) : new Date();
+  var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  // Stable key — same as original assignShowing
+  var assignKey = ((ev.address||'')+(ev.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80)||('st_'+evKey);
 
   try {
-    // Add to client tour list
+    // 1. Add to client tour list
     await fb.addDoc(fb.collection(fb.db,'users',clientUid,'tours'), {
       address: ev.address||ev.summary||'Showing',
       price:'', bedbath:'', date: dt.toLocaleDateString(), time: timeStr,
       rooms:{}, rating:0, saved:false, createdAt: new Date().toISOString(),
       source:'showingtime', showingUid: ev.uid||('st-'+Date.now()),
     });
-    // Save assignment
-    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',String(evKey)), {
+
+    // 2. Add to client saved homes
+    await fb.addDoc(fb.collection(fb.db,'users',clientUid,'properties'), {
+      address: ev.address||ev.summary||'Showing',
+      price:'', beds:'', baths:'', sqft:'', photo:'', tags:[], rating:0,
+      notes: 'Showing scheduled: '+dateStr+' at '+timeStr,
+      savedAt: fb.serverTimestamp(), source:'showingtime',
+    });
+
+    // 3. Send confirmation email
+    var clientFirst = buyer.firstName||'there';
+    var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
+    var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+      +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
+      +'<div style="font-size:22px;font-weight:300;color:#fff;">Showing Confirmed</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Nest Track</div>'
+      +'</div>'
+      +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+      +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+clientFirst+',</p>'
+      +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">Your showing has been confirmed. Here are the details:</p>'
+      +'<div style="background:#f0fdf4;border-radius:10px;padding:16px 20px;margin-bottom:20px;">'
+      +'<div style="font-size:16px;font-weight:600;color:#065F46;margin-bottom:6px;">'+partnerEsc(ev.address||'Property')+'</div>'
+      +'<div style="font-size:14px;color:#065F46;">'+dateStr+'</div>'
+      +'<div style="font-size:14px;color:#065F46;font-weight:600;">'+timeStr+'</div>'
+      +'</div>'
+      +'<p style="font-size:14px;color:#444;line-height:1.65;margin:0 0 16px;">This property has been added to your <strong>Tour Mode</strong> in the Nest Track app.</p>'
+      +'<div style="text-align:center;margin-bottom:20px;">'
+      +'<a href="https://app.garucciogroup.com" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:12px 28px;border-radius:25px;font-size:15px;font-weight:600;">Open Nest Track →</a>'
+      +'</div>'
+      +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 14px;"/>'
+      +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
+      +'</div></div>';
+    fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
+      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo()})}).catch(function(){});
+
+    // 4. Push to client
+    sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
+
+    // 5. Save assignment with stable key
+    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',assignKey), {
       buyerUid: clientUid,
       buyerName: ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim(),
       address: ev.address||ev.summary||'',
-      date: dt.toISOString(),
+      start: ev.start||'',
       assignedAt: fb.serverTimestamp()
     });
     if (!window._showingAssignments) window._showingAssignments = {};
     window._showingAssignments[evKey] = { buyerUid: clientUid, buyerName: ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim() };
-    showDealToast('Showing assigned to '+((buyer.firstName||'client')), null, null);
+
+    showDealToast('Showing assigned to '+((buyer.firstName||'client'))+' — confirmation sent!', null, null);
     renderShowingInbox();
   } catch(e) { alert('Failed to assign: '+e.message); }
 }
