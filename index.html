@@ -482,7 +482,7 @@ textarea{resize:vertical;min-height:68px;}
 </div>
 
 <!-- CLIENT PREVIEW BANNER -->
-<div id="client-preview-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#1D9E75;color:#fff;padding:10px 20px;display:none;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+<div id="client-preview-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#1D9E75;color:#fff;padding:calc(10px + env(safe-area-inset-top,0px)) 20px 10px;display:none;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
   <div style="display:flex;align-items:center;gap:10px;">
     <span style="font-size:18px;">👁️</span>
     <span>Client Preview Mode — you're seeing the app as a buyer would</span>
@@ -2301,7 +2301,7 @@ textarea{resize:vertical;min-height:68px;}
     <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">
         <div style="font-size:15px;font-weight:600;">Add Appointment</div>
-        <button onclick="closeApptModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">&#10005;</button>
+        <button onclick="dismissApptModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">&#10005;</button>
       </div>
       <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
         <div>
@@ -2352,7 +2352,7 @@ textarea{resize:vertical;min-height:68px;}
         <div id="appt-error" style="display:none;font-size:12px;color:#E24B4A;font-weight:500;"></div>
         <div style="display:flex;gap:8px;padding-top:4px;">
           <button class="btn btn-g" onclick="saveAppt()" style="flex:1;">Save Appointment</button>
-          <button class="btn" onclick="closeApptModal()">Cancel</button>
+          <button class="btn" onclick="dismissApptModal()">Cancel</button>
         </div>
       </div>
     </div>
@@ -8626,7 +8626,7 @@ window._startPreview = async function(buyerUid) {
   if (ats) ats.style.display = 'none';
   var startLabel = document.getElementById('sidebar-start-label');
   if (startLabel) startLabel.style.display = '';
-  document.body.style.paddingTop = '46px'; // make room for banner
+  document.body.style.paddingTop = (banner ? banner.offsetHeight : 46) + 'px'; // make room for banner (incl. safe-area / wrap)
 
   // Re-render as buyer
   
@@ -10118,9 +10118,10 @@ async function todoAddForClient(uid, name) {
   showDealToast('✅ Task added to your to-do list', null, null);
 }
 function openApptModalForClient(uid, name) {
-  var cm = document.getElementById('client-modal');
+  var cm = document.getElementById('buyer-modal');
   if (cm) cm.style.display = 'none';
   openApptModal();
+  window._apptReturnToClientUid = uid;
   setTimeout(function(){
     var search = document.getElementById('appt-client-search');
     var hidden = document.getElementById('appt-client');
@@ -15461,6 +15462,7 @@ window.renderShowingInbox = renderShowingInbox;
 var _pendingApptData = null; // stores appt data while email is being reviewed
 
 function openApptModal() {
+  window._apptReturnToClientUid = null;
   var search = document.getElementById('appt-client-search');
   if (search) { search.value = ''; }
   var hidden = document.getElementById('appt-client');
@@ -15523,6 +15525,22 @@ function closeApptModal() {
   document.body.style.width = '';
 }
 window.closeApptModal = closeApptModal;
+
+function _returnToApptCard() {
+  if (!window._apptReturnToClientUid) return;
+  var _ruid = window._apptReturnToClientUid;
+  window._apptReturnToClientUid = null;
+  var _ov = document.getElementById('appt-overlay');
+  if (_ov) _ov.style.display = 'none';
+  openBuyerDetail(_ruid);
+}
+window._returnToApptCard = _returnToApptCard;
+
+function dismissApptModal() {
+  closeApptModal();
+  _returnToApptCard();
+}
+window.dismissApptModal = dismissApptModal;
 
 async function saveAppt() {
   var clientUid  = (document.getElementById('appt-client')||{}).value;
@@ -15712,6 +15730,7 @@ async function _commitAppt(appt, sendEmail) {
 
   // 5. Refresh list — no alert, just refresh smoothly
   renderApptList();
+  _returnToApptCard();
 }
 window._commitAppt = _commitAppt;
 
