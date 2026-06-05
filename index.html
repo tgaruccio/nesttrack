@@ -7915,16 +7915,13 @@ function renderHome() {
 var _epoCallback = null;
 
 async function _epoApprove() {
-  var toggle = document.getElementById('epo-video-toggle');
   var bodyEl = document.getElementById('epo-body');
   var ccEl = document.getElementById('epo-cc');
   var ccValue = ccEl ? ccEl.value.trim() : '';
-  if (toggle && toggle.checked && bodyEl) {
-    _epoBaseHtml = bodyEl.innerHTML;
-  }
+  var finalHtml = (bodyEl && bodyEl.innerHTML) ? bodyEl.innerHTML : _epoBaseHtml;
   document.getElementById('email-preview-overlay').style.display = 'none';
   if (_epoCallback) {
-    await _epoCallback(_epoBaseHtml, ccValue);
+    await _epoCallback(finalHtml, ccValue);
     _epoCallback = null;
   }
 }
@@ -20880,6 +20877,7 @@ function toggleEmailVideoPanel() {
     if (existingUrl) {
       var matchedVideo = _agentVideos.find(function(v){ return v.url === existingUrl; });
       var title = matchedVideo ? (matchedVideo.title||'') : '';
+      if (matchedVideo && matchedVideo.thumb && !window._epoCustomThumb) window._epoCustomThumb = matchedVideo.thumb;
       _injectVideoIntoEmail(existingUrl, title);
     }
   } else {
@@ -20890,7 +20888,10 @@ window.toggleEmailVideoPanel = toggleEmailVideoPanel;
 
 function _restoreEpoBody() {
   var bodyEl = document.getElementById('epo-body');
-  if (bodyEl && _epoBaseHtml) bodyEl.innerHTML = _epoBaseHtml;
+  if (bodyEl) {
+    var _oldBlocks = bodyEl.querySelectorAll('[data-epo-video]');
+    for (var _oi = 0; _oi < _oldBlocks.length; _oi++) { _oldBlocks[_oi].parentNode.removeChild(_oldBlocks[_oi]); }
+  }
   var prevEl = document.getElementById('epo-video-preview');
   if (prevEl) { prevEl.style.display='none'; prevEl.innerHTML=''; }
 }
@@ -20931,6 +20932,13 @@ async function epoUploadThumb(event) {
       prevEl.style.display = 'block';
       prevEl.innerHTML = '<img src="'+url+'" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
     }
+    // Re-inject the video block so the email body picks up the new thumbnail
+    var _vUrlEl = document.getElementById('epo-video-url');
+    var _vUrl = _vUrlEl ? _vUrlEl.value.trim() : '';
+    if (_vUrl) {
+      var _vMatch = _agentVideos.find(function(v){ return v.url === _vUrl; });
+      _injectVideoIntoEmail(_vUrl, _vMatch ? (_vMatch.title||'') : '');
+    }
   } catch(e) {
     if (status) status.textContent = 'Upload failed';
   }
@@ -20950,10 +20958,13 @@ function _injectVideoIntoEmail(url, title) {
     if (th) { prevEl.innerHTML = '<div style="margin-bottom:8px;font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;">Video Preview</div>'+th; prevEl.style.display='block'; }
   }
   // Inject into email body HTML — use custom thumb if provided
-  var videoBlock = customThumb
+  var videoBlock = '<div data-epo-video="1">' + (customThumb
     ? videoEmailBlockWithThumb(url, title||'Watch My Personal Message', customThumb)
-    : videoEmailBlock(url, title||'Watch My Personal Message');
-  var currentHtml = _epoBaseHtml || bodyEl.innerHTML;
+    : videoEmailBlock(url, title||'Watch My Personal Message')) + '</div>';
+  // Remove any previously injected video block from the LIVE body so user edits are preserved
+  var _oldBlocks = bodyEl.querySelectorAll('[data-epo-video]');
+  for (var _oi = 0; _oi < _oldBlocks.length; _oi++) { _oldBlocks[_oi].parentNode.removeChild(_oldBlocks[_oi]); }
+  var currentHtml = bodyEl.innerHTML;
   var insertAfter = '</p>';
   var insertIdx = currentHtml.indexOf(insertAfter);
   var newHtml = insertIdx > -1
@@ -20996,7 +21007,7 @@ function showEmailPreview(toLabel, subject, emailHtml, onApprove, stepNum, stepT
     var matched = _agentVideos.find(function(v){ return v.step === stepKey; });
     if (matched && sel) {
       // Pre-select in dropdown
-      var matchVal = matched.url + '|' + encodeURIComponent(matched.title||'');
+      var matchVal = matched.url + '|' + encodeURIComponent(matched.title||'') + '|' + encodeURIComponent(matched.thumb||'');
       // Add option if not present (library may have loaded after select was built)
       var found = false;
       for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === matchVal) { sel.options[i].selected = true; found = true; break; } }
