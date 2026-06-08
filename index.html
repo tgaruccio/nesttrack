@@ -20025,6 +20025,7 @@ function editClientInfo(uid) {
     + '<div style="flex:1;"><label class="flabel">Last Name</label><input type="text" id="ec-last" value="'+partnerEsc(b.lastName||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
     + '</div>'
     + '<div><label class="flabel">Email</label><input type="email" id="ec-email" value="'+partnerEsc(b.email||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
+    + '<div><label class="flabel">Email 2 <span style="font-weight:400;color:var(--text3);">(spouse / co-seller — gets all emails)</span></label><input type="email" id="ec-email2" value="'+partnerEsc(b.email2||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
     + '<div><label class="flabel">Phone</label><input type="tel" id="ec-phone" value="'+partnerEsc(b.phone||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
     + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">'
     + '<button class="btn" id="ec-cancel">Cancel</button>'
@@ -20039,11 +20040,12 @@ function editClientInfo(uid) {
     var first = document.getElementById('ec-first').value.trim();
     var last  = document.getElementById('ec-last').value.trim();
     var email = document.getElementById('ec-email').value.trim();
+    var email2 = document.getElementById('ec-email2').value.trim();
     var phone = document.getElementById('ec-phone').value.trim();
     if (!first) { alert('First name is required.'); return; }
     try {
-      await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, phone:phone});
-      if (b) { b.firstName=first; b.lastName=last; b.email=email; b.phone=phone; }
+      await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, email2:email2, phone:phone});
+      if (b) { b.firstName=first; b.lastName=last; b.email=email; b.email2=email2; b.phone=phone; }
       // Fire Zapier webhook for CRM sync (non-blocking)
       fireZapierWebhook(b ? (b.agentId||userProfile.agentId||'tom') : (userProfile.agentId||'tom'), {firstName:first,lastName:last,email:email,phone:phone,journeyType:(b&&b.journeyType)||'buyer'}).catch(function(){});
       // Update deal name if linked
