@@ -2045,6 +2045,7 @@ textarea{resize:vertical;min-height:68px;}
       <button onclick="addNlBlock('button')" class="btn btn-sm">+ Button</button>
       <button onclick="addNlBlock('video')" class="btn btn-sm">+ Video</button>
       <button onclick="addNlBlock('image')" class="btn btn-sm">+ Image</button>
+      <button onclick="addNlBlock('pdf')" class="btn btn-sm">+ PDF</button>
       <button onclick="addNlBlock('divider')" class="btn btn-sm">+ Divider</button>
     </div>
   </div>
@@ -9184,7 +9185,7 @@ function saveNlBlockValues() {
     if (block.type === 'text' || block.type === 'video' || block.type === 'image') {
       var el = document.getElementById('nl-block-'+block.id);
       if (el) block.value = el.value;
-    } else if (block.type === 'button') {
+    } else if (block.type === 'button' || block.type === 'pdf') {
       var lEl = document.getElementById('nl-block-'+block.id+'-label');
       var uEl = document.getElementById('nl-block-'+block.id+'-url');
       if (lEl) block.label = lEl.value;
@@ -9238,10 +9239,16 @@ function renderNlBlocks() {
         + '<input type="file" accept="image/*" onchange="uploadNlImage(event,'+block.id+')" style="font-size:12px;"/>'
         + (block.value ? '<img src="'+block.value+'" style="max-height:80px;border-radius:6px;object-fit:cover;" />' : '')
         + '</div>';
+    } else if (block.type === 'pdf') {
+      inner = '<div style="display:flex;flex-direction:column;gap:6px;">'
+        + '<input type="text" id="nl-block-'+block.id+'-label" placeholder="Button text (e.g. Download CMA)" value="'+(block.label||'Download PDF')+'" style="width:100%;box-sizing:border-box;font-size:13px;"/>'
+        + '<input type="file" accept="application/pdf" onchange="uploadNlPdf(event,'+block.id+')" style="font-size:12px;"/>'
+        + (block.value ? '<div style="font-size:11px;color:#1D9E75;">&#10003; PDF uploaded — <a href="'+block.value+'" target="_blank" style="color:#1D9E75;">preview</a></div>' : '<div style="font-size:11px;color:var(--text3);">No PDF uploaded yet</div>')
+        + '</div>';
     } else if (block.type === 'divider') {
       inner = '<div style="border-top:1px solid var(--border);margin:4px 0;"></div>';
     }
-    var labels = { text:'📝 Text', button:'🔗 Button', video:'🎥 Video', image:'🖼 Image', divider:'— Divider' };
+    var labels = { text:'📝 Text', button:'🔗 Button', video:'🎥 Video', image:'🖼 Image', pdf:'📄 PDF', divider:'— Divider' };
     return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;">'
       + '<span style="font-size:11px;font-weight:600;color:var(--text2);">' + (labels[block.type]||block.type) + '</span>'
@@ -9291,6 +9298,10 @@ function buildNlBodyHtml(previewMode) {
       var el3 = document.getElementById('nl-block-'+block.id);
       var iurl = (el3 ? el3.value : block.value || '').trim();
       if (iurl) parts.push('<div style="text-align:center;margin:14px 0;"><img src="'+iurl+'" style="max-width:100%;border-radius:8px;" /></div>');
+    } else if (block.type === 'pdf') {
+      var plabel = block.label || (document.getElementById('nl-block-'+block.id+'-label')||{}).value || 'Download PDF';
+      var purl = block.value || '';
+      if (purl) parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+purl+'" target="_blank" style="background:#1D9E75;color:#fff;text-decoration:none;padding:11px 24px;border-radius:24px;font-size:14px;font-weight:500;display:inline-block;">📄 '+plabel+'</a></div>');
     } else if (block.type === 'divider') {
       parts.push('<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;"/>');
     }
@@ -9363,6 +9374,22 @@ async function uploadNlImage(event, blockId) {
   } catch(e) { console.log('Image upload err:', e.message); alert('Upload failed: ' + e.message); }
 }
 window.uploadNlImage = uploadNlImage;
+
+async function uploadNlPdf(event, blockId) {
+  var file = event.target.files[0];
+  if (!file) return;
+  try {
+    var path = 'newsletter_pdfs/' + currentUser.uid + '/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+    var sRef = fb.storageRef(fb.storage, path);
+    var snapshot = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snapshot.ref);
+    var block = _nlBlocks.find(function(b){ return b.id === blockId; });
+    if (block) block.value = url;
+    saveNlBlockValues();
+    renderNlBlocks();
+  } catch(e) { console.log('PDF upload err:', e.message); alert('Upload failed: ' + e.message); }
+}
+window.uploadNlPdf = uploadNlPdf;
 
 async function sendNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value.trim();
