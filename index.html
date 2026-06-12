@@ -11931,13 +11931,25 @@ function renderDateRow(f, dates, today, stepType) {
     + '</div>';
 }
 
+function _dealDatesObj(deal) {
+  if (!deal) return null;
+  var o = {
+    acceptanceDate:     deal.contractDate   || null,
+    closingDate:        deal.closingDate     || null,
+    inspectionDeadline: deal.inspectionDate  || null,
+    appraisalDeadline:  deal.appraisalDate   || null,
+    financingDeadline:  deal.financingDate   || null
+  };
+  return Object.keys(o).some(function(k){ return o[k]; }) ? o : null;
+}
 function renderTxnTimeline() {
   var today = new Date(); today.setHours(0,0,0,0);
 
   // ── BUYER timeline ──
   var buyerCard = document.getElementById('txn-buyer-card');
   var buyerList = document.getElementById('txn-buyer-list');
-  var buyerDates = (userProfile && userProfile.buyerContractDates)
+  var buyerDates = (typeof _activeBuyerDeal!=='undefined' && _dealDatesObj(_activeBuyerDeal))
+    || (userProfile && userProfile.buyerContractDates)
     || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType !== 'seller' ? userProfile.contractDates : null);
   var buyerHasDates = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
   if (buyerCard) {
@@ -11981,7 +11993,8 @@ function renderTxnTimeline() {
   // ── SELLER timeline ──
   var sellerCard = document.getElementById('txn-seller-card');
   var sellerList = document.getElementById('txn-seller-list');
-  var sellerDates = (userProfile && userProfile.sellerContractDates)
+  var sellerDates = (typeof _activeSellerDeal!=='undefined' && _dealDatesObj(_activeSellerDeal))
+    || (userProfile && userProfile.sellerContractDates)
     || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType === 'seller' ? userProfile.contractDates : null);
   var sellerHasDates = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
   if (sellerCard) {
@@ -12125,6 +12138,7 @@ async function loadClientDeals() {
     if (!_activeSellerDeal || sellers.map(function(x){return x.id;}).indexOf(_activeSellerDeal.id)<0) _activeSellerDeal = sellers[0]||null;
     try { renderTrailMap(); } catch(e){}
     try { renderSellerTrail(); } catch(e){}
+    try { renderTxnTimeline(); } catch(e){}
   } catch(e){ console.log('loadClientDeals:', e.message); }
 }
 window.loadClientDeals = loadClientDeals;
