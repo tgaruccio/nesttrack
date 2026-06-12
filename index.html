@@ -14121,7 +14121,7 @@ async function saveListing(existingId) {
       await fb.updateDoc(fb.doc(fb.db,'offer_listings',existingId), data);
     } else {
       savedRef = await fb.addDoc(fb.collection(fb.db,'offer_listings'), data);
-      // Auto-create a deal in deal tracker for new listings
+      // Auto-create a linked "Listed" seller deal in the Deal Tracker for new listings.
       try {
         var dealData = {
           address: address,
@@ -14129,15 +14129,16 @@ async function saveListing(existingId) {
           clientUid: clientUid || null,
           agentId: userProfile.agentId || 'tom',
           status: 'Listed',
-          type: 'seller',
+          dealType: 'seller',
+          step: 6,
           salePrice: listPrice ? parseFloat(String(listPrice).replace(/[^0-9.]/g,'')) || 0 : 0,
           commission: 0,
           commMode: 'dollar',
           offerListingId: savedRef.id,
-          createdAt: fb.serverTimestamp(),
         };
-        await fb.addDoc(fb.collection(fb.db,'agents',dealData.agentId,'deals'), Object.assign(dealData,{createdAt:fb.serverTimestamp()}));
-        console.log('Deal auto-created from listing');
+        var _laid = userProfile.agentId || 'tom';
+        await fb.addDoc(_dealCol(), Object.assign(_stampDealMembers(dealData, _laid), {createdAt: fb.serverTimestamp()}));
+        console.log('Listed seller deal auto-created from listing');
       } catch(de) { console.log('Deal auto-create failed:', de.message); }
     }
     var ov = document.getElementById('listing-modal-overlay');
@@ -16487,6 +16488,7 @@ async function loadDeals() {
     _deals = [];
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
+      if (!data.dealType && data.type) data.dealType = data.type; // heal listing deals saved with the wrong field
       if (data.dealType === 'both') data.dealType = 'buyer';
       if (!data.dealType) data.dealType = 'buyer';
       if (!data.status) data.status = 'Listed';
