@@ -14454,11 +14454,14 @@ async function acceptOfferStartTransaction(listingId, offerId) {
     Object.assign(deal, upd);
     try { await fb.updateDoc(_dealDoc(deal.id), upd); } catch(e){ console.log('acceptOffer deal write:', e.message); }
 
-    // Advance to Under Contract — this opens the pre-filled dates modal and (on approval) the
-    // UC + timeline email. Belt-and-suspenders: if the modal didn't open (e.g. the deal was
-    // already at UC), open it explicitly so the agent always gets the dates + email step.
+    // Advance to Under Contract — on a fresh transition this opens the pre-filled dates modal.
+    // But setDealStep only fires on the transition INTO step 9; if the deal is already at 9
+    // (e.g. from a prior attempt), it returns early and opens nothing. So if the modal isn't
+    // actually showing afterward, open it explicitly — the modal is a static element that's
+    // always in the DOM, so we must check it's VISIBLE, not merely present.
     if (typeof setDealStep==='function') await setDealStep(deal.id, 9);
-    if (deal.clientUid && typeof openContractDatesModal==='function' && !document.getElementById('contract-dates-modal')) {
+    var _cdmEl = document.getElementById('contract-dates-modal');
+    if (deal.clientUid && typeof openContractDatesModal==='function' && (!_cdmEl || _cdmEl.style.display !== 'flex')) {
       openContractDatesModal(deal.clientUid, 'seller', (typeof _dealDatesObj==='function'?_dealDatesObj(deal):null)||{}, deal.id);
     }
     if (typeof _gotoDeal==='function') _gotoDeal(deal.id);
