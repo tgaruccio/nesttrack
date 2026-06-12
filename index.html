@@ -2207,7 +2207,7 @@ textarea{resize:vertical;min-height:68px;}
     <div class="card" id="your-lender-card"></div>
   </div>
   <div id="your-titleco-section" style="display:none;">
-    <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:4px;">Title Company</div>
+    <div style="font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;margin-top:4px;">Your Team</div>
     <div class="card" id="your-titleco-card"></div>
   </div>
 </div>
@@ -4988,23 +4988,33 @@ function renderYourTitleCo() {
   var section = document.getElementById('your-titleco-section');
   var card = document.getElementById('your-titleco-card');
   if (!section || !card) return;
-  var tc = userProfile && userProfile.titleCo;
-  if (!tc || !tc.name) { section.style.display = 'none'; return; }
+  var deals = [];
+  if (typeof _activeBuyerDeal!=='undefined' && _activeBuyerDeal) deals.push(_activeBuyerDeal);
+  if (typeof _activeSellerDeal!=='undefined' && _activeSellerDeal) deals.push(_activeSellerDeal);
+  var team = [];
+  deals.forEach(function(d){
+    (d.parties||[]).forEach(function(p){
+      var show = (p.showClient!==undefined) ? p.showClient : (typeof _partyDefaultShow==='function' ? _partyDefaultShow(p.role) : false);
+      if (show && (p.name||p.email||p.phone)) team.push(p);
+    });
+  });
+  if (!team.length) { section.style.display = 'none'; return; }
   section.style.display = 'block';
-  var phone = (tc.phone||'').replace(/[^0-9]/g,'');
-  card.innerHTML =
-    '<div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">'
-    + '<div style="width:52px;height:52px;border-radius:50%;background:var(--blue-lt);color:var(--blue-dk);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">🏛️</div>'
-    + '<div style="flex:1;min-width:180px;">'
-    + '<div style="font-family:Fraunces,serif;font-size:20px;font-weight:300;letter-spacing:-.3px;">' + tc.name + '</div>'
-    + (tc.contact ? '<div style="font-size:12px;color:var(--text2);margin-top:2px;">' + tc.contact + ' · Title &amp; Escrow</div>' : '')
-    + (tc.address ? '<div style="font-size:12px;color:var(--text3);margin-top:4px;">📍 ' + tc.address + '</div>' : '')
-    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
-    + (phone ? '<a class="btn btn-sm" href="tel:'+phone+'">📞 Call</a>' : '')
-    + (phone ? '<a class="btn btn-sm" href="sms:'+phone+'">💬 Text</a>' : '')
-    + (tc.email ? '<a class="btn btn-sm" href="mailto:'+tc.email+'">✉️ Email</a>' : '')
-    + '</div>'
-    + '</div></div>';
+  var roleIcon = function(r){ return r==='Title'?'\ud83c\udfdb\ufe0f':r==='Lender'?'\ud83c\udfe6':r==='Co-Agent'?'\ud83e\udd1d':r==='Inspector'?'\ud83d\udd0d':r==='Attorney'?'\u2696\ufe0f':r==='Other Agent'?'\ud83c\udfe0':'\ud83d\udc64'; };
+  card.innerHTML = team.map(function(p){
+    var phone = (p.phone||'').replace(/[^0-9]/g,'');
+    var btns = '';
+    if (phone) btns += '<a class="btn btn-sm" href="tel:'+phone+'">\ud83d\udcde Call</a>';
+    if (phone) btns += '<a class="btn btn-sm" href="sms:'+phone+'">\ud83d\udcac Text</a>';
+    if (p.email) btns += '<a class="btn btn-sm" href="mailto:'+p.email+'">\u2709\ufe0f Email</a>';
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">'
+      + '<div style="width:44px;height:44px;border-radius:50%;background:var(--blue-lt);color:var(--blue-dk);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">'+roleIcon(p.role)+'</div>'
+      + '<div style="flex:1;min-width:160px;">'
+      + '<div style="font-family:Fraunces,serif;font-size:17px;font-weight:300;">'+A(p.name||p.role)+'</div>'
+      + '<div style="font-size:12px;color:var(--text3);margin-top:1px;">'+A(p.role||'')+'</div>'
+      + (btns?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">'+btns+'</div>':'')
+      + '</div></div>';
+  }).join('');
 }
 window.renderYourTitleCo = renderYourTitleCo;
 
@@ -10545,20 +10555,6 @@ async function openBuyerDetail(uid, scrollTo) {
             <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
           </div>
         </div>
-        <div style="border-top:1px solid var(--border);padding-top:12px;">
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:5px;">Title Company</div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <input type="text" id="bd-title-name" placeholder="Company name" value="${(b.titleCo&&b.titleCo.name)||''}" style="font-size:13px;"/>
-            <input type="text" id="bd-title-contact" placeholder="Contact person (closer/coordinator)" value="${(b.titleCo&&b.titleCo.contact)||''}" style="font-size:13px;"/>
-            <input type="text" id="bd-title-phone" placeholder="Phone" value="${(b.titleCo&&b.titleCo.phone)||''}" style="font-size:13px;"/>
-            <input type="text" id="bd-title-email" placeholder="Email" value="${(b.titleCo&&b.titleCo.email)||''}" style="font-size:13px;"/>
-            <input type="text" id="bd-title-address" placeholder="Office address" value="${(b.titleCo&&b.titleCo.address)||''}" style="font-size:13px;"/>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-            <button class="btn btn-sm btn-g" onclick="saveTitleCo('${uid}')">Save Title Co</button>
-            <div id="bd-title-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
-          </div>
-        </div>
       </div>
     </details>
     <details ${(bProps.length||bTours.length)?'open':''} style="border-bottom:1px solid var(--border);">
@@ -12115,6 +12111,7 @@ async function loadClientDeals() {
     try { renderTrailMap(); } catch(e){}
     try { renderSellerTrail(); } catch(e){}
     try { renderTxnTimeline(); } catch(e){}
+    try { if (typeof renderYourTitleCo==='function') renderYourTitleCo(); } catch(e){}
   } catch(e){ console.log('loadClientDeals:', e.message); }
 }
 window.loadClientDeals = loadClientDeals;
@@ -19701,16 +19698,19 @@ async function setDealType(dealId, type) {
 window.setDealType = setDealType;
 
 // ─── Phase 2: Deal Parties Roster ───
-function _dealPartyRow(role, name, email, phone, idx, dealId) {
+function _dealPartyRow(role, name, email, phone, idx, dealId, show) {
   var comms = '';
   if (email) { var _el = ('Emailed '+(name ? name+' ('+role+')' : role)).replace(/['"\\]/g,''); comms += '<a href="mailto:'+email+'" onclick="logDealComm(\''+dealId+'\',\'email\',\''+_el+'\')" title="Email" style="text-decoration:none;font-size:14px;">\u2709\ufe0f</a>'; }
   if (phone) comms += ' <a href="tel:'+phone+'" title="Call" style="text-decoration:none;font-size:14px;">\ud83d\udcde</a>';
   if (phone) comms += ' <a href="sms:'+phone+'" title="Text" style="text-decoration:none;font-size:14px;">\ud83d\udcac</a>';
+  var showTgl = (idx!==null && idx!==undefined)
+    ? '<button onclick="toggleDealPartyShow(\''+dealId+'\','+idx+')" title="'+(show?'Shown to client \u2014 tap to hide':'Hidden from client \u2014 tap to show')+'" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0 2px;opacity:'+(show?'1':'0.35')+';">\ud83d\udc41\ufe0f</button>'
+    : '';
   var del = (idx!==null && idx!==undefined) ? '<button onclick="removeDealParty(\''+dealId+'\','+idx+')" title="Remove" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;">\u00d7</button>' : '';
   return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);">'
     + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(name||role)+'</div>'
     + '<div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(role)+(email?' \u00b7 '+partnerEsc(email):'')+'</div></div>'
-    + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'+comms+del+'</div>'
+    + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'+showTgl+comms+del+'</div>'
     + '</div>';
 }
 function renderDealParties(deal, client) {
@@ -19722,8 +19722,8 @@ function renderDealParties(deal, client) {
     rows += _dealPartyRow(crole, cname, client.email||'', client.phone||'', null, deal.id);
     if (client.email2) rows += _dealPartyRow(crole+' \u00b7 2nd email', cname, client.email2, '', null, deal.id);
   }
-  parties.forEach(function(p, i){ rows += _dealPartyRow(p.role||'Party', p.name||'', p.email||'', p.phone||'', i, deal.id); });
-  var roles = ['Co-Agent','Lender','Title','Inspector','Attorney','Other'];
+  parties.forEach(function(p, i){ var _sc = (p.showClient!==undefined) ? p.showClient : _partyDefaultShow(p.role); rows += _dealPartyRow(p.role||'Party', p.name||'', p.email||'', p.phone||'', i, deal.id, _sc); });
+  var roles = ['Co-Agent','Other Agent','Lender','Title','Inspector','Attorney','Other'];
   var addRow = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;align-items:center;">'
     + '<select id="dp-role-'+deal.id+'" style="font-size:11px;padding:4px;flex-shrink:0;">'+roles.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>'
     + '<input id="dp-name-'+deal.id+'" placeholder="Name" style="font-size:11px;padding:4px 6px;width:80px;"/>'
@@ -19741,6 +19741,9 @@ function renderDealParties(deal, client) {
     + '<div style="padding-top:4px;">'+_emailAllBtn+rows+addRow+'</div>'
     + '</details>';
 }
+function _partyDefaultShow(role) {
+  return role==='Co-Agent' || role==='Lender' || role==='Title';
+}
 async function addDealParty(dealId) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) return;
@@ -19750,13 +19753,25 @@ async function addDealParty(dealId) {
   var phone = (((document.getElementById('dp-phone-'+dealId)||{}).value)||'').trim();
   if (!name && !email && !phone) return;
   if (!deal.parties) deal.parties = [];
-  deal.parties.push({ role:role, name:name, email:email, phone:phone });
+  deal.parties.push({ role:role, name:name, email:email, phone:phone, showClient:_partyDefaultShow(role) });
   var agentId = userProfile.agentId||'tom';
   try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
   catch(e){ console.log('addDealParty:', e.message); }
   filterDeals(_activeFilter);
 }
 window.addDealParty = addDealParty;
+async function toggleDealPartyShow(dealId, idx) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.parties || !deal.parties[idx]) return;
+  var p = deal.parties[idx];
+  var cur = (p.showClient!==undefined) ? p.showClient : _partyDefaultShow(p.role);
+  p.showClient = !cur;
+  var agentId = userProfile.agentId||'tom';
+  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
+  catch(e){ console.log('toggleDealPartyShow:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.toggleDealPartyShow = toggleDealPartyShow;
 async function removeDealParty(dealId, idx) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal || !deal.parties) return;
