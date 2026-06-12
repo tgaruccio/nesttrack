@@ -19267,7 +19267,11 @@ function renderDealCards(deals) {
   return deals.map(function(deal) {
     // Merge step-specific tasks with custom checklist
     var linkedBuyer = (myBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
-    var clientStep = deal.dealType==='seller' ? (linkedBuyer&&linkedBuyer.currentSellerStep||0) : (linkedBuyer&&linkedBuyer.currentStep||0);
+    var clientStep = (deal.step != null) ? deal.step : (deal.dealType==='seller' ? (linkedBuyer&&linkedBuyer.currentSellerStep||0) : (linkedBuyer&&linkedBuyer.currentStep||0));
+    var _isSellerDeal = deal.dealType==='seller';
+    var _stepArr = _isSellerDeal ? (typeof SELLER_STEPS!=='undefined'?SELLER_STEPS:[]) : (typeof TIMELINE_STEPS!=='undefined'?TIMELINE_STEPS:[]);
+    var _maxStep = _isSellerDeal ? _stepArr.length : (_stepArr.length ? _stepArr[_stepArr.length-1].id : 0);
+    var _stepName = clientStep===0 ? 'Not started' : (_isSellerDeal ? ((_stepArr[clientStep-1]&&_stepArr[clientStep-1].title)||'Step '+clientStep) : ((_stepArr.find(function(s){return s.id===clientStep;})||{}).name||'Step '+clientStep));
     // Use ALL tasks for deal type — full transaction view
     var allPrefills = deal.dealType==='seller' ? (typeof ALL_SELLER_TASKS!=='undefined' ? ALL_SELLER_TASKS : []) : (typeof ALL_BUYER_TASKS!=='undefined' ? ALL_BUYER_TASKS : []);
     var customChecklist = deal.checklist || [];
@@ -19308,6 +19312,13 @@ function renderDealCards(deals) {
       +'</div>'
       +'</div>'
       +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;">'+autoStatus+'</div>'
+      +'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.55);border-bottom:1px solid '+tileBdr+';">'
+      +'<div style="font-size:12px;font-weight:600;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_stepName+' <span style="color:var(--text3);font-weight:500;">('+clientStep+'/'+_maxStep+')</span></div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+      +'<button class="btn btn-sm" onclick="advanceDealStep(\''+deal.id+'\',-1)" title="Step back" style="padding:3px 9px;">\u25C2</button>'
+      +'<button class="btn btn-sm btn-g" onclick="advanceDealStep(\''+deal.id+'\',1)" style="padding:3px 11px;">Advance \u25B8</button>'
       +'</div>'
       +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
@@ -19547,6 +19558,33 @@ async function updateDealStatus(dealId, status) {
   filterDeals(_activeFilter);
 }
 window.updateDealStatus = updateDealStatus;
+
+async function advanceDealStep(dealId, dir) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var isSeller = deal.dealType==='seller';
+  var maxStep = isSeller
+    ? ((typeof SELLER_STEPS!=='undefined') ? SELLER_STEPS.length : 0)
+    : ((typeof TIMELINE_STEPS!=='undefined' && TIMELINE_STEPS.length) ? TIMELINE_STEPS[TIMELINE_STEPS.length-1].id : 0);
+  var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+  var cur = (deal.step != null) ? deal.step : (client ? (isSeller ? (client.currentSellerStep||0) : (client.currentStep||0)) : 0);
+  var next = Math.max(0, Math.min(maxStep, cur + dir));
+  if (next === cur) return;
+  var agentId = userProfile.agentId||'tom';
+  deal.step = next; deal.lastStepUpdate = Date.now();
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { step: next, lastStepUpdate: fb.serverTimestamp() });
+    // reverse dual-write: keep the client journey field in sync during the transition
+    if (deal.clientUid) {
+      var cf = isSeller ? 'currentSellerStep' : 'currentStep';
+      var patch = {}; patch[cf] = next; patch.lastStepUpdate = fb.serverTimestamp();
+      await fb.updateDoc(fb.doc(fb.db,'users',deal.clientUid), patch);
+      if (client) client[cf] = next;
+    }
+  } catch(e) { console.log('advanceDealStep:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.advanceDealStep = advanceDealStep;
 
 async function updateDealDate(dealId, field, value) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
