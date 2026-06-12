@@ -19582,6 +19582,15 @@ async function setDealStep(dealId, next) {
     }
   } catch(e) { console.log('setDealStep:', e.message); }
   filterDeals(_activeFilter);
+  // #2: offer the matching branded update email (draft-and-approve), reusing the client-card send path.
+  // Only when advancing, for steps that have a template, skipping UC steps (buyer 5 / seller 9 have their own flow).
+  if (deal.clientUid && next > cur && !(isSeller && next===9) && !(!isSeller && next===5)) {
+    var _emap = isSeller ? (typeof SELLER_STEP_EMAILS!=='undefined'?SELLER_STEP_EMAILS:{}) : (typeof BUYER_STEP_EMAILS!=='undefined'?BUYER_STEP_EMAILS:{});
+    if (_emap[next]) {
+      var _choice = await stepEmailPrompt('Send the update email for this step to '+(deal.clientName||'your client')+'?');
+      if (_choice === 'send') sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer');
+    }
+  }
 }
 window.setDealStep = setDealStep;
 
