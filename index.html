@@ -19617,12 +19617,13 @@ function renderDealParties(deal, client) {
     + '<button class="btn btn-sm" onclick="addDealParty(\''+deal.id+'\')" style="flex-shrink:0;">+</button>'
     + '</div>';
   var count = (client?1:0) + parties.length;
+  var _emailAllBtn = count>0 ? '<div style="margin-bottom:8px;"><button class="btn btn-sm btn-g" onclick="emailAllParties(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Email all parties</button></div>' : '';
   return '<details style="margin-bottom:8px;">'
     + '<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
     + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83d\udc65 Parties</span>'
     + '<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+count+'</span>'
     + '</summary>'
-    + '<div style="padding-top:4px;">'+rows+addRow+'</div>'
+    + '<div style="padding-top:4px;">'+_emailAllBtn+rows+addRow+'</div>'
     + '</details>';
 }
 async function addDealParty(dealId) {
@@ -19651,6 +19652,19 @@ async function removeDealParty(dealId, idx) {
   filterDeals(_activeFilter);
 }
 window.removeDealParty = removeDealParty;
+function emailAllParties(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var emails = [];
+  var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+  if (client) { if (client.email) emails.push(client.email.trim()); if (client.email2) emails.push(client.email2.trim()); }
+  (deal.parties||[]).forEach(function(p){ if (p.email) emails.push(p.email.trim()); });
+  emails = emails.filter(function(e,i){ return e && emails.indexOf(e)===i; });
+  if (!emails.length) { alert('No party emails on this deal yet.'); return; }
+  var subj = deal.address ? (deal.address + ' \u2014 update') : 'Transaction update';
+  window.location.href = 'mailto:' + emails.join(',') + '?subject=' + encodeURIComponent(subj);
+}
+window.emailAllParties = emailAllParties;
 
 async function updateDealDate(dealId, field, value) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
