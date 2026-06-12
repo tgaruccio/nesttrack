@@ -19603,7 +19603,7 @@ window.setDealStep = setDealStep;
 // ─── Phase 2: Deal Parties Roster ───
 function _dealPartyRow(role, name, email, phone, idx, dealId) {
   var comms = '';
-  if (email) comms += '<a href="mailto:'+email+'" title="Email" style="text-decoration:none;font-size:14px;">\u2709\ufe0f</a>';
+  if (email) { var _el = ('Emailed '+(name ? name+' ('+role+')' : role)).replace(/['"\\]/g,''); comms += '<a href="mailto:'+email+'" onclick="logDealComm(\''+dealId+'\',\'email\',\''+_el+'\')" title="Email" style="text-decoration:none;font-size:14px;">\u2709\ufe0f</a>'; }
   if (phone) comms += ' <a href="tel:'+phone+'" title="Call" style="text-decoration:none;font-size:14px;">\ud83d\udcde</a>';
   if (phone) comms += ' <a href="sms:'+phone+'" title="Text" style="text-decoration:none;font-size:14px;">\ud83d\udcac</a>';
   var del = (idx!==null && idx!==undefined) ? '<button onclick="removeDealParty(\''+dealId+'\','+idx+')" title="Remove" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;">\u00d7</button>' : '';
