@@ -5039,6 +5039,7 @@ async function showApp() {
   renderSaved();
   setTimeout(function(){ renderTrailMap(); }, 400);
   setTimeout(function(){ renderSellerTrail(); }, 500);
+  loadClientDeals();
   loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
@@ -12107,8 +12108,45 @@ const TRAIL_STAGES = [
     action:{label:'Leave {agentFirst} a Review ★', url:'https://g.page/r/CYTaeIyFmCHoEBM/review'} },
 ];
 
+var _clientDeals = [];
+var _activeBuyerDeal = null;
+var _activeSellerDeal = null;
+async function loadClientDeals() {
+  try {
+    var uid = (typeof _previewMode!=='undefined' && _previewMode && _previewBuyerUid) ? _previewBuyerUid : (currentUser && currentUser.uid);
+    var agentId = userProfile && userProfile.agentId;
+    if (!uid || !agentId) return;
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'agents',agentId,'deals'), fb.where('clientUid','==',uid)));
+    _clientDeals = [];
+    snap.forEach(function(dd){ _clientDeals.push(Object.assign({id:dd.id}, dd.data())); });
+    var buyers = _clientDeals.filter(function(d){ return d.dealType!=='seller'; });
+    var sellers = _clientDeals.filter(function(d){ return d.dealType==='seller'; });
+    if (!_activeBuyerDeal || buyers.map(function(x){return x.id;}).indexOf(_activeBuyerDeal.id)<0) _activeBuyerDeal = buyers[0]||null;
+    if (!_activeSellerDeal || sellers.map(function(x){return x.id;}).indexOf(_activeSellerDeal.id)<0) _activeSellerDeal = sellers[0]||null;
+    try { renderTrailMap(); } catch(e){}
+    try { renderSellerTrail(); } catch(e){}
+  } catch(e){ console.log('loadClientDeals:', e.message); }
+}
+window.loadClientDeals = loadClientDeals;
+function selectClientDeal(type, dealId) {
+  var d = (_clientDeals||[]).find(function(x){ return x.id===dealId; });
+  if (!d) return;
+  if (type==='seller') { _activeSellerDeal = d; try{ renderSellerTrail(); }catch(e){} }
+  else { _activeBuyerDeal = d; try{ renderTrailMap(); }catch(e){} }
+}
+window.selectClientDeal = selectClientDeal;
+function _clientDealPicker(type) {
+  var list = (_clientDeals||[]).filter(function(d){ return type==='seller' ? d.dealType==='seller' : d.dealType!=='seller'; });
+  if (list.length < 2) return '';
+  var active = type==='seller' ? _activeSellerDeal : _activeBuyerDeal;
+  return '<div style="margin-bottom:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Which property?</div>'
+    + '<select onchange="selectClientDeal(\''+type+'\',this.value)" style="width:100%;max-width:320px;font-size:13px;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:inherit;">'
+    + list.map(function(d){ var lbl=(d.address&&d.address.trim())?d.address:(type==='seller'?'Listing':'House Hunting'); return '<option value="'+d.id+'"'+(active&&active.id===d.id?' selected':'')+'>'+A(lbl)+'</option>'; }).join('')
+    + '</select></div>';
+}
+
 function renderTrailMap(targetId) {
-  const cur = (userProfile && userProfile.currentStep) || 1;
+  const cur = (_activeBuyerDeal && _activeBuyerDeal.step!=null) ? _activeBuyerDeal.step : ((userProfile && userProfile.currentStep) || 1);
   const mapId = targetId || 'trail-map';
   const map = document.getElementById(mapId);
   if (!map) { console.log('trail-map not found:', mapId); return; }
@@ -12170,7 +12208,7 @@ function renderTrailMap(targetId) {
   // If we just rendered the primary trail-map, also push to home div
   if (!targetId) {
     var homeDst = document.getElementById('home-trail-map');
-    if (homeDst) homeDst.innerHTML = svg.replace(/showTrailStage/g, 'showHomeTrailStage');
+    if (homeDst) homeDst.innerHTML = _clientDealPicker('buyer') + svg.replace(/showTrailStage/g, 'showHomeTrailStage');
   }
 
   const pct = Math.round(((cur-1)/10)*100);
@@ -12430,7 +12468,7 @@ function renderSellerTrail() {
   svg += '<path d="';
   SELLER_STEPS.forEach(function(s,i){ var x=cxFn(i),y=cyFn(i); svg+=(i===0?'M '+x+' '+y:' L '+x+' '+y); });
   svg += '" fill="none" stroke="#F5D0A9" stroke-width="2" stroke-dasharray="5,4"/>';
-  var curSell = (userProfile && userProfile.currentSellerStep) || 1;
+  var curSell = (_activeSellerDeal && _activeSellerDeal.step!=null) ? _activeSellerDeal.step : ((userProfile && userProfile.currentSellerStep) || 1);
   // Completed path
   var sell_done_path = '';
   SELLER_STEPS.forEach(function(s,i){ if((i+1)<=curSell) sell_done_path+=(sell_done_path===''?'M '+cxFn(i)+' '+cyFn(i):' L '+cxFn(i)+' '+cyFn(i)); });
@@ -12458,7 +12496,7 @@ function renderSellerTrail() {
   if (mapS) mapS.innerHTML = svg;
   // Also push to home page seller trail div
   var homeSell = document.getElementById('home-seller-trail-map');
-  if (homeSell) homeSell.innerHTML = svg.replace(/showSellerStep/g, 'showHomeSellerStep');
+  if (homeSell) homeSell.innerHTML = _clientDealPicker('seller') + svg.replace(/showSellerStep/g, 'showHomeSellerStep');
 }
 window.renderSellerTrail = renderSellerTrail;
 
