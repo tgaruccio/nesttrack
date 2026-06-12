@@ -11667,6 +11667,7 @@ window.agentSetStepForBuyer = agentSetStepForBuyer;
 var _cdmBuyerUid = null;
 var _cdmType = 'buyer'; // 'buyer' or 'seller'
 var _cdmCurrentDates = {};
+var _cdmDealId = null; // when set, the modal writes to this specific deal (deal-centric path)
 
 function openContractDatesForBuyer(uid, type) {
   var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; })
@@ -11725,10 +11726,11 @@ function cdmClear() {
 }
 window.cdmClear = cdmClear;
 
-function openContractDatesModal(buyerUid, type, existingDates) {
+function openContractDatesModal(buyerUid, type, existingDates, dealId) {
   _cdmBuyerUid = buyerUid;
   _cdmType = type || 'buyer';
   _cdmCurrentDates = existingDates || {};
+  _cdmDealId = dealId || null;
   var fields = _cdmType === 'seller' ? SELLER_CONTRACT_FIELDS : _cdmType === 'mortgage' ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var title = document.getElementById('cdm-title');
   var sub = document.getElementById('cdm-sub');
@@ -11816,9 +11818,15 @@ async function saveContractDates(sendEmail) {
     // Sync dates to linked deal card, or auto-create deal if none exists
     try {
       var agentId2 = userProfile.agentId||'tom';
-      var linkedDeals = _deals.filter(function(d){
-        return d.clientUid===_cdmBuyerUid && (_cdmType==='seller' ? d.dealType==='seller' : d.dealType==='buyer');
-      });
+      var linkedDeals;
+      if (_cdmDealId) {
+        var _oneDeal = (_deals||[]).find(function(d){ return d.id===_cdmDealId; });
+        linkedDeals = _oneDeal ? [_oneDeal] : [];
+      } else {
+        linkedDeals = _deals.filter(function(d){
+          return d.clientUid===_cdmBuyerUid && (_cdmType==='seller' ? d.dealType==='seller' : d.dealType==='buyer');
+        });
+      }
       var dealUpdate = {
         contractDate:   dates.acceptanceDate       || null,
         closingDate:    dates.closingDate          || null,
@@ -11840,7 +11848,7 @@ async function saveContractDates(sendEmail) {
         }
         injectDealReminders();
         showDealToast('Deal updated — Under Contract', 'View Deal', function(){ go('agent',document.querySelector('[data-pg=agent]')); setTimeout(function(){ switchAgentTab('deals'); }, 200); });
-      } else if (_cdmType === 'buyer' || _cdmType === 'seller') {
+      } else if (!_cdmDealId && (_cdmType === 'buyer' || _cdmType === 'seller')) {
         // No deal exists — auto-create one
         var buyer2 = allBuyers.find(function(b){ return b.uid===_cdmBuyerUid; });
         var dealAddr = _cdmType === 'seller'
@@ -11866,12 +11874,16 @@ async function saveContractDates(sendEmail) {
         showDealToast('Deal added to Deal Tracker!', 'View Deal', function(){ go('agent',document.querySelector('[data-pg=agent]')); setTimeout(function(){ switchAgentTab('deals'); }, 200); });
       }
     } catch(syncErr){ console.log('Deal date sync err:', syncErr.message); }
-    // Always reopen client profile after saving dates
-    var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
-    var _scrollTo = (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) ? 'titleco' : null;
-    setTimeout(function(){
-      openBuyerDetail(_cdmBuyerUid, _scrollTo);
-    }, 300);
+    // Reopen the right surface: deal-triggered → stay on the Deal Tracker; client-card → reopen profile.
+    if (_cdmDealId) {
+      if (typeof filterDeals === 'function') filterDeals(_activeFilter);
+    } else {
+      var _savedBuyer = allBuyers.find(function(b){ return b.uid === _cdmBuyerUid; });
+      var _scrollTo = (_savedBuyer && (!_savedBuyer.titleCo || !_savedBuyer.titleCo.name)) ? 'titleco' : null;
+      setTimeout(function(){
+        openBuyerDetail(_cdmBuyerUid, _scrollTo);
+      }, 300);
+    }
   } catch(e) {
     alert('Failed to save dates: ' + e.message);
   }
@@ -19679,7 +19691,17 @@ async function setDealStep(dealId, next) {
       if (client) client[cf] = next;
     }
   } catch(e) { console.log('setDealStep:', e.message); }
+  // When a deal first reaches Under Contract, open the proven contract-dates modal
+  // (30/45/60 quick-fill + cash toggle; OK fills the deal timeline and sends the client the UC email).
+  var justUC = (!isSeller && next===5 && cur<5) || (isSeller && next===9 && cur<9);
+  if (justUC) _activeFilter = 'contract';
+  // When a deal reaches its closing step, jump to the Closed tab.
+  var justClosed = (!isSeller && next>=11 && cur<11) || (isSeller && next>=13 && cur<13);
+  if (justClosed) _activeFilter = 'closed';
   filterDeals(_activeFilter);
+  if (justUC && deal.clientUid && typeof openContractDatesModal==='function') {
+    openContractDatesModal(deal.clientUid, isSeller?'seller':'buyer', (typeof _dealDatesObj==='function'?_dealDatesObj(deal):null)||{}, deal.id);
+  }
   // #2: offer the matching branded update email (draft-and-approve), reusing the client-card send path.
   // Only when advancing, for steps that have a template, skipping UC steps (buyer 5 / seller 9 have their own flow).
   if (deal.clientUid && next > cur && !(isSeller && next===9) && !(!isSeller && next===5)) {
