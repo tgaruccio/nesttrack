@@ -19342,6 +19342,7 @@ function renderDealCards(deals) {
       +'</div>'
       +'</div></details>'
       +renderDealParties(deal, linkedBuyer)
+      +renderDealComms(deal)
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
@@ -19589,7 +19590,7 @@ async function setDealStep(dealId, next) {
     var _emap = isSeller ? (typeof SELLER_STEP_EMAILS!=='undefined'?SELLER_STEP_EMAILS:{}) : (typeof BUYER_STEP_EMAILS!=='undefined'?BUYER_STEP_EMAILS:{});
     if (_emap[next]) {
       var _choice = await stepEmailPrompt('Send the update email for this step to '+(deal.clientName||'your client')+'?');
-      if (_choice === 'send') sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer');
+      if (_choice === 'send') { sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer'); logDealComm(deal.id, 'step', 'Step update email'); }
     }
   }
 }
@@ -19672,9 +19673,44 @@ function emailAllParties(dealId) {
   emails = emails.filter(function(e,i){ return e && emails.indexOf(e)===i; });
   if (!emails.length) { alert('No party emails on this deal yet.'); return; }
   var subj = deal.address ? (deal.address + ' \u2014 update') : 'Transaction update';
+  logDealComm(dealId, 'parties', 'Emailed all parties');
   window.location.href = 'mailto:' + emails.join(',') + '?subject=' + encodeURIComponent(subj);
 }
 window.emailAllParties = emailAllParties;
+
+// ─── #2: Per-deal comms log ───
+async function logDealComm(dealId, type, subject) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  if (!deal.comms) deal.comms = [];
+  deal.comms.push({ ts: Date.now(), type: type, subject: subject });
+  var agentId = userProfile.agentId||'tom';
+  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { comms: deal.comms }); }
+  catch(e){ console.log('logDealComm:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.logDealComm = logDealComm;
+function renderDealComms(deal) {
+  var comms = (deal.comms||[]).slice().sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  if (!comms.length) return '';
+  var icon = function(t){ return t==='dates'?'\ud83d\udcc5':t==='step'?'\u27a1\ufe0f':t==='parties'?'\ud83d\udc65':'\u2709\ufe0f'; };
+  var rows = comms.map(function(c){
+    var d = new Date(c.ts||Date.now());
+    var when = (d.getMonth()+1)+'/'+d.getDate()+'/'+String(d.getFullYear()).slice(2)+' '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+    return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);">'
+      +'<span style="font-size:13px;flex-shrink:0;">'+icon(c.type)+'</span>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(c.subject||'Email')+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);">'+when+'</div></div>'
+      +'</div>';
+  }).join('');
+  return '<details style="margin-bottom:8px;">'
+    +'<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
+    +'<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83d\udcac Comms</span>'
+    +'<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+comms.length+'</span>'
+    +'</summary>'
+    +'<div style="padding-top:4px;">'+rows+'</div>'
+    +'</details>';
+}
 
 async function updateDealDate(dealId, field, value) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
@@ -19700,6 +19736,7 @@ async function emailDealDates(dealId) {
   if (!confirm('Email the current dates to '+(deal.clientName||'your client')+'?')) return;
   var type = deal.dealType==='seller' ? 'seller' : 'buyer';
   await sendContractDatesEmail(deal.clientUid, type, dates);
+  logDealComm(dealId, 'dates', 'Contract dates update');
   try { showDealToast('Dates email sent to client','',null); } catch(e){}
 }
 window.emailDealDates = emailDealDates;
