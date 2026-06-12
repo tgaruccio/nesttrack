@@ -3255,6 +3255,7 @@ var BUYER_CONTRACT_FIELDS = [
   {key:'inspectionDeadline',label:'Inspection Deadline',       icon:'🔍'},
   {key:'appraisalDeadline', label:'Appraisal Deadline',        icon:'🏦'},
   {key:'financingDeadline', label:'Financing / Loan Commitment Deadline', icon:'📄'},
+  {key:'walkthroughDate',   label:'Final Walkthrough',         icon:'🏁'},
   {key:'closingDate',       label:'Closing Date',              icon:'🔑'},
 ];
 
@@ -3264,6 +3265,7 @@ var SELLER_CONTRACT_FIELDS = [
   {key:'inspectionDeadline',label:'Inspection Deadline',       icon:'🔍'},
   {key:'appraisalDeadline', label:'Appraisal Deadline',        icon:'🏦'},
   {key:'financingDeadline', label:'Buyer Financing Deadline',  icon:'📄'},
+  {key:'walkthroughDate',   label:'Final Walkthrough',         icon:'🏁'},
   {key:'closingDate',       label:'Closing Date',              icon:'🔑'},
 ];
 
@@ -11707,6 +11709,7 @@ function cdmFill(closingDays) {
       inspectionDeadline: cdmAddDays(today, 7),
       appraisalDeadline:  cdmAddDays(today, closingDays === 30 ? 21 : closingDays === 45 ? 30 : 45),
       financingDeadline:  cdmAddDays(today, closingDays - 5),
+      walkthroughDate:    cdmAddDays(today, closingDays - 1),
       closingDate:        cdmAddDays(today, closingDays)
     };
   }
@@ -11829,9 +11832,11 @@ async function saveContractDates(sendEmail) {
       }
       var dealUpdate = {
         contractDate:   dates.acceptanceDate       || null,
+        earnestDate:    dates.earnestMoneyDue       || null,
         closingDate:    dates.closingDate          || null,
         inspectionDate: dates.inspectionDeadline   || null,
         appraisalDate:  dates.appraisalDeadline    || null,
+        walkthroughDate: dates.walkthroughDate     || null,
         financingDate:  dates.financingDeadline    || null,
       };
       if (linkedDeals.length) {
@@ -11950,6 +11955,7 @@ function _dealDatesObj(deal) {
     closingDate:        deal.closingDate     || null,
     inspectionDeadline: deal.inspectionDate  || null,
     appraisalDeadline:  deal.appraisalDate   || null,
+    walkthroughDate:    deal.walkthroughDate || null,
     financingDeadline:  deal.financingDate   || null
   };
   return Object.keys(o).some(function(k){ return o[k]; }) ? o : null;
@@ -19429,7 +19435,7 @@ function renderDealCards(deals) {
       +'<select onchange="setDealStep(\''+deal.id+'\',parseInt(this.value))" style="flex:1;min-width:0;font-size:12px;padding:4px 6px;border:1px solid '+tileBdr+';border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'+_stepOpts+'</select>'
       +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
-      +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate'],['Appraisal','appraisalDate'],['Walkthrough','walkthroughDate'],['Financing','financingDate']].map(function(pair,i){
+      +[['Contract','contractDate'],['Earnest','earnestDate'],['Closing','closingDate'],['Inspection','inspectionDate'],['Appraisal','appraisalDate'],['Walkthrough','walkthroughDate'],['Financing','financingDate']].map(function(pair,i){
         var label=pair[0],key=pair[1],val=deal[key]||'';
         return '<div style="flex:1;padding:7px 10px;'+(i>0?'border-left:1px solid var(--border);':'')+'">'
           +'<div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;margin-bottom:2px;">'+label+'</div>'
@@ -19863,6 +19869,7 @@ async function emailDealDates(dealId) {
     closingDate:        deal.closingDate     || null,
     inspectionDeadline: deal.inspectionDate  || null,
     appraisalDeadline:  deal.appraisalDate   || null,
+    walkthroughDate:    deal.walkthroughDate || null,
     financingDeadline:  deal.financingDate   || null
   };
   if (!Object.keys(dates).some(function(k){ return dates[k]; })) { alert('No dates set on this deal yet.'); return; }
