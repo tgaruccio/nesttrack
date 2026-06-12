@@ -16418,6 +16418,22 @@ async function loadDeals() {
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
+    // One-time backfill: deals created before per-deal step existed have no `step`,
+    // so every surface falls back to the client-level value. Copy the linked client's
+    // current step onto any deal missing one (skips deals that already have a step).
+    try {
+      if (typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
+        for (var _bi=0; _bi<_deals.length; _bi++) {
+          var _dl = _deals[_bi];
+          if (_dl.step != null) continue;
+          var _cl = allBuyers.find(function(b){ return b.uid===_dl.clientUid; });
+          if (!_cl) continue;
+          var _cs = _dl.dealType==='seller' ? (_cl.currentSellerStep||0) : (_cl.currentStep||0);
+          _dl.step = _cs;
+          await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',_dl.id), { step: _cs });
+        }
+      }
+    } catch(bfErr){ console.log('step backfill:', bfErr.message); }
     _dealsLoaded = true;
   } catch(e) { console.log('loadDeals error:', e.message); }
 }
