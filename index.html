@@ -3136,14 +3136,14 @@ window.dispatchEvent(new Event('firebase-ready'));
 const PROXY_URL = 'https://app.tom-b52.workers.dev';
 // ─── ONESIGNAL CONFIG ───
 const ONESIGNAL_APP_ID = 'effa5e11-e85f-4b00-bf87-1f6d415ff51e';
-const GOOGLE_PLACES_KEY = ''; // Optional: add your Google Places API key for address autocomplete
+const GOOGLE_PLACES_KEY = ''; // Disabled: legacy Places Autocomplete widget is blocked for new Google customers (since Mar 1 2025). Needs migration to PlaceAutocompleteElement before re-enabling.
 
 // ── Single model constant — only update this one line when Anthropic releases new versions ──
 const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 
 // Setup Google Places autocomplete on an input element
 function setupPlacesAC(inputId) {
-  if (!GOOGLE_PLACES_KEY || !window.google || !window.google.maps) return;
+  if (!GOOGLE_PLACES_KEY || !window.google || !window.google.maps || !window.google.maps.places) return;
   try {
     const input = document.getElementById(inputId);
     if (!input) return;
@@ -3153,10 +3153,38 @@ function setupPlacesAC(inputId) {
     });
     ac.addListener('place_changed', () => {
       const place = ac.getPlace();
-      if (place && place.formatted_address) input.value = place.formatted_address;
+      if (place && place.formatted_address) {
+        input.value = place.formatted_address;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     });
   } catch(e) { console.log('Places AC:', e.message); }
 }
+
+// Load the Google Maps JS (Places library) once, if a key is configured
+(function _loadGoogleMaps(){
+  if (!GOOGLE_PLACES_KEY) return;
+  if (window.google && window.google.maps) return;
+  if (document.getElementById('gmaps-js')) return;
+  var s = document.createElement('script');
+  s.id = 'gmaps-js';
+  s.async = true;
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_PLACES_KEY) + '&libraries=places';
+  document.head.appendChild(s);
+})();
+
+// Lazily attach address autocomplete to any address field the user focuses (handles dynamically rendered forms)
+var _AC_ADDR_IDS = ['off-addr','nbhd-addr','mv-addr','sc-addr','val-addr','f-addr','t-addr','lm-address','appt-address','inv-address','nd-address','ld-address','ms-address','bd-title-address'];
+document.addEventListener('focusin', function(e){
+  var el = e.target;
+  if (!el || el.tagName !== 'INPUT' || el.dataset.acAttached) return;
+  var isAddr = el.getAttribute('autocomplete') === 'street-address' || _AC_ADDR_IDS.indexOf(el.id) !== -1;
+  if (!isAddr) return;
+  if (!GOOGLE_PLACES_KEY || !(window.google && window.google.maps && window.google.maps.places)) return;
+  if (!el.id) el.id = 'ac-addr-' + Math.random().toString(36).slice(2,8);
+  el.dataset.acAttached = '1';
+  setupPlacesAC(el.id);
+});
 
 async function claudeAPI(body, _attempt) {
   if (!PROXY_URL || PROXY_URL === 'PASTE_YOUR_WORKER_URL_HERE') {
@@ -20117,7 +20145,32 @@ function _dedupeDeals() {
 }
 window._dedupeDeals = _dedupeDeals;
 
-async function syncDealStatusFromStep(uid) { return; }
+async function syncDealStatusFromStep(uid) {
+  // PHASE 0 (deal-centric re-root) — dual-write the client's journey STEP onto their linked deal(s).
+  // Deliberately does NOT touch deal.status (auto-status sync was intentionally disabled).
+  // Additive only: nothing reads deal.step yet, so this changes no visible behavior.
+  try {
+    if (!_deals || !_deals.length) return;
+    var b = (allBuyers || []).find(function(x){ return x.uid === uid; });
+    if (!b) return;
+    var agentId = userProfile.agentId || 'tom';
+    var mirror = [
+      { type: 'buyer',  step: (b.currentStep != null ? b.currentStep : null) },
+      { type: 'seller', step: (b.currentSellerStep != null ? b.currentSellerStep : null) }
+    ];
+    for (var m = 0; m < mirror.length; m++) {
+      if (mirror[m].step == null) continue;
+      var linked = _deals.filter(function(d){ return d.clientUid === uid && d.dealType === mirror[m].type; });
+      for (var i = 0; i < linked.length; i++) {
+        if (linked[i].step === mirror[m].step) continue; // already in sync
+        linked[i].step = mirror[m].step;
+        linked[i].lastStepUpdate = Date.now();
+        await fb.updateDoc(fb.doc(fb.db, 'agents', agentId, 'deals', linked[i].id),
+          { step: mirror[m].step, lastStepUpdate: fb.serverTimestamp() });
+      }
+    }
+  } catch(e) { console.log('step->deal sync:', e.message); }
+}
 window.syncDealStatusFromStep = syncDealStatusFromStep;
 
 // One-time Firestore repair: remove duplicates + reset all auto-set statuses
