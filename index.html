@@ -16387,7 +16387,7 @@ window.debugShowingTime = debugShowingTime;
 
 var _deals = [];
 var _dealsLoaded = false;
-var _activeFilter = 'active';
+var _activeFilter = 'pipeline';
 
 var DEAL_STATUSES = ['Listed','Under Contract','Closed'];
 var DEAL_STATUS_COLORS = {
@@ -16493,6 +16493,7 @@ async function renderDealTracker() {
     +'<button class="btn btn-sm btn-g" onclick="openNewDealModal()">+ New Deal</button>'
     +'</div>';
   html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="deal-filter-chips">'
+    +'<button class="btn btn-sm" id="dchip-pipeline" onclick="filterDeals(\'pipeline\')">Pipeline</button>'
     +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')">Listed</button>'
     +'<button class="btn btn-sm" id="dchip-contract" onclick="filterDeals(\'contract\')">Under Contract</button>'
     +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
@@ -19385,7 +19386,7 @@ function renderDealCards(deals) {
     var total = checklist.length;
     var notes = deal.notes || '';
     var typeLabel = deal.dealType==='both' ? 'Buyer + Seller' : deal.dealType==='seller' ? 'Seller' : 'Buyer';
-    var autoStatus = deal.status || deal._storedStatus || 'Listed';
+    var autoStatus = dealStatusFromStep(deal);
     var hasAddr = deal.address && deal.address.trim();
     var tileBg   = deal.dealType === 'seller' ? '#FEF3C7' : '#ECFDF5';
     var tileBdr  = deal.dealType === 'seller' ? '#F59E0B' : '#6EE7B7';
@@ -19445,9 +19446,6 @@ function renderDealCards(deals) {
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
       +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Send Timeline</button>':'')
       +'<select onchange="setDealType(\''+deal.id+'\',this.value)" title="Deal type" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="buyer"'+(deal.dealType!=='seller'?' selected':'')+'>\ud83d\udd0d Buyer</option><option value="seller"'+(deal.dealType==='seller'?' selected':'')+'>\ud83c\udfe1 Seller</option></select>'
-      +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
-      +['Listed','Under Contract','Closed'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
-      +'</select>'
       +'<button class="btn btn-sm" onclick="deleteDeal(\''+deal.id+'\')" style="color:#E24B4A;">\ud83d\uddd1</button>'
       +'</div>'
       +'</div>'
@@ -19670,8 +19668,9 @@ async function setDealStep(dealId, next) {
   if (next === cur) return;
   var agentId = userProfile.agentId||'tom';
   deal.step = next; deal.lastStepUpdate = Date.now();
+  deal.status = dealStatusFromStep(deal); deal._storedStatus = deal.status;
   try {
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { step: next, lastStepUpdate: fb.serverTimestamp() });
+    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { step: next, status: deal.status, lastStepUpdate: fb.serverTimestamp() });
     // reverse dual-write: keep the client journey field in sync during the transition
     if (deal.clientUid) {
       var cf = isSeller ? 'currentSellerStep' : 'currentStep';
@@ -19878,6 +19877,22 @@ function editDealAddress(dealId) {
 window.editDealAddress = editDealAddress;
 
 // ── Filter deals by status ──
+// Derive the Deal Tracker bucket from the deal's stage (the stage drives the tab — no manual status).
+function dealStatusFromStep(deal) {
+  var isSeller = deal.dealType === 'seller';
+  var step = (deal.step != null) ? deal.step : 0;
+  if (isSeller) {
+    if (step >= 13) return 'Closed';
+    if (step >= 9)  return 'Under Contract';
+    if (step >= 6)  return 'Listed';
+    return 'Pipeline';
+  }
+  if (step >= 11) return 'Closed';
+  if (step >= 5)  return 'Under Contract';
+  return 'Pipeline';
+}
+window.dealStatusFromStep = dealStatusFromStep;
+
 function filterDeals(tab) {
   _activeFilter = tab;
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
@@ -19886,11 +19901,12 @@ function filterDeals(tab) {
   var chip = document.getElementById('dchip-'+tab);
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
   var filtered = _deals.filter(function(d){
-    var status = d.status || d._storedStatus || 'Listed';
-    if (tab === 'closed') return status === 'Closed';
+    var status = dealStatusFromStep(d);
+    if (tab === 'pipeline') return status === 'Pipeline';
+    if (tab === 'active')   return status === 'Listed';
     if (tab === 'contract') return status === 'Under Contract';
-    // active tab = Listed + Active + On Market + anything else not closed/contract
-    return status !== 'Closed' && status !== 'Under Contract';
+    if (tab === 'closed')   return status === 'Closed';
+    return true;
   });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
