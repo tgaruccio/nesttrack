@@ -14442,9 +14442,10 @@ async function acceptOfferStartTransaction(listingId, offerId) {
     Object.assign(deal, upd);
     try { await fb.updateDoc(_dealDoc(deal.id), upd); } catch(e){ console.log('acceptOffer deal write:', e.message); }
 
-    // Land on the Deal Tracker, then advance to Under Contract — opens the pre-filled modal + UC email.
-    if (typeof switchAgentTab==='function') switchAgentTab('deals');
+    // Advance to Under Contract — opens the pre-filled dates modal + UC email — then land
+    // directly on THIS deal (Under Contract tab, scrolled to and highlighted), not the list.
     if (typeof setDealStep==='function') await setDealStep(deal.id, 9);
+    if (typeof _gotoDeal==='function') _gotoDeal(deal.id);
   } catch(e) { alert('Could not start the transaction: '+e.message); }
 }
 window.acceptOfferStartTransaction = acceptOfferStartTransaction;
@@ -16487,23 +16488,16 @@ async function loadDeals() {
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
-    // Phase 3 (Team): scope the deal feed without ever hiding the lead's own work.
-    // Deals load from the team-lead's path (_dealCol), so a different team is a different
-    // collection entirely — outside agents never appear here. Within the team path:
-    //   • a co-agent sees only deals they're agent/co-agent on
-    //   • the lead sees everything EXCEPT a deal clearly owned by another agent whose
-    //     client isn't theirs (a co-agent's own separate client). Legacy/unstamped or
-    //     unidentifiable deals always stay visible to the lead — fail-open, never lose data.
-    if (!(typeof isTeamLeader==='function' && isTeamLeader() && _adminShowAll) && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
+    // Phase 3 (Team): the team leader (or solo agent) ALWAYS sees their full deal path —
+    // never filtered, so the feed can't disappear. Deals load from the lead's path, so
+    // other teams are a different collection entirely. Only a true co-agent (non-leader)
+    // gets a narrowed view: just the deals they're agent or co-agent on.
+    if (!(typeof isTeamLeader==='function' && isTeamLeader()) && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
       var _meId = (userProfile && userProfile.agentId) || 'tom';
-      var _amLead = (typeof isTeamLeader==='function' && isTeamLeader());
       _deals = _deals.filter(function(d){
-        if (d.agentId === _meId) return true;                         // I own it (stamped)
-        if (_amLead && !d.agentId) return true;                       // lead keeps unstamped/legacy deals
+        if (d.agentId === _meId) return true;
         var _c = allBuyers.find(function(b){ return b.uid === d.clientUid; });
-        if (_c && (_c.agentId === _meId || _c.coAgentId === _meId)) return true; // I'm agent/co-agent on the client
-        if (_amLead && !_c) return true;                              // lead: client not identifiable → don't hide
-        return false;                                                 // clearly another agent's own client
+        return _c && (_c.agentId === _meId || _c.coAgentId === _meId);
       });
     }
     // One-time backfill: deals created before per-deal step existed have no `step`,
@@ -20023,14 +20017,17 @@ window._stampDealMembers = _stampDealMembers;
 
 // Team: all deal reads/writes resolve to the team's shared path. Solo agents fall back to their own id.
 function _dealTeamId() {
+  var me = (userProfile && userProfile.agentId) || 'tom';
+  // Team leaders ALWAYS load their own team's deal path — never derive, even if they
+  // happen to be a co-agent on some client. This is the safeguard against an empty feed.
+  if (typeof isTeamLeader==='function' && isTeamLeader()) return me;
   if (userProfile && userProfile.teamId) return userProfile.teamId;
-  var me = userProfile && userProfile.agentId;
-  // Co-agent: derive team lead from a co-assigned client (one I co-agent but don't own)
-  if (me && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
+  // A true co-agent (non-leader) derives their team lead from a client they co-agent but don't own.
+  if (typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
     var co = allBuyers.find(function(b){ return b && b.coAgentId === me && b.agentId && b.agentId !== me; });
     if (co) return co.agentId;
   }
-  return me || 'tom';
+  return me;
 }
 function _amTeamLead() { var me = userProfile && userProfile.agentId; return !me || _dealTeamId() === me; }
 function _dealCol() { return fb.collection(fb.db,'agents',_dealTeamId(),'deals'); }
