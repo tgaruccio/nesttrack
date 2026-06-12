@@ -11800,7 +11800,7 @@ async function saveContractDates(sendEmail) {
         for (var di=0; di<linkedDeals.length; di++) {
           var fullUpdate = Object.assign({}, dealUpdate, { status: 'Under Contract' });
           Object.assign(linkedDeals[di], fullUpdate);
-          await fb.updateDoc(fb.doc(fb.db,'agents',agentId2,'deals',linkedDeals[di].id), fullUpdate);
+          await fb.updateDoc(_dealDoc(linkedDeals[di].id), fullUpdate);
           // Remove stale auto-reminders so they re-inject with new dates
           var dealId = linkedDeals[di].id;
           _todos = _todos.filter(function(t){
@@ -11827,7 +11827,7 @@ async function saveContractDates(sendEmail) {
           commMode:    'dollar',
           createdAt:   fb.serverTimestamp()
         }, dealUpdate);
-        _stampDealMembers(newDeal, agentId2); var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId2,'deals'), newDeal);
+        _stampDealMembers(newDeal, agentId2); var ref = await fb.addDoc(_dealCol(), newDeal);
         newDeal.id = ref.id;
         if (!_deals) _deals = [];
         _deals.push(newDeal);
@@ -12104,7 +12104,7 @@ async function loadClientDeals() {
     var uid = (typeof _previewMode!=='undefined' && _previewMode && _previewBuyerUid) ? _previewBuyerUid : (currentUser && currentUser.uid);
     var agentId = userProfile && userProfile.agentId;
     if (!uid || !agentId) return;
-    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'agents',agentId,'deals'), fb.where('clientUid','==',uid)));
+    var snap = await fb.getDocs(fb.query(_dealCol(), fb.where('clientUid','==',uid)));
     _clientDeals = [];
     snap.forEach(function(dd){ _clientDeals.push(Object.assign({id:dd.id}, dd.data())); });
     var buyers = _clientDeals.filter(function(d){ return d.dealType!=='seller'; });
@@ -14155,7 +14155,7 @@ async function createDealFromListing(listingId) {
       offerListingId: listingId,
     };
     var agentId = userProfile.agentId || 'tom';
-    await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(_stampDealMembers(dealData, agentId),{createdAt:fb.serverTimestamp()}));
+    await fb.addDoc(_dealCol(), Object.assign(_stampDealMembers(dealData, agentId),{createdAt:fb.serverTimestamp()}));
     await loadDeals();
     if (typeof renderDealTracker === 'function') renderDealTracker();
     showDealToast('Deal added to Deal Tracker!', 'View Deal', function(){ switchAgentTab('deals'); });
@@ -16404,7 +16404,7 @@ var SELLER_PREFILLS = [
 async function loadDeals() {
   var agentId = userProfile.agentId || 'tom';
   try {
-    var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
+    var snap = await fb.getDocs(_dealCol());
     _deals = [];
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
@@ -16428,7 +16428,7 @@ async function loadDeals() {
           if (!_cl) continue;
           var _cs = _dl.dealType==='seller' ? (_cl.currentSellerStep||0) : (_cl.currentStep||0);
           _dl.step = _cs;
-          await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',_dl.id), { step: _cs });
+          await fb.updateDoc(_dealDoc(_dl.id), { step: _cs });
         }
       }
     } catch(bfErr){ console.log('step backfill:', bfErr.message); }
@@ -16442,7 +16442,7 @@ async function loadDeals() {
         if (!_mem[_own]) _mem[_own] = 'lead';
         _md.members = _mem;
         _md.memberIds = Object.keys(_mem);
-        await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',_md.id), { members: _md.members, memberIds: _md.memberIds });
+        await fb.updateDoc(_dealDoc(_md.id), { members: _md.members, memberIds: _md.memberIds });
       }
     } catch(mfErr){ console.log('member backfill:', mfErr.message); }
     _dealsLoaded = true;
@@ -16454,9 +16454,9 @@ window.loadDeals = loadDeals;
 async function saveDeal(dealId, data) {
   var agentId = userProfile.agentId || 'tom';
   if (dealId) {
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), data);
+    await fb.updateDoc(_dealDoc(dealId), data);
   } else {
-    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(_stampDealMembers(data, agentId),{createdAt:fb.serverTimestamp()}));
+    var ref = await fb.addDoc(_dealCol(), Object.assign(_stampDealMembers(data, agentId),{createdAt:fb.serverTimestamp()}));
     return ref.id;
   }
 }
@@ -19547,7 +19547,7 @@ function showPrefillOptions(dealId, dealType) {
   if (confirm('Add '+newItems.length+' standard checklist items for this deal type?')) {
     var checklist = (deal&&deal.checklist||[]).concat(newItems.map(function(t){ return {text:t,done:false}; }));
     var agentId = userProfile.agentId||'tom';
-    fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:checklist}).then(function(){
+    fb.updateDoc(_dealDoc(dealId),{checklist:checklist}).then(function(){
       var d = _deals.find(function(x){ return x.id===dealId; });
       if (d) d.checklist = checklist;
       var el = document.getElementById('deal-checklist-'+dealId);
@@ -19580,7 +19580,7 @@ async function addChecklistItem(dealId) {
   deal.checklist = toSave;
 
   var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:toSave});
+  await fb.updateDoc(_dealDoc(dealId),{checklist:toSave});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, merged);
 }
@@ -19612,7 +19612,7 @@ async function toggleChecklistItem(dealId, idx, checked) {
     if (item.done || !sPrefills.includes(item.text)) saveList.push(item);
   });
   deal.checklist = saveList;
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:saveList});
+  await fb.updateDoc(_dealDoc(dealId),{checklist:saveList});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, deal._mergedChecklist || deal.checklist);
   if (checked && deal.clientUid) showTaskEmailPrompt(deal.clientUid, itemText);
@@ -19624,7 +19624,7 @@ async function removeChecklistItem(dealId, idx) {
   if (!deal || !deal.checklist) return;
   deal.checklist.splice(idx, 1);
   var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{checklist:deal.checklist});
+  await fb.updateDoc(_dealDoc(dealId),{checklist:deal.checklist});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
 }
@@ -19637,7 +19637,7 @@ async function saveDealNotes(dealId) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (deal) deal.notes = notes;
   var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{notes:notes});
+  await fb.updateDoc(_dealDoc(dealId),{notes:notes});
 }
 window.saveDealNotes = saveDealNotes;
 
@@ -19646,7 +19646,7 @@ async function updateDealStatus(dealId, status) {
   if (deal) { deal.status = status; deal._storedStatus = status; }
   var agentId = userProfile.agentId||'tom';
   try {
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), {status:status});
+    await fb.updateDoc(_dealDoc(dealId), {status:status});
   } catch(e) { console.log('updateDealStatus err:', e.message); }
   filterDeals(_activeFilter);
 }
@@ -19667,7 +19667,7 @@ async function setDealStep(dealId, next) {
   deal.step = next; deal.lastStepUpdate = Date.now();
   deal.status = dealStatusFromStep(deal); deal._storedStatus = deal.status;
   try {
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { step: next, status: deal.status, lastStepUpdate: fb.serverTimestamp() });
+    await fb.updateDoc(_dealDoc(dealId), { step: next, status: deal.status, lastStepUpdate: fb.serverTimestamp() });
     // reverse dual-write: keep the client journey field in sync during the transition
     if (deal.clientUid) {
       var cf = isSeller ? 'currentSellerStep' : 'currentStep';
@@ -19708,7 +19708,7 @@ async function setDealType(dealId, type) {
   if (!deal) return;
   deal.dealType = type;
   var agentId = userProfile.agentId||'tom';
-  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { dealType: type }); }
+  try { await fb.updateDoc(_dealDoc(dealId), { dealType: type }); }
   catch(e){ console.log('setDealType:', e.message); }
   filterDeals(_activeFilter);
 }
@@ -19772,7 +19772,7 @@ async function addDealParty(dealId) {
   if (!deal.parties) deal.parties = [];
   deal.parties.push({ role:role, name:name, email:email, phone:phone, showClient:_partyDefaultShow(role) });
   var agentId = userProfile.agentId||'tom';
-  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
+  try { await fb.updateDoc(_dealDoc(dealId), { parties: deal.parties }); }
   catch(e){ console.log('addDealParty:', e.message); }
   filterDeals(_activeFilter);
 }
@@ -19784,7 +19784,7 @@ async function toggleDealPartyShow(dealId, idx) {
   var cur = (p.showClient!==undefined) ? p.showClient : _partyDefaultShow(p.role);
   p.showClient = !cur;
   var agentId = userProfile.agentId||'tom';
-  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
+  try { await fb.updateDoc(_dealDoc(dealId), { parties: deal.parties }); }
   catch(e){ console.log('toggleDealPartyShow:', e.message); }
   filterDeals(_activeFilter);
 }
@@ -19794,7 +19794,7 @@ async function removeDealParty(dealId, idx) {
   if (!deal || !deal.parties) return;
   deal.parties.splice(idx, 1);
   var agentId = userProfile.agentId||'tom';
-  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
+  try { await fb.updateDoc(_dealDoc(dealId), { parties: deal.parties }); }
   catch(e){ console.log('removeDealParty:', e.message); }
   filterDeals(_activeFilter);
 }
@@ -19821,7 +19821,7 @@ async function logDealComm(dealId, type, subject) {
   if (!deal.comms) deal.comms = [];
   deal.comms.push({ ts: Date.now(), type: type, subject: subject });
   var agentId = userProfile.agentId||'tom';
-  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { comms: deal.comms }); }
+  try { await fb.updateDoc(_dealDoc(dealId), { comms: deal.comms }); }
   catch(e){ console.log('logDealComm:', e.message); }
   filterDeals(_activeFilter);
 }
@@ -19854,7 +19854,7 @@ async function updateDealDate(dealId, field, value) {
   var agentId = userProfile.agentId||'tom';
   var update = {};
   update[field] = value;
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), update);
+  await fb.updateDoc(_dealDoc(dealId), update);
 }
 window.updateDealDate = updateDealDate;
 
@@ -19882,7 +19882,7 @@ window.emailDealDates = emailDealDates;
 async function deleteDeal(dealId) {
   if (!confirm('Delete this deal? This cannot be undone.')) return;
   var agentId = userProfile.agentId||'tom';
-  await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId));
+  await fb.deleteDoc(_dealDoc(dealId));
   _deals = _deals.filter(function(d){ return d.id!==dealId; });
   var el = document.getElementById('deal-card-'+dealId);
   if (el) el.remove();
@@ -19897,7 +19897,7 @@ function editDealAddress(dealId) {
   newAddr = newAddr.trim();
   if (deal) deal.address = newAddr;
   var agentId = userProfile.agentId||'tom';
-  fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{address:newAddr}).then(function(){
+  fb.updateDoc(_dealDoc(dealId),{address:newAddr}).then(function(){
     filterDeals(_activeFilter);
   });
 }
@@ -19930,6 +19930,12 @@ function _stampDealMembers(data, ownerId) {
   return data;
 }
 window._stampDealMembers = _stampDealMembers;
+
+// Team: all deal reads/writes resolve to the team's shared path. Solo agents fall back to their own id.
+function _dealTeamId() { return (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'; }
+function _dealCol() { return fb.collection(fb.db,'agents',_dealTeamId(),'deals'); }
+function _dealDoc(id) { return fb.doc(fb.db,'agents',_dealTeamId(),'deals',id); }
+window._dealTeamId = _dealTeamId;
 
 function filterDeals(tab) {
   _activeFilter = tab;
@@ -20078,7 +20084,7 @@ async function setPropertyAddress(uid) {
     var agentId = userProfile.agentId||'tom';
     var linked = _deals.find(function(d){ return d.clientUid===uid && !d.address; });
     if (linked) {
-      await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',linked.id),{address:newAddr});
+      await fb.updateDoc(_dealDoc(linked.id),{address:newAddr});
       linked.address = newAddr;
     }
     openBuyerDetail(uid);
@@ -20119,7 +20125,7 @@ async function addDealTodo(dealId) {
   var todos = (deal.todos||[]).concat([text]);
   deal.todos = todos;
   var agentId = userProfile.agentId||'tom';
-  await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{todos:todos});
+  await fb.updateDoc(_dealDoc(dealId),{todos:todos});
   var el = document.getElementById('deal-todos-'+dealId);
   if (el) el.innerHTML = renderDealTodos(dealId, todos);
 }
@@ -20135,7 +20141,7 @@ async function checkDealTodo(dealId, idx) {
     var todos = (deal.todos||[]).filter(function(_,i){ return i!==idx; });
     deal.todos = todos;
     var agentId = userProfile.agentId||'tom';
-    await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId),{todos:todos});
+    await fb.updateDoc(_dealDoc(dealId),{todos:todos});
     var el = document.getElementById('deal-todos-'+dealId);
     if (el) el.innerHTML = renderDealTodos(dealId, todos);
   }, 700);
@@ -20258,7 +20264,7 @@ async function addToDealTracker(uid, dealType) {
   if (!existing) {
     // Double-check Firestore to prevent duplicates from stale memory
     try {
-      var fsChk = await fb.getDocs(fb.query(fb.collection(fb.db,'agents',agentId,'deals'),
+      var fsChk = await fb.getDocs(fb.query(_dealCol(),
         fb.where('clientUid','==',uid), fb.where('dealType','==',dealType)));
       if (!fsChk.empty) {
         // Found in Firestore — load into memory
@@ -20296,7 +20302,7 @@ async function addToDealTracker(uid, dealType) {
   if (typeof dealStatusFromStep === 'function') { data.status = dealStatusFromStep(data); }
   data._storedStatus = data.status;
   try {
-    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},_stampDealMembers(data, agentId),{createdAt:fb.serverTimestamp()}));
+    var ref = await fb.addDoc(_dealCol(), Object.assign({},_stampDealMembers(data, agentId),{createdAt:fb.serverTimestamp()}));
     data.id = ref.id;
     _deals.push(data);
     _dedupeDeals();
@@ -20377,7 +20383,7 @@ async function setListingAddress(uid) {
     var agentId = userProfile.agentId||'tom';
     var linked = _deals.find(function(d){ return d.clientUid===uid && d.dealType==='seller' && !d.address; });
     if (linked) {
-      await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',linked.id),{address:newAddr});
+      await fb.updateDoc(_dealDoc(linked.id),{address:newAddr});
       linked.address = newAddr;
     }
     openBuyerDetail(uid);
@@ -20488,7 +20494,7 @@ function editClientInfo(uid) {
       var fullName = (first+' '+last).trim();
       for (var i=0;i<linked.length;i++) {
         linked[i].clientName = fullName;
-        await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',linked[i].id),{clientName:fullName});
+        await fb.updateDoc(_dealDoc(linked[i].id),{clientName:fullName});
       }
       overlay.remove();
       openBuyerDetail(uid);
@@ -20554,7 +20560,7 @@ window.syncDealStatusFromStep = syncDealStatusFromStep;
 // One-time Firestore repair: remove duplicates + reset all auto-set statuses
 async function repairDealTrackerData() {
   var agentId = userProfile.agentId || 'tom';
-  var snap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'deals'));
+  var snap = await fb.getDocs(_dealCol());
   var seen = {}; var updates = []; var deletes = []; var allDocs = [];
   snap.forEach(function(docSnap) { allDocs.push({ id: docSnap.id, d: docSnap.data() }); });
   allDocs.sort(function(a, b) {
@@ -20580,8 +20586,8 @@ async function repairDealTrackerData() {
   });
   var msg = 'PREVIEW:\nDelete ' + deletes.length + ' duplicate(s).\nReset status on ' + updates.length + ' deal(s).\n\nProceed?';
   if (!confirm(msg)) return;
-  for (var i = 0; i < updates.length; i++) await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',updates[i].id), updates[i].patch);
-  for (var j = 0; j < deletes.length; j++) await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'deals',deletes[j]));
+  for (var i = 0; i < updates.length; i++) await fb.updateDoc(_dealDoc(updates[i].id), updates[i].patch);
+  for (var j = 0; j < deletes.length; j++) await fb.deleteDoc(_dealDoc(deletes[j]));
   _dealsLoaded = false;
   await loadDeals();
   _dealTrackerRendering = false;
