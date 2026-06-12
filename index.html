@@ -8591,7 +8591,12 @@ function toggleAdminShowAll() {
     btn.style.color = _adminShowAll ? '#fff' : '';
     btn.style.borderColor = _adminShowAll ? '#1D9E75' : '';
   }
-  loadBuyersForAgent().then(function(){ renderBuyers(); renderAgentDashboard(); });
+  loadBuyersForAgent().then(function(){
+    renderBuyers(); renderAgentDashboard();
+    loadDeals().then(function(){
+      if (typeof filterDeals==='function' && document.getElementById('deal-cards-container')) filterDeals(typeof _activeFilter!=='undefined' ? _activeFilter : 'pipeline');
+    });
+  });
 }
 window.toggleAdminShowAll = toggleAdminShowAll;
 
@@ -16416,14 +16421,17 @@ async function loadDeals() {
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
-    // Phase 3 (Team): a co-agent loads the team lead's deal path (via _dealCol).
-    // Narrow it to only the deals whose client is co-assigned to them; the lead
-    // (or a solo agent) sees the full pipeline. Keeps co-agents scoped to their work.
-    if (!_amTeamLead() && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
+    // Phase 3 (Team): show only deals I'm assigned to — as primary agent or co-agent
+    // on the linked client (mirrors canAccessBuyer). A team leader can flip the existing
+    // "All Clients" toggle (_adminShowAll) for full team oversight. Outside agents' deals
+    // never reach here anyway: the deal path is keyed to the team lead, so a different
+    // team loads a different collection entirely.
+    if (!(typeof isTeamLeader==='function' && isTeamLeader() && _adminShowAll) && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
       var _meId = userProfile && userProfile.agentId;
       _deals = _deals.filter(function(d){
+        if (d.agentId === _meId) return true;
         var _c = allBuyers.find(function(b){ return b.uid === d.clientUid; });
-        return _c && _c.coAgentId === _meId;
+        return _c && (_c.agentId === _meId || _c.coAgentId === _meId);
       });
     }
     // One-time backfill: deals created before per-deal step existed have no `step`,
