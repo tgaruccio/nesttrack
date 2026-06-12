@@ -16487,17 +16487,23 @@ async function loadDeals() {
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
-    // Phase 3 (Team): show only deals I'm assigned to — as primary agent or co-agent
-    // on the linked client (mirrors canAccessBuyer). A team leader can flip the existing
-    // "All Clients" toggle (_adminShowAll) for full team oversight. Outside agents' deals
-    // never reach here anyway: the deal path is keyed to the team lead, so a different
-    // team loads a different collection entirely.
+    // Phase 3 (Team): scope the deal feed without ever hiding the lead's own work.
+    // Deals load from the team-lead's path (_dealCol), so a different team is a different
+    // collection entirely — outside agents never appear here. Within the team path:
+    //   • a co-agent sees only deals they're agent/co-agent on
+    //   • the lead sees everything EXCEPT a deal clearly owned by another agent whose
+    //     client isn't theirs (a co-agent's own separate client). Legacy/unstamped or
+    //     unidentifiable deals always stay visible to the lead — fail-open, never lose data.
     if (!(typeof isTeamLeader==='function' && isTeamLeader() && _adminShowAll) && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
-      var _meId = userProfile && userProfile.agentId;
+      var _meId = (userProfile && userProfile.agentId) || 'tom';
+      var _amLead = (typeof isTeamLeader==='function' && isTeamLeader());
       _deals = _deals.filter(function(d){
-        if (d.agentId === _meId) return true;
+        if (d.agentId === _meId) return true;                         // I own it (stamped)
+        if (_amLead && !d.agentId) return true;                       // lead keeps unstamped/legacy deals
         var _c = allBuyers.find(function(b){ return b.uid === d.clientUid; });
-        return _c && (_c.agentId === _meId || _c.coAgentId === _meId);
+        if (_c && (_c.agentId === _meId || _c.coAgentId === _meId)) return true; // I'm agent/co-agent on the client
+        if (_amLead && !_c) return true;                              // lead: client not identifiable → don't hide
+        return false;                                                 // clearly another agent's own client
       });
     }
     // One-time backfill: deals created before per-deal step existed have no `step`,
