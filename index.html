@@ -11827,7 +11827,7 @@ async function saveContractDates(sendEmail) {
           commMode:    'dollar',
           createdAt:   fb.serverTimestamp()
         }, dealUpdate);
-        var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId2,'deals'), newDeal);
+        _stampDealMembers(newDeal, agentId2); var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId2,'deals'), newDeal);
         newDeal.id = ref.id;
         if (!_deals) _deals = [];
         _deals.push(newDeal);
@@ -14155,7 +14155,7 @@ async function createDealFromListing(listingId) {
       offerListingId: listingId,
     };
     var agentId = userProfile.agentId || 'tom';
-    await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(dealData,{createdAt:fb.serverTimestamp()}));
+    await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(_stampDealMembers(dealData, agentId),{createdAt:fb.serverTimestamp()}));
     await loadDeals();
     if (typeof renderDealTracker === 'function') renderDealTracker();
     showDealToast('Deal added to Deal Tracker!', 'View Deal', function(){ switchAgentTab('deals'); });
@@ -16432,6 +16432,19 @@ async function loadDeals() {
         }
       }
     } catch(bfErr){ console.log('step backfill:', bfErr.message); }
+    // Phase 1 (Team): ensure every deal carries member metadata (owner = lead) for shared access.
+    try {
+      for (var _mi=0; _mi<_deals.length; _mi++) {
+        var _md = _deals[_mi];
+        if (_md.memberIds && _md.memberIds.length && _md.members) continue;
+        var _own = _md.agentId || agentId;
+        var _mem = (_md.members && typeof _md.members==='object') ? _md.members : {};
+        if (!_mem[_own]) _mem[_own] = 'lead';
+        _md.members = _mem;
+        _md.memberIds = Object.keys(_mem);
+        await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',_md.id), { members: _md.members, memberIds: _md.memberIds });
+      }
+    } catch(mfErr){ console.log('member backfill:', mfErr.message); }
     _dealsLoaded = true;
   } catch(e) { console.log('loadDeals error:', e.message); }
 }
@@ -16443,7 +16456,7 @@ async function saveDeal(dealId, data) {
   if (dealId) {
     await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), data);
   } else {
-    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(data,{createdAt:fb.serverTimestamp()}));
+    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign(_stampDealMembers(data, agentId),{createdAt:fb.serverTimestamp()}));
     return ref.id;
   }
 }
@@ -19907,6 +19920,17 @@ function dealStatusFromStep(deal) {
 }
 window.dealStatusFromStep = dealStatusFromStep;
 
+// Team: stamp owner as lead member on a new deal (members map + memberIds for shared queries).
+function _stampDealMembers(data, ownerId) {
+  if (!ownerId) ownerId = (userProfile && userProfile.agentId) || 'tom';
+  var m = (data.members && typeof data.members==='object') ? data.members : {};
+  if (!m[ownerId]) m[ownerId] = 'lead';
+  data.members = m;
+  data.memberIds = Object.keys(m);
+  return data;
+}
+window._stampDealMembers = _stampDealMembers;
+
 function filterDeals(tab) {
   _activeFilter = tab;
   document.querySelectorAll('[id^="dchip-"]').forEach(function(b){
@@ -20272,7 +20296,7 @@ async function addToDealTracker(uid, dealType) {
   if (typeof dealStatusFromStep === 'function') { data.status = dealStatusFromStep(data); }
   data._storedStatus = data.status;
   try {
-    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},data,{createdAt:fb.serverTimestamp()}));
+    var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},_stampDealMembers(data, agentId),{createdAt:fb.serverTimestamp()}));
     data.id = ref.id;
     _deals.push(data);
     _dedupeDeals();
