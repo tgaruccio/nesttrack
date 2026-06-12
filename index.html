@@ -19444,6 +19444,7 @@ function renderDealCards(deals) {
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
       +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Send Timeline</button>':'')
+      +'<select onchange="setDealType(\''+deal.id+'\',this.value)" title="Deal type" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="buyer"'+(deal.dealType!=='seller'?' selected':'')+'>\ud83d\udd0d Buyer</option><option value="seller"'+(deal.dealType==='seller'?' selected':'')+'>\ud83c\udfe1 Seller</option></select>'
       +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
       +['Listed','Under Contract','Closed'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
       +'</select>'
@@ -19695,6 +19696,17 @@ async function setDealStep(dealId, next) {
   }
 }
 window.setDealStep = setDealStep;
+
+async function setDealType(dealId, type) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  deal.dealType = type;
+  var agentId = userProfile.agentId||'tom';
+  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { dealType: type }); }
+  catch(e){ console.log('setDealType:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.setDealType = setDealType;
 
 // ─── Phase 2: Deal Parties Roster ───
 function _dealPartyRow(role, name, email, phone, idx, dealId) {
@@ -19962,11 +19974,8 @@ async function createNewDeal() {
     if (linked) name = ((linked.firstName||'')+' '+(linked.lastName||'')).trim();
   }
 
-  // Auto-fill deal type from linked client journey
-  if (clientUid) {
-    var linked2 = (myBuyers||[]).find(function(b){ return b.uid===clientUid; });
-    if (linked2 && linked2.journeyType) dealType = linked2.journeyType;
-  }
+  // (Deal type is whatever was explicitly chosen in the modal — do NOT override it
+  //  with the linked client's journeyType, which silently turned listings into buyer deals.)
 
   // Build prefill checklist
   var prefills = dealType==='seller' ? SELLER_PREFILLS :
