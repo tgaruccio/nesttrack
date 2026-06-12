@@ -11774,7 +11774,14 @@ async function saveContractDates(sendEmail) {
     renderBuyers();
     // Check UC first — if on UC step, show UC preview instead of plain timeline
     var clientForUC = (allBuyers||[]).find(function(b){ return b.uid===_cdmBuyerUid; });
-    var isUC = (_cdmType==='buyer' && clientForUC && clientForUC.currentStep===5)
+    // UC detection is deal-centric: if the linked deal is at/past Under Contract, treat as UC
+    // regardless of client-step sync timing. This makes the UC + timeline email fire reliably
+    // whether the deal went under contract from the Deal Manager OR from accepting an offer in
+    // the Offer Manager (where the client record can lag a beat behind the deal).
+    var _dealForUC = _cdmDealId ? (_deals||[]).find(function(d){ return d.id===_cdmDealId; }) : null;
+    var _dealUC = _dealForUC && ((_dealForUC.dealType==='seller' && (_dealForUC.step||0)>=9) || (_dealForUC.dealType!=='seller' && (_dealForUC.step||0)>=5));
+    var isUC = _dealUC
+            || (_cdmType==='buyer' && clientForUC && clientForUC.currentStep===5)
             || (_cdmType==='seller' && clientForUC && clientForUC.currentSellerStep===9);
     // Only send plain timeline email if NOT on UC step (UC preview includes timeline)
     if (sendEmail && !isUC) sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
