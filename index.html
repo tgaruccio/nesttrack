@@ -14140,6 +14140,7 @@ async function saveListing(existingId) {
         await fb.addDoc(_dealCol(), Object.assign(_stampDealMembers(dealData, _laid), {createdAt: fb.serverTimestamp()}));
         console.log('Listed seller deal auto-created from listing');
       } catch(de) { console.log('Deal auto-create failed:', de.message); }
+      if (typeof loadDeals==='function') { try { await loadDeals(); } catch(_e){} } // refresh so the Listed deal shows in Deal Manager
     }
     var ov = document.getElementById('listing-modal-overlay');
     if (ov) ov.remove();
@@ -14411,7 +14412,10 @@ async function acceptOfferStartTransaction(listingId, offerId) {
     if (!oSnap.exists()) { alert('Offer not found.'); return; }
     var o = Object.assign({id:offerId}, oSnap.data());
 
-    // Find the seller deal tied to this listing; create one from the listing if missing.
+    // Refresh the in-memory deal list first — the listing auto-creates the deal, and a stale
+    // list would make us create a duplicate (which dedupe then collapses, losing the right copy).
+    // Find the existing listing deal; only create one if it truly doesn't exist.
+    if (typeof loadDeals==='function') { try { await loadDeals(); } catch(_e){} }
     var deal = (_deals||[]).find(function(d){ return d.offerListingId===listingId; });
     if (!deal && typeof createDealFromListing==='function') {
       await createDealFromListing(listingId);
@@ -14450,9 +14454,13 @@ async function acceptOfferStartTransaction(listingId, offerId) {
     Object.assign(deal, upd);
     try { await fb.updateDoc(_dealDoc(deal.id), upd); } catch(e){ console.log('acceptOffer deal write:', e.message); }
 
-    // Advance to Under Contract — opens the pre-filled dates modal + UC email — then land
-    // directly on THIS deal (Under Contract tab, scrolled to and highlighted), not the list.
+    // Advance to Under Contract — this opens the pre-filled dates modal and (on approval) the
+    // UC + timeline email. Belt-and-suspenders: if the modal didn't open (e.g. the deal was
+    // already at UC), open it explicitly so the agent always gets the dates + email step.
     if (typeof setDealStep==='function') await setDealStep(deal.id, 9);
+    if (deal.clientUid && typeof openContractDatesModal==='function' && !document.getElementById('contract-dates-modal')) {
+      openContractDatesModal(deal.clientUid, 'seller', (typeof _dealDatesObj==='function'?_dealDatesObj(deal):null)||{}, deal.id);
+    }
     if (typeof _gotoDeal==='function') _gotoDeal(deal.id);
   } catch(e) { alert('Could not start the transaction: '+e.message); }
 }
