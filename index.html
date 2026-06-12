@@ -19346,6 +19346,7 @@ function renderDealCards(deals) {
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
+      +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Dates</button>':'')
       +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
       +['Listed','Under Contract','Closed'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
       +'</select>'
@@ -19684,6 +19685,24 @@ async function updateDealDate(dealId, field, value) {
   await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), update);
 }
 window.updateDealDate = updateDealDate;
+
+async function emailDealDates(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.clientUid) return;
+  var dates = {
+    acceptanceDate:     deal.contractDate   || null,
+    closingDate:        deal.closingDate     || null,
+    inspectionDeadline: deal.inspectionDate  || null,
+    appraisalDeadline:  deal.appraisalDate   || null,
+    financingDeadline:  deal.financingDate   || null
+  };
+  if (!Object.keys(dates).some(function(k){ return dates[k]; })) { alert('No dates set on this deal yet.'); return; }
+  if (!confirm('Email the current dates to '+(deal.clientName||'your client')+'?')) return;
+  var type = deal.dealType==='seller' ? 'seller' : 'buyer';
+  await sendContractDatesEmail(deal.clientUid, type, dates);
+  try { showDealToast('Dates email sent to client','',null); } catch(e){}
+}
+window.emailDealDates = emailDealDates;
 
 async function deleteDeal(dealId) {
   if (!confirm('Delete this deal? This cannot be undone.')) return;
