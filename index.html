@@ -588,7 +588,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Home Buyers Journey</div>
-      <button onclick="go('guide',document.querySelector('[data-pg=guide]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
+      <button onclick="go('youragent',document.querySelector('[data-pg=youragent]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">&#128100; My Team &#8594;</button>
     </div>
     <!-- Buyer contract timeline — filled by renderTxnTimeline() -->
     <div id="txn-buyer-card" style="display:none;border-radius:var(--r);border:1.5px solid var(--green-md);">
@@ -635,7 +635,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="home-mort-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;display:none;">
     <div style="background:linear-gradient(135deg,#185FA5,#378ADD);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Mortgage Journey</div>
-      <button onclick="go('mortgagejourney',document.querySelector('[data-pg=mortgagejourney]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
+      <button onclick="go('youragent',document.querySelector('[data-pg=youragent]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">&#128100; My Team &#8594;</button>
     </div>
     <!-- Mortgage contract timeline — filled by renderTxnTimeline() -->
     <div id="txn-mortgage-card" style="display:none;border-radius:var(--r);border:1.5px solid #93C5FD;">
@@ -680,7 +680,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="home-sell-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;display:none;">
     <div style="background:linear-gradient(135deg,#92400E,#D97706);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Home Sellers Journey</div>
-      <button onclick="go('sellertrail',document.querySelector('[data-pg=sellertrail]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">Full Trail &#8594;</button>
+      <button onclick="go('youragent',document.querySelector('[data-pg=youragent]'))" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit;">&#128100; My Team &#8594;</button>
     </div>
     <!-- Seller contract timeline — filled by renderTxnTimeline() -->
     <div id="txn-seller-card" style="display:none;border-radius:var(--r);border:1.5px solid #F59E0B;">
@@ -7878,6 +7878,16 @@ async function loadAgentDocs() {
 }
 
 // ─── DASH ───
+function _applyHomeSections() {
+  var hasBuyerDeal = (typeof _clientDeals!=='undefined') && _clientDeals.some(function(d){ return d.dealType!=='seller'; });
+  var hasSellerDeal = (typeof _clientDeals!=='undefined') && _clientDeals.some(function(d){ return d.dealType==='seller'; });
+  var buySection = document.getElementById('home-buy-section');
+  if (buySection) buySection.style.display = (hasBuyerDeal || !hasSellerDeal) ? 'block' : 'none';
+  var sellSection = document.getElementById('home-sell-section');
+  if (sellSection) sellSection.style.display = hasSellerDeal ? 'block' : 'none';
+  return hasSellerDeal;
+}
+window._applyHomeSections = _applyHomeSections;
 function renderHome() {
   // Welcome header
   var first = (userProfile && userProfile.firstName) || 'there';
@@ -7903,15 +7913,8 @@ function renderHome() {
   var mortSection = document.getElementById('home-mort-section');
   if (mortSection) mortSection.style.display = (mortStep > 0 || mortHasDates) ? 'block' : 'none';
 
-  // Show/hide buyer section — hide for seller-only clients
-  var buySection = document.getElementById('home-buy-section');
-  var isSellerOnly = jType === 'seller' || jType === 'seller-only';
-  if (buySection) buySection.style.display = isSellerOnly ? 'none' : 'block';
-
-  // Show seller section if jType includes selling OR they have seller steps/dates
-  var sellSection = document.getElementById('home-sell-section');
-  var showSeller = jType === 'both' || jType === 'seller' || jType === 'seller-only' || sellStep > 0 || sellerHasDates;
-  if (sellSection) sellSection.style.display = showSeller ? 'block' : 'none';
+  // Buyer/seller section visibility is driven by actual deals (deal-centric — no legacy ghost trails).
+  var showSeller = _applyHomeSections();
 
   // Buyer progress bar
   var buyStep = (userProfile && userProfile.currentStep) || 1;
@@ -12111,6 +12114,7 @@ async function loadClientDeals() {
     try { renderTrailMap(); } catch(e){}
     try { renderSellerTrail(); } catch(e){}
     try { renderTxnTimeline(); } catch(e){}
+    try { if (typeof _applyHomeSections==='function') _applyHomeSections(); } catch(e){}
     try { if (typeof renderYourTitleCo==='function') renderYourTitleCo(); } catch(e){}
   } catch(e){ console.log('loadClientDeals:', e.message); }
 }
