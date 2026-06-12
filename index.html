@@ -19347,7 +19347,7 @@ function renderDealCards(deals) {
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
-      +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Dates</button>':'')
+      +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Send Timeline</button>':'')
       +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
       +['Listed','Under Contract','Closed'].map(function(s){ return '<option value="'+s+'"'+(s===autoStatus?' selected':'')+'>'+s+'</option>'; }).join('')
       +'</select>'
@@ -19590,7 +19590,11 @@ async function setDealStep(dealId, next) {
     var _emap = isSeller ? (typeof SELLER_STEP_EMAILS!=='undefined'?SELLER_STEP_EMAILS:{}) : (typeof BUYER_STEP_EMAILS!=='undefined'?BUYER_STEP_EMAILS:{});
     if (_emap[next]) {
       var _choice = await stepEmailPrompt('Send the update email for this step to '+(deal.clientName||'your client')+'?');
-      if (_choice === 'send') { sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer'); logDealComm(deal.id, 'step', 'Step update email'); }
+      if (_choice === 'send') {
+        sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer');
+        var _sn = isSeller ? ((typeof SELLER_STEPS!=='undefined' && SELLER_STEPS[next-1] && SELLER_STEPS[next-1].title)||('Step '+next)) : (((typeof TIMELINE_STEPS!=='undefined' && TIMELINE_STEPS.find(function(s){return s.id===next;}))||{}).name||('Step '+next));
+        logDealComm(deal.id, 'step', 'Step update \u2014 '+_sn);
+      }
     }
   }
 }
