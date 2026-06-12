@@ -10493,35 +10493,9 @@ async function openBuyerDetail(uid, scrollTo) {
         <div style="font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;">CRM Status</div>
         <select onchange="saveClientStatus('${uid}',this.value)" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="pipeline" ${(!b.crmStatus||b.crmStatus==='auto'||b.crmStatus==='pipeline')?'selected':''}>Pipeline</option><option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option><option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option><option value="cold" ${b.crmStatus==='cold'?'selected':''}>Cold</option><option value="past" ${(b.crmStatus==='past'||b.crmStatus==='closed')?'selected':''}>Past Client</option><option value="contact" ${b.crmStatus==='contact'?'selected':''}>Contact Only</option></select>
       </div>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <div style="font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;">Journey Type</div>
-        <select onchange="setJourneyType('${uid}',this.value)" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">
-        <option value="buyer" ${(b.journeyType||'buyer')==='buyer'?'selected':''}>🏠 Buyer Only</option>
-        <option value="seller" ${b.journeyType==='seller'?'selected':''}>🏡 Seller Only</option>
-        <option value="both" ${b.journeyType==='both'?'selected':''}>🏠🏡 Buyer + Seller</option>
-      </select>
-      </div>
     </div>
     ${renderClientDealsSection(uid)}
-    <details ${(b.currentStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
-      <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:var(--green-dk);">Buying <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentStep||0)>0?'Step '+(b.currentStep||1)+' - '+(step?step.name:''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
-      <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
-        ${b.propertyAddress?`<div style='background:var(--green-lt);border:1px solid #6EE7B7;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:9px;color:var(--green-dk);font-weight:700;text-transform:uppercase;letter-spacing:0.05em;'>Purchase Address</div><div style='font-size:13px;font-weight:600;margin-top:2px;'>${b.propertyAddress}</div></div><button class='btn btn-sm' onclick='setPropertyAddress("${uid}")'>Edit</button></div>`:`<div style='border:1px dashed var(--border);padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><span style='font-size:12px;color:var(--text3);'>No purchase address yet</span><button class='btn btn-sm btn-g' onclick='setPropertyAddress("${uid}")'>+ Add</button></div>`}
-        <div>
-          
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Buyer Step</div>
-          <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${step?step.name:'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentStep||0} of 11</span></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Select step to activate buying --</option>${TIMELINE_STEPS.map(s=>`<option value="${s.id}" ${s.id===b.currentStep?'selected':''}>Step ${s.id} - ${s.name}</option>`).join('')}</select>
-            <button class="btn btn-sm btn-g" onclick="setBuyerStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','buyer')">Dates</button>
-            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','buyer')">✕</button>
-          </div>
-          ${(b.currentStep||1)>=5&&!b.buyerContractDates&&!b.contractDates?`<div style="font-size:11px;color:#D97706;margin-top:5px;">Tap Dates to set up the live transaction timeline</div>`:''}
-        </div>
-        ${((b.journeyType==='buyer'||b.journeyType==='both')&&(b.currentStep||0)>0)?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';});return h?`<button class='btn btn-g' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;'>View in Deal Tracker &rarr;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","buyer")' style='width:100%;font-size:12px;background:var(--green);color:#fff;border-color:var(--green);'>+ Add to Deal Tracker</button>`;})():''}        <div id="bd-timeline-buyer" style="margin-top:8px;"></div>
-      </div>
-    </details>
+    ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`}
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
@@ -10549,24 +10523,7 @@ async function openBuyerDetail(uid, scrollTo) {
         </div>
       </div>
     </details>
-    <details ${(b.currentSellerStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
-      <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#92400E;">Selling <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentSellerStep||0)>0?'Step '+(b.currentSellerStep)+' - '+((SELLER_STEPS[(b.currentSellerStep||1)-1]||{}).title||''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
-      <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
-        ${b.listingAddress?`<div style='background:#FFFBEB;border:1px solid #D97706;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><div><div style='font-size:9px;color:#92400E;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;'>Listing Address</div><div style='font-size:13px;font-weight:600;margin-top:2px;color:#92400E;'>${b.listingAddress}</div></div><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='border-color:#D97706;color:#92400E;'>Edit</button></div>`:`<div style='border:1px dashed #D97706;padding:9px 12px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:space-between;'><span style='font-size:12px;color:#92400E;'>No listing address yet</span><button class='btn btn-sm' onclick='setListingAddress("${uid}")' style='background:#D97706;color:#fff;border-color:#D97706;'>+ Add</button></div>`}
-        <div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Seller Step</div>
-          <div style="font-size:15px;font-weight:300;font-family:'Fraunces',serif;margin-bottom:6px;">${(SELLER_STEPS[(b.currentSellerStep||1)-1]||{}).title||'Not started'} <span style="font-size:12px;color:var(--text3);">- Step ${b.currentSellerStep||0} of 13</span></div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-seller-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Select step to activate selling --</option>${SELLER_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentSellerStep||0)?'selected':''}>Step ${i+1} - ${s.title}</option>`).join('')}</select>
-            <button class="btn btn-sm btn-g" onclick="setSellerStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','seller')">Dates</button>
-            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','seller')">✕</button>
-          </div>
-        </div>
-        ${(b.currentSellerStep||0)>0?(()=>{var h=typeof _deals!=='undefined'&&_deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';});return h?`<button class='btn' onclick='closeM("buyer-modal");switchAgentTab("deals");' style='width:100%;font-size:12px;background:#D97706;color:#fff;border-color:#D97706;'>View Listing in Deal Tracker &rarr;</button>`:`<button class='btn' onclick='addToDealTracker("${uid}","seller")' style='width:100%;font-size:12px;background:#FEF3C7;color:#92400E;border-color:#D97706;'>+ Add Listing to Deal Tracker</button>`;})():''}
-        <div id="bd-timeline-seller" style="margin-top:8px;"></div>
-      </div>
-    </details>
+    ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','seller')" style="width:100%;font-size:13px;background:#D97706;color:#fff;border-color:#D97706;">🏡 Start Seller Journey</button></div>`}
     <details open style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;">Client Team<span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:12px;padding:10px 0 14px;">
@@ -20272,8 +20229,7 @@ async function addToDealTracker(uid, dealType) {
     } catch(e) { console.log('FS check err:', e.message); }
   }
   if (existing) {
-    closeM('buyer-modal');
-    switchAgentTab('deals');
+    _gotoDeal(existing.id);
     return;
   }
   var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
@@ -20291,14 +20247,27 @@ async function addToDealTracker(uid, dealType) {
     closingDate: clientDates.closingDate || null,
     inspectionDate: clientDates.inspectionDeadline || null,
     status: dealType==='seller' ? 'On Market' : 'Under Contract',
+    step: (dealType==='seller' ? (b.currentSellerStep||0) : (b.currentStep||0)) || 1,
     checklist: [], notes: '', agentId: agentId,
   };
+  if (typeof dealStatusFromStep === 'function') { data.status = dealStatusFromStep(data); }
   data._storedStatus = data.status;
   try {
     var ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'deals'), Object.assign({},data,{createdAt:fb.serverTimestamp()}));
     data.id = ref.id;
     _deals.push(data);
     _dedupeDeals();
+
+    // Auto-maintain the client's journey fields from their deals (drives portal section visibility until cutover).
+    try {
+      var otherType = dealType==='seller' ? 'buyer' : 'seller';
+      var hasOther = _deals.some(function(d){ return d.clientUid===uid && d.dealType===otherType; });
+      var newJType = hasOther ? 'both' : (dealType==='seller' ? 'seller' : 'buyer');
+      var cf = dealType==='seller' ? 'currentSellerStep' : 'currentStep';
+      var jpatch = { journeyType: newJType }; jpatch[cf] = data.step;
+      await fb.updateDoc(fb.doc(fb.db,'users',uid), jpatch);
+      if (b) { b.journeyType = newJType; b[cf] = data.step; }
+    } catch(e){ console.log('journey dual-write:', e.message); }
 
     // For seller deals — auto-create listing in Offer Manager if not already there
     if (dealType === 'seller' && addr) {
@@ -20327,11 +20296,31 @@ async function addToDealTracker(uid, dealType) {
       } catch(e) { console.log('Offer listing auto-create err:', e.message); }
     }
 
-    closeM('buyer-modal');
-    switchAgentTab('deals');
+    _gotoDeal(data.id);
   } catch(e) { alert('Failed to create deal: '+e.message); }
 }
 window.addToDealTracker = addToDealTracker;
+
+function _gotoDeal(dealId) {
+  var d = (_deals||[]).find(function(x){ return x.id===dealId; });
+  closeM('buyer-modal');
+  if (typeof switchAgentTab==='function') switchAgentTab('deals');
+  if (d && typeof dealStatusFromStep==='function') {
+    var st = dealStatusFromStep(d);
+    _activeFilter = (st==='Closed')?'closed':(st==='Under Contract')?'contract':(st==='Listed')?'active':'pipeline';
+  }
+  setTimeout(function(){
+    try { filterDeals(_activeFilter); } catch(e){}
+    var el = document.getElementById('deal-card-'+dealId);
+    if (el) {
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.style.transition='box-shadow .3s';
+      el.style.boxShadow='0 0 0 3px var(--green)';
+      setTimeout(function(){ el.style.boxShadow=''; }, 1800);
+    }
+  }, 350);
+}
+window._gotoDeal = _gotoDeal;
 
 async function setListingAddress(uid) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
