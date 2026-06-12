@@ -19272,6 +19272,7 @@ function renderDealCards(deals) {
     var _stepArr = _isSellerDeal ? (typeof SELLER_STEPS!=='undefined'?SELLER_STEPS:[]) : (typeof TIMELINE_STEPS!=='undefined'?TIMELINE_STEPS:[]);
     var _maxStep = _isSellerDeal ? _stepArr.length : (_stepArr.length ? _stepArr[_stepArr.length-1].id : 0);
     var _stepName = clientStep===0 ? 'Not started' : (_isSellerDeal ? ((_stepArr[clientStep-1]&&_stepArr[clientStep-1].title)||'Step '+clientStep) : ((_stepArr.find(function(s){return s.id===clientStep;})||{}).name||'Step '+clientStep));
+    var _stepOpts = '<option value="0"'+(clientStep===0?' selected':'')+'>0 \u00b7 Not started</option>' + _stepArr.map(function(s,i){ var _n=_isSellerDeal?(i+1):s.id; var _lbl=_isSellerDeal?(s.title||('Step '+_n)):(s.name||('Step '+_n)); return '<option value="'+_n+'"'+(clientStep===_n?' selected':'')+'>'+_n+' \u00b7 '+partnerEsc(_lbl)+'</option>'; }).join('');
     // Use ALL tasks for deal type — full transaction view
     var allPrefills = deal.dealType==='seller' ? (typeof ALL_SELLER_TASKS!=='undefined' ? ALL_SELLER_TASKS : []) : (typeof ALL_BUYER_TASKS!=='undefined' ? ALL_BUYER_TASKS : []);
     var customChecklist = deal.checklist || [];
@@ -19314,12 +19315,9 @@ function renderDealCards(deals) {
       +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;">'+autoStatus+'</div>'
       +'</div>'
       +'</div>'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.55);border-bottom:1px solid '+tileBdr+';">'
-      +'<div style="font-size:12px;font-weight:600;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+_stepName+' <span style="color:var(--text3);font-weight:500;">('+clientStep+'/'+_maxStep+')</span></div>'
-      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
-      +'<button class="btn btn-sm" onclick="advanceDealStep(\''+deal.id+'\',-1)" title="Step back" style="padding:3px 9px;">\u25C2</button>'
-      +'<button class="btn btn-sm btn-g" onclick="advanceDealStep(\''+deal.id+'\',1)" style="padding:3px 11px;">Advance \u25B8</button>'
-      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.55);border-bottom:1px solid '+tileBdr+';">'
+      +'<span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;flex-shrink:0;">Stage</span>'
+      +'<select onchange="setDealStep(\''+deal.id+'\',parseInt(this.value))" style="flex:1;min-width:0;font-size:12px;padding:4px 6px;border:1px solid '+tileBdr+';border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'+_stepOpts+'</select>'
       +'</div>'
       +'<div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface2);">'
       +[['Contract','contractDate'],['Closing','closingDate'],['Inspection','inspectionDate'],['Appraisal','appraisalDate'],['Walkthrough','walkthroughDate'],['Financing','financingDate']].map(function(pair,i){
@@ -19559,16 +19557,16 @@ async function updateDealStatus(dealId, status) {
 }
 window.updateDealStatus = updateDealStatus;
 
-async function advanceDealStep(dealId, dir) {
+async function setDealStep(dealId, next) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
-  if (!deal) return;
+  if (!deal || isNaN(next)) return;
   var isSeller = deal.dealType==='seller';
   var maxStep = isSeller
     ? ((typeof SELLER_STEPS!=='undefined') ? SELLER_STEPS.length : 0)
     : ((typeof TIMELINE_STEPS!=='undefined' && TIMELINE_STEPS.length) ? TIMELINE_STEPS[TIMELINE_STEPS.length-1].id : 0);
+  next = Math.max(0, Math.min(maxStep, next));
   var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
   var cur = (deal.step != null) ? deal.step : (client ? (isSeller ? (client.currentSellerStep||0) : (client.currentStep||0)) : 0);
-  var next = Math.max(0, Math.min(maxStep, cur + dir));
   if (next === cur) return;
   var agentId = userProfile.agentId||'tom';
   deal.step = next; deal.lastStepUpdate = Date.now();
@@ -19581,10 +19579,10 @@ async function advanceDealStep(dealId, dir) {
       await fb.updateDoc(fb.doc(fb.db,'users',deal.clientUid), patch);
       if (client) client[cf] = next;
     }
-  } catch(e) { console.log('advanceDealStep:', e.message); }
+  } catch(e) { console.log('setDealStep:', e.message); }
   filterDeals(_activeFilter);
 }
-window.advanceDealStep = advanceDealStep;
+window.setDealStep = setDealStep;
 
 async function updateDealDate(dealId, field, value) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
