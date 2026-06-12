@@ -14377,11 +14377,77 @@ function offerDetailRow(label, val) {
 }
 
 async function updateOfferStatus(listingId, offerId, status) {
+  if (status === 'Accepted') {
+    if (!confirm('Accept this offer and start the transaction?\n\nThis moves the deal to Under Contract and pre-fills the contract dates from the offer for your review.')) {
+      if (typeof viewOffers==='function') viewOffers(listingId); // revert dropdown to the stored status
+      return;
+    }
+  }
   try {
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId), {status:status});
   } catch(e) { alert('Failed to update status: '+e.message); }
+  if (status === 'Accepted' && typeof acceptOfferStartTransaction==='function') {
+    await acceptOfferStartTransaction(listingId, offerId);
+  }
 }
 window.updateOfferStatus = updateOfferStatus;
+
+// ── Accept offer → start the transaction (TC Slice 1: pour offer data into the deal) ──
+// Reads the accepted offer's structured fields and writes them onto the linked seller deal
+// (price, requested closing, computed deadlines, buyer's agent as a hidden party), then
+// advances the deal to Under Contract — which opens the proven contract-dates approve modal,
+// pre-filled from the offer, and fires the UC email on approval. No AI needed for this slice.
+async function acceptOfferStartTransaction(listingId, offerId) {
+  try {
+    var oSnap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId));
+    if (!oSnap.exists()) { alert('Offer not found.'); return; }
+    var o = Object.assign({id:offerId}, oSnap.data());
+
+    // Find the seller deal tied to this listing; create one from the listing if missing.
+    var deal = (_deals||[]).find(function(d){ return d.offerListingId===listingId; });
+    if (!deal && typeof createDealFromListing==='function') {
+      await createDealFromListing(listingId);
+      deal = (_deals||[]).find(function(d){ return d.offerListingId===listingId; });
+    }
+    if (!deal) { alert('Could not find or create a deal for this listing.'); return; }
+
+    // Date helpers (YYYY-MM-DD)
+    function _ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+    function _fromBase(base, n){ var d = base ? new Date(base+'T00:00:00') : new Date(); if(isNaN(d.getTime())) d=new Date(); d.setDate(d.getDate()+n); return _ymd(d); }
+
+    var today = _ymd(new Date());
+    var isCash = (o.financingType==='Cash');
+    var closing = (o.closingDate||'').slice(0,10);
+
+    // Draft deal dates from the offer — agent reviews/adjusts in the modal before they persist as final.
+    var _priceNum = parseFloat(String(o.offerPrice||'').replace(/[^0-9.]/g,'')) || deal.salePrice || 0;
+    var upd = { salePrice: _priceNum, contractDate: today, earnestDate: _fromBase(today, 3) };
+    if (o.inspectionCont !== 'No') upd.inspectionDate = _fromBase(today, parseInt(o.inspectionDays,10) || 10);
+    if (closing) {
+      upd.closingDate = closing;
+      upd.walkthroughDate = _fromBase(closing, -1);
+      if (!isCash && o.financingCont !== 'No') upd.financingDate = _fromBase(closing, -5);
+      if (!isCash && o.appraisalCont !== 'No') upd.appraisalDate = _fromBase(closing, -14);
+    }
+
+    // Add the buyer's agent as a deal party (hidden from the seller by default).
+    if (!deal.parties) deal.parties = [];
+    var dup = deal.parties.some(function(p){ return p.role==='Other Agent' && (o.agentEmail||'') && (p.email||'')===(o.agentEmail||''); });
+    if (!dup && (o.agentName || o.agentEmail || o.agentPhone)) {
+      deal.parties.push({ role:'Other Agent', name:o.agentName||'', email:o.agentEmail||'', phone:o.agentPhone||'', showClient:false });
+    }
+    upd.parties = deal.parties;
+
+    // Persist to the deal + sync the in-memory copy so the modal opens pre-filled.
+    Object.assign(deal, upd);
+    try { await fb.updateDoc(_dealDoc(deal.id), upd); } catch(e){ console.log('acceptOffer deal write:', e.message); }
+
+    // Land on the Deal Tracker, then advance to Under Contract — opens the pre-filled modal + UC email.
+    if (typeof switchAgentTab==='function') switchAgentTab('deals');
+    if (typeof setDealStep==='function') await setDealStep(deal.id, 9);
+  } catch(e) { alert('Could not start the transaction: '+e.message); }
+}
+window.acceptOfferStartTransaction = acceptOfferStartTransaction;
 
 // ── Offer comparison view ──
 async function showOfferComparison(listingId) {
