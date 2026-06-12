@@ -19341,8 +19341,9 @@ function renderDealCards(deals) {
       +'<button class="btn btn-sm" onclick="showPrefillOptions(\''+deal.id+'\',\''+deal.dealType+'\')" style="flex-shrink:0;font-size:10px;">Prefills</button>'
       +'</div>'
       +'</div></details>'
+      +renderDealParties(deal, linkedBuyer)
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
-      +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 Client</button>':'')
+      +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
       +'<select onchange="updateDealStatus(\''+deal.id+'\',this.value)" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'
@@ -19583,6 +19584,73 @@ async function setDealStep(dealId, next) {
   filterDeals(_activeFilter);
 }
 window.setDealStep = setDealStep;
+
+// ─── Phase 2: Deal Parties Roster ───
+function _dealPartyRow(role, name, email, phone, idx, dealId) {
+  var comms = '';
+  if (email) comms += '<a href="mailto:'+email+'" title="Email" style="text-decoration:none;font-size:14px;">\u2709\ufe0f</a>';
+  if (phone) comms += ' <a href="tel:'+phone+'" title="Call" style="text-decoration:none;font-size:14px;">\ud83d\udcde</a>';
+  if (phone) comms += ' <a href="sms:'+phone+'" title="Text" style="text-decoration:none;font-size:14px;">\ud83d\udcac</a>';
+  var del = (idx!==null && idx!==undefined) ? '<button onclick="removeDealParty(\''+dealId+'\','+idx+')" title="Remove" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;">\u00d7</button>' : '';
+  return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border);">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:12px;font-weight:500;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(name||role)+'</div>'
+    + '<div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(role)+(email?' \u00b7 '+partnerEsc(email):'')+'</div></div>'
+    + '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">'+comms+del+'</div>'
+    + '</div>';
+}
+function renderDealParties(deal, client) {
+  var parties = deal.parties || [];
+  var rows = '';
+  if (client) {
+    var cname = ((client.firstName||'')+' '+(client.lastName||'')).trim() || deal.clientName || 'Client';
+    var crole = deal.dealType==='seller' ? 'Seller (client)' : 'Buyer (client)';
+    rows += _dealPartyRow(crole, cname, client.email||'', client.phone||'', null, deal.id);
+    if (client.email2) rows += _dealPartyRow(crole+' \u00b7 2nd email', cname, client.email2, '', null, deal.id);
+  }
+  parties.forEach(function(p, i){ rows += _dealPartyRow(p.role||'Party', p.name||'', p.email||'', p.phone||'', i, deal.id); });
+  var roles = ['Co-Agent','Lender','Title','Inspector','Attorney','Other'];
+  var addRow = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;align-items:center;">'
+    + '<select id="dp-role-'+deal.id+'" style="font-size:11px;padding:4px;flex-shrink:0;">'+roles.map(function(r){return '<option>'+r+'</option>';}).join('')+'</select>'
+    + '<input id="dp-name-'+deal.id+'" placeholder="Name" style="font-size:11px;padding:4px 6px;width:80px;"/>'
+    + '<input id="dp-email-'+deal.id+'" placeholder="Email" style="font-size:11px;padding:4px 6px;flex:1;min-width:90px;"/>'
+    + '<input id="dp-phone-'+deal.id+'" placeholder="Phone" style="font-size:11px;padding:4px 6px;width:90px;"/>'
+    + '<button class="btn btn-sm" onclick="addDealParty(\''+deal.id+'\')" style="flex-shrink:0;">+</button>'
+    + '</div>';
+  var count = (client?1:0) + parties.length;
+  return '<details style="margin-bottom:8px;">'
+    + '<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
+    + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83d\udc65 Parties</span>'
+    + '<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+count+'</span>'
+    + '</summary>'
+    + '<div style="padding-top:4px;">'+rows+addRow+'</div>'
+    + '</details>';
+}
+async function addDealParty(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var role = (document.getElementById('dp-role-'+dealId)||{}).value || 'Other';
+  var name = (((document.getElementById('dp-name-'+dealId)||{}).value)||'').trim();
+  var email = (((document.getElementById('dp-email-'+dealId)||{}).value)||'').trim();
+  var phone = (((document.getElementById('dp-phone-'+dealId)||{}).value)||'').trim();
+  if (!name && !email && !phone) return;
+  if (!deal.parties) deal.parties = [];
+  deal.parties.push({ role:role, name:name, email:email, phone:phone });
+  var agentId = userProfile.agentId||'tom';
+  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
+  catch(e){ console.log('addDealParty:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.addDealParty = addDealParty;
+async function removeDealParty(dealId, idx) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.parties) return;
+  deal.parties.splice(idx, 1);
+  var agentId = userProfile.agentId||'tom';
+  try { await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'deals',dealId), { parties: deal.parties }); }
+  catch(e){ console.log('removeDealParty:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.removeDealParty = removeDealParty;
 
 async function updateDealDate(dealId, field, value) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
