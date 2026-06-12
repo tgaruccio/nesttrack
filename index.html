@@ -16416,6 +16416,16 @@ async function loadDeals() {
     });
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
+    // Phase 3 (Team): a co-agent loads the team lead's deal path (via _dealCol).
+    // Narrow it to only the deals whose client is co-assigned to them; the lead
+    // (or a solo agent) sees the full pipeline. Keeps co-agents scoped to their work.
+    if (!_amTeamLead() && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
+      var _meId = userProfile && userProfile.agentId;
+      _deals = _deals.filter(function(d){
+        var _c = allBuyers.find(function(b){ return b.uid === d.clientUid; });
+        return _c && _c.coAgentId === _meId;
+      });
+    }
     // One-time backfill: deals created before per-deal step existed have no `step`,
     // so every surface falls back to the client-level value. Copy the linked client's
     // current step onto any deal missing one (skips deals that already have a step).
@@ -19932,7 +19942,17 @@ function _stampDealMembers(data, ownerId) {
 window._stampDealMembers = _stampDealMembers;
 
 // Team: all deal reads/writes resolve to the team's shared path. Solo agents fall back to their own id.
-function _dealTeamId() { return (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'; }
+function _dealTeamId() {
+  if (userProfile && userProfile.teamId) return userProfile.teamId;
+  var me = userProfile && userProfile.agentId;
+  // Co-agent: derive team lead from a co-assigned client (one I co-agent but don't own)
+  if (me && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
+    var co = allBuyers.find(function(b){ return b && b.coAgentId === me && b.agentId && b.agentId !== me; });
+    if (co) return co.agentId;
+  }
+  return me || 'tom';
+}
+function _amTeamLead() { var me = userProfile && userProfile.agentId; return !me || _dealTeamId() === me; }
 function _dealCol() { return fb.collection(fb.db,'agents',_dealTeamId(),'deals'); }
 function _dealDoc(id) { return fb.doc(fb.db,'agents',_dealTeamId(),'deals',id); }
 window._dealTeamId = _dealTeamId;
