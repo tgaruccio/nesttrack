@@ -11982,7 +11982,7 @@ function renderTxnTimeline() {
         headline.textContent = dc > 0 ? dc+' days to closing' : dc===0 ? 'Closing Today! 🎉' : 'Closed!';
       }
       var buyerAddrEl = document.getElementById('txn-buyer-address');
-      if (buyerAddrEl) buyerAddrEl.textContent = (userProfile && userProfile.propertyAddress) || '';
+      if (buyerAddrEl) buyerAddrEl.textContent = (_activeBuyerDeal && _activeBuyerDeal.address) || (userProfile && (userProfile.propertyAddress||userProfile.buyerAddress)) || '';
       if (buyerList) buyerList.innerHTML = BUYER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, buyerDates, today, 'buyer'); }).join('');
     } else {
       buyerCard.style.display = 'none';
@@ -12027,7 +12027,7 @@ function renderTxnTimeline() {
         sHeadline.textContent = sdc > 0 ? sdc+' days to closing' : sdc===0 ? 'Closing Today! 🎉' : 'Closed!';
       }
       var sellerAddrEl = document.getElementById('txn-seller-address');
-      if (sellerAddrEl) sellerAddrEl.textContent = (userProfile && userProfile.propertyAddress) || '';
+      if (sellerAddrEl) sellerAddrEl.textContent = (_activeSellerDeal && _activeSellerDeal.address) || (userProfile && (userProfile.listingAddress||userProfile.propertyAddress)) || '';
       if (sellerList) sellerList.innerHTML = SELLER_CONTRACT_FIELDS.map(function(f){ return renderDateRow(f, sellerDates, today, 'seller'); }).join('');
     } else {
       sellerCard.style.display = 'none';
@@ -12166,14 +12166,21 @@ function selectClientDeal(type, dealId) {
   if (!d) return;
   if (type==='seller') { _activeSellerDeal = d; try{ renderSellerTrail(); }catch(e){} }
   else { _activeBuyerDeal = d; try{ renderTrailMap(); }catch(e){} }
+  try { renderTxnTimeline(); } catch(e){}
 }
 window.selectClientDeal = selectClientDeal;
 function _clientDealPicker(type) {
   var list = (_clientDeals||[]).filter(function(d){ return type==='seller' ? d.dealType==='seller' : d.dealType!=='seller'; });
-  if (list.length < 2) return '';
+  if (list.length === 0) return '';
   var active = type==='seller' ? _activeSellerDeal : _activeBuyerDeal;
-  return '<div style="margin-bottom:12px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Which property?</div>'
-    + '<select onchange="selectClientDeal(\''+type+'\',this.value)" style="width:100%;max-width:320px;font-size:13px;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:inherit;">'
+  if (list.length < 2) {
+    var addr = (active && active.address && active.address.trim()) ? active.address : (type==='seller' ? 'Your Listing' : 'House Hunting');
+    return '<div style="display:flex;align-items:center;gap:7px;margin-bottom:14px;">'
+      + '<span style="font-size:16px;">'+(type==='seller'?'\ud83c\udfe1':'\ud83d\udccd')+'</span>'
+      + '<span style="font-size:15px;font-weight:600;color:var(--text);">'+A(addr)+'</span></div>';
+  }
+  return '<div style="margin-bottom:14px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Which property?</div>'
+    + '<select onchange="selectClientDeal(\''+type+'\',this.value)" style="width:100%;max-width:340px;font-size:13px;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:inherit;">'
     + list.map(function(d){ var lbl=(d.address&&d.address.trim())?d.address:(type==='seller'?'Listing':'House Hunting'); return '<option value="'+d.id+'"'+(active&&active.id===d.id?' selected':'')+'>'+A(lbl)+'</option>'; }).join('')
     + '</select></div>';
 }
