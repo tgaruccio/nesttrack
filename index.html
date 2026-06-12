@@ -10415,6 +10415,33 @@ function agentCallBuyer() {
 }
 window.agentCallBuyer = agentCallBuyer;
 
+function renderClientDealsSection(uid) {
+  var deals = (typeof _deals!=='undefined' ? _deals : []).filter(function(d){ return d.clientUid===uid; });
+  if (!deals.length) return '';
+  var rows = deals.map(function(d){
+    var isSeller = d.dealType==='seller';
+    var stepArr = isSeller ? (typeof SELLER_STEPS!=='undefined'?SELLER_STEPS:[]) : (typeof TIMELINE_STEPS!=='undefined'?TIMELINE_STEPS:[]);
+    var st = (d.step!=null) ? d.step : 0;
+    var stepName = st===0 ? 'Not started' : (isSeller ? ((stepArr[st-1]&&stepArr[st-1].title)||('Step '+st)) : ((stepArr.find(function(s){return s.id===st;})||{}).name||('Step '+st)));
+    var addr = (d.address&&d.address.trim()) ? d.address : (isSeller?'Listing (no address)':'House Hunting');
+    var typeLabel = isSeller?'Seller':'Buyer';
+    var tileBdr = isSeller?'#F59E0B':'#6EE7B7';
+    var close = d.closingDate ? (' \u00b7 Close '+d.closingDate) : '';
+    return '<div onclick="closeM(\'buyer-modal\');switchAgentTab(\'deals\');" style="cursor:pointer;border:1px solid '+tileBdr+';border-radius:var(--r-sm);padding:8px 10px;margin-bottom:6px;background:var(--surface);">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+      +'<div style="font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(addr)+'</div>'
+      +'<div style="font-size:10px;color:var(--text3);flex-shrink:0;">'+typeLabel+' \u2192</div>'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--text2);margin-top:2px;">'+partnerEsc(stepName)+close+'</div>'
+      +'</div>';
+  }).join('');
+  return '<details open style="border-bottom:1px solid var(--border);">'
+    +'<summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span>\ud83d\udcbc Deals <span style="font-size:11px;font-weight:400;opacity:0.8;">('+deals.length+')</span></span><span style="font-size:10px;color:var(--text3);">tap a deal to open</span></summary>'
+    +'<div style="padding:6px 0 12px;">'+rows+'</div>'
+    +'</details>';
+}
+window.renderClientDealsSection = renderClientDealsSection;
+
 async function openBuyerDetail(uid, scrollTo) {
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) {
@@ -10472,6 +10499,7 @@ async function openBuyerDetail(uid, scrollTo) {
       </select>
       </div>
     </div>
+    ${renderClientDealsSection(uid)}
     <details ${(b.currentStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:var(--green-dk);">Buying <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentStep||0)>0?'Step '+(b.currentStep||1)+' - '+(step?step.name:''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
