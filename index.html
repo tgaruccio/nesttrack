@@ -19540,6 +19540,7 @@ function renderDealCards(deals) {
       +'</div>'
       +'</div></details>'
       +renderDealParties(deal, linkedBuyer)
+      +renderDealDocuments(deal)
       +renderDealComms(deal)
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
@@ -19893,6 +19894,76 @@ async function toggleDealPartyShow(dealId, idx) {
   filterDeals(_activeFilter);
 }
 window.toggleDealPartyShow = toggleDealPartyShow;
+
+// ─── Deal Document Hub: attach files + tag a destination (Title/Lender/etc.) ───
+// Foundation for the AI TC sends — each doc carries where it's meant to go, so a later
+// "Draft to Title" can pull exactly the docs tagged Title. Files live in Firebase Storage
+// at deals/{dealId}/docs/...; the deal only stores a link + tag.
+function renderDealDocuments(deal) {
+  var docs = deal.documents || [];
+  var dests = ['Title','Lender','Co-op Agent','Client','Other'];
+  var destColors = { 'Title':'#ECFDF5|#065F46', 'Lender':'#EFF6FF|#1D4ED8', 'Co-op Agent':'#FEF3E2|#92400E', 'Client':'#F5F3FF|#6D28D9', 'Other':'#F3F4F6|#374151' };
+  var rows = docs.map(function(d, i){
+    var c = (destColors[d.destination]||destColors['Other']).split('|');
+    return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:0.5px solid var(--border);">'
+      + '<span style="font-size:14px;flex-shrink:0;">\ud83d\udcc4</span>'
+      + '<a href="'+partnerEsc(d.url||'#')+'" target="_blank" style="flex:1;min-width:0;font-size:12px;color:var(--text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(d.name||'Document')+'</a>'
+      + '<span style="font-size:10px;padding:2px 7px;border-radius:10px;background:'+c[0]+';color:'+c[1]+';flex-shrink:0;">'+partnerEsc(d.destination||'Other')+'</span>'
+      + '<button onclick="removeDealDoc(\''+deal.id+'\','+i+')" style="background:none;border:none;color:#E24B4A;cursor:pointer;font-size:13px;flex-shrink:0;padding:0 2px;">\u2715</button>'
+      + '</div>';
+  }).join('');
+  var addRow = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;align-items:center;">'
+    + '<input type="file" id="dd-file-'+deal.id+'" style="font-size:11px;flex:1;min-width:120px;"/>'
+    + '<select id="dd-dest-'+deal.id+'" style="font-size:11px;padding:4px;flex-shrink:0;">'+dests.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select>'
+    + '<button class="btn btn-sm" onclick="uploadDealDoc(\''+deal.id+'\')" style="flex-shrink:0;">Upload</button>'
+    + '</div>'
+    + '<div id="dd-status-'+deal.id+'" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>';
+  return '<details style="margin-bottom:8px;">'
+    + '<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
+    + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83d\udcce Documents</span>'
+    + '<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+docs.length+'</span>'
+    + '</summary>'
+    + '<div style="padding-top:4px;">'+rows+addRow+'</div>'
+    + '</details>';
+}
+async function uploadDealDoc(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var fileEl = document.getElementById('dd-file-'+dealId);
+  var destEl = document.getElementById('dd-dest-'+dealId);
+  var statusEl = document.getElementById('dd-status-'+dealId);
+  if (!fileEl || !fileEl.files || !fileEl.files[0]) { if(statusEl) statusEl.textContent='Pick a file first.'; return; }
+  var file = fileEl.files[0];
+  var dest = destEl ? destEl.value : 'Other';
+  if (statusEl) statusEl.textContent = 'Uploading\u2026';
+  try {
+    var safe = (file.name||'doc').replace(/[^a-zA-Z0-9.]/g,'_');
+    var path = 'deals/' + dealId + '/docs/' + Date.now() + '_' + safe;
+    var sRef = fb.storageRef(fb.storage, path);
+    var snapshot = await fb.uploadBytes(sRef, file);
+    var url = await fb.getDownloadURL(snapshot.ref);
+    if (!deal.documents) deal.documents = [];
+    deal.documents.push({ name: file.name||'Document', url: url, path: path, destination: dest, uploadedAt: Date.now() });
+    await fb.updateDoc(_dealDoc(dealId), { documents: deal.documents });
+    if (statusEl) statusEl.textContent = '';
+    filterDeals(_activeFilter);
+  } catch(e) {
+    if (statusEl) statusEl.textContent = 'Upload failed: '+e.message;
+    console.log('uploadDealDoc:', e.message);
+  }
+}
+window.uploadDealDoc = uploadDealDoc;
+async function removeDealDoc(dealId, idx) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal || !deal.documents || !deal.documents[idx]) return;
+  if (!confirm('Remove this document? This deletes the file.')) return;
+  var doc = deal.documents[idx];
+  try { if (doc.path) await fb.deleteObject(fb.storageRef(fb.storage, doc.path)); } catch(e){ console.log('doc delete storage:', e.message); }
+  deal.documents.splice(idx, 1);
+  try { await fb.updateDoc(_dealDoc(dealId), { documents: deal.documents }); } catch(e){ console.log('removeDealDoc:', e.message); }
+  filterDeals(_activeFilter);
+}
+window.removeDealDoc = removeDealDoc;
 async function removeDealParty(dealId, idx) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal || !deal.parties) return;
