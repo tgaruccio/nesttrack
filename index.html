@@ -19909,6 +19909,7 @@ function renderDealDocuments(deal) {
       + '</div>';
   }).join('');
   var empty = docs.length ? '' : '<div style="font-size:11px;color:var(--text3);padding:4px 0;">No documents yet. Attach the executed contract, addenda, or disclosures here.</div>';
+  var sendBtn = docs.length ? '<button class="btn btn-sm btn-g" onclick="openSendDocsModal(\''+deal.id+'\')" style="font-size:11px;margin-top:8px;">\ud83d\udce4 Send documents\u2026</button>' : '';
   var addRow = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;align-items:center;">'
     + '<input type="file" id="dd-file-'+deal.id+'" style="font-size:11px;flex:1;min-width:120px;"/>'
     + '<button class="btn btn-sm" onclick="uploadDealDoc(\''+deal.id+'\')" style="flex-shrink:0;">Attach</button>'
@@ -19919,7 +19920,7 @@ function renderDealDocuments(deal) {
     + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83d\udcce Documents</span>'
     + '<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+docs.length+'</span>'
     + '</summary>'
-    + '<div style="padding-top:4px;">'+rows+empty+addRow+'</div>'
+    + '<div style="padding-top:4px;">'+rows+empty+sendBtn+addRow+'</div>'
     + '</details>';
 }
 async function uploadDealDoc(dealId) {
@@ -19958,6 +19959,103 @@ async function removeDealDoc(dealId, idx) {
   filterDeals(_activeFilter);
 }
 window.removeDealDoc = removeDealDoc;
+
+// ─── Send Documents: pick recipients (parties/client) + which docs, draft + send ───
+// Recipients come from the deal's parties + client; docs from the deal's files. The email
+// goes via the Worker FROM the agent (reply-to the agent), with the docs as hosted links —
+// so a contract can go to Title + Lender + Co-op at once, and replies come back to you.
+function openSendDocsModal(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var docs = deal.documents || [];
+  if (!docs.length) { alert('Attach a document first.'); return; }
+
+  var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+  var recips = [];
+  if (client) {
+    var cname = ((client.firstName||'')+' '+(client.lastName||'')).trim() || deal.clientName || 'Client';
+    var crole = deal.dealType==='seller' ? 'Seller' : 'Buyer';
+    if (client.email) recips.push({ role:crole, name:cname, email:client.email.trim() });
+    if (client.email2) recips.push({ role:crole+' (2nd)', name:cname, email:client.email2.trim() });
+  }
+  (deal.parties||[]).forEach(function(p){ if (p.email) recips.push({ role:p.role||'Party', name:p.name||'', email:p.email.trim() }); });
+  if (!recips.length) { alert('No emails to send to yet. Add a Title/Lender/etc. under Parties first.'); return; }
+
+  var recipRows = recips.map(function(r){
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);cursor:pointer;">'
+      + '<input type="checkbox" class="sd-recip" data-email="'+partnerEsc(r.email)+'" data-name="'+partnerEsc(r.name)+'" style="width:16px;height:16px;flex-shrink:0;"/>'
+      + '<div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--text);">'+partnerEsc(r.name||r.email)+' <span style="font-size:11px;color:var(--text3);">\u00b7 '+partnerEsc(r.role)+'</span></div>'
+      + '<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(r.email)+'</div></div>'
+      + '</label>';
+  }).join('');
+
+  var docRows = docs.map(function(d, i){
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);cursor:pointer;">'
+      + '<input type="checkbox" class="sd-doc" data-idx="'+i+'" checked style="width:16px;height:16px;flex-shrink:0;"/>'
+      + '<span style="font-size:14px;">\ud83d\udcc4</span>'
+      + '<span style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(d.name||'Document')+'</span>'
+      + '</label>';
+  }).join('');
+
+  var defSubj = (deal.address ? deal.address : 'Your transaction') + ' \u2014 Documents';
+  var defMsg = 'Please find the documents for ' + (deal.address || 'this transaction') + ' linked below. Let me know if you need anything further.';
+
+  var html = '<div id="send-docs-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;">'
+    + '<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">'
+    + '<div style="font-weight:600;font-size:15px;">\ud83d\udce4 Send Documents</div>'
+    + '<button onclick="document.getElementById(\'send-docs-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);">\u2715</button>'
+    + '</div>'
+    + '<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:14px;">'
+    + '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Send to <span style="font-weight:400;text-transform:none;">(check all that apply)</span></div>'+recipRows+'</div>'
+    + '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Documents</div>'+docRows+'</div>'
+    + '<div><label class="flabel">Subject</label><input type="text" id="sd-subject" value="'+partnerEsc(defSubj)+'"/></div>'
+    + '<div><label class="flabel">Message</label><textarea id="sd-message" style="height:90px;resize:vertical;">'+partnerEsc(defMsg)+'</textarea></div>'
+    + '<div id="sd-status" style="font-size:12px;color:var(--text3);"></div>'
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;">'
+    + '<button class="btn" onclick="document.getElementById(\'send-docs-overlay\').remove()">Cancel</button>'
+    + '<button class="btn btn-g" onclick="sendDealDocs(\''+deal.id+'\')">Send</button>'
+    + '</div></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+window.openSendDocsModal = openSendDocsModal;
+
+async function sendDealDocs(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal) return;
+  var statusEl = document.getElementById('sd-status');
+  var recips = Array.prototype.slice.call(document.querySelectorAll('.sd-recip:checked')).map(function(el){ return { email: el.getAttribute('data-email'), name: el.getAttribute('data-name') }; });
+  var docIdxs = Array.prototype.slice.call(document.querySelectorAll('.sd-doc:checked')).map(function(el){ return parseInt(el.getAttribute('data-idx'),10); });
+  var subject = (document.getElementById('sd-subject')||{}).value || 'Documents';
+  var message = (document.getElementById('sd-message')||{}).value || '';
+  if (!recips.length) { if(statusEl) statusEl.textContent = 'Pick at least one recipient.'; return; }
+  if (!docIdxs.length) { if(statusEl) statusEl.textContent = 'Pick at least one document.'; return; }
+  var docs = (deal.documents||[]).filter(function(d,i){ return docIdxs.indexOf(i)>-1; });
+  var docLinks = docs.map(function(d){ return '<li style="margin-bottom:6px;"><a href="'+(d.url||'#')+'" style="color:#1D9E75;">'+partnerEsc(d.name||'Document')+'</a></li>'; }).join('');
+  var agentName = (userProfile && (userProfile.firstName||'')) ? ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() : '';
+  if (statusEl) statusEl.textContent = 'Sending\u2026';
+  var sent = 0, failed = 0;
+  for (var i=0; i<recips.length; i++) {
+    var r = recips[i];
+    var greeting = r.name ? ('Hi ' + r.name.split(' ')[0] + ',') : 'Hello,';
+    var bodyHtml = '<div style="font-family:Arial,sans-serif;max-width:560px;">'
+      + '<p style="font-size:15px;margin:0 0 12px;">'+greeting+'</p>'
+      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">'+partnerEsc(message).replace(/\n/g,'<br>')+'</p>'
+      + '<p style="font-size:13px;color:#444;font-weight:600;margin:0 0 6px;">Documents:</p>'
+      + '<ul style="padding-left:18px;margin:0 0 16px;">'+docLinks+'</ul>'
+      + (agentName ? '<p style="font-size:14px;color:#444;margin:14px 0 0;">'+partnerEsc(agentName)+'</p>' : '')
+      + '</div>';
+    try {
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
+        body: JSON.stringify({ to: r.email, subject: subject, html: bodyHtml, from: agentFromField(), reply_to: agentReplyTo() }) });
+      sent++;
+    } catch(e) { failed++; console.log('sendDealDocs to '+r.email+':', e.message); }
+  }
+  if (typeof logDealComm==='function') logDealComm(dealId, 'docs', 'Sent ' + docs.length + ' doc(s) to ' + sent + ' recipient(s)');
+  var ov = document.getElementById('send-docs-overlay'); if (ov) ov.remove();
+  if (typeof showDealToast==='function') showDealToast('Sent to ' + sent + ' recipient' + (sent===1?'':'s') + (failed?(' \u00b7 '+failed+' failed'):''), null, null);
+}
+window.sendDealDocs = sendDealDocs;
 async function removeDealParty(dealId, idx) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal || !deal.parties) return;
