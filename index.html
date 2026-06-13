@@ -1473,6 +1473,23 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+<!-- DOC TEMPLATE FILL / GENERATE -->
+<div id="dt-fill" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--card,#fff);border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 id="dt-fill-title" style="margin:0;font-size:17px;">Generate Document</h3>
+      <button onclick="dtCloseFill()" style="background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--text3);">×</button>
+    </div>
+    <label style="font-size:12px;font-weight:600;color:var(--text2);">Pull data from deal</label>
+    <select id="dt-fill-deal" onchange="dtFillRenderFields()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin:4px 0 14px;"></select>
+    <div id="dt-fill-fields"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtCloseFill()">Cancel</button>
+      <button class="btn btn-g" id="dt-fill-gen" onclick="dtFillGenerate()">Generate PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- LISTING DESCRIPTION GENERATOR -->
 <div class="page" id="page-listing-desc">
   <div class="ph"><div class="pt">Listing Description Generator</div><span class="pill pill-p">✦ Claude AI</span></div>
@@ -4045,8 +4062,9 @@ function dtRenderLibrary(){
     return '<div class="card" style="padding:14px;">'
       +'<div style="font-size:15px;font-weight:700;margin-bottom:4px;">'+escapeHtml(tp.name||'Untitled')+'</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">'+nf+' field'+(nf===1?'':'s')+' · '+np+' page'+(np===1?'':'s')+'</div>'
-      +'<div style="display:flex;gap:8px;">'
-      +'<button class="btn btn-g btn-sm" onclick="dtEditTemplate(\''+tp.id+'\')">Edit</button>'
+      +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      +'<button class="btn btn-g btn-sm" onclick="dtTestFill(\''+tp.id+'\')">Test Fill</button>'
+      +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtEditTemplate(\''+tp.id+'\')">Edit</button>'
       +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtDeleteTemplate(\''+tp.id+'\')">Delete</button>'
       +'</div></div>';
   }).join('');
@@ -4288,6 +4306,153 @@ async function dtSaveTemplate(){
 }
 
 function dtCloseBuilder(){ var el=document.getElementById('dt-builder'); if(el) el.style.display='none'; dtState={}; }
+
+// ──────────────────────────────────────────────────────────────────────
+//  Part C: fill engine — resolve deal data → review → pdf-lib overlay
+// ──────────────────────────────────────────────────────────────────────
+function dtFmtDate(s){ if(!s) return ''; var p=String(s).slice(0,10).split('-'); if(p.length!==3) return String(s); return p[1]+'/'+p[2]+'/'+p[0]; }
+function dtFmtPrice(n){ if(n==null||n==='') return ''; var v=(typeof n==='number')?n:parseFloat(String(n).replace(/[^0-9.]/g,'')); if(isNaN(v)) return ''; return '$'+v.toLocaleString('en-US',{maximumFractionDigits:0}); }
+function dtSelfAgentName(){ try{ var a=currentAgent(); if(!a) return ''; return a.name || ((a.firstName||'')+' '+(a.lastName||'')).trim(); }catch(e){ return ''; } }
+
+function dtResolvePrefills(deal){
+  deal=deal||{};
+  function party(role){ var p=(deal.parties||[]).find(function(x){return (x.role||'').toLowerCase()===role.toLowerCase();}); return p?(p.name||''):''; }
+  var isBuyer=deal.dealType==='buyer';
+  return {
+    address: deal.address||'',
+    purchasePrice: dtFmtPrice(deal.salePrice),
+    buyerName: isBuyer?(deal.clientName||''):'',
+    sellerName: !isBuyer?(deal.clientName||''):'',
+    buyerAgent: isBuyer?dtSelfAgentName():party('Other Agent'),
+    sellerAgent: !isBuyer?dtSelfAgentName():party('Other Agent'),
+    titleCo: party('Title'),
+    lender: party('Lender'),
+    contractDate: dtFmtDate(deal.contractDate),
+    closingDate: dtFmtDate(deal.closingDate),
+    inspectionDate: dtFmtDate(deal.inspectionDate),
+    appraisalDate: dtFmtDate(deal.appraisalDate),
+    financingDate: dtFmtDate(deal.financingDate),
+    walkthroughDate: dtFmtDate(deal.walkthroughDate),
+    earnestDate: dtFmtDate(deal.earnestDate)
+  };
+}
+
+async function dtTestFill(id){
+  var tpl=(window._dtTemplates||[]).find(function(x){return x.id===id;});
+  if(!tpl) return;
+  if(!window.PDFLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
+  var deals=_deals||[];
+  document.getElementById('dt-fill-title').textContent=tpl.name||'Generate Document';
+  try{
+    var resp=await fetch(tpl.pdfUrl); var ab=await resp.arrayBuffer();
+    window._dtFillTpl={ tpl:tpl, bytes:new Uint8Array(ab) };
+  }catch(e){ alert('Could not load template PDF: '+e.message); return; }
+  var sel=document.getElementById('dt-fill-deal');
+  sel.innerHTML = deals.length ? deals.map(function(d){ return '<option value="'+d.id+'">'+escapeHtml(d.address||d.clientName||'Untitled deal')+'</option>'; }).join('') : '<option value="">— no deals yet (fields will be blank) —</option>';
+  document.getElementById('dt-fill').style.display='flex';
+  dtFillRenderFields();
+}
+function dtCloseFill(){ var el=document.getElementById('dt-fill'); if(el) el.style.display='none'; window._dtFillTpl=null; }
+
+function dtFillRenderFields(){
+  var wrap=document.getElementById('dt-fill-fields'); if(!wrap||!window._dtFillTpl) return;
+  var tpl=window._dtFillTpl.tpl;
+  var dealId=document.getElementById('dt-fill-deal').value;
+  var deal=(_deals||[]).find(function(d){return d.id===dealId;})||{};
+  var pf=dtResolvePrefills(deal);
+  var boxes=tpl.boxes||[];
+  var html='', seen={};
+  var prefillBoxes=boxes.filter(function(b){return b.type==='prefill';});
+  if(prefillBoxes.length){
+    html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:6px 0 6px;">Auto-filled from the deal — edit if needed</div>';
+    prefillBoxes.forEach(function(b){
+      if(seen[b.bind]) return; seen[b.bind]=true;
+      html+='<div style="margin-bottom:8px;"><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:2px;">'+escapeHtml(dtPrefillLabel(b.bind))+'</label>'
+        +'<input class="dt-fill-pf" data-bind="'+b.bind+'" value="'+escapeHtml(pf[b.bind]||'')+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;"/></div>';
+    });
+  }
+  var checks=boxes.filter(function(b){return b.type==='check';});
+  if(checks.length){
+    html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:14px 0 6px;">Check the ones that apply</div>';
+    checks.forEach(function(b){
+      html+='<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;"><input type="checkbox" class="dt-fill-ck" data-id="'+b.id+'" style="width:16px;height:16px;flex-shrink:0;"/> '+escapeHtml(b.label||'Checkbox')+'</label>';
+    });
+  }
+  var customs=boxes.filter(function(b){return b.type==='custom';});
+  if(customs.length){
+    html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:14px 0 6px;">Fill in</div>';
+    customs.forEach(function(b){
+      var tall=(b.h>0.04);
+      html+='<div style="margin-bottom:8px;"><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:2px;">'+escapeHtml(b.label||'Field')+'</label>'
+        +(tall?'<textarea class="dt-fill-cs" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;height:70px;resize:vertical;box-sizing:border-box;"></textarea>'
+              :'<input class="dt-fill-cs" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/>')+'</div>';
+    });
+  }
+  if(!boxes.length) html='<div style="color:var(--text3);font-size:13px;padding:10px 0;">This template has no fields mapped yet. Edit it to add some.</div>';
+  wrap.innerHTML=html;
+}
+
+async function dtFillGenerate(){
+  var pkg=window._dtFillTpl; if(!pkg) return;
+  var pfVals={}; document.querySelectorAll('.dt-fill-pf').forEach(function(i){ pfVals[i.dataset.bind]=i.value; });
+  var ckVals={}; document.querySelectorAll('.dt-fill-ck').forEach(function(i){ ckVals[i.dataset.id]=i.checked; });
+  var csVals={}; document.querySelectorAll('.dt-fill-cs').forEach(function(i){ csVals[i.dataset.id]=i.value; });
+  var btn=document.getElementById('dt-fill-gen'); var old=btn.textContent; btn.disabled=true; btn.textContent='Generating…';
+  try{
+    var bytes=await dtRenderFilledPdf(pkg.tpl, pkg.bytes, pfVals, ckVals, csVals);
+    var blob=new Blob([bytes],{type:'application/pdf'});
+    var url=URL.createObjectURL(blob);
+    var sel=document.getElementById('dt-fill-deal');
+    var addr=((sel.options[sel.selectedIndex]||{}).text||'deal');
+    var fname=((pkg.tpl.name||'document')+'_'+addr).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,'')+'.pdf';
+    var a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+    try{ window.open(url,'_blank'); }catch(_){}
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  }catch(e){ alert('Generate failed: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+
+// Overlay text/checks onto the flat PDF. Boxes are fractions (top-left origin);
+// pdf-lib uses points with a BOTTOM-left origin, so y is flipped here.
+async function dtRenderFilledPdf(tpl, pdfBytes, pfVals, ckVals, csVals){
+  var P=window.PDFLib;
+  var pdfDoc=await P.PDFDocument.load(pdfBytes);
+  var font=await pdfDoc.embedFont(P.StandardFonts.Helvetica);
+  var pages=pdfDoc.getPages();
+  (tpl.boxes||[]).forEach(function(b){
+    var page=pages[b.page-1]; if(!page) return;
+    var pw=page.getWidth(), ph=page.getHeight();
+    var bw=b.w*pw, bh=b.h*ph, x=b.x*pw;
+    var topPdf=ph-(b.y*ph);        // box top edge (pdf y, from bottom)
+    var botPdf=topPdf-bh;          // box bottom edge
+    if(b.type==='check'){
+      if(ckVals[b.id]){
+        var sz=Math.min(bw,bh)*1.2; if(sz<7) sz=Math.max(7,bh*1.5);
+        var cw=font.widthOfTextAtSize('X',sz);
+        var cx=x+(bw-cw)/2; var cy=botPdf+(bh-sz)/2+sz*0.16;
+        page.drawText('X',{x:cx,y:cy,size:sz,font:font,color:P.rgb(0,0,0)});
+      }
+    } else {
+      var txt = b.type==='prefill' ? (pfVals[b.bind]||'') : (csVals[b.id]||'');
+      if(txt){
+        var fs=b.fontSize||10;
+        dtDrawWrapped(page, String(txt), x+1, topPdf-fs-1, bw-2, fs, botPdf-fs*0.3, font, P);
+      }
+    }
+  });
+  return await pdfDoc.save();
+}
+function dtDrawWrapped(page, text, x, firstBaseline, maxW, fs, minY, font, P){
+  var words=text.split(/\s+/), line='', y=firstBaseline, lh=fs*1.25;
+  for(var i=0;i<words.length;i++){
+    var test=line?line+' '+words[i]:words[i];
+    if(font.widthOfTextAtSize(test,fs)>maxW && line){
+      page.drawText(line,{x:x,y:y,size:fs,font:font,color:P.rgb(0,0,0)});
+      line=words[i]; y-=lh; if(y<minY) return;
+    } else line=test;
+  }
+  if(line && y>=minY) page.drawText(line,{x:x,y:y,size:fs,font:font,color:P.rgb(0,0,0)});
+}
 
 function renderAgentProfileEditor() {
   loadDocLibrary();
