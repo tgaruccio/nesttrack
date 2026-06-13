@@ -2538,6 +2538,12 @@ textarea{resize:vertical;min-height:68px;}
         <label class="flabel" style="color:var(--text2);font-weight:600;">Short Bio</label>
         <textarea id="ap-bio" placeholder="Write a short client-facing bio..." style="height:100px;resize:vertical;"></textarea>
       </div>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="ap-digest" checked style="width:18px;height:18px;cursor:pointer;flex-shrink:0;"/>
+          <span><span style="font-size:13px;font-weight:600;color:var(--text2);">Weekly TC digest email</span><br><span style="font-size:11px;color:var(--text3);">Monday-morning summary of your deals&rsquo; open &amp; overdue coordinator tasks</span></span>
+        </label>
+      </div>
       <div style="margin-top:14px;display:flex;justify-content:flex-end;">
         <button class="btn btn-g" onclick="saveAgentProfile()">Save Profile</button>
       </div>
@@ -3973,6 +3979,8 @@ function renderAgentProfileEditor() {
       if(tg && d.emailTagline) tg.value=d.emailTagline;
       var li=document.getElementById('ap-license');
       if(li && d.licenseNumber) li.value=d.licenseNumber;
+      var dg=document.getElementById('ap-digest');
+      if(dg) dg.checked = !d.tcDigestOff;
     }
   }).catch(function(){});
   updateAgentPhotoPreview();
@@ -4058,6 +4066,7 @@ async function saveAgentProfile() {
     brokerage: document.getElementById('ap-brokerage') ? document.getElementById('ap-brokerage').value.trim() : '',
     emailTagline: document.getElementById('ap-tagline') ? document.getElementById('ap-tagline').value.trim() : '',
     licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
+    tcDigestOff: document.getElementById('ap-digest') ? !document.getElementById('ap-digest').checked : false,
     updatedAt: fb.serverTimestamp()
   };
   const status = document.getElementById('ap-status');
