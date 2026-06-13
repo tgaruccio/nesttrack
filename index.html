@@ -1473,6 +1473,17 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+<!-- DOC TEMPLATE PICKER (deal → choose which doc) -->
+<div id="dt-pick" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--card,#fff);border-radius:14px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:16px;">Choose a document</h3>
+      <button onclick="dtClosePick()" style="background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--text3);">×</button>
+    </div>
+    <div id="dt-pick-list"></div>
+  </div>
+</div>
+
 <!-- DOC TEMPLATE FILL / GENERATE -->
 <div id="dt-fill" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px;">
   <div style="background:var(--card,#fff);border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;">
@@ -1483,9 +1494,15 @@ textarea{resize:vertical;min-height:68px;}
     <label style="font-size:12px;font-weight:600;color:var(--text2);">Pull data from deal</label>
     <select id="dt-fill-deal" onchange="dtFillRenderFields()" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin:4px 0 14px;"></select>
     <div id="dt-fill-fields"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+    <div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;">
+      <label style="font-size:12px;font-weight:600;color:var(--text2);">Dotloop loop email <span style="font-weight:400;color:var(--text3);">(optional — sends the filled PDF into the loop)</span></label>
+      <input id="dt-fill-loop" placeholder="loop-…@upload.dotloop.com" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-top:4px;box-sizing:border-box;"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Paste the loop's upload email — we'll remember it on this deal.</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
       <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtCloseFill()">Cancel</button>
-      <button class="btn btn-g" id="dt-fill-gen" onclick="dtFillGenerate()">Generate PDF</button>
+      <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" id="dt-fill-gen" onclick="dtFillGenerate()">Download</button>
+      <button class="btn btn-g" id="dt-fill-send" onclick="dtFillSendToLoop()">Send to Loop ✉️</button>
     </div>
   </div>
 </div>
@@ -4337,7 +4354,30 @@ function dtResolvePrefills(deal){
   };
 }
 
-async function dtTestFill(id){
+async function dtEnsureTemplates(){
+  if(window._dtTemplates) return;
+  var snap=await fb.getDocs(dtCol());
+  window._dtTemplates=[];
+  snap.forEach(function(d){ var o=d.data(); o.id=d.id; window._dtTemplates.push(o); });
+  window._dtTemplates.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+}
+
+async function dtGenerateForDeal(dealId){
+  if(!window.PDFLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
+  try{ await dtEnsureTemplates(); }catch(e){ alert('Could not load templates: '+e.message); return; }
+  var tpls=window._dtTemplates||[];
+  if(!tpls.length){ alert('No templates yet. Build one in Doc Templates first (team-lead tool).'); return; }
+  document.getElementById('dt-pick-list').innerHTML=tpls.map(function(t){
+    return '<button class="btn" style="width:100%;justify-content:flex-start;text-align:left;margin-bottom:8px;background:var(--card2,#f3f4f6);color:var(--text);" onclick="dtPickTemplate(\''+t.id+'\',\''+dealId+'\')">\ud83d\udcc4 '+escapeHtml(t.name||'Untitled')+'</button>';
+  }).join('');
+  document.getElementById('dt-pick').style.display='flex';
+}
+function dtPickTemplate(tplId, dealId){ document.getElementById('dt-pick').style.display='none'; dtOpenFill(tplId, dealId); }
+function dtClosePick(){ var el=document.getElementById('dt-pick'); if(el) el.style.display='none'; }
+
+async function dtTestFill(id){ return dtOpenFill(id, null); }
+
+async function dtOpenFill(id, lockDealId){
   var tpl=(window._dtTemplates||[]).find(function(x){return x.id===id;});
   if(!tpl) return;
   if(!window.PDFLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
@@ -4348,7 +4388,14 @@ async function dtTestFill(id){
     window._dtFillTpl={ tpl:tpl, bytes:new Uint8Array(ab) };
   }catch(e){ alert('Could not load template PDF: '+e.message); return; }
   var sel=document.getElementById('dt-fill-deal');
-  sel.innerHTML = deals.length ? deals.map(function(d){ return '<option value="'+d.id+'">'+escapeHtml(d.address||d.clientName||'Untitled deal')+'</option>'; }).join('') : '<option value="">— no deals yet (fields will be blank) —</option>';
+  if(lockDealId){
+    var d=deals.find(function(x){return x.id===lockDealId;});
+    sel.innerHTML = '<option value="'+lockDealId+'">'+escapeHtml(d?(d.address||d.clientName||'Deal'):'Deal')+'</option>';
+    sel.value=lockDealId; sel.disabled=true;
+  } else {
+    sel.disabled=false;
+    sel.innerHTML = deals.length ? deals.map(function(d){ return '<option value="'+d.id+'">'+escapeHtml(d.address||d.clientName||'Untitled deal')+'</option>'; }).join('') : '<option value="">— no deals yet (fields will be blank) —</option>';
+  }
   document.getElementById('dt-fill').style.display='flex';
   dtFillRenderFields();
 }
@@ -4390,6 +4437,7 @@ function dtFillRenderFields(){
   }
   if(!boxes.length) html='<div style="color:var(--text3);font-size:13px;padding:10px 0;">This template has no fields mapped yet. Edit it to add some.</div>';
   wrap.innerHTML=html;
+  var loopEl=document.getElementById('dt-fill-loop'); if(loopEl) loopEl.value=deal.loopEmail||'';
 }
 
 async function dtFillGenerate(){
@@ -4452,6 +4500,51 @@ function dtDrawWrapped(page, text, x, firstBaseline, maxW, fs, minY, font, P){
     } else line=test;
   }
   if(line && y>=minY) page.drawText(line,{x:x,y:y,size:fs,font:font,color:P.rgb(0,0,0)});
+}
+
+function dtBytesToB64(bytes){
+  var bin='', chunk=0x8000;
+  for(var i=0;i<bytes.length;i+=chunk){ bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+chunk)); }
+  return btoa(bin);
+}
+
+async function dtFillSendToLoop(){
+  var pkg=window._dtFillTpl; if(!pkg) return;
+  var loop=(document.getElementById('dt-fill-loop').value||'').trim();
+  if(!loop || loop.indexOf('@')<0){ alert('Paste the loop\u2019s upload email first (loop-…@upload.dotloop.com).'); return; }
+  var pfVals={}; document.querySelectorAll('.dt-fill-pf').forEach(function(i){ pfVals[i.dataset.bind]=i.value; });
+  var ckVals={}; document.querySelectorAll('.dt-fill-ck').forEach(function(i){ ckVals[i.dataset.id]=i.checked; });
+  var csVals={}; document.querySelectorAll('.dt-fill-cs').forEach(function(i){ csVals[i.dataset.id]=i.value; });
+  var btn=document.getElementById('dt-fill-send'); var old=btn.textContent; btn.disabled=true; btn.textContent='Sending…';
+  try{
+    var bytes=await dtRenderFilledPdf(pkg.tpl, pkg.bytes, pfVals, ckVals, csVals);
+    var b64=dtBytesToB64(bytes);
+    var sel=document.getElementById('dt-fill-deal');
+    var addr=((sel.options[sel.selectedIndex]||{}).text||'deal');
+    var fname=((pkg.tpl.name||'document')+'_'+addr).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,'')+'.pdf';
+    var payload={
+      to: loop,
+      subject: (pkg.tpl.name||'Document')+' — '+addr,
+      html: '<p>'+escapeHtml(pkg.tpl.name||'Document')+' for '+escapeHtml(addr)+' — attached.</p>',
+      attachments: [{ filename: fname, content: b64 }]
+    };
+    try{ var ff=agentFromField(); if(ff) payload.from=ff; }catch(_){}
+    try{ var rt=agentReplyTo(); if(rt) payload.reply_to=rt; }catch(_){}
+    var resp=await fetch(PROXY_URL,{ method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+    var r=await resp.json().catch(function(){return null;});
+    if(r && r.id){
+      var deal=(_deals||[]).find(function(d){return d.id===sel.value;});
+      if(deal){
+        try{ await fb.updateDoc(_dealDoc(deal.id), { loopEmail: loop }); deal.loopEmail=loop; }catch(_){}
+        try{ await logDealComm(deal.id, 'doc', (pkg.tpl.name||'Document')+' sent to Dotloop loop'); }catch(_){}
+      }
+      alert('Sent to the loop ✉️  It should appear in Dotloop shortly — review and add signatures there.');
+      dtCloseFill();
+    } else {
+      alert('No confirmation from the email service'+((r&&r.message)?': '+r.message:'')+'. Check Dotloop in a minute to confirm it arrived.');
+    }
+  }catch(e){ alert('Send failed: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
 }
 
 function renderAgentProfileEditor() {
@@ -20460,7 +20553,9 @@ function renderDealDocuments(deal) {
     + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83d\udcce Documents</span>'
     + '<span style="font-size:11px;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:10px;">'+docs.length+'</span>'
     + '</summary>'
-    + '<div style="padding-top:4px;">'+rows+empty+sendBtn+addRow+'</div>'
+    + '<div style="padding-top:4px;">'+rows+empty
+    + '<button class="btn btn-sm" onclick="dtGenerateForDeal(\''+deal.id+'\')" style="font-size:11px;margin-top:8px;margin-right:6px;background:#2563EB;color:#fff;">\ud83d\udcc4 Generate Document</button>'
+    + sendBtn+addRow+'</div>'
     + '</details>';
 }
 async function uploadDealDoc(dealId) {
