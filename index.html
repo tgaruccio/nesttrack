@@ -10031,46 +10031,67 @@ window.todoLoad = todoLoad;
 
 function injectDealReminders() {
   if (!_deals || !_deals.length) return;
-  var today = new Date(); today.setHours(0,0,0,0);
+  if (typeof TC_TASKS === 'undefined' || typeof tcTaskStatus !== 'function') return;
   var injected = 0;
-  var watchDates = [
-    { key: 'inspectionDate',   label: '🔍 Inspection deadline',    warn: 2 },
-    { key: 'closingDate',      label: '🔑 Closing date',            warn: 7 },
-    { key: 'appraisalDate',    label: '🏠 Appraisal date',          warn: 2 },
-    { key: 'walkthroughDate',  label: '🚶 Final walkthrough',       warn: 1 },
-    { key: 'financingDate',    label: '🏦 Financing deadline',      warn: 2 },
-    { key: 'contractDate',     label: '📝 Contract date',           warn: 0 },
-  ];
   _deals.forEach(function(deal) {
-    if (deal.status === 'Closed') return;
+    if (deal.status === 'Closed' || (typeof dealStatusFromStep==='function' && dealStatusFromStep(deal)==='Closed')) return;
+    if (deal.tcEnabled === false) return;     // TC off for this deal → no auto reminders
+    if (!deal.contractDate) return;           // only under-contract deals have TC tasks
     var name = deal.clientName || 'Client';
-    var addr = deal.address ? deal.address.split(',')[0] : 'No address';
-    watchDates.forEach(function(wd) {
-      var dateStr = deal[wd.key];
-      if (!dateStr) return;
-      var date = new Date(dateStr + 'T12:00:00');
-      var daysOut = Math.ceil((date - today) / 86400000);
-      if (daysOut < 0 || daysOut > wd.warn) return;
-      var reminderId = 'dr_' + deal.id + '_' + wd.key + '_' + dateStr;
-      var exists = _todos.some(function(t){ return t.id === reminderId; });
-      if (exists) return;
-      var urgency = daysOut === 0 ? 'TODAY' : daysOut === 1 ? 'TOMORROW' : 'in ' + daysOut + ' days';
-      var text = '[AUTO] ' + wd.label + ' ' + urgency + ' - ' + name + ' (' + addr + ')';
+    var addr = deal.address ? deal.address.split(',')[0] : '';
+    TC_TASKS.forEach(function(t) {
+      var st = tcTaskStatus(deal, t);
+      if (st !== 'now' && st !== 'overdue') return;   // only active tasks surface as to-dos
+      var reminderId = 'tc_' + deal.id + '_' + t.key;
+      if (_todos.some(function(x){ return x.id === reminderId; })) return;  // already on the list
+      var ed = t.end(deal);
+      var ds = ed ? (ed.getFullYear()+'-'+('0'+(ed.getMonth()+1)).slice(-2)+'-'+('0'+ed.getDate()).slice(-2)) : '';
+      var tag = (st === 'overdue') ? '[TC \u00b7 OVERDUE]' : '[TC]';
       _todos.unshift({
         id: reminderId,
-        text: text,
-        date: dateStr,
-        time: '',
-        done: false,
-        createdAt: Date.now(),
-        isAutoReminder: true
+        text: tag + ' ' + t.label + ' \u2014 ' + name + (addr ? ' (' + addr + ')' : ''),
+        date: ds, time: '', done: false, createdAt: Date.now(),
+        isAutoReminder: true, isTC: true, dealId: deal.id, tcKey: t.key
       });
       injected++;
     });
   });
   if (injected > 0) { todoSave(); todoRender(); todoUpdateBadge(); }
+  if (typeof syncTCReminders==='function') syncTCReminders();
 }
 window.injectDealReminders = injectDealReminders;
+
+// Schedule closed-app push for upcoming TC tasks using the EXISTING todoReminders cron.
+// Writes a reminder doc at each task's window-open (8am that day) so the Worker pushes it even
+// when the app is shut. Done/skip/off tasks get their reminder deleted so nothing stale fires.
+async function syncTCReminders() {
+  if (!_deals || typeof currentUser==='undefined' || !currentUser || typeof TC_TASKS==='undefined') return;
+  var agentId = (userProfile && userProfile.agentId) || 'tom';
+  var uid = currentUser.uid;
+  var today = _tcToday();
+  _deals.forEach(function(deal){
+    if (!deal.contractDate) return;
+    var closed = (deal.status==='Closed') || (typeof dealStatusFromStep==='function' && dealStatusFromStep(deal)==='Closed');
+    var name = deal.clientName || 'Client';
+    var addr = deal.address ? deal.address.split(',')[0] : '';
+    TC_TASKS.forEach(function(t){
+      var rid = 'tc_'+deal.id+'_'+t.key;
+      var ref = fb.doc(fb.db,'agents',agentId,'todoReminders',rid);
+      var st = tcTaskStatus(deal, t);
+      // Cancel the scheduled push if the task is handled, the deal is off/closed, or it doesn't apply.
+      if (deal.tcEnabled===false || closed || st==='done' || st==='skip') { fb.deleteDoc(ref).catch(function(){}); return; }
+      var start = t.start(deal);
+      if (!start || start < today) return; // only schedule future window-opens (already-active tasks show in-app)
+      var ds = start.getFullYear()+'-'+('0'+(start.getMonth()+1)).slice(-2)+'-'+('0'+start.getDate()).slice(-2);
+      fb.setDoc(ref, {
+        reminderTime: ds + 'T08:00',
+        text: '\ud83e\udd16 ' + t.label + ' \u2014 ' + name + (addr?(' ('+addr+')'):''),
+        uid: uid, fired: false, createdAt: Date.now()
+      }).catch(function(){});
+    });
+  });
+}
+window.syncTCReminders = syncTCReminders;
 
 async function todoSave() {
   if (!currentUser) return;
@@ -20157,6 +20178,13 @@ async function toggleDealTC(dealId){
   var deal=(_deals||[]).find(function(d){return d.id===dealId;}); if(!deal) return;
   deal.tcEnabled = (deal.tcEnabled===false) ? true : false;
   try{ await fb.updateDoc(_dealDoc(dealId),{tcEnabled:deal.tcEnabled}); }catch(e){ console.log('toggleDealTC:',e.message); }
+  if (deal.tcEnabled===false && typeof _todos!=='undefined' && _todos) {
+    var pre = 'tc_'+dealId+'_';   // turning off → pull this deal's TC items off the to-do list
+    for (var i=_todos.length-1;i>=0;i--){ if(_todos[i].id && _todos[i].id.indexOf(pre)===0){ _todos.splice(i,1); } }
+    if(typeof todoSave==='function')todoSave(); if(typeof todoRender==='function')todoRender(); if(typeof todoUpdateBadge==='function')todoUpdateBadge();
+  }
+  if (typeof syncTCReminders==='function') syncTCReminders();           // schedule (on) or cancel (off) closed-app pushes
+  if (deal.tcEnabled!==false && typeof injectDealReminders==='function') injectDealReminders(); // re-surface active tasks
   filterDeals(_activeFilter);
 }
 window.toggleDealTC = toggleDealTC;
@@ -20166,6 +20194,13 @@ async function setTCTaskStatus(dealId, key, status){
   if(!deal.tcState) deal.tcState={};
   deal.tcState[key] = {status:status, at:Date.now()};
   try{ await fb.updateDoc(_dealDoc(dealId),{tcState:deal.tcState}); }catch(e){ console.log('setTCTaskStatus:',e.message); }
+  // Keep the to-do list in sync — a done/skipped task drops off the to-do list too.
+  if (typeof _todos !== 'undefined' && _todos) {
+    var rid = 'tc_'+dealId+'_'+key, removed=false;
+    for (var i=_todos.length-1; i>=0; i--){ if(_todos[i].id===rid){ _todos.splice(i,1); removed=true; } }
+    if (removed){ if(typeof todoSave==='function')todoSave(); if(typeof todoUpdateBadge==='function')todoUpdateBadge(); if(typeof todoRender==='function')todoRender(); }
+  }
+  try{ fb.deleteDoc(fb.doc(fb.db,'agents',((userProfile&&userProfile.agentId)||'tom'),'todoReminders','tc_'+dealId+'_'+key)).catch(function(){}); }catch(e){}
   filterDeals(_activeFilter);
 }
 window.setTCTaskStatus = setTCTaskStatus;
@@ -20175,6 +20210,7 @@ async function resetTCDeal(dealId){
   if(!confirm('Reset all TC task statuses for this deal? Done/skipped tasks come back.')) return;
   deal.tcState={};
   try{ await fb.updateDoc(_dealDoc(dealId),{tcState:{}}); }catch(e){ console.log('resetTCDeal:',e.message); }
+  if(typeof injectDealReminders==='function') injectDealReminders(); // re-surface any now-active tasks
   filterDeals(_activeFilter);
 }
 window.resetTCDeal = resetTCDeal;
