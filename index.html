@@ -19541,6 +19541,7 @@ function renderDealCards(deals) {
       +'</div></details>'
       +renderDealParties(deal, linkedBuyer)
       +renderDealDocuments(deal)
+      +renderDealTC(deal)
       +renderDealComms(deal)
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
@@ -19964,11 +19965,12 @@ window.removeDealDoc = removeDealDoc;
 // Recipients come from the deal's parties + client; docs from the deal's files. The email
 // goes via the Worker FROM the agent (reply-to the agent), with the docs as hosted links —
 // so a contract can go to Title + Lender + Co-op at once, and replies come back to you.
-function openSendDocsModal(dealId) {
+function openSendDocsModal(dealId, opts) {
+  opts = opts || {};
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) return;
   var docs = deal.documents || [];
-  if (!docs.length) { alert('Attach a document first.'); return; }
+  if (!docs.length && !opts.allowNoDoc) { alert('Attach a document first.'); return; }
 
   var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
   var recips = [];
@@ -19982,8 +19984,9 @@ function openSendDocsModal(dealId) {
   if (!recips.length) { alert('No emails to send to yet. Add a Title/Lender/etc. under Parties first.'); return; }
 
   var recipRows = recips.map(function(r){
+    var preCheck = opts.recipientRoles && opts.recipientRoles.indexOf(r.role) > -1;
     return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid var(--border);cursor:pointer;">'
-      + '<input type="checkbox" class="sd-recip" data-email="'+partnerEsc(r.email)+'" data-name="'+partnerEsc(r.name)+'" style="width:16px;height:16px;flex-shrink:0;"/>'
+      + '<input type="checkbox" class="sd-recip"'+(preCheck?' checked':'')+' data-email="'+partnerEsc(r.email)+'" data-name="'+partnerEsc(r.name)+'" style="width:16px;height:16px;flex-shrink:0;"/>'
       + '<div style="flex:1;min-width:0;"><div style="font-size:13px;color:var(--text);">'+partnerEsc(r.name||r.email)+' <span style="font-size:11px;color:var(--text3);">\u00b7 '+partnerEsc(r.role)+'</span></div>'
       + '<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(r.email)+'</div></div>'
       + '</label>';
@@ -19997,8 +20000,8 @@ function openSendDocsModal(dealId) {
       + '</label>';
   }).join('');
 
-  var defSubj = (deal.address ? deal.address : 'Your transaction') + ' \u2014 Documents';
-  var defMsg = 'Please find the documents for ' + (deal.address || 'this transaction') + ' linked below. Let me know if you need anything further.';
+  var defSubj = opts.subject || ((deal.address ? deal.address : 'Your transaction') + ' \u2014 Documents');
+  var defMsg = opts.message || ('Please find the documents for ' + (deal.address || 'this transaction') + ' linked below. Let me know if you need anything further.');
 
   var html = '<div id="send-docs-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px;">'
     + '<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">'
@@ -20029,9 +20032,9 @@ async function sendDealDocs(dealId) {
   var subject = (document.getElementById('sd-subject')||{}).value || 'Documents';
   var message = (document.getElementById('sd-message')||{}).value || '';
   if (!recips.length) { if(statusEl) statusEl.textContent = 'Pick at least one recipient.'; return; }
-  if (!docIdxs.length) { if(statusEl) statusEl.textContent = 'Pick at least one document.'; return; }
   var docs = (deal.documents||[]).filter(function(d,i){ return docIdxs.indexOf(i)>-1; });
   var docLinks = docs.map(function(d){ return '<li style="margin-bottom:6px;"><a href="'+(d.url||'#')+'" style="color:#1D9E75;">'+partnerEsc(d.name||'Document')+'</a></li>'; }).join('');
+  var docsBlock = docs.length ? ('<p style="font-size:13px;color:#444;font-weight:600;margin:0 0 6px;">Documents:</p><ul style="padding-left:18px;margin:0 0 16px;">'+docLinks+'</ul>') : '';
   var agentName = (userProfile && (userProfile.firstName||'')) ? ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() : '';
   if (statusEl) statusEl.textContent = 'Sending\u2026';
   var sent = 0, failed = 0;
@@ -20041,8 +20044,7 @@ async function sendDealDocs(dealId) {
     var bodyHtml = '<div style="font-family:Arial,sans-serif;max-width:560px;">'
       + '<p style="font-size:15px;margin:0 0 12px;">'+greeting+'</p>'
       + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">'+partnerEsc(message).replace(/\n/g,'<br>')+'</p>'
-      + '<p style="font-size:13px;color:#444;font-weight:600;margin:0 0 6px;">Documents:</p>'
-      + '<ul style="padding-left:18px;margin:0 0 16px;">'+docLinks+'</ul>'
+      + docsBlock
       + (agentName ? '<p style="font-size:14px;color:#444;margin:14px 0 0;">'+partnerEsc(agentName)+'</p>' : '')
       + '</div>';
     try {
@@ -20056,6 +20058,143 @@ async function sendDealDocs(dealId) {
   if (typeof showDealToast==='function') showDealToast('Sent to ' + sent + ' recipient' + (sent===1?'':'s') + (failed?(' \u00b7 '+failed+' failed'):''), null, null);
 }
 window.sendDealDocs = sendDealDocs;
+
+// ─── AI Transaction Coordinator: a state-aware task board per deal ───
+// Status is DERIVED LIVE from the deal's dates + your done/skip marks on every render — never a
+// stored "ready to fire" flag. Timing uses windows (start the work, not the deadline), so nothing
+// nags early or late. TC tasks only ever target PARTIES + you — never the client (the timeline
+// system serves the client). Master on/off per deal via deal.tcEnabled (default on).
+function _tcDate(s){ if(!s) return null; var d=new Date(String(s).slice(0,10)+'T00:00:00'); return isNaN(d.getTime())?null:d; }
+function _tcAdd(d,n){ if(!d) return null; var x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function _tcToday(){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+function _tcFmt(d){ if(!d) return ''; return (d.getMonth()+1)+'/'+d.getDate(); }
+
+var TC_TASKS = [
+  { key:'open_title', label:'Open title & circulate contacts', roles:['Title','Lender','Other Agent'],
+    applies:function(d){ return !!d.contractDate; },
+    start:function(d){ return _tcDate(d.contractDate); },
+    end:function(d){ return _tcAdd(_tcDate(d.contractDate),3); },
+    msg:function(d){ return 'We\u2019re under contract on '+(d.address||'the property')+'. Please open title \u2014 the transaction contacts are below and the executed contract is linked.'; } },
+  { key:'schedule_inspection', label:'Schedule inspection', roles:['Other Agent'],
+    applies:function(d){ return !!d.inspectionDate; },
+    start:function(d){ return _tcDate(d.contractDate); },
+    end:function(d){ return _tcAdd(_tcDate(d.inspectionDate),-2); },
+    msg:function(d){ return 'Let\u2019s get the inspection scheduled for '+(d.address||'the property')+'. The inspection deadline is '+(d.inspectionDate||'TBD')+', so we should book it soon to leave time to complete it.'; } },
+  { key:'inspection_resolution', label:'Inspection resolution / repairs', roles:['Other Agent'],
+    applies:function(d){ return !!d.inspectionDate; },
+    start:function(d){ return _tcAdd(_tcDate(d.inspectionDate),-1); },
+    end:function(d){ return _tcAdd(_tcDate(d.inspectionDate),3); },
+    msg:function(d){ return 'Following up on inspection items for '+(d.address||'the property')+'. Let\u2019s confirm any repair requests or resolution so we stay on track.'; } },
+  { key:'appraisal_ordered', label:'Confirm appraisal ordered', roles:['Lender'],
+    applies:function(d){ return !!d.appraisalDate; },
+    start:function(d){ return _tcAdd(_tcDate(d.contractDate),5); },
+    end:function(d){ return _tcDate(d.appraisalDate); },
+    msg:function(d){ return 'Can you confirm the appraisal has been ordered for '+(d.address||'the property')+'? The appraisal deadline is '+(d.appraisalDate||'TBD')+'.'; } },
+  { key:'financing_checkin', label:'Financing check-in', roles:['Lender'],
+    applies:function(d){ return !!d.financingDate; },
+    start:function(d){ return _tcAdd(_tcDate(d.financingDate),-5); },
+    end:function(d){ return _tcDate(d.financingDate); },
+    msg:function(d){ return 'Checking in on financing for '+(d.address||'the property')+' ahead of the '+(d.financingDate||'TBD')+' financing deadline. Are we on track for final approval?'; } },
+  { key:'closing_checkin', label:'Closing check-in (all parties)', roles:['Title','Lender','Other Agent'],
+    applies:function(d){ return !!d.closingDate; },
+    start:function(d){ return _tcAdd(_tcDate(d.closingDate),-7); },
+    end:function(d){ return _tcAdd(_tcDate(d.closingDate),-2); },
+    msg:function(d){ return 'We\u2019re approaching closing on '+(d.address||'the property')+' ('+(d.closingDate||'TBD')+'). Please confirm everything is on track on your end and flag anything outstanding.'; } },
+  { key:'walkthrough_reminder', label:'Final walkthrough reminder', roles:['Other Agent'],
+    applies:function(d){ return !!d.walkthroughDate; },
+    start:function(d){ return _tcAdd(_tcDate(d.walkthroughDate),-2); },
+    end:function(d){ return _tcDate(d.walkthroughDate); },
+    msg:function(d){ return 'Reminder: final walkthrough for '+(d.address||'the property')+' is set around '+(d.walkthroughDate||'TBD')+'. Let\u2019s confirm timing.'; } }
+];
+
+function tcTaskStatus(deal, t){
+  var st = ((deal.tcState||{})[t.key]||{}).status;
+  if (st==='done' || st==='skip') return st;
+  if (!t.applies(deal)) return 'skip';
+  var today=_tcToday(), start=t.start(deal), end=t.end(deal);
+  if (!start) return 'upcoming';
+  if (today < start) return 'upcoming';
+  if (end && today > end) return 'overdue';
+  return 'now';
+}
+
+function renderDealTC(deal){
+  if (!deal.contractDate) return ''; // nothing to coordinate until under contract
+  var on = deal.tcEnabled !== false; // default ON
+  var head = '<details style="margin-bottom:8px;" '+(on?'open':'')+'>'
+    + '<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
+    + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83e\udd16 AI Transaction Coordinator</span>'
+    + '<span onclick="event.preventDefault();event.stopPropagation();toggleDealTC(\''+deal.id+'\')" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;cursor:pointer;background:'+(on?'#ECFDF5':'#F3F4F6')+';color:'+(on?'#065F46':'#6B7280')+';">'+(on?'On':'Off')+'</span>'
+    + '</summary>';
+  if (!on) return head + '<div style="padding:6px 0;font-size:11px;color:var(--text3);">AI TC is off for this deal \u2014 tasks and the weekly digest skip it.</div></details>';
+
+  var order = {overdue:0, now:1, upcoming:2};
+  var active = TC_TASKS.map(function(t){ return {t:t, s:tcTaskStatus(deal,t)}; })
+    .filter(function(x){ return x.s==='overdue'||x.s==='now'||x.s==='upcoming'; })
+    .sort(function(a,b){ return order[a.s]-order[b.s]; });
+  var doneCount = TC_TASKS.filter(function(t){ return tcTaskStatus(deal,t)==='done'; }).length;
+  var pill = {overdue:'#FEF2F2|#B91C1C|Overdue', now:'#ECFDF5|#065F46|Now', upcoming:'#F3F4F6|#6B7280|Upcoming'};
+  var rows = active.map(function(x){
+    var p = pill[x.s].split('|');
+    var end = x.t.end(deal);
+    var due = end ? ('<span style="font-size:10px;color:var(--text3);"> \u00b7 by '+_tcFmt(end)+'</span>') : '';
+    var draft = (x.s==='now'||x.s==='overdue')
+      ? '<button class="btn btn-sm btn-g" onclick="draftTCTask(\''+deal.id+'\',\''+x.t.key+'\')" style="font-size:10px;padding:3px 8px;flex-shrink:0;">Draft</button>' : '';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:0.5px solid var(--border);">'
+      + '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;background:'+p[0]+';color:'+p[1]+';flex-shrink:0;">'+p[2]+'</span>'
+      + '<span style="flex:1;min-width:0;font-size:12px;color:var(--text);">'+x.t.label+due+'</span>'
+      + draft
+      + '<button onclick="setTCTaskStatus(\''+deal.id+'\',\''+x.t.key+'\',\'done\')" title="Mark done" style="background:none;border:none;color:#1D9E75;cursor:pointer;font-size:14px;flex-shrink:0;">\u2713</button>'
+      + '<button onclick="setTCTaskStatus(\''+deal.id+'\',\''+x.t.key+'\',\'skip\')" title="Not needed" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;flex-shrink:0;">\u2715</button>'
+      + '</div>';
+  }).join('');
+  var empty = active.length ? '' : '<div style="font-size:11px;color:var(--text3);padding:6px 0;">All caught up \u2014 no open coordination tasks right now.</div>';
+  var doneNote = doneCount ? '<div style="font-size:10px;color:var(--text3);padding-top:6px;">'+doneCount+' task'+(doneCount===1?'':'s')+' completed. <a href="#" onclick="resetTCDeal(\''+deal.id+'\');return false;" style="color:var(--text3);text-decoration:underline;">reset</a></div>' : '';
+  return head + '<div style="padding-top:4px;">'+rows+empty+doneNote+'</div></details>';
+}
+
+async function toggleDealTC(dealId){
+  var deal=(_deals||[]).find(function(d){return d.id===dealId;}); if(!deal) return;
+  deal.tcEnabled = (deal.tcEnabled===false) ? true : false;
+  try{ await fb.updateDoc(_dealDoc(dealId),{tcEnabled:deal.tcEnabled}); }catch(e){ console.log('toggleDealTC:',e.message); }
+  filterDeals(_activeFilter);
+}
+window.toggleDealTC = toggleDealTC;
+
+async function setTCTaskStatus(dealId, key, status){
+  var deal=(_deals||[]).find(function(d){return d.id===dealId;}); if(!deal) return;
+  if(!deal.tcState) deal.tcState={};
+  deal.tcState[key] = {status:status, at:Date.now()};
+  try{ await fb.updateDoc(_dealDoc(dealId),{tcState:deal.tcState}); }catch(e){ console.log('setTCTaskStatus:',e.message); }
+  filterDeals(_activeFilter);
+}
+window.setTCTaskStatus = setTCTaskStatus;
+
+async function resetTCDeal(dealId){
+  var deal=(_deals||[]).find(function(d){return d.id===dealId;}); if(!deal) return;
+  if(!confirm('Reset all TC task statuses for this deal? Done/skipped tasks come back.')) return;
+  deal.tcState={};
+  try{ await fb.updateDoc(_dealDoc(dealId),{tcState:{}}); }catch(e){ console.log('resetTCDeal:',e.message); }
+  filterDeals(_activeFilter);
+}
+window.resetTCDeal = resetTCDeal;
+
+function draftTCTask(dealId, key){
+  var deal=(_deals||[]).find(function(d){return d.id===dealId;}); if(!deal) return;
+  var t = TC_TASKS.filter(function(x){return x.key===key;})[0]; if(!t) return;
+  var subj = (deal.address||'Transaction') + ' \u2014 ' + t.label;
+  var msg = t.msg(deal);
+  if (key==='open_title') {
+    var lines = (deal.parties||[]).filter(function(p){return p.name||p.email||p.phone;}).map(function(p){
+      return (p.role||'Party')+': '+(p.name||'')+(p.email?(' \u00b7 '+p.email):'')+(p.phone?(' \u00b7 '+p.phone):'');
+    });
+    var client=(allBuyers||[]).find(function(b){return b.uid===deal.clientUid;});
+    if (client){ var cn=((client.firstName||'')+' '+(client.lastName||'')).trim(); lines.unshift((deal.dealType==='seller'?'Seller':'Buyer')+': '+cn+(client.email?(' \u00b7 '+client.email):'')+(client.phone?(' \u00b7 '+client.phone):'')); }
+    if (lines.length) msg += '\n\nTransaction contacts:\n' + lines.join('\n');
+  }
+  openSendDocsModal(dealId, { recipientRoles:t.roles, subject:subj, message:msg, allowNoDoc:true });
+}
+window.draftTCTask = draftTCTask;
 async function removeDealParty(dealId, idx) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal || !deal.parties) return;
