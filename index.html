@@ -513,6 +513,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="onboarding" onclick="go('onboarding',this)" id="nb-onboarding" style="display:none;">🎓 My Onboarding</button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
     <button class="nb" data-pg="netsheet" onclick="go('netsheet',this)">💵 Net Sheet</button>
+    <button class="nb" data-pg="doc-templates" onclick="go('doc-templates',this)" id="nb-doctemplates" style="display:none;">📄 Doc Templates</button>
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
@@ -1438,6 +1439,39 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+
+<!-- DOC TEMPLATES (Team Lead) -->
+<div class="page" id="page-doc-templates">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px;">
+      <h2 style="margin:0;">📄 Doc Templates</h2>
+      <button class="btn btn-g" onclick="dtNewTemplate()">+ New Template</button>
+    </div>
+    <p style="color:var(--text3);font-size:13px;margin:0 0 16px;">Map a blank PDF form once — drop in the fields it needs. Agents then generate filled docs from any deal in one tap.</p>
+    <div id="dt-library" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;"></div>
+  </div>
+</div>
+
+<!-- DOC TEMPLATE BUILDER (full-screen overlay) -->
+<div id="dt-builder" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg,#fff);flex-direction:column;">
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--card,#fff);flex-wrap:wrap;">
+    <input id="dt-name" placeholder="Template name (e.g. Inspection Contingency Amendment)" style="flex:1;min-width:200px;max-width:420px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;"/>
+    <span id="dt-pagenav" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text3);"></span>
+    <div style="flex:1;"></div>
+    <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtCloseBuilder()">Cancel</button>
+    <button class="btn btn-g btn-sm" id="dt-save-btn" onclick="dtSaveTemplate()">Save Template</button>
+  </div>
+  <div style="flex:1;display:flex;overflow:hidden;">
+    <div id="dt-palette" style="width:230px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;padding:12px;background:var(--card,#fafafa);"></div>
+    <div id="dt-canvas-scroll" style="flex:1;overflow:auto;background:#525659;padding:24px;display:flex;flex-direction:column;align-items:center;">
+      <div id="dt-canvas-wrap" style="position:relative;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.4);">
+        <canvas id="dt-canvas"></canvas>
+        <div id="dt-boxlayer" style="position:absolute;inset:0;"></div>
+      </div>
+    </div>
+    <div id="dt-config" style="width:240px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;padding:14px;background:var(--card,#fafafa);display:none;"></div>
+  </div>
+</div>
 
 <!-- LISTING DESCRIPTION GENERATOR -->
 <div class="page" id="page-listing-desc">
@@ -3083,6 +3117,13 @@ textarea{resize:vertical;min-height:68px;}
   });
 </script>
 
+<!-- PDF.js (render templates on canvas) + pdf-lib (fill flat PDFs) for Doc Templates -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+  if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+</script>
+
 <!-- FIREBASE + APP SCRIPT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
@@ -3946,6 +3987,307 @@ async function loadAssignedAgentProfile() {
     } catch(e) { console.log('lender profile load:', e.message); }
   } catch(e) { console.warn('Could not load assigned agent profile', e); }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  DOC TEMPLATES — fill flat-PDF forms from deal data, send into the loop
+//  Part A: field definitions, storage paths, template library
+// ════════════════════════════════════════════════════════════════════════
+
+// Prefill chips — keys MUST match what the fill engine reads from a deal (Part B/fill).
+const DT_PREFILLS = [
+  { g:'Contacts', items:[
+    {k:'buyerName',label:'Buyer Name'}, {k:'sellerName',label:'Seller Name'},
+    {k:'buyerAgent',label:'Buyer Agent'}, {k:'sellerAgent',label:'Seller Agent'},
+    {k:'titleCo',label:'Title Company'}, {k:'lender',label:'Lender'}
+  ]},
+  { g:'Dates', items:[
+    {k:'contractDate',label:'Contract Date'}, {k:'closingDate',label:'Closing Date'},
+    {k:'inspectionDate',label:'Inspection Date'}, {k:'appraisalDate',label:'Appraisal Date'},
+    {k:'financingDate',label:'Financing Date'}, {k:'walkthroughDate',label:'Walkthrough Date'},
+    {k:'earnestDate',label:'Earnest Date'}
+  ]},
+  { g:'Deal Facts', items:[
+    {k:'address',label:'Property Address'}, {k:'purchasePrice',label:'Purchase Price'}
+  ]}
+];
+function dtPrefillLabel(k){
+  for (var i=0;i<DT_PREFILLS.length;i++){ var it=DT_PREFILLS[i].items; for (var j=0;j<it.length;j++){ if(it[j].k===k) return it[j].label; } }
+  return k;
+}
+
+// Templates live at the team-lead level: agents/{agentId}/docTemplates/{id}
+function dtAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
+function dtCol(){ return fb.collection(fb.db,'agents',dtAgentId(),'docTemplates'); }
+function dtDoc(id){ return fb.doc(fb.db,'agents',dtAgentId(),'docTemplates',id); }
+function dtStoragePath(id){ return 'docTemplates/'+dtAgentId()+'/'+id+'.pdf'; }
+
+async function dtLoadLibrary(){
+  var grid=document.getElementById('dt-library'); if(!grid) return;
+  grid.innerHTML='<div style="color:var(--text3);font-size:13px;">Loading…</div>';
+  try{
+    var snap=await fb.getDocs(dtCol());
+    window._dtTemplates=[];
+    snap.forEach(function(d){ var o=d.data(); o.id=d.id; window._dtTemplates.push(o); });
+    window._dtTemplates.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    dtRenderLibrary();
+  }catch(e){ grid.innerHTML='<div style="color:var(--text3);font-size:13px;">Could not load templates: '+escapeHtml(e.message)+'</div>'; }
+}
+
+function dtRenderLibrary(){
+  var grid=document.getElementById('dt-library'); if(!grid) return;
+  var t=window._dtTemplates||[];
+  if(!t.length){
+    grid.innerHTML='<div style="grid-column:1/-1;color:var(--text3);font-size:13px;padding:30px;text-align:center;border:1px dashed var(--border);border-radius:10px;">No templates yet. Tap <b>+ New Template</b> to map your first form — start with a short one like an ROC or addendum.</div>';
+    return;
+  }
+  grid.innerHTML=t.map(function(tp){
+    var nf=(tp.boxes||[]).length, np=(tp.numPages||1);
+    return '<div class="card" style="padding:14px;">'
+      +'<div style="font-size:15px;font-weight:700;margin-bottom:4px;">'+escapeHtml(tp.name||'Untitled')+'</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">'+nf+' field'+(nf===1?'':'s')+' · '+np+' page'+(np===1?'':'s')+'</div>'
+      +'<div style="display:flex;gap:8px;">'
+      +'<button class="btn btn-g btn-sm" onclick="dtEditTemplate(\''+tp.id+'\')">Edit</button>'
+      +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtDeleteTemplate(\''+tp.id+'\')">Delete</button>'
+      +'</div></div>';
+  }).join('');
+}
+
+async function dtDeleteTemplate(id){
+  var tp=(window._dtTemplates||[]).find(function(x){return x.id===id;});
+  if(!tp) return;
+  if(!confirm('Delete template "'+(tp.name||'Untitled')+'"? This cannot be undone.')) return;
+  try{
+    try{ if(tp.pdfPath) await fb.deleteObject(fb.storageRef(fb.storage, tp.pdfPath)); }catch(_){}
+    await fb.deleteDoc(dtDoc(id));
+    window._dtTemplates=(window._dtTemplates||[]).filter(function(x){return x.id!==id;});
+    dtRenderLibrary();
+  }catch(e){ alert('Delete failed: '+e.message); }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  Part B: the canvas builder (render PDF, place/drag/resize fields, save)
+//  Boxes store x/y/w/h as FRACTIONS of the page (top-left origin) so they
+//  are zoom- and screen-independent. Converted to PDF points only at fill.
+// ──────────────────────────────────────────────────────────────────────
+var dtState = {};
+
+function dtNewTemplate(){
+  if(!window.pdfjsLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
+  var inp=document.createElement('input'); inp.type='file'; inp.accept='application/pdf';
+  inp.onchange=function(){
+    var f=inp.files && inp.files[0]; if(!f) return;
+    if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
+    var rd=new FileReader();
+    rd.onload=function(){
+      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], selId:null, drag:null, dirtyPdf:true };
+      document.getElementById('dt-name').value='';
+      dtOpenBuilder();
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  inp.click();
+}
+
+async function dtEditTemplate(id){
+  var tp=(window._dtTemplates||[]).find(function(x){return x.id===id;});
+  if(!tp){ return; }
+  if(!window.pdfjsLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
+  try{
+    var resp=await fetch(tp.pdfUrl);
+    var ab=await resp.arrayBuffer();
+    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
+    document.getElementById('dt-name').value=tp.name||'';
+    dtOpenBuilder();
+  }catch(e){ alert('Could not open template: '+e.message); }
+}
+
+async function dtOpenBuilder(){
+  document.getElementById('dt-builder').style.display='flex';
+  document.getElementById('dt-config').style.display='none';
+  dtRenderPalette();
+  dtWireDragOnce();
+  try{
+    var task=pdfjsLib.getDocument({data:dtState.pdfBytes.slice()});
+    dtState.pdf=await task.promise;
+    dtState.numPages=dtState.pdf.numPages;
+    await dtRenderPage(1);
+  }catch(e){ alert('Could not render PDF: '+e.message); dtCloseBuilder(); }
+}
+
+async function dtRenderPage(n){
+  if(!dtState.pdf || n<1 || n>dtState.numPages) return;
+  var page=await dtState.pdf.getPage(n);
+  var scale=1.5;
+  var vp=page.getViewport({scale:scale});
+  var canvas=document.getElementById('dt-canvas');
+  var ctx=canvas.getContext('2d');
+  canvas.width=vp.width; canvas.height=vp.height;
+  var cssW=Math.min(vp.width,850);
+  var cssH=vp.height*(cssW/vp.width);
+  canvas.style.width=cssW+'px'; canvas.style.height=cssH+'px';
+  var wrap=document.getElementById('dt-canvas-wrap');
+  wrap.style.width=cssW+'px'; wrap.style.height=cssH+'px';
+  await page.render({canvasContext:ctx,viewport:vp}).promise;
+  dtState.pageSizes[n-1]={w:vp.width/scale,h:vp.height/scale};
+  dtState.curPage=n;
+  dtRenderBoxes();
+  dtRenderPageNav();
+}
+
+function dtRenderPageNav(){
+  var el=document.getElementById('dt-pagenav'); if(!el) return;
+  if((dtState.numPages||1)<=1){ el.innerHTML=''; return; }
+  el.innerHTML='<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtPage(-1)">‹</button>'
+    +'<span>Page '+dtState.curPage+' / '+dtState.numPages+'</span>'
+    +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtPage(1)">›</button>';
+}
+function dtPage(d){ var n=dtState.curPage+d; if(n>=1&&n<=dtState.numPages){ dtState.selId=null; document.getElementById('dt-config').style.display='none'; dtRenderPage(n); } }
+
+function dtRenderPalette(){
+  var p=document.getElementById('dt-palette'); if(!p) return;
+  var html='<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">Drag onto the form</div>';
+  DT_PREFILLS.forEach(function(grp){
+    html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:10px 0 4px;">'+grp.g+'</div>';
+    grp.items.forEach(function(it){
+      html+='<div class="dt-chip" draggable="true" data-bind="'+it.k+'" style="border:1px solid #2563EB;background:#2563EB14;color:#1e40af;border-radius:6px;padding:6px 8px;font-size:12px;font-weight:600;margin-bottom:5px;cursor:grab;">'+escapeHtml(it.label)+'</div>';
+    });
+  });
+  html+='<div style="border-top:1px solid var(--border);margin:12px 0 8px;"></div>';
+  html+='<button class="btn btn-sm" style="width:100%;margin-bottom:6px;background:#7C3AED;color:#fff;" onclick="dtAddBox(\'check\')">+ Checkbox</button>';
+  html+='<button class="btn btn-sm" style="width:100%;background:#D97706;color:#fff;" onclick="dtAddBox(\'custom\')">+ Custom field</button>';
+  html+='<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.45;"><b style="color:#1e40af;">Prefill</b> auto-fills from the deal. <b style="color:#7C3AED;">Checkbox</b> you toggle at draft. <b style="color:#D97706;">Custom</b> you type at draft.</div>';
+  p.innerHTML=html;
+  p.querySelectorAll('.dt-chip').forEach(function(ch){
+    ch.addEventListener('dragstart',function(e){ e.dataTransfer.setData('text/dtbind', ch.dataset.bind); e.dataTransfer.effectAllowed='copy'; });
+  });
+  var wrap=document.getElementById('dt-canvas-wrap');
+  wrap.ondragover=function(e){ e.preventDefault(); e.dataTransfer.dropEffect='copy'; };
+  wrap.ondrop=function(e){
+    e.preventDefault();
+    var bind=e.dataTransfer.getData('text/dtbind'); if(!bind) return;
+    var r=wrap.getBoundingClientRect();
+    dtAddBox('prefill', bind, (e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height);
+  };
+}
+
+function dtBoxColor(t){ return t==='prefill'?'#2563EB':(t==='check'?'#7C3AED':'#D97706'); }
+function dtBoxLabel(b){ return b.type==='prefill'?dtPrefillLabel(b.bind):(b.label||(b.type==='check'?'Checkbox':'Field')); }
+function dtFindBox(id){ return (dtState.boxes||[]).find(function(x){return x.id===id;}); }
+
+function dtAddBox(type, bind, fx, fy){
+  if(!dtState.pdf) return;
+  var b={ id:'b'+Date.now()+Math.floor(Math.random()*999), page:dtState.curPage, type:type };
+  if(type==='prefill'){ b.bind=bind; b.label=dtPrefillLabel(bind); b.fontSize=10; b.w=0.20; b.h=0.022; }
+  else if(type==='check'){ b.label='Checkbox'; b.w=0.018; b.h=0.016; }
+  else { b.label='Field'; b.fontSize=10; b.w=0.20; b.h=0.022; }
+  if(typeof fx==='number'){ b.x=Math.max(0,Math.min(1-b.w, fx-b.w/2)); b.y=Math.max(0,Math.min(1-b.h, fy-b.h/2)); }
+  else { b.x=0.4; b.y=0.45; }
+  dtState.boxes.push(b);
+  dtState.selId=b.id;
+  dtRenderBoxes();
+  dtRenderConfig();
+}
+
+function dtRenderBoxes(){
+  var layer=document.getElementById('dt-boxlayer'); if(!layer) return;
+  layer.innerHTML='';
+  (dtState.boxes||[]).forEach(function(b){
+    if(b.page!==dtState.curPage) return;
+    var col=dtBoxColor(b.type);
+    var d=document.createElement('div');
+    d.dataset.id=b.id;
+    d.style.cssText='position:absolute;left:'+(b.x*100)+'%;top:'+(b.y*100)+'%;width:'+(b.w*100)+'%;height:'+(b.h*100)+'%;'
+      +'border:2px solid '+col+';background:'+col+'1f;border-radius:3px;cursor:move;box-sizing:border-box;'
+      +(dtState.selId===b.id?'outline:2px solid #1D9E75;outline-offset:1px;z-index:5;':'');
+    d.innerHTML='<span style="position:absolute;top:-15px;left:0;white-space:nowrap;font-size:9px;font-weight:700;color:'+col+';background:#fff;padding:0 3px;border-radius:3px;pointer-events:none;">'+escapeHtml(dtBoxLabel(b))+'</span>'
+      +(b.type==='check'?'<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;color:'+col+';font-size:11px;pointer-events:none;">✓</span>':'')
+      +'<span class="dt-rz" style="position:absolute;right:-6px;bottom:-6px;width:13px;height:13px;background:'+col+';border:2px solid #fff;border-radius:50%;cursor:nwse-resize;"></span>';
+    layer.appendChild(d);
+  });
+}
+
+function dtWireDragOnce(){
+  if(window._dtDragWired) return; window._dtDragWired=true;
+  var layer=document.getElementById('dt-boxlayer');
+  layer.addEventListener('pointerdown', function(e){
+    var wrap=document.getElementById('dt-canvas-wrap');
+    var rect=wrap.getBoundingClientRect();
+    var boxEl=e.target.closest('[data-id]'); if(!boxEl) return;
+    var b=dtFindBox(boxEl.dataset.id); if(!b) return;
+    dtState.selId=b.id;
+    if(e.target.classList.contains('dt-rz')){
+      dtState.drag={ id:b.id, mode:'resize', sx:e.clientX, sy:e.clientY, ow:b.w, oh:b.h, rw:rect.width, rh:rect.height };
+    } else {
+      dtState.drag={ id:b.id, mode:'move', sx:e.clientX, sy:e.clientY, ox:b.x, oy:b.y, rw:rect.width, rh:rect.height };
+    }
+    dtRenderBoxes(); dtRenderConfig(); e.preventDefault();
+  });
+  document.addEventListener('pointermove', function(e){
+    var dg=dtState&&dtState.drag; if(!dg) return;
+    var b=dtFindBox(dg.id); if(!b) return;
+    if(dg.mode==='move'){
+      b.x=Math.max(0,Math.min(1-b.w, dg.ox+(e.clientX-dg.sx)/dg.rw));
+      b.y=Math.max(0,Math.min(1-b.h, dg.oy+(e.clientY-dg.sy)/dg.rh));
+    } else {
+      b.w=Math.max(0.01,Math.min(1-b.x, dg.ow+(e.clientX-dg.sx)/dg.rw));
+      b.h=Math.max(0.008,Math.min(1-b.y, dg.oh+(e.clientY-dg.sy)/dg.rh));
+    }
+    dtRenderBoxes();
+  });
+  document.addEventListener('pointerup', function(){ if(dtState&&dtState.drag) dtState.drag=null; });
+}
+
+function dtRenderConfig(){
+  var c=document.getElementById('dt-config'); if(!c) return;
+  var b=dtFindBox(dtState.selId);
+  if(!b){ c.style.display='none'; return; }
+  c.style.display='block';
+  var html='<div style="font-size:12px;font-weight:700;margin-bottom:10px;color:'+dtBoxColor(b.type)+';">'
+    +(b.type==='prefill'?'Prefill field':(b.type==='check'?'Checkbox':'Custom field'))+'</div>';
+  if(b.type==='prefill'){
+    html+='<label style="font-size:11px;color:var(--text3);">Bound to</label>';
+    html+='<select onchange="dtUpdateBox(\'bind\',this.value)" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin:4px 0 12px;">';
+    DT_PREFILLS.forEach(function(g){ html+='<optgroup label="'+g.g+'">'; g.items.forEach(function(it){ html+='<option value="'+it.k+'"'+(it.k===b.bind?' selected':'')+'>'+escapeHtml(it.label)+'</option>'; }); html+='</optgroup>'; });
+    html+='</select>';
+  } else {
+    html+='<label style="font-size:11px;color:var(--text3);">Label '+(b.type==='check'?'(what this checkbox means)':'(prompt shown at draft)')+'</label>';
+    html+='<input value="'+escapeHtml(b.label||'')+'" oninput="dtUpdateBox(\'label\',this.value)" placeholder="'+(b.type==='check'?'e.g. General Home Inspection — removed':'e.g. Conditions')+'" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin:4px 0 12px;"/>';
+  }
+  if(b.type!=='check'){
+    html+='<label style="font-size:11px;color:var(--text3);">Text size</label>';
+    html+='<input type="number" min="6" max="24" value="'+(b.fontSize||10)+'" onchange="dtUpdateBox(\'fontSize\',parseInt(this.value)||10)" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin:4px 0 12px;"/>';
+  }
+  html+='<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">On page '+b.page+'. Drag to move; drag the corner dot to resize.</div>';
+  html+='<button class="btn btn-sm" style="width:100%;background:#E24B4A;color:#fff;" onclick="dtDeleteBox()">Delete field</button>';
+  c.innerHTML=html;
+}
+function dtUpdateBox(field,val){ var b=dtFindBox(dtState.selId); if(!b) return; b[field]=val; if(field==='bind') b.label=dtPrefillLabel(val); dtRenderBoxes(); }
+function dtDeleteBox(){ dtState.boxes=(dtState.boxes||[]).filter(function(x){return x.id!==dtState.selId;}); dtState.selId=null; document.getElementById('dt-config').style.display='none'; dtRenderBoxes(); }
+
+async function dtSaveTemplate(){
+  var name=document.getElementById('dt-name').value.trim();
+  if(!name){ alert('Give the template a name first.'); return; }
+  if(!(dtState.boxes||[]).length){ if(!confirm('No fields placed yet — save anyway?')) return; }
+  var btn=document.getElementById('dt-save-btn'); var old=btn.textContent; btn.disabled=true; btn.textContent='Saving…';
+  try{
+    var id=dtState.id || ('tpl_'+Date.now());
+    var pdfPath=dtState.pdfPath || dtStoragePath(id);
+    var pdfUrl=dtState.pdfUrl;
+    if(dtState.dirtyPdf || !pdfUrl){
+      var sRef=fb.storageRef(fb.storage, pdfPath);
+      await fb.uploadBytes(sRef, dtState.pdfBytes, {contentType:'application/pdf'});
+      pdfUrl=await fb.getDownloadURL(sRef);
+    }
+    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], updatedAt:fb.serverTimestamp() };
+    if(!dtState.id) docData.createdAt=fb.serverTimestamp();
+    await fb.setDoc(dtDoc(id), docData, {merge:true});
+    dtCloseBuilder();
+    dtLoadLibrary();
+  }catch(e){ alert('Save failed: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+
+function dtCloseBuilder(){ var el=document.getElementById('dt-builder'); if(el) el.style.display='none'; dtState={}; }
 
 function renderAgentProfileEditor() {
   loadDocLibrary();
@@ -5038,6 +5380,7 @@ async function showApp() {
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
+  var _ndt=document.getElementById('nb-doctemplates');if(_ndt)_ndt.style.display=isTeamLeader()?'block':'none';
   // Hide buyer journey timeline bar for agents — they have no buyer journey
   
   const mtb = document.getElementById('manage-team-btn');
@@ -5294,6 +5637,7 @@ function go(page, el) {
   if (page === 'onboarding') { renderOnboarding(); }
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
+  if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'messages') { renderMessagesPage(); }
   if (page === 'newsletter') {
     _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
