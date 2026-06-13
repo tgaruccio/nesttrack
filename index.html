@@ -4510,8 +4510,10 @@ function dtBytesToB64(bytes){
 
 async function dtFillSendToLoop(){
   var pkg=window._dtFillTpl; if(!pkg) return;
-  var loop=(document.getElementById('dt-fill-loop').value||'').replace(/\s+/g,'');
-  if(!loop || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(loop)){ alert('That loop email doesn\u2019t look right. Paste the full loop-…@upload.dotloop.com address (no spaces or line breaks).'); return; }
+  var _raw=(document.getElementById('dt-fill-loop').value||'').replace(/[^\x21-\x7E]/g,'');
+  var _m=_raw.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/);
+  var loop=_m?_m[0]:'';
+  if(!loop){ alert('That loop email doesn\u2019t look right. Paste the full loop-…@upload.dotloop.com address (copy it fresh from Dotloop).'); return; }
   var pfVals={}; document.querySelectorAll('.dt-fill-pf').forEach(function(i){ pfVals[i.dataset.bind]=i.value; });
   var ckVals={}; document.querySelectorAll('.dt-fill-ck').forEach(function(i){ ckVals[i.dataset.id]=i.checked; });
   var csVals={}; document.querySelectorAll('.dt-fill-cs').forEach(function(i){ csVals[i.dataset.id]=i.value; });
