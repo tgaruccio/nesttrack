@@ -1464,6 +1464,7 @@ textarea{resize:vertical;min-height:68px;}
     <input id="dt-name" placeholder="Template name (e.g. Inspection Contingency Amendment)" style="flex:1;min-width:200px;max-width:420px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;"/>
     <span id="dt-pagenav" style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text3);"></span>
     <div style="flex:1;"></div>
+    <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtReplacePdf()">Replace PDF</button>
     <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtCloseBuilder()">Cancel</button>
     <button class="btn btn-g btn-sm" id="dt-save-btn" onclick="dtSaveTemplate()">Save Template</button>
   </div>
@@ -4143,6 +4144,31 @@ function dtNewTemplate(){
       dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], selId:null, drag:null, dirtyPdf:true };
       document.getElementById('dt-name').value='';
       dtOpenBuilder();
+    };
+    rd.readAsArrayBuffer(f);
+  };
+  inp.click();
+}
+
+function dtReplacePdf(){
+  if(!dtState || !dtState.pdf){ return; }
+  if(!confirm('Replace this template\u2019s PDF while keeping all placed fields?\n\nUse this only for a re-saved or updated version of the SAME form — if the layout is different, your fields won\u2019t line up.')) return;
+  var inp=document.createElement('input'); inp.type='file'; inp.accept='application/pdf';
+  inp.onchange=function(){
+    var f=inp.files && inp.files[0]; if(!f) return;
+    if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
+    var rd=new FileReader();
+    rd.onload=async function(){
+      dtState.pdfBytes=new Uint8Array(rd.result);
+      dtState.dirtyPdf=true;
+      try{
+        var task=pdfjsLib.getDocument({data:dtState.pdfBytes.slice()});
+        dtState.pdf=await task.promise;
+        dtState.numPages=dtState.pdf.numPages;
+        if(dtState.curPage>dtState.numPages) dtState.curPage=1;
+        await dtRenderPage(dtState.curPage);
+        alert('PDF replaced. Check that your fields still line up, then Save Template.');
+      }catch(e){ alert('Could not render the new PDF: '+e.message); }
     };
     rd.readAsArrayBuffer(f);
   };
