@@ -4486,7 +4486,7 @@ async function dtFillGenerate(){
 // pdf-lib uses points with a BOTTOM-left origin, so y is flipped here.
 async function dtRenderFilledPdf(tpl, pdfBytes, pfVals, ckVals, csVals){
   var P=window.PDFLib;
-  var pdfDoc=await P.PDFDocument.load(pdfBytes);
+  var pdfDoc=await P.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   var font=await pdfDoc.embedFont(P.StandardFonts.Helvetica);
   var pages=pdfDoc.getPages();
   (tpl.boxes||[]).forEach(function(b){
@@ -4541,7 +4541,7 @@ async function dtMergePdfs(arr){
   var P=window.PDFLib;
   var merged=await P.PDFDocument.create();
   for(var i=0;i<arr.length;i++){
-    var src=await P.PDFDocument.load(arr[i]);
+    var src=await P.PDFDocument.load(arr[i], { ignoreEncryption: true });
     var pages=await merged.copyPages(src, src.getPageIndices());
     pages.forEach(function(pg){ merged.addPage(pg); });
   }
