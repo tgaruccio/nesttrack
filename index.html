@@ -4068,6 +4068,7 @@ async function loadAssignedAgentProfile() {
 const DT_PREFILLS = [
   { g:'Contacts', items:[
     {k:'buyerName',label:'Buyer Name'}, {k:'sellerName',label:'Seller Name'},
+    {k:'buyer2',label:'Buyer 2'}, {k:'seller2',label:'Seller 2'},
     {k:'buyerAgent',label:'Buyer Agent'}, {k:'sellerAgent',label:'Seller Agent'},
     {k:'titleCo',label:'Title Company'}, {k:'lender',label:'Lender'}
   ]},
@@ -4415,11 +4416,15 @@ function dtResolvePrefills(deal){
   deal=deal||{};
   function party(role){ var p=(deal.parties||[]).find(function(x){return (x.role||'').toLowerCase()===role.toLowerCase();}); return p?(p.name||''):''; }
   var isBuyer=deal.dealType==='buyer';
+  var _cl=(typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(b){return b.uid===deal.clientUid;}) : null;
+  var name2=_cl?(_cl.name2||''):'';
   return {
     address: deal.address||'',
     purchasePrice: dtFmtPrice(deal.salePrice),
     buyerName: isBuyer?(deal.clientName||''):'',
     sellerName: !isBuyer?(deal.clientName||''):'',
+    buyer2: isBuyer?name2:'',
+    seller2: !isBuyer?name2:'',
     buyerAgent: isBuyer?dtSelfAgentName():party('Other Agent'),
     sellerAgent: !isBuyer?dtSelfAgentName():party('Other Agent'),
     titleCo: party('Title'),
@@ -21943,6 +21948,7 @@ function editClientInfo(uid) {
     + '</div>'
     + '<div><label class="flabel">Email</label><input type="email" id="ec-email" value="'+partnerEsc(b.email||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
     + '<div><label class="flabel">Email 2 <span style="font-weight:400;color:var(--text3);">(spouse / co-seller — gets all emails)</span></label><input type="email" id="ec-email2" value="'+partnerEsc(b.email2||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
+    + '<div><label class="flabel">Co-buyer / Co-seller name <span style="font-weight:400;color:var(--text3);">(2nd person on documents — optional)</span></label><input type="text" id="ec-name2" value="'+partnerEsc(b.name2||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
     + '<div><label class="flabel">Phone</label><input type="tel" id="ec-phone" value="'+partnerEsc(b.phone||'')+'" style="width:100%;box-sizing:border-box;"/></div>'
     + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">'
     + '<button class="btn" id="ec-cancel">Cancel</button>'
@@ -21958,11 +21964,12 @@ function editClientInfo(uid) {
     var last  = document.getElementById('ec-last').value.trim();
     var email = document.getElementById('ec-email').value.trim();
     var email2 = document.getElementById('ec-email2').value.trim();
+    var name2 = document.getElementById('ec-name2').value.trim();
     var phone = document.getElementById('ec-phone').value.trim();
     if (!first) { alert('First name is required.'); return; }
     try {
-      await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, email2:email2, phone:phone});
-      if (b) { b.firstName=first; b.lastName=last; b.email=email; b.email2=email2; b.phone=phone; }
+      await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, email2:email2, name2:name2, phone:phone});
+      if (b) { b.firstName=first; b.lastName=last; b.email=email; b.email2=email2; b.name2=name2; b.phone=phone; }
       // Fire Zapier webhook for CRM sync (non-blocking)
       fireZapierWebhook(b ? (b.agentId||userProfile.agentId||'tom') : (userProfile.agentId||'tom'), {firstName:first,lastName:last,email:email,phone:phone,journeyType:(b&&b.journeyType)||'buyer'}).catch(function(){});
       // Update deal name if linked
