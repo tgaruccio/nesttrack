@@ -11116,6 +11116,12 @@ async function todoToggle(id) {
   var realId = (window._todoMap && window._todoMap[id]) || id;
   var t = _todos.find(function(x){ return x.id === realId; });
   if (!t) return;
+  // TC reminders are backed by the deal's coordinator state. Checking one off here
+  // marks the TC task done everywhere (board, digest, list) so it won't resurface.
+  if (t.isTC && t.dealId && t.tcKey && !t.done && typeof setTCTaskStatus === 'function') {
+    await setTCTaskStatus(t.dealId, t.tcKey, 'done');
+    return;
+  }
   t.done = !t.done;
   if (t.done) t.doneAt = Date.now();
   var completed = _todos.filter(function(x){ return x.done; });
