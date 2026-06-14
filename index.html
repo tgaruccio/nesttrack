@@ -4364,6 +4364,14 @@ async function dtEnsureTemplates(){
 
 async function dtGenerateForDeal(dealId){
   if(!window.PDFLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
+  var _d=(_deals||[]).find(function(x){return x.id===dealId;});
+  if(_d && _d.dealType!=='seller' && !(_d.address&&_d.address.trim())){
+    var a=prompt('Property address for this offer/document:','');
+    if(a===null) return;
+    a=a.trim();
+    if(a){ _d.address=a; try{ await fb.updateDoc(_dealDoc(dealId),{address:a}); }catch(_){}
+      try{ filterDeals(_activeFilter); }catch(_){} }
+  }
   try{ await dtEnsureTemplates(); }catch(e){ alert('Could not load templates: '+e.message); return; }
   var tpls=window._dtTemplates||[];
   if(!tpls.length){ alert('No templates yet. Build one in Doc Templates first (team-lead tool).'); return; }
@@ -20149,6 +20157,13 @@ function renderDealCards(deals) {
       +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;">'+autoStatus+'</div>'
       +'</div>'
       +'</div>'
+      +( (deal.dealType!=='seller' && hasAddr && autoStatus==='Pipeline' && deal.offerStatus!=='accepted') ?
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 14px;background:#FEF9C3;border-bottom:1px solid #FDE047;">'
+        +'<span style="font-size:12px;font-weight:600;color:#854D0E;min-width:0;overflow:hidden;text-overflow:ellipsis;">📤 Offer out on '+partnerEsc(deal.address)+'</span>'
+        +'<span style="display:flex;gap:6px;flex-shrink:0;">'
+        +'<button class="btn btn-sm" style="background:#16A34A;color:#fff;font-size:11px;" onclick="markOfferAccepted(\''+deal.id+'\')">✅ Accepted</button>'
+        +'<button class="btn btn-sm" style="background:#DC2626;color:#fff;font-size:11px;" onclick="markOfferRejected(\''+deal.id+'\')">✕ Rejected</button>'
+        +'</span></div>' : '')
       +'<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.55);border-bottom:1px solid '+tileBdr+';">'
       +'<span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;flex-shrink:0;">Stage</span>'
       +'<select onchange="setDealStep(\''+deal.id+'\',parseInt(this.value))" style="flex:1;min-width:0;font-size:12px;padding:4px 6px;border:1px solid '+tileBdr+';border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'+_stepOpts+'</select>'
@@ -20961,6 +20976,20 @@ function editDealAddress(dealId) {
   });
 }
 window.editDealAddress = editDealAddress;
+
+function markOfferAccepted(dealId){
+  var deal=_deals.find(function(d){ return d.id===dealId; }); if(!deal) return;
+  deal.offerStatus='accepted';
+  fb.updateDoc(_dealDoc(dealId),{offerStatus:'accepted'}).then(function(){ filterDeals(_activeFilter); });
+}
+function markOfferRejected(dealId){
+  var deal=_deals.find(function(d){ return d.id===dealId; }); if(!deal) return;
+  if(!confirm('Mark this offer rejected? The address will clear and the deal goes back to House Hunting.')) return;
+  deal.address=''; deal.offerStatus='';
+  fb.updateDoc(_dealDoc(dealId),{ address:'', offerStatus:'' }).then(function(){ filterDeals(_activeFilter); });
+}
+window.markOfferAccepted = markOfferAccepted;
+window.markOfferRejected = markOfferRejected;
 
 // ── Filter deals by status ──
 // Derive the Deal Tracker bucket from the deal's stage (the stage drives the tab — no manual status).
