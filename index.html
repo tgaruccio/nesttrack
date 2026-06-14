@@ -4508,6 +4508,9 @@ function dtBytesToB64(bytes){
   return btoa(bin);
 }
 
+var DT_LOOP_RELAY='https://script.google.com/macros/s/AKfycbxnvu6BKaRVkDOLw25SGlUFSpwcnF9EXKg9qKadgnh6bpCiFkTQR-Lm4OBTV8l-zL3_/exec';
+var DT_LOOP_SECRET='GG-loop-7q2x9';
+
 async function dtFillSendToLoop(){
   var pkg=window._dtFillTpl; if(!pkg) return;
   var _raw=(document.getElementById('dt-fill-loop').value||'').replace(/[^\x21-\x7E]/g,'');
@@ -4524,17 +4527,16 @@ async function dtFillSendToLoop(){
     var sel=document.getElementById('dt-fill-deal');
     var addr=((sel.options[sel.selectedIndex]||{}).text||'deal');
     var fname=((pkg.tpl.name||'document')+'_'+addr).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,'')+'.pdf';
-    var payload={
+    var resp=await fetch(DT_LOOP_RELAY, { method:'POST', body: JSON.stringify({
+      secret: DT_LOOP_SECRET,
       to: loop,
       subject: (pkg.tpl.name||'Document')+' — '+addr,
-      html: '<p>'+escapeHtml(pkg.tpl.name||'Document')+' for '+escapeHtml(addr)+' — attached.</p>',
-      attachments: [{ filename: fname, content: b64 }]
-    };
-    try{ var ff=agentFromField(); if(ff) payload.from=ff; }catch(_){}
-    try{ var rt=agentReplyTo(); if(rt) payload.reply_to=rt; }catch(_){}
-    var resp=await fetch(PROXY_URL,{ method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      body: (pkg.tpl.name||'Document')+' for '+addr+' — attached.',
+      filename: fname,
+      pdfBase64: b64
+    }) });
     var r=await resp.json().catch(function(){return null;});
-    if(r && r.id){
+    if(r && r.ok){
       var deal=(_deals||[]).find(function(d){return d.id===sel.value;});
       if(deal){
         try{ await fb.updateDoc(_dealDoc(deal.id), { loopEmail: loop }); deal.loopEmail=loop; }catch(_){}
@@ -4543,9 +4545,9 @@ async function dtFillSendToLoop(){
       alert('Sent to the loop ✉️  It should appear in Dotloop shortly — review and add signatures there.');
       dtCloseFill();
     } else {
-      alert('No confirmation from the email service'+((r&&r.message)?': '+r.message:'')+'. Check Dotloop in a minute to confirm it arrived.');
+      alert('Couldn\u2019t confirm the send'+((r&&r.error)?': '+r.error:'')+'. It may have still gone through — check Dotloop. If not, use Download and email it in.');
     }
-  }catch(e){ alert('Send failed: '+e.message); }
+  }catch(e){ alert('Couldn\u2019t confirm the send (this can happen even when it works). Check Dotloop in a minute — if it\u2019s not there, use Download and email it in.'); }
   finally{ btn.disabled=false; btn.textContent=old; }
 }
 
