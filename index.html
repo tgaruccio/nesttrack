@@ -9487,6 +9487,12 @@ window.deleteTourFromDetail = deleteTourFromDetail;
 let allBuyers = [];
 let myBuyers = [];
 
+function isOwner() {
+  const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
+  if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
+  return !!(userProfile && userProfile.teamRole === 'owner');
+}
+
 function isTeamLeader() {
   const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
   if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
@@ -9498,7 +9504,7 @@ function isTeamLeader() {
 function canAccessBuyer(buyer) {
   if (!buyer) return false;
   if (!isAgent && !isLender) return false;
-  if (isTeamLeader()) return true;
+  if (isOwner()) return true;
   // Agent access: buyer assigned to this agent OR co-agent
   if (isAgent && buyer.agentId === userProfile.agentId) return true;
   if (isAgent && buyer.coAgentId && buyer.coAgentId === userProfile.agentId) return true;
@@ -9662,7 +9668,7 @@ window.exitClientPreview = exitClientPreview;
 async function loadBuyersForAgent() {
   try {
     let q;
-    if (isTeamLeader() && _adminShowAll) {
+    if (isOwner() && _adminShowAll) {
       // Admin "show all" mode — every buyer on the platform
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'));
     } else if (isLender && !isAgent) {
@@ -9698,7 +9704,7 @@ async function loadBuyersForAgent() {
       } catch(e) { console.log('contact/seller load err:',e.message); }
     }
     // Also load clients where this agent is co-agent (second query, merge)
-    if (isAgent && !(isTeamLeader() && _adminShowAll)) {
+    if (isAgent && !(isOwner() && _adminShowAll)) {
       try {
         var coQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('coAgentId','==',userProfile.agentId));
         var coSnap = await fb.getDocs(coQ);
@@ -9710,7 +9716,7 @@ async function loadBuyersForAgent() {
       } catch(e) { console.log('coAgent query err:', e.message); }
     }
     // Also load clients where this user is assigned as lender/mortgage LO
-    if (isLender && !(isTeamLeader() && _adminShowAll)) {
+    if (isLender && !(isOwner() && _adminShowAll)) {
       try {
         var lenderId = userProfile.lenderId || 'tom';
         var lQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('lenderId','==',lenderId));
@@ -9724,7 +9730,7 @@ async function loadBuyersForAgent() {
     }
     // myBuyers always respects the current view mode
     myBuyers = allBuyers.filter(function(b) {
-      if (isTeamLeader() && _adminShowAll) return true;
+      if (isOwner() && _adminShowAll) return true;
       return b.agentId === userProfile.agentId
         || b.coAgentId === userProfile.agentId
         || (isLender && b.lenderId === (userProfile.lenderId || 'tom'));
@@ -9755,14 +9761,14 @@ async function renderBuyers() {
   // Update admin toggle button visibility
   var adminToggleBtn = document.getElementById('admin-show-all-btn');
   if (adminToggleBtn) {
-    adminToggleBtn.style.display = teamLeader ? 'inline-flex' : 'none';
+    adminToggleBtn.style.display = isOwner() ? 'inline-flex' : 'none';
     adminToggleBtn.textContent = _adminShowAll ? '👥 All Clients (ON)' : '👤 My Clients Only';
     adminToggleBtn.style.background = _adminShowAll ? '#1D9E75' : '';
     adminToggleBtn.style.color = _adminShowAll ? '#fff' : '';
     adminToggleBtn.style.borderColor = _adminShowAll ? '#1D9E75' : '';
   }
   myBuyers = allBuyers.filter(function(b) {
-    if (teamLeader && _adminShowAll) return true;
+    if (isOwner() && _adminShowAll) return true;
     return b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId;
   });
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
