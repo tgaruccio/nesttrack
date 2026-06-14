@@ -1448,6 +1448,12 @@ textarea{resize:vertical;min-height:68px;}
       <button class="btn btn-g" onclick="dtNewTemplate()">+ New Template</button>
     </div>
     <p style="color:var(--text3);font-size:13px;margin:0 0 16px;">Map a blank PDF form once — drop in the fields it needs. Agents then generate filled docs from any deal in one tap.</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px;">
+      <h3 style="margin:0;font-size:15px;">📦 Packages <span style="font-weight:400;font-size:12px;color:var(--text3);">— save a set of docs (e.g. Offer Packet) for one-tap generate</span></h3>
+      <button class="btn btn-sm btn-g" onclick="dpNew()">+ New Package</button>
+    </div>
+    <div id="dt-packages" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-bottom:24px;"></div>
+    <h3 style="margin:0 0 10px;font-size:15px;">Templates</h3>
     <div id="dt-library" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;"></div>
   </div>
 </div>
@@ -1470,6 +1476,24 @@ textarea{resize:vertical;min-height:68px;}
       </div>
     </div>
     <div id="dt-config" style="width:240px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;padding:14px;background:var(--card,#fafafa);display:none;"></div>
+  </div>
+</div>
+
+<!-- DOC PACKAGE BUILDER -->
+<div id="dp-modal" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--card,#fff);border-radius:14px;max-width:460px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 id="dp-modal-title" style="margin:0;font-size:17px;">New Package</h3>
+      <button onclick="dpClose()" style="background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--text3);">×</button>
+    </div>
+    <label style="font-size:12px;font-weight:600;color:var(--text2);">Package name</label>
+    <input id="dp-name" placeholder="e.g. Offer Packet" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:14px;margin:4px 0 14px;box-sizing:border-box;"/>
+    <label style="font-size:12px;font-weight:600;color:var(--text2);">Documents in this package</label>
+    <div id="dp-templates" style="margin:6px 0 4px;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dpClose()">Cancel</button>
+      <button class="btn btn-g" id="dp-save-btn" onclick="dpSave()">Save Package</button>
+    </div>
   </div>
 </div>
 
@@ -4065,6 +4089,7 @@ async function dtLoadLibrary(){
     snap.forEach(function(d){ var o=d.data(); o.id=d.id; window._dtTemplates.push(o); });
     window._dtTemplates.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
     dtRenderLibrary();
+    dpLoad();
   }catch(e){ grid.innerHTML='<div style="color:var(--text3);font-size:13px;">Could not load templates: '+escapeHtml(e.message)+'</div>'; }
 }
 
@@ -4375,10 +4400,15 @@ async function dtGenerateForDeal(dealId){
       try{ filterDeals(_activeFilter); }catch(_){} }
   }
   try{ await dtEnsureTemplates(); }catch(e){ alert('Could not load templates: '+e.message); return; }
+  try{ await dpEnsure(); }catch(_){}
   var tpls=window._dtTemplates||[];
   if(!tpls.length){ alert('No templates yet. Build one in Doc Templates first (team-lead tool).'); return; }
   window._dtPickDeal=dealId;
-  document.getElementById('dt-pick-list').innerHTML=tpls.map(function(t){
+  var pkgs=window._dtPackages||[];
+  var pkgHtml = pkgs.length ? '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 6px;">Packages</div>'
+    +pkgs.map(function(pk){ return '<button class="btn btn-sm" style="margin:0 6px 6px 0;background:#EEF2FF;color:#3730A3;" onclick="dpApplyToPicker(\''+pk.id+'\')">📦 '+escapeHtml(pk.name||'Untitled')+'</button>'; }).join('')
+    +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:10px 0 6px;">Documents</div>' : '';
+  document.getElementById('dt-pick-list').innerHTML=pkgHtml+tpls.map(function(t){
     return '<label style="display:flex;align-items:center;gap:9px;padding:9px 10px;margin-bottom:7px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;">'
       +'<input type="checkbox" class="dt-pick-ck" value="'+t.id+'" style="width:16px;height:16px;flex-shrink:0;"/> 📄 '+escapeHtml(t.name||'Untitled')+'</label>';
   }).join('')
@@ -4595,6 +4625,91 @@ async function dtFillSendToLoop(){
     }
   }catch(e){ alert('Couldn\u2019t confirm the send (this can happen even when it works). Check Dotloop in a minute — if it\u2019s not there, use Download and email it in.'); }
   finally{ btn.disabled=false; btn.textContent=old; }
+}
+
+// ── Doc Packages — named sets of templates for one-tap generate ──
+function dpCol(){ return fb.collection(fb.db,'agents',dtAgentId(),'docPackages'); }
+function dpDoc(id){ return fb.doc(fb.db,'agents',dtAgentId(),'docPackages',id); }
+
+async function dpLoad(){
+  var grid=document.getElementById('dt-packages'); if(!grid) return;
+  try{
+    var snap=await fb.getDocs(dpCol());
+    window._dtPackages=[]; snap.forEach(function(d){ var o=d.data(); o.id=d.id; window._dtPackages.push(o); });
+    window._dtPackages.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    dpRender();
+  }catch(e){ grid.innerHTML='<div style="color:var(--text3);font-size:13px;">Could not load packages: '+escapeHtml(e.message)+'</div>'; }
+}
+function dpRender(){
+  var grid=document.getElementById('dt-packages'); if(!grid) return;
+  var p=window._dtPackages||[];
+  if(!p.length){ grid.innerHTML='<div style="grid-column:1/-1;color:var(--text3);font-size:13px;padding:18px;text-align:center;border:1px dashed var(--border);border-radius:10px;">No packages yet. Create one to generate a whole set of docs (like an offer packet) in one tap.</div>'; return; }
+  grid.innerHTML=p.map(function(pk){
+    var n=(pk.templateIds||[]).length;
+    return '<div class="card" style="padding:14px;">'
+      +'<div style="font-size:15px;font-weight:700;margin-bottom:4px;">📦 '+escapeHtml(pk.name||'Untitled')+'</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">'+n+' document'+(n===1?'':'s')+'</div>'
+      +'<div style="display:flex;gap:8px;">'
+      +'<button class="btn btn-g btn-sm" onclick="dpEdit(\''+pk.id+'\')">Edit</button>'
+      +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dpDelete(\''+pk.id+'\')">Delete</button>'
+      +'</div></div>';
+  }).join('');
+}
+function dpTemplateChecklist(selected){
+  var t=window._dtTemplates||[]; selected=selected||[];
+  if(!t.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">No templates yet — create templates first.</div>';
+  return t.map(function(tp){
+    var on=selected.indexOf(tp.id)>=0;
+    return '<label style="display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:6px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;"><input type="checkbox" class="dp-tpl-ck" value="'+tp.id+'"'+(on?' checked':'')+' style="width:16px;height:16px;flex-shrink:0;"/> 📄 '+escapeHtml(tp.name||'Untitled')+'</label>';
+  }).join('');
+}
+function dpNew(){
+  window._dpEditId=null;
+  document.getElementById('dp-modal-title').textContent='New Package';
+  document.getElementById('dp-name').value='';
+  document.getElementById('dp-templates').innerHTML=dpTemplateChecklist([]);
+  document.getElementById('dp-modal').style.display='flex';
+}
+function dpEdit(id){
+  var pk=(window._dtPackages||[]).find(function(x){return x.id===id;}); if(!pk) return;
+  window._dpEditId=id;
+  document.getElementById('dp-modal-title').textContent='Edit Package';
+  document.getElementById('dp-name').value=pk.name||'';
+  document.getElementById('dp-templates').innerHTML=dpTemplateChecklist(pk.templateIds||[]);
+  document.getElementById('dp-modal').style.display='flex';
+}
+function dpClose(){ var el=document.getElementById('dp-modal'); if(el) el.style.display='none'; }
+async function dpSave(){
+  var name=document.getElementById('dp-name').value.trim();
+  if(!name){ alert('Give the package a name.'); return; }
+  var ids=Array.prototype.map.call(document.querySelectorAll('.dp-tpl-ck:checked'),function(c){return c.value;});
+  if(!ids.length){ alert('Pick at least one document for the package.'); return; }
+  var btn=document.getElementById('dp-save-btn'); var old=btn.textContent; btn.disabled=true; btn.textContent='Saving…';
+  try{
+    var id=window._dpEditId || ('pkg_'+Date.now());
+    var data={ name:name, templateIds:ids, updatedAt:fb.serverTimestamp() };
+    if(!window._dpEditId) data.createdAt=fb.serverTimestamp();
+    await fb.setDoc(dpDoc(id), data, {merge:true});
+    dpClose(); dpLoad();
+  }catch(e){ alert('Save failed: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+async function dpDelete(id){
+  var pk=(window._dtPackages||[]).find(function(x){return x.id===id;}); if(!pk) return;
+  if(!confirm('Delete package "'+(pk.name||'Untitled')+'"? Your templates are not affected.')) return;
+  try{ await fb.deleteDoc(dpDoc(id)); window._dtPackages=(window._dtPackages||[]).filter(function(x){return x.id!==id;}); dpRender(); }
+  catch(e){ alert('Delete failed: '+e.message); }
+}
+async function dpEnsure(){
+  if(window._dtPackages) return;
+  var snap=await fb.getDocs(dpCol());
+  window._dtPackages=[]; snap.forEach(function(d){ var o=d.data(); o.id=d.id; window._dtPackages.push(o); });
+  window._dtPackages.sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+}
+function dpApplyToPicker(pkgId){
+  var pk=(window._dtPackages||[]).find(function(x){return x.id===pkgId;}); if(!pk) return;
+  var ids=pk.templateIds||[];
+  document.querySelectorAll('.dt-pick-ck').forEach(function(c){ c.checked = ids.indexOf(c.value)>=0; });
 }
 
 function renderAgentProfileEditor() {
