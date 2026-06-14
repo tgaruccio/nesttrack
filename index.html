@@ -4153,7 +4153,7 @@ function dtNewTemplate(){
     if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
     var rd=new FileReader();
     rd.onload=function(){
-      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], selId:null, drag:null, dirtyPdf:true };
+      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], stages:[], selId:null, drag:null, dirtyPdf:true };
       document.getElementById('dt-name').value='';
       dtOpenBuilder();
     };
@@ -4194,7 +4194,7 @@ async function dtEditTemplate(id){
   try{
     var resp=await fetch(tp.pdfUrl);
     var ab=await resp.arrayBuffer();
-    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
+    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), stages:(tp.stages||[]).slice(), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
     document.getElementById('dt-name').value=tp.name||'';
     dtOpenBuilder();
   }catch(e){ alert('Could not open template: '+e.message); }
@@ -4255,6 +4255,13 @@ function dtRenderPalette(){
   html+='<button class="btn btn-sm" style="width:100%;margin-bottom:6px;background:#7C3AED;color:#fff;" onclick="dtAddBox(\'check\')">+ Checkbox</button>';
   html+='<button class="btn btn-sm" style="width:100%;background:#D97706;color:#fff;" onclick="dtAddBox(\'custom\')">+ Custom field</button>';
   html+='<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.45;"><b style="color:#1e40af;">Prefill</b> auto-fills from the deal. <b style="color:#7C3AED;">Checkbox</b> you toggle at draft. <b style="color:#D97706;">Custom</b> you type at draft.</div>';
+  html+='<div style="border-top:1px solid var(--border);margin:14px 0 8px;"></div>';
+  html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 4px;">Suggest on TC step</div>';
+  html+='<div style="font-size:10px;color:var(--text3);margin-bottom:7px;line-height:1.45;">Check a step and a “Draft this doc” button appears on that task in the deal’s Transaction Coordinator.</div>';
+  if(typeof TC_TASKS!=='undefined'){ TC_TASKS.forEach(function(t){
+    var on=(dtState.stages||[]).indexOf(t.key)>=0;
+    html+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleStage(\''+t.key+'\',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(t.label)+'</label>';
+  }); }
   p.innerHTML=html;
   p.querySelectorAll('.dt-chip').forEach(function(ch){
     ch.addEventListener('dragstart',function(e){ e.dataTransfer.setData('text/dtbind', ch.dataset.bind); e.dataTransfer.effectAllowed='copy'; });
@@ -4272,6 +4279,12 @@ function dtRenderPalette(){
 function dtBoxColor(t){ return t==='prefill'?'#2563EB':(t==='check'?'#7C3AED':'#D97706'); }
 function dtBoxLabel(b){ return b.type==='prefill'?dtPrefillLabel(b.bind):(b.label||(b.type==='check'?'Checkbox':'Field')); }
 function dtFindBox(id){ return (dtState.boxes||[]).find(function(x){return x.id===id;}); }
+function dtToggleStage(key,on){
+  if(!dtState.stages) dtState.stages=[];
+  var i=dtState.stages.indexOf(key);
+  if(on && i<0) dtState.stages.push(key);
+  if(!on && i>=0) dtState.stages.splice(i,1);
+}
 
 function dtAddBox(type, bind, fx, fy){
   if(!dtState.pdf) return;
@@ -4377,7 +4390,7 @@ async function dtSaveTemplate(){
       await fb.uploadBytes(sRef, dtState.pdfBytes, {contentType:'application/pdf'});
       pdfUrl=await fb.getDownloadURL(sRef);
     }
-    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], updatedAt:fb.serverTimestamp() };
+    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], stages:dtState.stages||[], updatedAt:fb.serverTimestamp() };
     if(!dtState.id) docData.createdAt=fb.serverTimestamp();
     await fb.setDoc(dtDoc(id), docData, {merge:true});
     dtCloseBuilder();
@@ -17486,6 +17499,9 @@ async function renderDealTracker() {
   html += '<div id="deal-cards-container"></div>';
   el.innerHTML = html;
   filterDeals(_activeFilter);
+  if(!window._dtTemplates && typeof dtEnsureTemplates==='function'){
+    dtEnsureTemplates().then(function(){ try{ filterDeals(_activeFilter); }catch(_){} }).catch(function(){});
+  }
 }
 // ── LISTING UPDATES (client side) ──
 async function renderListingUpdates() {
@@ -21033,13 +21049,22 @@ function renderDealTC(deal){
     var due = end ? ('<span style="font-size:10px;color:var(--text3);"> \u00b7 by '+_tcFmt(end)+'</span>') : '';
     var draft = (x.s==='now'||x.s==='overdue')
       ? '<button class="btn btn-sm btn-g" onclick="draftTCTask(\''+deal.id+'\',\''+x.t.key+'\')" style="font-size:10px;padding:3px 8px;flex-shrink:0;">Draft</button>' : '';
+    var docBtns='';
+    if((x.s==='now'||x.s==='overdue') && window._dtTemplates){
+      var _dm=window._dtTemplates.filter(function(tp){ return (tp.stages||[]).indexOf(x.t.key)>=0; });
+      if(_dm.length){
+        docBtns='<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 0 8px 22px;">'
+          +_dm.map(function(tp){ return '<button class="btn btn-sm" style="font-size:10px;padding:3px 8px;background:#2563EB;color:#fff;" onclick="dtOpenFillMulti([\''+tp.id+'\'],\''+deal.id+'\')">\ud83d\udcc4 Draft '+escapeHtml(tp.name||'Doc')+'</button>'; }).join('')
+          +'</div>';
+      }
+    }
     return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:0.5px solid var(--border);">'
       + '<span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;background:'+p[0]+';color:'+p[1]+';flex-shrink:0;">'+p[2]+'</span>'
       + '<span style="flex:1;min-width:0;font-size:12px;color:var(--text);">'+x.t.label+due+'</span>'
       + draft
       + '<button onclick="setTCTaskStatus(\''+deal.id+'\',\''+x.t.key+'\',\'done\')" title="Mark done" style="background:none;border:none;color:#1D9E75;cursor:pointer;font-size:14px;flex-shrink:0;">\u2713</button>'
       + '<button onclick="setTCTaskStatus(\''+deal.id+'\',\''+x.t.key+'\',\'skip\')" title="Not needed" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;flex-shrink:0;">\u2715</button>'
-      + '</div>';
+      + '</div>' + docBtns;
   }).join('');
   var empty = active.length ? '' : '<div style="font-size:11px;color:var(--text3);padding:6px 0;">All caught up \u2014 no open coordination tasks right now.</div>';
   var doneNote = doneCount ? '<div style="font-size:10px;color:var(--text3);padding-top:6px;">'+doneCount+' task'+(doneCount===1?'':'s')+' completed. <a href="#" onclick="resetTCDeal(\''+deal.id+'\');return false;" style="color:var(--text3);text-decoration:underline;">reset</a></div>' : '';
