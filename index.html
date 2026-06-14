@@ -1509,6 +1509,17 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+<!-- DOC FILL PREVIEW -->
+<div id="dt-preview" style="display:none;position:fixed;inset:0;z-index:10002;background:#525659;flex-direction:column;">
+  <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--card,#fff);border-bottom:1px solid var(--border);flex-wrap:wrap;">
+    <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtClosePreview()">← Back to edit</button>
+    <div style="font-weight:600;font-size:14px;">Preview</div>
+    <div style="flex:1;"></div>
+    <span style="font-size:11px;color:var(--text3);">This is exactly what gets sent.</span>
+  </div>
+  <div id="dt-preview-pages" style="flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:16px;"></div>
+</div>
+
 <!-- DOC TEMPLATE FILL / GENERATE -->
 <div id="dt-fill" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px;">
   <div style="background:var(--card,#fff);border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:20px;">
@@ -1526,6 +1537,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
       <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtCloseFill()">Cancel</button>
+      <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" id="dt-fill-preview" onclick="dtPreviewFill()">👁 Preview</button>
       <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" id="dt-fill-gen" onclick="dtFillGenerate()">Download</button>
       <button class="btn btn-g" id="dt-fill-send" onclick="dtFillSendToLoop()">Send to Loop ✉️</button>
     </div>
@@ -4521,6 +4533,32 @@ function dtFillRenderFields(){
   wrap.innerHTML=html;
   var loopEl=document.getElementById('dt-fill-loop'); if(loopEl) loopEl.value=deal.loopEmail||'';
 }
+
+async function dtPreviewFill(){
+  var pkg=window._dtFillPkg; if(!pkg||!pkg.items.length) return;
+  if(!window.pdfjsLib){ alert('PDF engine still loading — try again in a moment.'); return; }
+  var btn=document.getElementById('dt-fill-preview'); var old=btn.textContent; btn.disabled=true; btn.textContent='Rendering…';
+  try{
+    var bytes=await dtBuildPackagePdf();
+    var cont=document.getElementById('dt-preview-pages'); cont.innerHTML='';
+    var task=pdfjsLib.getDocument({data:bytes.slice()});
+    var pdf=await task.promise;
+    document.getElementById('dt-preview').style.display='flex';
+    for(var n=1;n<=pdf.numPages;n++){
+      var page=await pdf.getPage(n);
+      var vp=page.getViewport({scale:1.4});
+      var canvas=document.createElement('canvas');
+      canvas.width=vp.width; canvas.height=vp.height;
+      var cssW=Math.min(vp.width,850);
+      canvas.style.width=cssW+'px'; canvas.style.height=(vp.height*(cssW/vp.width))+'px';
+      canvas.style.boxShadow='0 4px 20px rgba(0,0,0,0.4)'; canvas.style.background='#fff';
+      cont.appendChild(canvas);
+      await page.render({canvasContext:canvas.getContext('2d'), viewport:vp}).promise;
+    }
+  }catch(e){ alert('Preview failed: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+function dtClosePreview(){ var el=document.getElementById('dt-preview'); if(el) el.style.display='none'; }
 
 async function dtFillGenerate(){
   var pkg=window._dtFillPkg; if(!pkg||!pkg.items.length) return;
