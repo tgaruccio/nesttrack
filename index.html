@@ -6875,6 +6875,14 @@ function agentFromField() {
 function agentReplyTo() {
   return (userProfile&&userProfile.email) || null;
 }
+// Standing rule: a client with two emails always gets sent to both.
+function clientToList(c){
+  if(!c) return [];
+  var a=[];
+  if(c.email) a.push(String(c.email).trim());
+  if(c.email2) a.push(String(c.email2).trim());
+  return a.filter(function(e,i){ return e && a.indexOf(e)===i; });
+}
 function nsEmailBtn(label, url, color) {
   color = color || '#1D9E75';
   return '<div style="text-align:center;margin:20px 0;">'
@@ -7245,7 +7253,7 @@ async function sendStepEmail(uid, stepNum, type) {
       bodyHtml = hardcoded.body(first, agentName);
     }
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var stepPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
+    var stepPayload = { to: clientToList(client), subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
 
     // Build CC prefill string for the email preview
     var ccParts = [];
@@ -7385,7 +7393,7 @@ async function sendContractDatesEmail(uid, type, dates) {
       + nsEmailBtn('View My Timeline \u2192', APP_LINK, '#1D9E75');
 
     var html = nsEmailWrap(agentName, subject, bodyHtml, userProfile);
-    var datesPayload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
+    var datesPayload = { to: clientToList(client), subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
     if (agentObj && agentObj.email) datesPayload.cc = agentObj.email;
     await fetch(PROXY_URL, {
       method: 'POST',
@@ -10250,7 +10258,7 @@ async function sendNewsletter() {
     var first = client.firstName || 'there';
     var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + body;
     var html = nsEmailWrap(agentName, subject, personalBody, userProfile);
-    var payload = { to: client.email, subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
+    var payload = { to: clientToList(client), subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo() };
     if (ccList.length) payload.cc = ccList;
     try {
       await fetch(PROXY_URL, {
@@ -15580,6 +15588,19 @@ async function sendOfferToClient(listingId, offerId) {
   nsDiv.appendChild(netDisp);
   body.appendChild(nsDiv);
 
+  // CC (optional)
+  var ccWrap = document.createElement('div');
+  var ccLabel = document.createElement('label');
+  ccLabel.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;';
+  ccLabel.textContent = 'CC (optional)';
+  var ccInput = document.createElement('input');
+  ccInput.id = 'sor-cc';
+  ccInput.type = 'text';
+  ccInput.placeholder = 'anyone else who should get this — comma-separate for several';
+  ccInput.style.cssText = 'width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;';
+  ccWrap.appendChild(ccLabel); ccWrap.appendChild(ccInput);
+  body.appendChild(ccWrap);
+
   // Buttons
   var btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;';
@@ -15654,6 +15675,8 @@ async function confirmSendOffer(listingId, offerId) {
   var ctx = window._sorCtx;
   if (!ctx) return;
   var includeNS = document.getElementById('sor-include-ns') && document.getElementById('sor-include-ns').checked;
+  var _ccRaw = (document.getElementById('sor-cc')||{}).value||'';
+  var sorCc = _ccRaw.split(/[,;\s]+/).map(function(s){return s.trim();}).filter(function(e){return e && e.indexOf('@')>0;});
   var ns = ctx._ns;
   var inp = ctx._inputs || {};
   var fmt = ctx.fmt;
@@ -15757,7 +15780,7 @@ async function confirmSendOffer(listingId, offerId) {
 
     // 5. Emails in background — non-blocking
     fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo()})}).catch(function(){});
+      body:JSON.stringify({to:clientToList(client), cc:sorCc, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo()})}).catch(function(){});
 
     if (o.agentEmail) {
       var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
@@ -16115,7 +16138,7 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
       +'<div style="font-size:13px;color:#888;">Sent automatically via Nest Track</div>'
       +'</div></div>';
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:client.email, subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
+      body:JSON.stringify({to:clientToList(client), subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
     if (listingData.clientUid) {
       sendPushToUser(listingData.clientUid, 'New Offer 🎉', 'An offer has come in on '+(listingData.address||'your listing')+'. Check the app to review it.');
@@ -16280,7 +16303,7 @@ async function emailComparisonToClient(listingId) {
   showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml, ccValue) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:client.email, subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
+        body:JSON.stringify({to:clientToList(client), subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo()})});
       alert('Comparison emailed to '+clientFirst+'!');
     } catch(e) { alert('Failed to send: '+e.message); }
   });
@@ -20134,7 +20157,7 @@ async function srSendReport() {
   try {
     // Send email
     var emailPayload = {
-      to: client.email,
+      to: clientToList(client),
       subject: subject,
       html: emailHtml,
       from: agentFromField(),
@@ -21500,7 +21523,7 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
     showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function(finalHtml, ccValue) {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-          body:JSON.stringify({to:client.email, subject:'Transaction Update: '+partnerEsc(taskLabel), html:finalHtml||emailHtml})});
+          body:JSON.stringify({to:clientToList(client), subject:'Transaction Update: '+partnerEsc(taskLabel), html:finalHtml||emailHtml})});
       } catch(e) { console.log('Task email send err:', e.message); }
     });
   } catch(e) { console.log('Task email err:', e.message); }
