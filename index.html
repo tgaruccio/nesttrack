@@ -4410,6 +4410,7 @@ function dtFmtDate(s){ if(!s) return ''; var p=String(s).slice(0,10).split('-');
 function dtFmtPrice(n){ if(n==null||n==='') return ''; var v=(typeof n==='number')?n:parseFloat(String(n).replace(/[^0-9.]/g,'')); if(isNaN(v)) return ''; return '$'+v.toLocaleString('en-US',{maximumFractionDigits:0}); }
 function dtSelfAgentName(){ try{ var a=currentAgent(); if(!a) return ''; return a.name || ((a.firstName||'')+' '+(a.lastName||'')).trim(); }catch(e){ return ''; } }
 
+function dtIsDateBind(bind){ return ['contractDate','closingDate','inspectionDate','appraisalDate','financingDate','walkthroughDate','earnestDate','todayDate'].indexOf(bind)>=0; }
 function dtResolvePrefills(deal){
   deal=deal||{};
   function party(role){ var p=(deal.parties||[]).find(function(x){return (x.role||'').toLowerCase()===role.toLowerCase();}); return p?(p.name||''):''; }
@@ -4516,9 +4517,15 @@ function dtFillRenderFields(){
 
   function pfField(b){
     if(seenPf[b.bind]) return ''; seenPf[b.bind]=true;
-    return '<div style="margin-bottom:9px;border-left:3px solid #2563EB;padding-left:9px;">'
-      +'<label style="font-size:11px;font-weight:600;color:#1e40af;display:block;margin-bottom:2px;">'+escapeHtml(dtPrefillLabel(b.bind))+' <span style="font-weight:400;color:var(--text3);">· auto</span></label>'
-      +'<input class="dt-fill-pf" data-bind="'+b.bind+'" value="'+escapeHtml(pf[b.bind]||'')+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/></div>';
+    var lbl='<label style="font-size:11px;font-weight:600;color:#1e40af;display:block;margin-bottom:2px;">'+escapeHtml(dtPrefillLabel(b.bind))+' <span style="font-weight:400;color:var(--text3);">· auto</span></label>';
+    var raw=pf[b.bind]||'';
+    if(dtIsDateBind(b.bind)){
+      var iso=''; var m=raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(m) iso=m[3]+'-'+m[1]+'-'+m[2];
+      return '<div style="margin-bottom:9px;border-left:3px solid #2563EB;padding-left:9px;">'+lbl
+        +'<input type="date" class="dt-fill-pf" data-date="1" data-bind="'+b.bind+'" value="'+iso+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/></div>';
+    }
+    return '<div style="margin-bottom:9px;border-left:3px solid #2563EB;padding-left:9px;">'+lbl
+      +'<input class="dt-fill-pf" data-bind="'+b.bind+'" value="'+escapeHtml(raw)+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/></div>';
   }
   function ckField(b,tplId){
     return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;border-left:3px solid #7C3AED;padding:3px 0 3px 9px;"><input type="checkbox" class="dt-fill-ck" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:16px;height:16px;flex-shrink:0;"/> '+escapeHtml(b.label||'Checkbox')+'</label>';
@@ -4662,7 +4669,7 @@ function dtDrawWrapped(page, text, x, firstBaseline, maxW, fs, minY, font, P){
 
 async function dtBuildPackagePdf(){
   var pkg=window._dtFillPkg; if(!pkg||!pkg.items.length) return null;
-  var pfVals={}; document.querySelectorAll('.dt-fill-pf').forEach(function(i){ pfVals[i.dataset.bind]=i.value; });
+  var pfVals={}; document.querySelectorAll('.dt-fill-pf').forEach(function(i){ var v=i.value; if(i.dataset.date && /^\d{4}-\d{2}-\d{2}$/.test(v)){ var p=v.split('-'); v=p[1]+'/'+p[2]+'/'+p[0]; } pfVals[i.dataset.bind]=v; });
   var filled=[];
   for(var k=0;k<pkg.items.length;k++){
     var it=pkg.items[k];
