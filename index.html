@@ -2981,6 +2981,13 @@ textarea{resize:vertical;min-height:68px;}
         </div>
         <div><label class="flabel">Email</label><input type="email" id="ta-email"/></div>
         <div style="margin-top:8px;">
+          <label class="flabel">Role on team</label>
+          <select id="ta-teamrole" style="width:100%;font-size:13px;padding:7px 8px;">
+            <option value="member">Team Member — on my team, gets my docs &amp; onboarding</option>
+            <option value="leader" id="ta-teamrole-leader">Team Leader — runs their own team</option>
+          </select>
+        </div>
+        <div style="margin-top:8px;">
           <label class="flabel">Assign Mentor</label>
           <select id="ta-mentor" style="width:100%;font-size:13px;padding:7px 8px;">
             <option value="">— No mentor assigned —</option>
@@ -12462,7 +12469,11 @@ async function addAgentAndInvite() {
   const mentorAgentId = (document.getElementById('ta-mentor') && document.getElementById('ta-mentor').value) || '';
   if (!name || !email) { alert('Name and email are required.'); return; }
   const id = name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12);
-  const agentData = { id, name, role: 'REALTOR®', phone, email, addedAt: new Date().toISOString() };
+  var teamRole = (document.getElementById('ta-teamrole') && document.getElementById('ta-teamrole').value) || 'member';
+  // Guardrail: only the owner can create Team Leaders. Anyone else can only add members to their own team.
+  if (teamRole === 'leader' && !isOwner()) teamRole = 'member';
+  var teamId = (teamRole === 'leader') ? id : ((userProfile && userProfile.agentId) || 'tom');
+  const agentData = { id, name, role: 'REALTOR®', phone, email, teamRole: teamRole, teamId: teamId, addedAt: new Date().toISOString() };
 
   // Check duplicate
   const existing = DEFAULT_AGENTS.findIndex(a => a.id === id || a.email.toLowerCase() === email.toLowerCase());
@@ -12557,6 +12568,10 @@ function openTeamModal() {
           }).join('');
     }
     document.getElementById('team-modal').style.display = 'flex';
+    var _leaderOpt = document.getElementById('ta-teamrole-leader');
+    var _roleSel = document.getElementById('ta-teamrole');
+    if (_leaderOpt) { _leaderOpt.hidden = !isOwner(); _leaderOpt.disabled = !isOwner(); }
+    if (_roleSel && !isOwner()) _roleSel.value = 'member';
     renderTeamOnboardingInModal();
   } else {
     // Mentor view — show only onboarding progress for their agents
