@@ -4508,41 +4508,61 @@ function dtFillRenderFields(){
   var dealId=document.getElementById('dt-fill-deal').value;
   var deal=(_deals||[]).find(function(d){return d.id===dealId;})||{};
   var pf=dtResolvePrefills(deal);
-  var html='', seen={}, anyPrefill=false;
-  items.forEach(function(it){ (it.tpl.boxes||[]).forEach(function(b){ if(b.type==='prefill') anyPrefill=true; }); });
-  if(anyPrefill){
-    html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:6px 0 6px;">Auto-filled from the deal — edit if needed</div>';
-    items.forEach(function(it){
-      (it.tpl.boxes||[]).forEach(function(b){
-        if(b.type!=='prefill' || seen[b.bind]) return; seen[b.bind]=true;
-        html+='<div style="margin-bottom:8px;"><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:2px;">'+escapeHtml(dtPrefillLabel(b.bind))+'</label>'
-          +'<input class="dt-fill-pf" data-bind="'+b.bind+'" value="'+escapeHtml(pf[b.bind]||'')+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;"/></div>';
-      });
-    });
-  }
   var multi=items.length>1;
+  var seenPf={};
+  var html='';
+
+  function pfField(b){
+    if(seenPf[b.bind]) return ''; seenPf[b.bind]=true;
+    return '<div style="margin-bottom:9px;border-left:3px solid #2563EB;padding-left:9px;">'
+      +'<label style="font-size:11px;font-weight:600;color:#1e40af;display:block;margin-bottom:2px;">'+escapeHtml(dtPrefillLabel(b.bind))+' <span style="font-weight:400;color:var(--text3);">· auto</span></label>'
+      +'<input class="dt-fill-pf" data-bind="'+b.bind+'" value="'+escapeHtml(pf[b.bind]||'')+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/></div>';
+  }
+  function ckField(b,tplId){
+    return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;border-left:3px solid #7C3AED;padding:3px 0 3px 9px;"><input type="checkbox" class="dt-fill-ck" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:16px;height:16px;flex-shrink:0;"/> '+escapeHtml(b.label||'Checkbox')+'</label>';
+  }
+  function csField(b,tplId){
+    var tall=(b.h>0.04);
+    return '<div style="margin-bottom:9px;border-left:3px solid #D97706;padding-left:9px;">'
+      +'<label style="font-size:11px;font-weight:600;color:#b45309;display:block;margin-bottom:2px;">'+escapeHtml(b.label||'Field')+'</label>'
+      +(tall?'<textarea class="dt-fill-cs" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;height:70px;resize:vertical;box-sizing:border-box;"></textarea>'
+            :'<input class="dt-fill-cs" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/>')+'</div>';
+  }
+  function fieldHtml(b,tplId){
+    return b.type==='prefill'?pfField(b):(b.type==='check'?ckField(b,tplId):csField(b,tplId));
+  }
+
   items.forEach(function(it){
-    var checks=(it.tpl.boxes||[]).filter(function(b){return b.type==='check';});
-    var customs=(it.tpl.boxes||[]).filter(function(b){return b.type==='custom';});
-    if(!checks.length && !customs.length) return;
-    if(multi) html+='<div style="font-size:12px;font-weight:700;color:var(--text);margin:16px 0 4px;border-top:1px solid var(--border);padding-top:10px;">📄 '+escapeHtml(it.tpl.name||'Document')+'</div>';
-    if(checks.length){
-      html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:10px 0 6px;">Check the ones that apply</div>';
-      checks.forEach(function(b){
-        html+='<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;cursor:pointer;"><input type="checkbox" class="dt-fill-ck" data-tpl="'+it.tpl.id+'" data-id="'+b.id+'" style="width:16px;height:16px;flex-shrink:0;"/> '+escapeHtml(b.label||'Checkbox')+'</label>';
-      });
+    var boxes=(it.tpl.boxes||[]).slice().sort(function(a,b){
+      var pa=a.page||1, pb=b.page||1; if(pa!==pb) return pa-pb;
+      var ya=a.y||0, yb=b.y||0; if(Math.abs(ya-yb)>0.012) return ya-yb;
+      return (a.x||0)-(b.x||0);
+    });
+    if(!boxes.length) return;
+    if(multi) html+='<div style="font-size:13px;font-weight:700;color:var(--text);margin:18px 0 4px;border-top:2px solid var(--border);padding-top:12px;">📄 '+escapeHtml(it.tpl.name||'Document')+'</div>';
+    var curPage=null, pageHtml='', pageHas=false;
+    function flushPage(){
+      if(pageHtml && pageHas){
+        html+='<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);background:var(--card2,#f3f4f6);padding:5px 9px;border-radius:6px;margin:14px 0 8px;">Page '+curPage+'</div>'+pageHtml;
+      }
+      pageHtml=''; pageHas=false;
     }
-    if(customs.length){
-      html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:10px 0 6px;">Fill in</div>';
-      customs.forEach(function(b){
-        var tall=(b.h>0.04);
-        html+='<div style="margin-bottom:8px;"><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:2px;">'+escapeHtml(b.label||'Field')+'</label>'
-          +(tall?'<textarea class="dt-fill-cs" data-tpl="'+it.tpl.id+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;height:70px;resize:vertical;box-sizing:border-box;"></textarea>'
-                :'<input class="dt-fill-cs" data-tpl="'+it.tpl.id+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/>')+'</div>';
-      });
-    }
+    boxes.forEach(function(b){
+      var pg=b.page||1;
+      if(pg!==curPage){ flushPage(); curPage=pg; }
+      var f=fieldHtml(b, it.tpl.id);
+      if(f){ pageHtml+=f; pageHas=true; }
+    });
+    flushPage();
   });
-  if(!html) html='<div style="color:var(--text3);font-size:13px;padding:10px 0;">These templates have no fields mapped yet.</div>';
+
+  if(!html){ html='<div style="color:var(--text3);font-size:13px;padding:10px 0;">These templates have no fields mapped yet.</div>'; }
+  else {
+    html='<div style="font-size:10px;color:var(--text3);margin:0 0 12px;display:flex;gap:14px;flex-wrap:wrap;">'
+      +'<span style="border-left:3px solid #2563EB;padding-left:6px;">Auto-filled</span>'
+      +'<span style="border-left:3px solid #7C3AED;padding-left:6px;">Checkbox</span>'
+      +'<span style="border-left:3px solid #D97706;padding-left:6px;">Fill-in</span></div>'+html;
+  }
   wrap.innerHTML=html;
   var loopEl=document.getElementById('dt-fill-loop'); if(loopEl) loopEl.value=deal.loopEmail||'';
 }
