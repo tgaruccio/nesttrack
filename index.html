@@ -20374,6 +20374,32 @@ function srViewHistory(listingId) {
 }
 window.srViewHistory = srViewHistory;
 
+function _dealTabActive(dealId){ return (window._dealActiveTab && window._dealActiveTab[dealId]) || 'timeline'; }
+function _dealTabBar(dealId){
+  var cur=_dealTabActive(dealId);
+  var tabs=[['timeline','Timeline'],['parties','Parties'],['docs','Docs'],['comms','Comms']];
+  return '<div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:10px;">'
+    +tabs.map(function(t){ var on=(t[0]===cur);
+      return '<button id="dtabbtn-'+t[0]+'-'+dealId+'" onclick="dealTab(\''+dealId+'\',\''+t[0]+'\')" style="flex:1;background:none;border:none;border-bottom:2px solid '+(on?'var(--green-dk)':'transparent')+';padding:8px 4px;font-size:12px;font-weight:'+(on?'700':'600')+';color:'+(on?'var(--green-dk)':'var(--text3)')+';cursor:pointer;font-family:inherit;">'+t[1]+'</button>';
+    }).join('')
+    +'</div>';
+}
+function dealTab(dealId, name){
+  window._dealActiveTab = window._dealActiveTab || {};
+  window._dealActiveTab[dealId] = name;
+  ['timeline','parties','docs','comms'].forEach(function(t){
+    var pane=document.getElementById('dtab-'+t+'-'+dealId);
+    if(pane) pane.style.display=(t===name)?'':'none';
+    var btn=document.getElementById('dtabbtn-'+t+'-'+dealId);
+    if(btn){ var on=(t===name);
+      btn.style.color=on?'var(--green-dk)':'var(--text3)';
+      btn.style.borderBottom=on?'2px solid var(--green-dk)':'2px solid transparent';
+      btn.style.fontWeight=on?'700':'600';
+    }
+  });
+}
+window.dealTab=dealTab;
+
 function renderDealCards(deals) {
   if (!deals.length) {
     return '<div class="notice" style="text-align:center;">'
@@ -20453,7 +20479,9 @@ function renderDealCards(deals) {
           +'</div>';
       }).join('')+'</div>'
       +'<div style="padding:12px 16px 16px;">'
-      +'<details style="margin-bottom:8px;">'
+      +_dealTabBar(deal.id)
+      +'<div id="dtab-timeline-'+deal.id+'" class="dtabpane-'+deal.id+'" style="display:'+(_dealTabActive(deal.id)==='timeline'?'':'none')+';">'
+      +'<details open style="margin-bottom:8px;">'
       +'<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
       +'<span style="font-size:12px;font-weight:600;color:var(--text2);">\u2705 What\'s Needed</span>'
       +'<span style="font-size:11px;background:'+(done===total&&total>0?'var(--green-lt)':'var(--surface2)')+';color:'+(done===total&&total>0?'var(--green-dk)':'var(--text3)')+';padding:2px 7px;border-radius:10px;">'+done+'/'+total+'</span>'
@@ -20466,10 +20494,11 @@ function renderDealCards(deals) {
       +'<button class="btn btn-sm" onclick="showPrefillOptions(\''+deal.id+'\',\''+deal.dealType+'\')" style="flex-shrink:0;font-size:10px;">Prefills</button>'
       +'</div>'
       +'</div></details>'
-      +renderDealParties(deal, linkedBuyer)
-      +renderDealDocuments(deal)
       +renderDealTC(deal)
-      +renderDealComms(deal)
+      +'</div>'
+      +'<div id="dtab-parties-'+deal.id+'" class="dtabpane-'+deal.id+'" style="display:'+(_dealTabActive(deal.id)==='parties'?'':'none')+';">'+renderDealParties(deal, linkedBuyer).replace('<details style="margin-bottom:8px;">','<details open style="margin-bottom:8px;">')+'</div>'
+      +'<div id="dtab-docs-'+deal.id+'" class="dtabpane-'+deal.id+'" style="display:'+(_dealTabActive(deal.id)==='docs'?'':'none')+';">'+renderDealDocuments(deal).replace('<details style="margin-bottom:8px;">','<details open style="margin-bottom:8px;">')+'</div>'
+      +'<div id="dtab-comms-'+deal.id+'" class="dtabpane-'+deal.id+'" style="display:'+(_dealTabActive(deal.id)==='comms'?'':'none')+';">'+(renderDealComms(deal)||'<div style="font-size:12px;color:var(--text3);padding:10px 2px;">No messages logged yet \\u2014 emails you send from this deal show up here.</div>').replace('<details style="margin-bottom:8px;">','<details open style="margin-bottom:8px;">')+'</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
