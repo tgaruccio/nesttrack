@@ -4253,6 +4253,7 @@ function dtRenderPalette(){
   });
   html+='<div style="border-top:1px solid var(--border);margin:12px 0 8px;"></div>';
   html+='<button class="btn btn-sm" style="width:100%;margin-bottom:6px;background:#7C3AED;color:#fff;" onclick="dtAddBox(\'check\')">+ Checkbox</button>';
+  html+='<button class="btn btn-sm" style="width:100%;margin-bottom:6px;background:#0891B2;color:#fff;" onclick="dtAddBox(\'date\')">+ Date field</button>';
   html+='<button class="btn btn-sm" style="width:100%;background:#D97706;color:#fff;" onclick="dtAddBox(\'custom\')">+ Custom field</button>';
   html+='<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.45;"><b style="color:#1e40af;">Prefill</b> auto-fills from the deal. <b style="color:#7C3AED;">Checkbox</b> you toggle at draft. <b style="color:#D97706;">Custom</b> you type at draft.</div>';
   html+='<div style="border-top:1px solid var(--border);margin:14px 0 8px;"></div>';
@@ -4276,7 +4277,7 @@ function dtRenderPalette(){
   };
 }
 
-function dtBoxColor(t){ return t==='prefill'?'#2563EB':(t==='check'?'#7C3AED':'#D97706'); }
+function dtBoxColor(t){ return t==='prefill'?'#2563EB':(t==='check'?'#7C3AED':(t==='date'?'#0891B2':'#D97706')); }
 function dtBoxLabel(b){ return b.type==='prefill'?dtPrefillLabel(b.bind):(b.label||(b.type==='check'?'Checkbox':'Field')); }
 function dtFindBox(id){ return (dtState.boxes||[]).find(function(x){return x.id===id;}); }
 function dtToggleStage(key,on){
@@ -4291,6 +4292,7 @@ function dtAddBox(type, bind, fx, fy){
   var b={ id:'b'+Date.now()+Math.floor(Math.random()*999), page:dtState.curPage, type:type };
   if(type==='prefill'){ b.bind=bind; b.label=dtPrefillLabel(bind); b.fontSize=10; b.w=0.20; b.h=0.022; }
   else if(type==='check'){ b.label='Checkbox'; b.w=0.018; b.h=0.016; }
+  else if(type==='date'){ b.label='Date'; b.fontSize=10; b.w=0.16; b.h=0.022; }
   else { b.label='Field'; b.fontSize=10; b.w=0.20; b.h=0.022; }
   if(typeof fx==='number'){ b.x=Math.max(0,Math.min(1-b.w, fx-b.w/2)); b.y=Math.max(0,Math.min(1-b.h, fy-b.h/2)); }
   else { b.x=0.4; b.y=0.45; }
@@ -4355,7 +4357,7 @@ function dtRenderConfig(){
   if(!b){ c.style.display='none'; return; }
   c.style.display='block';
   var html='<div style="font-size:12px;font-weight:700;margin-bottom:10px;color:'+dtBoxColor(b.type)+';">'
-    +(b.type==='prefill'?'Prefill field':(b.type==='check'?'Checkbox':'Custom field'))+'</div>';
+    +(b.type==='prefill'?'Prefill field':(b.type==='check'?'Checkbox':(b.type==='date'?'Date field':'Custom field')))+'</div>';
   if(b.type==='prefill'){
     html+='<label style="font-size:11px;color:var(--text3);">Bound to</label>';
     html+='<select onchange="dtUpdateBox(\'bind\',this.value)" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin:4px 0 12px;">';
@@ -4457,7 +4459,7 @@ async function dtGenerateForDeal(dealId){
   window._dtPickDeal=dealId;
   var pkgs=window._dtPackages||[];
   var pkgHtml = pkgs.length ? '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 6px;">Packages</div>'
-    +pkgs.map(function(pk){ return '<button class="btn btn-sm" style="margin:0 6px 6px 0;background:#EEF2FF;color:#3730A3;" onclick="dpApplyToPicker(\''+pk.id+'\')">📦 '+escapeHtml(pk.name||'Untitled')+'</button>'; }).join('')
+    +pkgs.map(function(pk){ return '<button class="btn btn-sm" style="margin:0 6px 6px 0;background:#EEF2FF;color:#3730A3;" onclick="dpGenerate(\''+pk.id+'\')">📦 '+escapeHtml(pk.name||'Untitled')+'</button>'; }).join('')
     +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:10px 0 6px;">Documents</div>' : '';
   document.getElementById('dt-pick-list').innerHTML=pkgHtml+tpls.map(function(t){
     return '<label style="display:flex;align-items:center;gap:9px;padding:9px 10px;margin-bottom:7px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;">'
@@ -4528,8 +4530,13 @@ function dtFillRenderFields(){
       +(tall?'<textarea class="dt-fill-cs" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;height:70px;resize:vertical;box-sizing:border-box;"></textarea>'
             :'<input class="dt-fill-cs" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/>')+'</div>';
   }
+  function dateField(b,tplId){
+    return '<div style="margin-bottom:9px;border-left:3px solid #0891B2;padding-left:9px;">'
+      +'<label style="font-size:11px;font-weight:600;color:#0e7490;display:block;margin-bottom:2px;">'+escapeHtml(b.label||'Date')+'</label>'
+      +'<input type="date" class="dt-fill-cs" data-date="1" data-tpl="'+tplId+'" data-id="'+b.id+'" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:7px;font-size:13px;box-sizing:border-box;"/></div>';
+  }
   function fieldHtml(b,tplId){
-    return b.type==='prefill'?pfField(b):(b.type==='check'?ckField(b,tplId):csField(b,tplId));
+    return b.type==='prefill'?pfField(b):(b.type==='check'?ckField(b,tplId):(b.type==='date'?dateField(b,tplId):csField(b,tplId)));
   }
 
   items.forEach(function(it){
@@ -4661,7 +4668,7 @@ async function dtBuildPackagePdf(){
     var it=pkg.items[k];
     var ckVals={}, csVals={};
     document.querySelectorAll('.dt-fill-ck[data-tpl="'+it.tpl.id+'"]').forEach(function(i){ ckVals[i.dataset.id]=i.checked; });
-    document.querySelectorAll('.dt-fill-cs[data-tpl="'+it.tpl.id+'"]').forEach(function(i){ csVals[i.dataset.id]=i.value; });
+    document.querySelectorAll('.dt-fill-cs[data-tpl="'+it.tpl.id+'"]').forEach(function(i){ var v=i.value; if(i.dataset.date && /^\d{4}-\d{2}-\d{2}$/.test(v)){ var p=v.split('-'); v=p[1]+'/'+p[2]+'/'+p[0]; } csVals[i.dataset.id]=v; });
     filled.push(await dtRenderFilledPdf(it.tpl, it.bytes, pfVals, ckVals, csVals));
   }
   return filled.length===1 ? filled[0] : await dtMergePdfs(filled);
@@ -4752,35 +4759,68 @@ function dpRender(){
       +'</div></div>';
   }).join('');
 }
-function dpTemplateChecklist(selected){
-  var t=window._dtTemplates||[]; selected=selected||[];
-  if(!t.length) return '<div style="font-size:12px;color:var(--text3);padding:6px 0;">No templates yet — create templates first.</div>';
-  return t.map(function(tp){
-    var on=selected.indexOf(tp.id)>=0;
-    return '<label style="display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:6px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;"><input type="checkbox" class="dp-tpl-ck" value="'+tp.id+'"'+(on?' checked':'')+' style="width:16px;height:16px;flex-shrink:0;"/> 📄 '+escapeHtml(tp.name||'Untitled')+'</label>';
-  }).join('');
+function dpRenderPicker(){
+  var cont=document.getElementById('dp-templates'); if(!cont) return;
+  var all=window._dtTemplates||[];
+  var draft=window._dpDraft||[];
+  var byId={}; all.forEach(function(tp){ byId[tp.id]=tp; });
+  var html='';
+  html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 6px;">In this package · merge order</div>';
+  if(!draft.length){
+    html+='<div style="font-size:12px;color:var(--text3);padding:9px 11px;border:1px dashed var(--border);border-radius:8px;margin-bottom:10px;">No documents yet — add them below. The order here is the order they\u2019ll stack in the final PDF.</div>';
+  } else {
+    draft.forEach(function(id,i){
+      var tp=byId[id]; if(!tp) return;
+      html+='<div style="display:flex;align-items:center;gap:6px;padding:7px 9px;margin-bottom:6px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--card2,#f9fafb);">'
+        +'<span style="font-size:11px;color:var(--text3);width:16px;flex-shrink:0;">'+(i+1)+'.</span>'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\ud83d\udcc4 '+escapeHtml(tp.name||'Untitled')+'</span>'
+        +'<button onclick="dpMoveTpl(\''+id+'\',-1)" '+(i===0?'disabled':'')+' style="background:none;border:none;cursor:'+(i===0?'default':'pointer')+';font-size:13px;color:'+(i===0?'var(--border)':'var(--text2)')+';flex-shrink:0;padding:2px 4px;">\u25b2</button>'
+        +'<button onclick="dpMoveTpl(\''+id+'\',1)" '+(i===draft.length-1?'disabled':'')+' style="background:none;border:none;cursor:'+(i===draft.length-1?'default':'pointer')+';font-size:13px;color:'+(i===draft.length-1?'var(--border)':'var(--text2)')+';flex-shrink:0;padding:2px 4px;">\u25bc</button>'
+        +'<button onclick="dpRemoveTpl(\''+id+'\')" title="Remove" style="background:none;border:none;cursor:pointer;font-size:17px;color:var(--text3);flex-shrink:0;padding:0 4px;">\u00d7</button>'
+        +'</div>';
+    });
+  }
+  var remaining=all.filter(function(tp){ return draft.indexOf(tp.id)<0; });
+  if(remaining.length){
+    html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:12px 0 6px;">Add a document</div>';
+    remaining.forEach(function(tp){
+      html+='<div onclick="dpAddTpl(\''+tp.id+'\')" style="display:flex;align-items:center;gap:8px;padding:7px 9px;margin-bottom:6px;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;">'
+        +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\ud83d\udcc4 '+escapeHtml(tp.name||'Untitled')+'</span>'
+        +'<span style="color:var(--green-dk);font-weight:700;font-size:16px;flex-shrink:0;">+</span>'
+        +'</div>';
+    });
+  } else if(!all.length){
+    html+='<div style="font-size:12px;color:var(--text3);padding:6px 0;">No templates yet — create templates first.</div>';
+  }
+  cont.innerHTML=html;
 }
+function dpAddTpl(id){ window._dpDraft=window._dpDraft||[]; if(window._dpDraft.indexOf(id)<0) window._dpDraft.push(id); dpRenderPicker(); }
+function dpRemoveTpl(id){ window._dpDraft=(window._dpDraft||[]).filter(function(x){return x!==id;}); dpRenderPicker(); }
+function dpMoveTpl(id,dir){ var a=window._dpDraft||[]; var i=a.indexOf(id); if(i<0) return; var j=i+dir; if(j<0||j>=a.length) return; var tmp=a[i]; a[i]=a[j]; a[j]=tmp; dpRenderPicker(); }
+window.dpAddTpl=dpAddTpl; window.dpRemoveTpl=dpRemoveTpl; window.dpMoveTpl=dpMoveTpl;
 function dpNew(){
   window._dpEditId=null;
+  window._dpDraft=[];
   document.getElementById('dp-modal-title').textContent='New Package';
   document.getElementById('dp-name').value='';
-  document.getElementById('dp-templates').innerHTML=dpTemplateChecklist([]);
+  dpRenderPicker();
   document.getElementById('dp-modal').style.display='flex';
 }
 function dpEdit(id){
   var pk=(window._dtPackages||[]).find(function(x){return x.id===id;}); if(!pk) return;
   window._dpEditId=id;
+  window._dpDraft=(pk.templateIds||[]).slice();
   document.getElementById('dp-modal-title').textContent='Edit Package';
   document.getElementById('dp-name').value=pk.name||'';
-  document.getElementById('dp-templates').innerHTML=dpTemplateChecklist(pk.templateIds||[]);
+  dpRenderPicker();
   document.getElementById('dp-modal').style.display='flex';
 }
 function dpClose(){ var el=document.getElementById('dp-modal'); if(el) el.style.display='none'; }
 async function dpSave(){
   var name=document.getElementById('dp-name').value.trim();
   if(!name){ alert('Give the package a name.'); return; }
-  var ids=Array.prototype.map.call(document.querySelectorAll('.dp-tpl-ck:checked'),function(c){return c.value;});
-  if(!ids.length){ alert('Pick at least one document for the package.'); return; }
+  var ids=(window._dpDraft||[]).slice();
+  if(!ids.length){ alert('Add at least one document to the package.'); return; }
   var btn=document.getElementById('dp-save-btn'); var old=btn.textContent; btn.disabled=true; btn.textContent='Saving…';
   try{
     var id=window._dpEditId || ('pkg_'+Date.now());
@@ -4808,6 +4848,15 @@ function dpApplyToPicker(pkgId){
   var ids=pk.templateIds||[];
   document.querySelectorAll('.dt-pick-ck').forEach(function(c){ c.checked = ids.indexOf(c.value)>=0; });
 }
+function dpGenerate(pkgId){
+  var pk=(window._dtPackages||[]).find(function(x){return x.id===pkgId;}); if(!pk) return;
+  var avail=window._dtTemplates||[];
+  var ids=(pk.templateIds||[]).filter(function(id){ return avail.some(function(t){return t.id===id;}); });
+  if(!ids.length){ alert('This package has no documents yet. Edit it in Doc Templates to add some.'); return; }
+  var picker=document.getElementById('dt-pick'); if(picker) picker.style.display='none';
+  dtOpenFillMulti(ids, window._dtPickDeal||null);
+}
+window.dpGenerate=dpGenerate;
 
 function renderAgentProfileEditor() {
   loadDocLibrary();
