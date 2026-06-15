@@ -3980,7 +3980,7 @@ async function loadUserProfile() {
 
       // Check if this email is one of the team agents
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
-      if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; }
+      if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; userProfile.teamRole = agentTeamRole(ag); userProfile.teamId = agentTeamId(ag); }
       else { isAgent = userProfile.role === 'agent'; }
       // Check lender role (can overlap with agent)
       const lg = DEFAULT_LENDERS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
@@ -4097,9 +4097,14 @@ function dtPrefillLabel(k){
 
 // Templates live at the team-lead level: agents/{agentId}/docTemplates/{id}
 function dtAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
-function dtCol(){ return fb.collection(fb.db,'agents',dtAgentId(),'docTemplates'); }
-function dtDoc(id){ return fb.doc(fb.db,'agents',dtAgentId(),'docTemplates',id); }
-function dtStoragePath(id){ return 'docTemplates/'+dtAgentId()+'/'+id+'.pdf'; }
+// Effective team a person's shared content belongs to:
+//  owner/leader -> themselves; member -> their leader (teamId). For Tom this is always 'tom'.
+function agentTeamRole(ag){ if(!ag) return 'member'; if(ag.teamRole) return ag.teamRole; if(ag.id==='tom') return 'owner'; if(ag.isAdmin) return 'leader'; return 'member'; }
+function agentTeamId(ag){ if(!ag) return 'tom'; if(ag.teamId) return ag.teamId; var r=agentTeamRole(ag); return (r==='owner'||r==='leader')? ag.id : 'tom'; }
+function dtTeamId(){ return (userProfile && userProfile.teamId) || (userProfile && userProfile.agentId) || 'tom'; }
+function dtCol(){ return fb.collection(fb.db,'agents',dtTeamId(),'docTemplates'); }
+function dtDoc(id){ return fb.doc(fb.db,'agents',dtTeamId(),'docTemplates',id); }
+function dtStoragePath(id){ return 'docTemplates/'+dtTeamId()+'/'+id+'.pdf'; }
 
 async function dtLoadLibrary(){
   var grid=document.getElementById('dt-library'); if(!grid) return;
@@ -4751,8 +4756,8 @@ async function dtFillSendToLoop(){
 }
 
 // ── Doc Packages — named sets of templates for one-tap generate ──
-function dpCol(){ return fb.collection(fb.db,'agents',dtAgentId(),'docPackages'); }
-function dpDoc(id){ return fb.doc(fb.db,'agents',dtAgentId(),'docPackages',id); }
+function dpCol(){ return fb.collection(fb.db,'agents',dtTeamId(),'docPackages'); }
+function dpDoc(id){ return fb.doc(fb.db,'agents',dtTeamId(),'docPackages',id); }
 
 async function dpLoad(){
   var grid=document.getElementById('dt-packages'); if(!grid) return;
@@ -9503,6 +9508,7 @@ function isOwner() {
 function isTeamLeader() {
   const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
   if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
+  if (userProfile?.teamRole === 'leader' || userProfile?.teamRole === 'owner') return true;
   // Also true if the agent's profile has isAdmin flag
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === userProfile?.agentId; });
   return !!(agentEntry && agentEntry.isAdmin);
