@@ -12621,8 +12621,9 @@ function openTeamModal() {
     renderTeamLenders();
     var mentorSel = document.getElementById('ta-mentor');
     if (mentorSel) {
+      var _myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
       mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
-        + DEFAULT_AGENTS.map(function(a){
+        + DEFAULT_AGENTS.filter(function(a){ return typeof agentTeamId!=='function' || agentTeamId(a) === _myTeam; }).map(function(a){
             return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
           }).join('');
     }
