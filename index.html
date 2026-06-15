@@ -21433,7 +21433,9 @@ function _dealTeamId() {
   // Team leaders ALWAYS load their own team's deal path — never derive, even if they
   // happen to be a co-agent on some client. This is the safeguard against an empty feed.
   if (typeof isTeamLeader==='function' && isTeamLeader()) return me;
-  if (userProfile && userProfile.teamId) return userProfile.teamId;
+  // Deals are PERSONAL: each agent's deals live at their OWN path. A member never loads
+  // their leader's deal pool. (A true co-agent still derives the owner's path below to see
+  // a deal they're sharing — that's per-deal sharing, not team-wide visibility.)
   // A true co-agent (non-leader) derives their team lead from a client they co-agent but don't own.
   if (typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
     var co = allBuyers.find(function(b){ return b && b.coAgentId === me && b.agentId && b.agentId !== me; });
