@@ -18216,6 +18216,11 @@ var _obSteps = null; // cached from Firestore or defaults
 // other teams namespace by team id. Members read their leader's curriculum (their teamId).
 // A team with no custom curriculum falls back to OB_DEFAULT_STEPS as a starting program.
 function _obStepsRef(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return fb.doc(fb.db,'onboarding_config', t==='tom' ? 'steps' : ('steps_'+t)); }
+// New teams (not tom) start from a generic blank scaffold, NOT tom's personal program.
+var OB_NEW_TEAM_STEPS = [
+  {id:'w1s1', week:'Week 1', weekTitle:'Getting Started', title:'Welcome — build your onboarding', desc:'This is your team\u2019s onboarding program. Use the Edit button to add your own steps — videos, links, and tasks to guide new agents through their first 30 days. Delete this placeholder once you\u2019ve added your own.', videoUrl:'', thumb:'', link:'', linkLabel:''}
+];
+function _obDefaultSteps(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return t==='tom' ? OB_DEFAULT_STEPS : OB_NEW_TEAM_STEPS; }
 var _obProgress = {}; // {stepId: true/false}
 
 var OB_DEFAULT_STEPS = [
@@ -18282,7 +18287,7 @@ async function obLoad() {
   try {
     // Load custom steps from Firestore (team leader edits) — PER TEAM.
     var stepsSnap = await fb.getDoc(_obStepsRef());
-    _obSteps = stepsSnap.exists() ? (stepsSnap.data().steps || OB_DEFAULT_STEPS) : OB_DEFAULT_STEPS;
+    _obSteps = stepsSnap.exists() ? (stepsSnap.data().steps || _obDefaultSteps()) : _obDefaultSteps();
     // Load this agent's progress
     var progSnap = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',currentUser.uid));
     _obProgress = progSnap.exists() ? (progSnap.data().completed || {}) : {};
@@ -18294,7 +18299,7 @@ async function obLoad() {
     if (userProfile && userProfile.onboardingAssigned) {
       setTimeout(obCheckInactivity, 3000);
     }
-  } catch(e) { _obSteps = OB_DEFAULT_STEPS; _obProgress = {}; }
+  } catch(e) { _obSteps = _obDefaultSteps(); _obProgress = {}; }
 }
 window.obLoad = obLoad;
 
