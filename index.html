@@ -4007,13 +4007,17 @@ async function loadUserProfile() {
       // Find assigned lender
       var lenderId = userProfile.lenderId || 'tom';
       assignedLender = DEFAULT_LENDERS.find(a => a.id === lenderId) || DEFAULT_LENDERS[0];
-      // Update last active
-      try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { lastActive: fb.serverTimestamp() }); } catch(x){}
+      // Update last active + persist team identity so security rules can read it
+      var _laPatch = { lastActive: fb.serverTimestamp() };
+      if (userProfile.agentId) _laPatch.agentId = userProfile.agentId;
+      if (userProfile.teamRole) _laPatch.teamRole = userProfile.teamRole;
+      if (userProfile.teamId) _laPatch.teamId = userProfile.teamId;
+      try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
     } else {
       // No profile yet - might be the first agent. Create as agent if email matches team
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
       if (ag) {
-        userProfile = { email: currentUser.email, firstName: ag.name.split(' ')[0], lastName: ag.name.split(' ')[1] || '', role: 'agent', agentId: ag.id };
+        userProfile = { email: currentUser.email, firstName: ag.name.split(' ')[0], lastName: ag.name.split(' ')[1] || '', role: 'agent', agentId: ag.id, teamRole: agentTeamRole(ag), teamId: agentTeamId(ag) };
         isAgent = true;
         await fb.setDoc(fb.doc(fb.db, 'users', currentUser.uid), {...userProfile, createdAt: fb.serverTimestamp()});
         // First login - show welcome modal after app loads (if not already seen)
