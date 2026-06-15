@@ -1509,6 +1509,23 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
+<!-- DOC TEMPLATE SHARE -->
+<div id="dt-share" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--card,#fff);border-radius:14px;max-width:460px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <h3 style="margin:0;font-size:17px;">↗ Share Template</h3>
+      <button onclick="document.getElementById('dt-share').style.display='none'" style="background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:var(--text3);">×</button>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin:0 0 12px;line-height:1.45;">Sends a <b>copy</b> into the recipient\u2019s library — fully theirs to edit. Templates live in a team\u2019s shared library, so sharing reaches that person\u2019s whole team.</p>
+    <div id="dt-share-recips" style="margin-bottom:14px;"></div>
+    <div id="dt-share-status" style="font-size:12px;color:var(--text3);margin-bottom:8px;"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="document.getElementById('dt-share').style.display='none'">Cancel</button>
+      <button class="btn btn-g" id="dt-share-btn" onclick="dtDoShare()">Share Copy</button>
+    </div>
+  </div>
+</div>
+
 <!-- DOC FILL PREVIEW -->
 <div id="dt-preview" style="display:none;position:fixed;inset:0;z-index:10002;background:#525659;flex-direction:column;">
   <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--card,#fff);border-bottom:1px solid var(--border);flex-wrap:wrap;">
@@ -4136,10 +4153,82 @@ function dtRenderLibrary(){
       +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
       +'<button class="btn btn-g btn-sm" onclick="dtTestFill(\''+tp.id+'\')">Test Fill</button>'
       +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtEditTemplate(\''+tp.id+'\')">Edit</button>'
+      +'<button class="btn btn-sm" style="background:#EEF2FF;color:#3730A3;" onclick="dtShareTemplate(\''+tp.id+'\')">↗ Share</button>'
       +'<button class="btn btn-sm" style="background:var(--card2,#f3f4f6);color:var(--text2);" onclick="dtDeleteTemplate(\''+tp.id+'\')">Delete</button>'
       +'</div></div>';
   }).join('');
 }
+
+function dtShareTemplate(id){
+  var tp=(window._dtTemplates||[]).find(function(x){return x.id===id;}); if(!tp) return;
+  window._dtShareId=id;
+  var myTeam = dtTeamId();
+  var teams={}; var order=[];
+  (DEFAULT_AGENTS||[]).forEach(function(a){
+    if(!a.id||!a.name) return;
+    var tid = (typeof agentTeamId==='function') ? agentTeamId(a) : 'tom';
+    if(tid===myTeam) return; // skip my own team — already mine
+    if(!teams[tid]){ teams[tid]={agents:[],leaderName:tid}; order.push(tid); }
+    teams[tid].agents.push(a);
+    if(a.id===tid) teams[tid].leaderName=a.name;
+  });
+  var box=document.getElementById('dt-share-recips');
+  if(!order.length){ box.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0;">No other agents or teams on the platform yet.</div>'; }
+  else {
+    box.innerHTML=order.map(function(tid){
+      var T=teams[tid];
+      return '<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;">'
+        +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">'
+        +'<input type="checkbox" class="dt-share-team" data-team="'+tid+'" onchange="dtShareToggleTeam(\''+tid+'\',this.checked)" style="width:15px;height:15px;"/> '+escapeHtml(T.leaderName)+'\u2019s Team'
+        +'</label>'
+        +'<div style="padding-left:22px;margin-top:4px;">'
+        +T.agents.map(function(a){
+          var r=(typeof agentTeamRole==='function')?agentTeamRole(a):'member';
+          return '<label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);padding:3px 0;cursor:pointer;"><input type="checkbox" class="dt-share-ck" data-agent="'+a.id+'" data-team="'+tid+'" style="width:14px;height:14px;"/> '+escapeHtml(a.name)+' <span style="font-size:10px;color:var(--text3);">'+(r==='leader'?'Leader':r==='owner'?'Owner':'Member')+'</span></label>';
+        }).join('')
+        +'</div></div>';
+    }).join('');
+  }
+  document.getElementById('dt-share-status').textContent='';
+  document.getElementById('dt-share').style.display='flex';
+}
+function dtShareToggleTeam(tid, on){
+  document.querySelectorAll('.dt-share-ck[data-team="'+tid+'"]').forEach(function(c){ c.checked=on; });
+}
+window.dtShareTemplate=dtShareTemplate; window.dtShareToggleTeam=dtShareToggleTeam;
+
+async function dtCopyTemplateToTeam(tp, destTeamId){
+  var newId='tpl_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  var resp=await fetch(tp.pdfUrl); if(!resp.ok) throw new Error('PDF fetch failed'); var buf=await resp.arrayBuffer();
+  var destPath='docTemplates/'+destTeamId+'/'+newId+'.pdf';
+  var sRef=fb.storageRef(fb.storage, destPath);
+  await fb.uploadBytes(sRef, new Uint8Array(buf), {contentType:'application/pdf'});
+  var url=await fb.getDownloadURL(sRef);
+  await fb.setDoc(fb.doc(fb.db,'agents',destTeamId,'docTemplates',newId), {
+    name: tp.name||'Shared Template', boxes: tp.boxes||[], stages: tp.stages||[], numPages: tp.numPages||1,
+    pdfPath: destPath, pdfUrl: url, sharedFrom: (userProfile&&userProfile.agentId)||'tom',
+    createdAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp()
+  });
+}
+async function dtDoShare(){
+  var tp=(window._dtTemplates||[]).find(function(x){return x.id===window._dtShareId;}); if(!tp) return;
+  var checked=Array.prototype.slice.call(document.querySelectorAll('.dt-share-ck:checked'));
+  var destTeams=checked.map(function(c){return c.getAttribute('data-team');}).filter(function(v,i,arr){return v&&arr.indexOf(v)===i;});
+  var statusEl=document.getElementById('dt-share-status');
+  if(!destTeams.length){ statusEl.textContent='Pick at least one person or team.'; return; }
+  var btn=document.getElementById('dt-share-btn'); var old=btn.textContent; btn.disabled=true; btn.textContent='Sharing\u2026';
+  var ok=0, fail=0;
+  for(var i=0;i<destTeams.length;i++){
+    statusEl.textContent='Sharing to team '+(i+1)+' of '+destTeams.length+'\u2026';
+    try{ await dtCopyTemplateToTeam(tp, destTeams[i]); ok++; }
+    catch(e){ fail++; console.log('share copy failed:', e.message); }
+  }
+  btn.disabled=false; btn.textContent=old;
+  document.getElementById('dt-share').style.display='none';
+  if(typeof showDealToast==='function') showDealToast('Shared to '+ok+' team'+(ok===1?'':'s')+(fail?(' · '+fail+' failed'):''), null, null);
+  else alert('Shared to '+ok+' team'+(ok===1?'':'s')+(fail?(' · '+fail+' failed'):''));
+}
+window.dtDoShare=dtDoShare;
 
 async function dtDeleteTemplate(id){
   var tp=(window._dtTemplates||[]).find(function(x){return x.id===id;});
@@ -21153,22 +21242,21 @@ async function sendDealDocs(dealId) {
   var docsBlock = docs.length ? ('<p style="font-size:13px;color:#444;font-weight:600;margin:0 0 6px;">Documents:</p><ul style="padding-left:18px;margin:0 0 16px;">'+docLinks+'</ul>') : '';
   var agentName = (userProfile && (userProfile.firstName||'')) ? ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() : '';
   if (statusEl) statusEl.textContent = 'Sending\u2026';
+  var emails = recips.map(function(r){ return r.email; }).filter(function(e,i,arr){ return e && arr.indexOf(e)===i; });
+  if (statusEl) statusEl.textContent = 'Sending\u2026';
+  var greeting = 'Hello,';
+  var bodyHtml = '<div style="font-family:Arial,sans-serif;max-width:560px;">'
+    + '<p style="font-size:15px;margin:0 0 12px;">'+greeting+'</p>'
+    + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">'+partnerEsc(message).replace(/\n/g,'<br>')+'</p>'
+    + docsBlock
+    + (agentName ? '<p style="font-size:14px;color:#444;margin:14px 0 0;">'+partnerEsc(agentName)+'</p>' : '')
+    + '</div>';
   var sent = 0, failed = 0;
-  for (var i=0; i<recips.length; i++) {
-    var r = recips[i];
-    var greeting = r.name ? ('Hi ' + r.name.split(' ')[0] + ',') : 'Hello,';
-    var bodyHtml = '<div style="font-family:Arial,sans-serif;max-width:560px;">'
-      + '<p style="font-size:15px;margin:0 0 12px;">'+greeting+'</p>'
-      + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 14px;">'+partnerEsc(message).replace(/\n/g,'<br>')+'</p>'
-      + docsBlock
-      + (agentName ? '<p style="font-size:14px;color:#444;margin:14px 0 0;">'+partnerEsc(agentName)+'</p>' : '')
-      + '</div>';
-    try {
-      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
-        body: JSON.stringify({ to: r.email, subject: subject, html: bodyHtml, from: agentFromField(), reply_to: agentReplyTo() }) });
-      sent++;
-    } catch(e) { failed++; console.log('sendDealDocs to '+r.email+':', e.message); }
-  }
+  try {
+    await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
+      body: JSON.stringify({ to: emails, subject: subject, html: bodyHtml, from: agentFromField(), reply_to: agentReplyTo() }) });
+    sent = emails.length;
+  } catch(e) { failed = emails.length; console.log('sendDealDocs group:', e.message); }
   if (typeof logDealComm==='function') logDealComm(dealId, 'docs', 'Sent ' + docs.length + ' doc(s) to ' + sent + ' recipient(s)');
   var ov = document.getElementById('send-docs-overlay'); if (ov) ov.remove();
   if (typeof showDealToast==='function') showDealToast('Sent to ' + sent + ' recipient' + (sent===1?'':'s') + (failed?(' \u00b7 '+failed+' failed'):''), null, null);
