@@ -4102,6 +4102,8 @@ function dtAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
 function agentTeamRole(ag){ if(!ag) return 'member'; if(ag.teamRole) return ag.teamRole; if(ag.id==='tom') return 'owner'; if(ag.isAdmin) return 'leader'; return 'member'; }
 function agentTeamId(ag){ if(!ag) return 'tom'; if(ag.teamId) return ag.teamId; var r=agentTeamRole(ag); return (r==='owner'||r==='leader')? ag.id : 'tom'; }
 function dtTeamId(){ return (userProfile && userProfile.teamId) || (userProfile && userProfile.agentId) || 'tom'; }
+// Agents on the current user's team (leader + their members). Used to scope agent pickers.
+function _myTeamAgents(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return (DEFAULT_AGENTS||[]).filter(function(a){ return (typeof agentTeamId!=='function') || agentTeamId(a)===t; }); }
 function dtCol(){ return fb.collection(fb.db,'agents',dtTeamId(),'docTemplates'); }
 function dtDoc(id){ return fb.doc(fb.db,'agents',dtTeamId(),'docTemplates',id); }
 function dtStoragePath(id){ return 'docTemplates/'+dtTeamId()+'/'+id+'.pdf'; }
@@ -6112,7 +6114,7 @@ window.loadTeamAgents = loadTeamAgents;
 function populateAgentDropdown() {
   const sel = document.getElementById('su-agent');
   if (!sel) return;
-  sel.innerHTML = DEFAULT_AGENTS.map(a =>
+  sel.innerHTML = _myTeamAgents().map(a =>
     '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>'
   ).join('');
 }
@@ -11480,7 +11482,7 @@ async function openBuyerDetail(uid, scrollTo) {
   } catch(e){}
   const step = TIMELINE_STEPS[(b.currentStep||1)-1];
   const initials = ((b.firstName||'')[0]||'')+((b.lastName||'')[0]||'');
-  const agentOpts = DEFAULT_AGENTS.map(a => `<option value="${a.id}" ${a.id===b.agentId?'selected':''}>${a.name}</option>`).join('');
+  const agentOpts = _myTeamAgents().map(a => `<option value="${a.id}" ${a.id===b.agentId?'selected':''}>${a.name}</option>`).join('');
   document.getElementById('buyer-modal-body').innerHTML = `
     <div class="mhdr">
       <div style="display:flex;gap:12px;align-items:center;">
@@ -11547,7 +11549,7 @@ async function openBuyerDetail(uid, scrollTo) {
         <div style="border-top:1px solid var(--border);padding-top:12px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:5px;">Co-Agent <span style="font-weight:400;font-size:10px;opacity:0.7;">(optional)</span></div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-co-agent" style="max-width:220px;font-size:13px;"><option value="">-- None --</option>${DEFAULT_AGENTS.filter(a=>a.id!==b.agentId).map(a=>`<option value="${a.id}" ${a.id===(b.coAgentId||'')?'selected':''}>${a.name}</option>`).join('')}</select>
+            <select id="bd-co-agent" style="max-width:220px;font-size:13px;"><option value="">-- None --</option>${_myTeamAgents().filter(a=>a.id!==b.agentId).map(a=>`<option value="${a.id}" ${a.id===(b.coAgentId||'')?'selected':''}>${a.name}</option>`).join('')}</select>
             <button class="btn btn-sm" onclick="setCoAgent('${uid}')">Assign</button>
           </div>
         </div>
@@ -12030,7 +12032,7 @@ function openInviteModal() {
   document.getElementById('inv-last').value = '';
   document.getElementById('inv-email').value = '';
   var ph = document.getElementById('inv-phone'); if (ph) ph.value = '';
-  var inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
+  var inviteAgents = isTeamLeader() ? _myTeamAgents() : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){ return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>'; }).join('');
   var invLenderSel = document.getElementById('inv-lender');
   if (invLenderSel) invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){ return '<option value="'+l.id+'" selected>'+l.name+(l.role?' — '+l.role:'')+'</option>'; }).join('');
@@ -12475,7 +12477,7 @@ async function assignOnboarding(agentId, agentName) {
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
   var box = document.createElement('div');
   box.style.cssText = 'background:var(--bg);border-radius:16px;padding:20px;width:100%;max-width:340px;display:flex;flex-direction:column;gap:14px;';
-  var mentorOpts = DEFAULT_AGENTS.filter(function(a){ return a.id !== agentId; }).map(function(a){
+  var mentorOpts = _myTeamAgents().filter(function(a){ return a.id !== agentId; }).map(function(a){
     return '<option value="'+a.id+'">'+a.name+'</option>';
   }).join('');
   box.innerHTML = '<div style="font-size:15px;font-weight:600;">🎓 Assign Onboarding</div>'
@@ -19353,7 +19355,9 @@ async function renderTeamOnboarding() {
 }
 // ── TEAM CHAT ──
 var teamChatListener = null;
-var TEAM_CHAT_ROOM = 'team_chat';
+// Each team has its OWN chat room. Owner (tom) keeps the original room (no migration);
+// every other team uses a room namespaced by team id. Members share their leader's room.
+function teamChatRoom(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return t==='tom' ? 'team_chat' : ('team_chat_'+t); }
 
 function teamChatInit() {
   if (teamChatListener) return;
@@ -19390,7 +19394,7 @@ function teamChatInit() {
   // Track last seen for unread count
   var lastSeen = parseInt(localStorage.getItem('team_chat_last_seen')||'0');
 
-  var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+  var chatRef = fb.ref(fb.rtdb, 'chats/' + teamChatRoom() + '/messages');
   var firstLoad = true;
   var unreadCount = 0;
 
@@ -19454,7 +19458,7 @@ function teamChatSend() {
   if (!text) return;
 
   var senderName = ((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'');
-  var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+  var chatRef = fb.ref(fb.rtdb, 'chats/' + teamChatRoom() + '/messages');
   fb.push(chatRef, {
     text: text, senderId: currentUser.uid, senderName: senderName.trim(), ts: Date.now()
   });
@@ -19489,7 +19493,7 @@ async function teamChatSendPhoto(event) {
     var snap = await fb.uploadBytes(sRef, file);
     var url = await fb.getDownloadURL(snap.ref);
     var senderName = ((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'');
-    var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+    var chatRef = fb.ref(fb.rtdb, 'chats/' + teamChatRoom() + '/messages');
     fb.push(chatRef, { photoUrl: url, senderId: currentUser.uid, senderName: senderName.trim(), ts: Date.now() });
     teamChatPush(senderName.trim()+' sent a photo');
     if (input) input.value = '';
@@ -19524,7 +19528,7 @@ function teamChatToggleMute(muted) {
 async function teamChatClear() {
   if (!confirm('Clear all team chat messages? This cannot be undone.')) return;
   try {
-    var chatRef = fb.ref(fb.rtdb, 'chats/' + TEAM_CHAT_ROOM + '/messages');
+    var chatRef = fb.ref(fb.rtdb, 'chats/' + teamChatRoom() + '/messages');
     await fb.rtSet(chatRef, null);
     var el = document.getElementById('team-chat-messages');
     if (el) { el.innerHTML = ''; el.removeAttribute('data-last-date'); }
@@ -22252,7 +22256,7 @@ function openAddContactModal() {
   // Default journey type — mortgage for lender-only logins
   var journeySel = document.getElementById('inv-journey');
   if (journeySel) journeySel.value = (isLender && !isAgent) ? 'mortgage' : 'buyer';
-  var inviteAgents = isTeamLeader() ? DEFAULT_AGENTS : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
+  var inviteAgents = isTeamLeader() ? _myTeamAgents() : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){
     return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>';
   }).join('');
@@ -22387,7 +22391,7 @@ function openPortalInviteModal(uid) {
   var mentorSel = document.getElementById('pi-mentor');
   if (mentorSel && isTeamLeader()) {
     mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
-      + DEFAULT_AGENTS.filter(function(a){ return a.id !== (b && b.agentId); }).map(function(a){
+      + _myTeamAgents().filter(function(a){ return a.id !== (b && b.agentId); }).map(function(a){
           return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
         }).join('');
   }
