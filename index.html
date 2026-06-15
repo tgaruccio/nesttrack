@@ -5065,6 +5065,11 @@ function renderDocLibrary() {
   }).join('');
 }
 // ── TEAM STATS ──
+// Leaderboard + financials are PER-TEAM. Owner (tom) keeps the original global docs (no migration);
+// every other team namespaces its docs by team id. A leader's team id is themselves.
+function _teamStatsTeamId(){ return (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'; }
+function _tsSettingsRef(){ var t=_teamStatsTeamId(); return fb.doc(fb.db,'team_stats', t==='tom' ? '_settings' : (t+'__settings')); }
+function _tsYearRef(year){ var t=_teamStatsTeamId(); return fb.doc(fb.db,'team_stats', t==='tom' ? String(year) : (t+'__'+year)); }
 var _teamStatsData = {};
 var _teamStatsYear = new Date().getFullYear();
 
@@ -5085,7 +5090,7 @@ async function loadTeamStats() {
   var sel = document.getElementById('teamstats-year');
   _teamStatsYear = sel ? parseInt(sel.value) : new Date().getFullYear();
   try {
-    var snap = await fb.getDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)));
+    var snap = await fb.getDoc(_tsYearRef(_teamStatsYear));
     _teamStatsData = snap.exists() ? snap.data() : {};
   } catch(e){ _teamStatsData = {}; }
   await loadLeaderboardSettings();
@@ -5095,7 +5100,7 @@ var _lbSettings = {}; // leaderboard flags per agent
 
 async function loadLeaderboardSettings() {
   try {
-    var snap = await fb.getDoc(fb.doc(fb.db,'team_stats','_settings'));
+    var snap = await fb.getDoc(_tsSettingsRef());
     _lbSettings = snap.exists() ? (snap.data().leaderboard || {}) : {};
   } catch(e){ _lbSettings = {}; }
 }
@@ -5103,7 +5108,7 @@ async function loadLeaderboardSettings() {
 async function toggleLeaderboard(agentId, checked) {
   _lbSettings[agentId] = checked;
   try {
-    await fb.setDoc(fb.doc(fb.db,'team_stats','_settings'), {leaderboard: _lbSettings}, {merge: true});
+    await fb.setDoc(_tsSettingsRef(), {leaderboard: _lbSettings}, {merge: true});
   } catch(e){}
 }
 window.toggleLeaderboard = toggleLeaderboard;
@@ -5115,7 +5120,7 @@ async function saveTeamStatCell(agentId, field, value) {
   var num = parseFloat(value.replace(/[^0-9.-]/g,'')) || 0;
   _teamStatsData[agentId][field] = num;
   try {
-    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
   } catch(e){ console.log('saveTeamStatCell err:',e.message); }
   renderTeamStatsFinancials();
 }
@@ -5126,7 +5131,7 @@ async function saveTeamFinancials(field, value) {
   var num = parseFloat(value.replace(/[^0-9.-]/g,'')) || 0;
   _teamStatsData._totals[field] = num;
   try {
-    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
   } catch(e){}
   renderTeamStatsFinancials();
 }
@@ -5151,6 +5156,7 @@ function renderTeamStats() {
   // Otherwise filter by leaderboard flag
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
+    if (typeof agentTeamId==='function' && agentTeamId(a) !== _teamStatsTeamId()) return false; // team-scoped
     if (!hasAnySettings) return true;
     var flag = _lbSettings[a.id];
     return flag !== false; // everyone on leaderboard sees all leaderboard agents
@@ -5221,6 +5227,7 @@ function renderTeamStatsFinancials() {
   var hasAnySettings = Object.keys(_lbSettings).length > 0;
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
+    if (typeof agentTeamId==='function' && agentTeamId(a) !== _teamStatsTeamId()) return false; // team-scoped
     if (!hasAnySettings) return true;
     return _lbSettings[a.id] !== false;
   });
@@ -5490,7 +5497,7 @@ async function addSale(agentId) {
   _teamStatsData[agentId].volume = _teamStatsData[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
   _teamStatsData[agentId].units = _teamStatsData[agentId].sales.length;
   try {
-    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
   } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddSalePanel(agentId, agentObj ? agentObj.name : agentId);
@@ -5573,7 +5580,7 @@ async function saveTeamAdjustment(field, value) {
   var num = parseFloat(String(value).replace(/[^0-9.-]/g,'')) || 0;
   _teamStatsData._totals.adjustments[field] = num;
   try {
-    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
   } catch(e){}
   renderTeamStatsFinancials();
 }
@@ -5590,7 +5597,7 @@ async function addFinancialEntry(field) {
   if (!_teamStatsData._totals[field+'Log']) _teamStatsData._totals[field+'Log'] = [];
   _teamStatsData._totals[field+'Log'].push({amount:amount,date:Date.now()});
   _teamStatsData._totals[field] = _teamStatsData._totals[field+'Log'].reduce(function(s,e){ return s+(e.amount||0); },0);
-  try { await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)),_teamStatsData); } catch(e){}
+  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
   var labels = {mortgageIncome:'Mortgage Income',revShare:'Rev Share',expenses:'Team Expenses'};
   openAddFinancialPanel(field, labels[field]||field);
   renderTeamStatsFinancials();
@@ -5601,7 +5608,7 @@ async function deleteFinancialEntry(field, idx) {
   if (!_teamStatsData._totals||!_teamStatsData._totals[field+'Log']) return;
   _teamStatsData._totals[field+'Log'].splice(idx,1);
   _teamStatsData._totals[field] = _teamStatsData._totals[field+'Log'].reduce(function(s,e){ return s+(e.amount||0); },0);
-  try { await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)),_teamStatsData); } catch(e){}
+  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
   var labels = {mortgageIncome:'Mortgage Income',revShare:'Rev Share',expenses:'Team Expenses'};
   openAddFinancialPanel(field, labels[field]||field);
   renderTeamStatsFinancials();
@@ -5621,7 +5628,7 @@ async function addNetPay(agentId) {
   if (!_teamStatsData[agentId].netPayLog) _teamStatsData[agentId].netPayLog = [];
   _teamStatsData[agentId].netPayLog.push({amount:amount, address:address, date:Date.now()});
   _teamStatsData[agentId].netPay = _teamStatsData[agentId].netPayLog.reduce(function(s,p){ return s+(p.amount||0); },0);
-  try { await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)),_teamStatsData); } catch(e){}
+  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddNetPayPanel(agentId, agentObj?agentObj.name:agentId);
   renderTeamStatsFinancials();
@@ -5632,7 +5639,7 @@ async function deleteNetPay(agentId, idx) {
   if (!_teamStatsData[agentId]||!_teamStatsData[agentId].netPayLog) return;
   _teamStatsData[agentId].netPayLog.splice(idx,1);
   _teamStatsData[agentId].netPay = _teamStatsData[agentId].netPayLog.reduce(function(s,p){ return s+(p.amount||0); },0);
-  try { await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)),_teamStatsData); } catch(e){}
+  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddNetPayPanel(agentId, agentObj?agentObj.name:agentId);
   renderTeamStatsFinancials();
@@ -5647,7 +5654,7 @@ async function deleteSale(agentId, idx) {
   _teamStatsData[agentId].volume = _teamStatsData[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
   _teamStatsData[agentId].units = _teamStatsData[agentId].sales.length;
   try {
-    await fb.setDoc(fb.doc(fb.db,'team_stats',String(_teamStatsYear)), _teamStatsData);
+    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
   } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddSalePanel(agentId, agentObj ? agentObj.name : agentId);
@@ -12381,7 +12388,7 @@ window.toggleLeaderTeam = toggleLeaderTeam;
 function renderTeam() {
   var myId = (userProfile && userProfile.agentId) || 'tom';
   var owner = (typeof isOwner==='function') && isOwner();
-  fb.getDoc(fb.doc(fb.db,'team_stats','_settings')).then(function(snap){
+  fb.getDoc(_tsSettingsRef()).then(function(snap){
     var lbFlags = (snap.exists() && snap.data().leaderboard) || {};
     var agents = DEFAULT_AGENTS;
     var self = agents.find(function(a){ return a.id === myId; });
