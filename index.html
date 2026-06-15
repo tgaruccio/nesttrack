@@ -14992,6 +14992,7 @@ window.showBrowserNotification = showBrowserNotification;
 // ═══════════════════════════════════════════════════════
 
 var _listings = []; // agent's active listings with offers
+var _offerSearch = '';
 
 // ── Default offer fields ──
 var DEFAULT_OFFER_FIELDS = [
@@ -15060,34 +15061,44 @@ async function renderOfferManager() {
     + '</div>';
   if (!_listings.length) {
     html += '<div class="notice">No active listings yet. Create one to generate an offer submission link.</div>';
+    el.innerHTML = html;
   } else {
-    html += _listings.map(function(l) {
-      var offerCount = l.offerCount || 0;
-      var badge = offerCount > 0
-        ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;">'+offerCount+' offer'+(offerCount!==1?'s':'')+'</span>'
-        : '<span style="font-size:11px;color:var(--text3);margin-left:6px;">No offers yet</span>';
-      var link = location.origin + location.pathname + '#offer=' + l.code;
-      return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
-        + '<div style="display:flex;align-items:flex-start;gap:10px;">'
-        + (l.photoUrl ? '<img src="'+l.photoUrl+'" style="width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>' : '<div style="width:60px;height:60px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🏠</div>')
-        + '<div style="flex:1;min-width:0;">'
-        + '<div style="font-size:14px;font-weight:600;color:var(--text);">'+partnerEsc(l.address)+'</div>'
-        + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(l.clientName||'')+'</div>'
-        + '<div style="margin-top:4px;">'+badge+'</div>'
-        + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">'
-        + '<button class="btn btn-sm btn-g" onclick="viewOffers(\''+l.id+'\')">📋 View Offers</button>'
-        + '<button class="btn btn-sm" onclick="copyOfferLink(\''+encodeURIComponent(link)+'\')">🔗 MLS Offer Link</button>'
-        + '<button class="btn btn-sm" onclick="openEditListingModal(\''+l.id+'\')">✏️ Edit</button>'
-        + '<button class="btn btn-sm" onclick="showOpenHouseQRFromListing(\''+l.id+'\',\''+partnerEsc(l.address||'')+'\')">📱 Open House QR</button>'
-        + '<button class="btn btn-sm" onclick="go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'reports\')},200)">📊 Seller Reports</button>'
-        + '<button class="btn btn-sm" onclick="createDealFromListing(\''+l.id+'\')" style="color:var(--green-dk);border-color:var(--green-dk);">🏠 Create Deal</button>'
-        + '<button class="btn btn-sm" onclick="archiveListing(\''+l.id+'\')" style="color:#E24B4A;">Archive</button>'
-        + '</div></div></div></div>';
-    }).join('');
+    html += '<div style="margin:4px 0 10px;"><input id="offer-search" type="text" placeholder="\\uD83D\\uDD0D Search by client or address\\u2026" oninput="_offerSearch=this.value;renderOfferCards();" value="'+(_offerSearch||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
+    html += '<div id="offer-cards-container"></div>';
+    el.innerHTML = html;
+    renderOfferCards();
   }
-  el.innerHTML = html;
 }
-window.renderOfferManager = renderOfferManager;
+function _offerCardHtml(l) {
+  var offerCount = l.offerCount || 0;
+  var badge = offerCount > 0
+    ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;">'+offerCount+' offer'+(offerCount!==1?'s':'')+'</span>'
+    : '<span style="font-size:11px;color:var(--text3);margin-left:6px;">No offers yet</span>';
+  var link = location.origin + location.pathname + '#offer=' + l.code;
+  return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
+    + '<div style="display:flex;align-items:flex-start;gap:10px;">'
+    + (l.photoUrl ? '<img src="'+l.photoUrl+'" style="width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>' : '<div style="width:60px;height:60px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🏠</div>')
+    + '<div style="flex:1;min-width:0;">'
+    + '<div style="font-size:14px;font-weight:600;color:var(--text);">'+partnerEsc(l.address)+'</div>'
+    + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(l.clientName||'')+'</div>'
+    + '<div style="margin-top:4px;">'+badge+'</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">'
+    + '<button class="btn btn-sm btn-g" onclick="viewOffers(\''+l.id+'\')">📋 View Offers</button>'
+    + '<button class="btn btn-sm" onclick="copyOfferLink(\''+encodeURIComponent(link)+'\')">🔗 MLS Offer Link</button>'
+    + '<button class="btn btn-sm" onclick="openEditListingModal(\''+l.id+'\')">✏️ Edit</button>'
+    + '<button class="btn btn-sm" onclick="showOpenHouseQRFromListing(\''+l.id+'\',\''+partnerEsc(l.address||'')+'\')">📱 Open House QR</button>'
+    + '<button class="btn btn-sm" onclick="go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'reports\')},200)">📊 Seller Reports</button>'
+    + '<button class="btn btn-sm" onclick="createDealFromListing(\''+l.id+'\')" style="color:var(--green-dk);border-color:var(--green-dk);">🏠 Create Deal</button>'
+    + '<button class="btn btn-sm" onclick="archiveListing(\''+l.id+'\')" style="color:#E24B4A;">Archive</button>'
+    + '</div></div></div></div>';
+}
+function renderOfferCards() {
+  var c = document.getElementById('offer-cards-container'); if (!c) return;
+  var q = (_offerSearch||'').trim().toLowerCase();
+  var list = _listings.filter(function(l){ if(!q) return true; return (((l.address||'')+' '+(l.clientName||'')).toLowerCase().indexOf(q)!==-1); });
+  c.innerHTML = list.length ? list.map(_offerCardHtml).join('') : '<div class="notice" style="text-align:center;font-size:12px;color:var(--text3);">No listings match that search.</div>';
+}
+window.renderOfferCards = renderOfferCards;
 
 function copyOfferLink(encoded) {
   var link = decodeURIComponent(encoded);
@@ -17646,6 +17657,7 @@ window.debugShowingTime = debugShowingTime;
 var _deals = [];
 var _dealsLoaded = false;
 var _activeFilter = 'pipeline';
+var _dealSearch = '';
 
 var DEAL_STATUSES = ['Listed','Under Contract','Closed'];
 var DEAL_STATUS_COLORS = {
@@ -17782,6 +17794,7 @@ async function renderDealTracker() {
     +'<button class="btn btn-sm" id="dchip-contract" onclick="filterDeals(\'contract\')">Under Contract</button>'
     +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
     +'</div>';
+  html += '<div style="margin:10px 0 8px;"><input id="deal-search" type="text" placeholder="\\uD83D\\uDD0D Search by client or address\\u2026" oninput="_dealSearch=this.value;filterDeals(_activeFilter);" value="'+(_dealSearch||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
   html += '<div id="deal-cards-container"></div>';
   el.innerHTML = html;
   filterDeals(_activeFilter);
@@ -21645,13 +21658,18 @@ function filterDeals(tab) {
   });
   var chip = document.getElementById('dchip-'+tab);
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
+  var q = (_dealSearch||'').trim().toLowerCase();
   var filtered = _deals.filter(function(d){
     var status = dealStatusFromStep(d);
-    if (tab === 'pipeline') return status === 'Pipeline';
-    if (tab === 'active')   return status === 'Listed';
-    if (tab === 'contract') return status === 'Under Contract';
-    if (tab === 'closed')   return status === 'Closed';
-    return true;
+    var tabOk = (tab === 'pipeline') ? status === 'Pipeline'
+      : (tab === 'active')   ? status === 'Listed'
+      : (tab === 'contract') ? status === 'Under Contract'
+      : (tab === 'closed')   ? status === 'Closed'
+      : true;
+    if (!tabOk) return false;
+    if (!q) return true;
+    var hay = ((d.clientName||'')+' '+(d.address||'')+' '+(d.buyerName||'')).toLowerCase();
+    return hay.indexOf(q) !== -1;
   });
   var container = document.getElementById('deal-cards-container');
   if (container) container.innerHTML = renderDealCards(filtered);
