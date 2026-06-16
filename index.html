@@ -8388,7 +8388,7 @@ async function renderPartners(cat) {
     filter.innerHTML = '<span class="chip' + allActive + '" onclick="filterPartners(\'all\',this)">All</span>'
       + presentCats.map(function(ct){
           var isActive = ct===cat ? ' active' : '';
-          var enc = ct.replace(/\\/g,'\').replace(/'/g,"\'");
+          var enc = ct.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
           return '<span class="chip'+isActive+'" onclick="filterPartners(\''+enc+'\',this)">'+partnerEsc(ct)+'</span>';
         }).join('');
   }
@@ -8595,7 +8595,7 @@ function refBuildCatChips() {
   var cats = [];
   agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
   el.innerHTML = cats.map(function(cat){
-    var enc = cat.replace(/'/g, "\'");
+    var enc = cat.replace(/'/g, "\\'");
     return '<span class="chip" onclick="refFilterByCat(\''+enc+'\',this)" style="font-size:11px;cursor:pointer;">'+partnerEsc(cat)+'</span>';
   }).join('');
 }
@@ -9666,9 +9666,9 @@ function openTourDetail(id) {
     return `
       <div style="margin-bottom:10px;">
         <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;">${qs[0]}</div>
-        <div class="mc-opts">${qs[1].map(o => `<button class="mc-opt ${rd.mc===o?'sel':''}" onclick="setRoomMC('${id}','${activeRoom.replace(/'/g,"\'")}','${o.replace(/'/g,"\'")}',this)">${o}</button>`).join('')}</div>
+        <div class="mc-opts">${qs[1].map(o => `<button class="mc-opt ${rd.mc===o?'sel':''}" onclick="setRoomMC('${id}','${activeRoom.replace(/'/g,"\\'")}','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
       </div>
-      <div><label class="flabel">Notes</label><textarea placeholder="Anything specific to note..." oninput="setRoomNote('${id}','${activeRoom.replace(/'/g,"\'")}',this.value)">${rd.notes||''}</textarea></div>`;
+      <div><label class="flabel">Notes</label><textarea placeholder="Anything specific to note..." oninput="setRoomNote('${id}','${activeRoom.replace(/'/g,"\\'")}',this.value)">${rd.notes||''}</textarea></div>`;
   }
   function renderFull() {
     document.getElementById('tour-detail-body').innerHTML = `
@@ -21992,7 +21992,7 @@ function renderStepTasks(uid, stepNum, savedTasks, journeyType) {
   return allTexts.map(function(text) {
     var savedItem = saved.find(function(s){ return s.text === text; });
     var done = savedItem ? savedItem.done : false;
-    var escaped = text.replace(/\\/g,'\').replace(/'/g,"\'");
+    var escaped = text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">'
       +'<input type="checkbox" '+(done?'checked':'')+' onchange="toggleStepTask(\''+uid+'\','+stepNum+',\''+escaped+'\',this.checked,\''+journeyType+'\')" style="width:16px;height:16px;flex-shrink:0;"/>'
       +'<span style="font-size:12px;flex:1;'+(done?'text-decoration:line-through;color:var(--text3);':'')+'">'+partnerEsc(text)+'</span>'
