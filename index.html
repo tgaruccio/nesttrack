@@ -16339,18 +16339,17 @@ async function submitPublicOffer(listingId) {
         data.pdfUrl  = await fb.getDownloadURL(snap.ref);
       } catch(pdfErr) { console.log('PDF upload failed:', pdfErr.message); }
     }
-    await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
+    var _offerRef = await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count — silent fail for unauthenticated users
     fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
       offerCount: fb.increment(1)
     }).catch(function(){});
+    // Auto-send to client runs SERVER-SIDE on the Worker (it can read the client's
+    // private email; the unauthenticated browser cannot). Worker checks autoSend itself.
     try {
-      var lSnap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId));
-      if (lSnap.exists() && lSnap.data().autoSend && lSnap.data().clientUid) {
-        var newSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('submittedAt','desc')));
-        if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
-      }
-    } catch(asErr){ console.log('Auto-send err:',asErr.message); }
+      fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'auto-send-offer'},
+        body:JSON.stringify({listingId:listingId, offerId:(_offerRef&&_offerRef.id)||''})}).catch(function(){});
+    } catch(asErr){ console.log('Auto-send dispatch err:',asErr.message); }
     // Notify listing agent that offer was received
     try {
       var lData = (await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId))).data();
