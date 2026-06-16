@@ -22780,14 +22780,17 @@ function _spStepCard(s,i){
   }
   var c=SP_CHANNELS[s.channel]||{label:s.channel,icon:'•',color:'#666',bg:'#f3f4f6'};
   var preview=(s.content||'').slice(0,90);
-  var hasUrl=!!(s.webhookUrl&&s.webhookUrl.trim());
+  var _rdy, _rdyLabel;
+  if(s.channel==='vm'){ _rdy=!!(s.audioName&&s.audioName.trim()); _rdyLabel=_rdy?'✓ Recording selected':'⚠ No recording — tap Edit to pick one'; }
+  else if(s.channel==='letter'){ _rdy=!!(s.letterBody&&s.letterBody.trim()); _rdyLabel=_rdy?'✓ Letter written':'⚠ No letter text — tap Edit to write it'; }
+  else { _rdy=!!(s.webhookUrl&&s.webhookUrl.trim()); _rdyLabel=_rdy?'✓ Zap connected':'⚠ No webhook URL — won\'t fire'; }
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
       +'<div style="flex:1;min-width:0;">'
         +'<div><span style="font-size:11px;font-weight:700;color:'+c.color+';text-transform:uppercase;letter-spacing:0.04em;">DO</span>'
         +'<span style="font-size:14px;color:var(--text);margin-left:8px;font-weight:600;">'+c.icon+' '+c.label+'</span></div>'
         +(preview?'<div style="font-size:12px;color:var(--text3);margin-top:4px;">'+partnerEsc(preview)+(s.content&&s.content.length>90?'…':'')+'</div>':'')
-        +'<div style="font-size:11px;margin-top:4px;color:'+(hasUrl?'var(--green-dk)':'#E24B4A')+';">'+(hasUrl?'✓ Zap connected':'⚠ No webhook URL — won\'t fire')+'</div>'
+        +'<div style="font-size:11px;margin-top:4px;color:'+(_rdy?'var(--green-dk)':'#E24B4A')+';">'+_rdyLabel+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:6px;flex-shrink:0;">'
         +'<button class="btn btn-sm" onclick="spEditStep('+i+')">Edit</button>'
@@ -22915,7 +22918,7 @@ async function spLoadRecordings(){
     }
     var files = j.files||[];
     if(!files.length){
-      if(status) status.innerHTML='<span style="color:#D97706;">Connected, but no recordings parsed. Raw response below — copy this and send it:</span><textarea readonly style="width:100%;height:90px;margin-top:6px;font-size:10px;font-family:monospace;border:1px solid var(--border);border-radius:4px;padding:6px;" onclick="this.select()">'+partnerEsc(j.raw||'(empty response)')+'</textarea>';
+      if(status) status.innerHTML='<span style="color:#D97706;">Connected, but no recordings found in your account.</span>';
       return;
     }
     if(sel){
@@ -23039,26 +23042,12 @@ async function spRunNow(){
   try {
     var r=await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'run-campaigns'}, body:'{}' });
     var j=await r.json().catch(function(){return {};});
-    var msg = 'Processed: '+(j.processed||0)+'   Fired: '+(j.fired||0)+'\n';
-    if (j.diag) {
-      var d = j.diag;
-      if (d.error) { msg += '\n⚠ '+d.error; }
-      else {
-        msg += '\nToday (ET): '+d.today
-          +'\nActive enrollments found: '+d.activeFound
-          +'\n  • skipped (no plan/wrong status): '+d.noPlanId
-          +'\n  • skipped (not due yet): '+d.notDue
-          +'\n  • skipped (plan missing): '+d.planMissing
-          +'\n  • due & processed: '+d.dueProcessed;
-        if (d.sample && d.sample.length) {
-          msg += '\n\nSample enrollments:';
-          d.sample.forEach(function(s){ msg += '\n• '+(s.name||'?').trim()+' | plan:'+s.plan+' | status:'+s.status+' | due:'+s.due+' | owner:'+s.owner+' | step:'+s.step; });
-        }
-        if (d.fires && d.fires.length) {
-          msg += '\n\nSend attempts:';
-          d.fires.forEach(function(f){ msg += '\n'+(f.ok?'✓':'✗')+' '+(f.contact||'').trim()+' ['+f.channel+']: '+f.reason; });
-        }
-      }
+    var msg = (j.fired>0 ? '✓ ' : '') + (j.processed||0)+' contact'+((j.processed||0)!==1?'s':'')+' processed, '+(j.fired||0)+' step'+((j.fired||0)!==1?'s':'')+' sent.';
+    if (j.diag && j.diag.fires && j.diag.fires.length) {
+      msg += '\n';
+      j.diag.fires.forEach(function(f){ msg += '\n'+(f.ok?'✓':'✗')+' '+(f.contact||'').trim()+' ['+f.channel+']'+(f.ok?'':': '+f.reason); });
+    } else if ((j.processed||0)===0) {
+      msg += '\n\nNo contacts were due. Assign a plan to a contact (their next step must be today or earlier).';
     }
     alert(msg);
   } catch(e){ alert('Failed to trigger: '+e.message); }
