@@ -2683,6 +2683,27 @@ textarea{resize:vertical;min-height:68px;}
           </label>
           <input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/>
         </div>
+        <div style="border-top:0.5px solid var(--border);padding-top:12px;margin-top:4px;">
+          <div style="font-size:12px;font-weight:700;color:#6D28D9;margin-bottom:2px;">📣 Marketing — Smart Plan Sending</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Connect your own accounts so VM drops &amp; letters send from you (no Zapier needed for these).</div>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast Email <span style="font-weight:400;color:var(--text3);">(for VM drops)</span></label>
+          <input type="email" id="ap-sly-email" placeholder="you@email.com" autocomplete="off"/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast Password</label>
+          <input type="password" id="ap-sly-pass" placeholder="••••••••" autocomplete="new-password"/>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">Stored encrypted. Leave blank to keep your saved password.</div>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast Caller ID <span style="font-weight:400;color:var(--text3);">(your phone #)</span></label>
+          <input type="tel" id="ap-sly-callerid" placeholder="2165551234"/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">thanks.io API Key <span style="font-weight:400;color:var(--text3);">(for letters)</span></label>
+          <input type="text" id="ap-thanksio" placeholder="thanks.io API key" autocomplete="off"/>
+        </div>
         <div>
           <label class="flabel" style="color:var(--text2);font-weight:600;">Google Review Link</label>
           <input type="url" id="ap-google" placeholder="https://g.page/r/..."/>
@@ -5063,6 +5084,10 @@ function renderAgentProfileEditor() {
       if(el && d.showingTimeUrl) el.value=d.showingTimeUrl;
       var ze=document.getElementById('ap-zapier');
       if(ze && d.zapierWebhookUrl) ze.value=d.zapierWebhookUrl;
+      var slye=document.getElementById('ap-sly-email'); if(slye && d.slyEmail) slye.value=d.slyEmail;
+      var slyc=document.getElementById('ap-sly-callerid'); if(slyc && d.slyCallerId) slyc.value=d.slyCallerId;
+      var tio=document.getElementById('ap-thanksio'); if(tio && d.thanksioKeyEnc) tio.value='••••••••';
+      // password & thanks.io key intentionally never pre-filled (encrypted); blank/dots = keep existing
       var br=document.getElementById('ap-brokerage');
       if(br && d.brokerage) br.value=d.brokerage;
       var tg=document.getElementById('ap-tagline');
@@ -5153,6 +5178,8 @@ async function saveAgentProfile() {
     bio: document.getElementById('ap-bio').value.trim(),
     showingTimeUrl: document.getElementById('ap-showingtime') ? document.getElementById('ap-showingtime').value.trim() : '',
     zapierWebhookUrl: document.getElementById('ap-zapier') ? document.getElementById('ap-zapier').value.trim() : '',
+    slyEmail: document.getElementById('ap-sly-email') ? document.getElementById('ap-sly-email').value.trim() : '',
+    slyCallerId: document.getElementById('ap-sly-callerid') ? document.getElementById('ap-sly-callerid').value.trim() : '',
     brokerage: document.getElementById('ap-brokerage') ? document.getElementById('ap-brokerage').value.trim() : '',
     emailTagline: document.getElementById('ap-tagline') ? document.getElementById('ap-tagline').value.trim() : '',
     licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
@@ -5162,6 +5189,23 @@ async function saveAgentProfile() {
   const status = document.getElementById('ap-status');
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), data);
+    // Encrypt + store marketing secrets (only if newly entered; blank = keep existing)
+    try {
+      var slyPassEl = document.getElementById('ap-sly-pass');
+      var thanksEl = document.getElementById('ap-thanksio');
+      var secretPatch = {};
+      if (slyPassEl && slyPassEl.value.trim()) {
+        var r1 = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'encrypt-cred'}, body: JSON.stringify({text: slyPassEl.value.trim()}) });
+        var j1 = await r1.json(); if (j1 && j1.cipher) secretPatch.slyPassEnc = j1.cipher;
+        slyPassEl.value = '';
+      }
+      if (thanksEl && thanksEl.value.trim() && thanksEl.value.trim().indexOf('•')===-1) {
+        var r2 = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'encrypt-cred'}, body: JSON.stringify({text: thanksEl.value.trim()}) });
+        var j2 = await r2.json(); if (j2 && j2.cipher) secretPatch.thanksioKeyEnc = j2.cipher;
+        thanksEl.value = '••••••••';
+      }
+      if (Object.keys(secretPatch).length) await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), secretPatch);
+    } catch(secErr) { console.log('cred encrypt err:', secErr.message); }
     userProfile = { ...userProfile, ...data };
     await loadAssignedAgentProfile();
     updateAgentRefs();
@@ -22800,13 +22844,32 @@ function spEditStep(i){
       +'</div>';
   } else {
     var c=SP_CHANNELS[s.channel]||{};
-    inner='<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(c.icon||'')+' '+(c.label||'Action')+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">This step pings your Zap, which does the actual sending.</div>'
-      +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Webhook URL <span style="font-weight:400;">(from Zapier — the Catch Hook for this step\'s Zap)</span></label>'
-      +'<input type="text" id="sp-step-url" placeholder="https://hooks.zapier.com/hooks/catch/..." value="'+partnerEsc(s.webhookUrl||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
-      +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note <span style="font-weight:400;">(so you remember what this does)</span></label>'
-      +'<input type="text" id="sp-step-content" placeholder="e.g. Seller Top of Mind VM · or · OpenPhone intro text" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">When due, NestTrack pings this URL with the contact\'s name, phone, email & address. Your Zap sends the '+(c.label||'message').toLowerCase()+'.</div>';
+    var hdr='<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(c.icon||'')+' '+(c.label||'Action')+'</div>';
+    if(s.channel==='vm'){
+      inner=hdr
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Sends a ringless voicemail through your Slybroadcast account (set up in your Profile).</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Audio file name <span style="font-weight:400;">(the recording\'s name in your Slybroadcast account)</span></label>'
+        +'<input type="text" id="sp-step-audio" placeholder="e.g. Seller Top of Mind" value="'+partnerEsc(s.audioName||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="What this VM is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">Record &amp; name the audio in Slybroadcast first, then enter its exact name here.</div>';
+    } else if(s.channel==='letter'){
+      inner=hdr
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Mails a letter through your thanks.io account (set up in your Profile).</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Letter message</label>'
+        +'<textarea id="sp-step-letter" rows="5" placeholder="Write the letter." style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+partnerEsc(s.letterBody||'')+'</textarea>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="What this letter is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">Goes to the contact\'s mailing address on file.</div>';
+    } else {
+      inner=hdr
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">This step pings your Zap, which does the actual sending.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Webhook URL <span style="font-weight:400;">(from Zapier)</span></label>'
+        +'<input type="text" id="sp-step-url" placeholder="https://hooks.zapier.com/hooks/catch/..." value="'+partnerEsc(s.webhookUrl||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="e.g. OpenPhone intro text" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">When due, NestTrack pings this URL with the contact\'s name, phone, email.</div>';
+    }
   }
   ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:400px;padding:20px;">'
     +inner
@@ -22826,9 +22889,13 @@ function spSaveStep(i){
     s.amount=Math.max(1,amt); s.unit=unit;
   } else {
     var ta=document.getElementById('sp-step-content');
-    var urlEl=document.getElementById('sp-step-url');
     s.content=ta?ta.value:'';
-    s.webhookUrl=urlEl?urlEl.value.trim():'';
+    var urlEl=document.getElementById('sp-step-url');
+    var audioEl=document.getElementById('sp-step-audio');
+    var letterEl=document.getElementById('sp-step-letter');
+    if(urlEl) s.webhookUrl=urlEl.value.trim();
+    if(audioEl) s.audioName=audioEl.value.trim();
+    if(letterEl) s.letterBody=letterEl.value;
   }
   document.getElementById('sp-edit-overlay').remove();
   spRenderCanvas();
