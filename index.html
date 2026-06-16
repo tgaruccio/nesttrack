@@ -1141,6 +1141,7 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:13px;color:var(--text2);">Build automated multi-step campaigns (VM drops, letters, texts) and assign them to contacts.</div>
       <button class="btn btn-g" onclick="spNewPlan()" style="white-space:nowrap;">+ New Smart Plan</button>
     </div>
+    <div style="margin-bottom:12px;"><button class="btn btn-sm" onclick="spRunNow()" style="font-size:12px;">▶ Run campaign engine now (test)</button></div>
     <div id="sp-list"><div style="text-align:center;padding:30px;color:var(--text3);font-size:13px;">Loading plans…</div></div>
   </div>
   <!-- BUILDER VIEW (hidden until editing) -->
@@ -8327,7 +8328,7 @@ async function renderPartners(cat) {
     filter.innerHTML = '<span class="chip' + allActive + '" onclick="filterPartners(\'all\',this)">All</span>'
       + presentCats.map(function(ct){
           var isActive = ct===cat ? ' active' : '';
-          var enc = ct.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          var enc = ct.replace(/\\/g,'\').replace(/'/g,"\'");
           return '<span class="chip'+isActive+'" onclick="filterPartners(\''+enc+'\',this)">'+partnerEsc(ct)+'</span>';
         }).join('');
   }
@@ -8534,7 +8535,7 @@ function refBuildCatChips() {
   var cats = [];
   agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
   el.innerHTML = cats.map(function(cat){
-    var enc = cat.replace(/'/g, "\\'");
+    var enc = cat.replace(/'/g, "\'");
     return '<span class="chip" onclick="refFilterByCat(\''+enc+'\',this)" style="font-size:11px;cursor:pointer;">'+partnerEsc(cat)+'</span>';
   }).join('');
 }
@@ -9605,9 +9606,9 @@ function openTourDetail(id) {
     return `
       <div style="margin-bottom:10px;">
         <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px;">${qs[0]}</div>
-        <div class="mc-opts">${qs[1].map(o => `<button class="mc-opt ${rd.mc===o?'sel':''}" onclick="setRoomMC('${id}','${activeRoom.replace(/'/g,"\\'")}','${o.replace(/'/g,"\\'")}',this)">${o}</button>`).join('')}</div>
+        <div class="mc-opts">${qs[1].map(o => `<button class="mc-opt ${rd.mc===o?'sel':''}" onclick="setRoomMC('${id}','${activeRoom.replace(/'/g,"\'")}','${o.replace(/'/g,"\'")}',this)">${o}</button>`).join('')}</div>
       </div>
-      <div><label class="flabel">Notes</label><textarea placeholder="Anything specific to note..." oninput="setRoomNote('${id}','${activeRoom.replace(/'/g,"\\'")}',this.value)">${rd.notes||''}</textarea></div>`;
+      <div><label class="flabel">Notes</label><textarea placeholder="Anything specific to note..." oninput="setRoomNote('${id}','${activeRoom.replace(/'/g,"\'")}',this.value)">${rd.notes||''}</textarea></div>`;
   }
   function renderFull() {
     document.getElementById('tour-detail-body').innerHTML = `
@@ -11683,6 +11684,7 @@ async function openBuyerDetail(uid, scrollTo) {
           ${b.notesUpdatedAt?`<span style="font-size:10px;color:var(--text3);">Updated ${new Date(b.notesUpdatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:''}
         </div>
       </div>
+      <div id="sp-contact-row-${uid}" style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${spContactRowHtml(b)}</div>
     </div>
     ${renderClientDealsSection(uid)}
     ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`}
@@ -21930,7 +21932,7 @@ function renderStepTasks(uid, stepNum, savedTasks, journeyType) {
   return allTexts.map(function(text) {
     var savedItem = saved.find(function(s){ return s.text === text; });
     var done = savedItem ? savedItem.done : false;
-    var escaped = text.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var escaped = text.replace(/\\/g,'\').replace(/'/g,"\'");
     return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);">'
       +'<input type="checkbox" '+(done?'checked':'')+' onchange="toggleStepTask(\''+uid+'\','+stepNum+',\''+escaped+'\',this.checked,\''+journeyType+'\')" style="width:16px;height:16px;flex-shrink:0;"/>'
       +'<span style="font-size:12px;flex:1;'+(done?'text-decoration:line-through;color:var(--text3);':'')+'">'+partnerEsc(text)+'</span>'
@@ -22738,12 +22740,14 @@ function _spStepCard(s,i){
   }
   var c=SP_CHANNELS[s.channel]||{label:s.channel,icon:'•',color:'#666',bg:'#f3f4f6'};
   var preview=(s.content||'').slice(0,90);
+  var hasUrl=!!(s.webhookUrl&&s.webhookUrl.trim());
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
       +'<div style="flex:1;min-width:0;">'
         +'<div><span style="font-size:11px;font-weight:700;color:'+c.color+';text-transform:uppercase;letter-spacing:0.04em;">DO</span>'
         +'<span style="font-size:14px;color:var(--text);margin-left:8px;font-weight:600;">'+c.icon+' '+c.label+'</span></div>'
-        +(preview?'<div style="font-size:12px;color:var(--text3);margin-top:4px;">'+partnerEsc(preview)+(s.content&&s.content.length>90?'…':'')+'</div>':'<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;">No content set</div>')
+        +(preview?'<div style="font-size:12px;color:var(--text3);margin-top:4px;">'+partnerEsc(preview)+(s.content&&s.content.length>90?'…':'')+'</div>':'')
+        +'<div style="font-size:11px;margin-top:4px;color:'+(hasUrl?'var(--green-dk)':'#E24B4A')+';">'+(hasUrl?'✓ Zap connected':'⚠ No webhook URL — won\'t fire')+'</div>'
       +'</div>'
       +'<div style="display:flex;gap:6px;flex-shrink:0;">'
         +'<button class="btn btn-sm" onclick="spEditStep('+i+')">Edit</button>'
@@ -22796,14 +22800,13 @@ function spEditStep(i){
       +'</div>';
   } else {
     var c=SP_CHANNELS[s.channel]||{};
-    var ph = s.channel==='vm' ? 'Voice message label / script (what your VM drop says)…'
-           : s.channel==='letter' ? 'Letter body text…'
-           : s.channel==='text' ? 'Text message (use {first} for first name)…'
-           : 'Payload / note to send to your Zap…';
     inner='<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(c.icon||'')+' '+(c.label||'Action')+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">'+(c.desc||'')+'</div>'
-      +'<textarea id="sp-step-content" rows="5" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;font-size:14px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+(s.content||'')+'</textarea>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:8px;">Sending runs through your own '+(s.channel==='text'||s.channel==='zapier'?'Zapier webhook':(c.label||'')+' account')+' (set up in Build 2/3).</div>';
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">This step pings your Zap, which does the actual sending.</div>'
+      +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Webhook URL <span style="font-weight:400;">(from Zapier — the Catch Hook for this step\'s Zap)</span></label>'
+      +'<input type="text" id="sp-step-url" placeholder="https://hooks.zapier.com/hooks/catch/..." value="'+partnerEsc(s.webhookUrl||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+      +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note <span style="font-weight:400;">(so you remember what this does)</span></label>'
+      +'<input type="text" id="sp-step-content" placeholder="e.g. Seller Top of Mind VM · or · OpenPhone intro text" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">When due, NestTrack pings this URL with the contact\'s name, phone, email & address. Your Zap sends the '+(c.label||'message').toLowerCase()+'.</div>';
   }
   ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:400px;padding:20px;">'
     +inner
@@ -22823,7 +22826,9 @@ function spSaveStep(i){
     s.amount=Math.max(1,amt); s.unit=unit;
   } else {
     var ta=document.getElementById('sp-step-content');
+    var urlEl=document.getElementById('sp-step-url');
     s.content=ta?ta.value:'';
+    s.webhookUrl=urlEl?urlEl.value.trim():'';
   }
   document.getElementById('sp-edit-overlay').remove();
   spRenderCanvas();
@@ -22860,6 +22865,91 @@ async function spDeletePlan(id){
   catch(e){ alert('Failed to delete: '+e.message); }
 }
 window.spDeletePlan = spDeletePlan;
+
+// ── Build 2: enroll a contact in a smart plan (flat fields for easy Worker handling) ──
+function _spTodayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+function spContactRowHtml(b){
+  if (b && b.smartPlanId && b.smartPlanStatus==='active'){
+    var due=b.smartPlanNextDue||'';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+      +'<div style="font-size:12px;color:var(--text);"><span style="font-size:11px;font-weight:700;color:#6D28D9;">📣 SMART PLAN</span> '+partnerEsc(b.smartPlanName||'Plan')
+      +(due?' <span style="color:var(--text3);">· next step '+partnerEsc(due)+'</span>':'')+'</div>'
+      +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spStopForContact(\''+b.uid+'\')">Stop Plan</button>'
+      +'</div>';
+  }
+  if (b && b.smartPlanStatus==='completed'){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
+      +'<div style="font-size:12px;color:var(--text3);">📣 '+partnerEsc(b.smartPlanName||'Plan')+' · completed</div>'
+      +'<button class="btn btn-sm" onclick="spOpenAssign(\''+b.uid+'\')">Assign New</button></div>';
+  }
+  return '<div style="display:flex;align-items:center;gap:8px;">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text3);width:90px;flex-shrink:0;">Smart Plan</div>'
+    +'<button class="btn btn-sm btn-g" onclick="spOpenAssign(\''+b.uid+'\')" style="flex:1;">📣 Assign a Smart Plan</button></div>';
+}
+window.spContactRowHtml = spContactRowHtml;
+
+async function spOpenAssign(uid){
+  if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
+  if(!_smartPlans.length){ alert('No smart plans yet. Build one in the Marketing tab first.'); return; }
+  var ov=document.createElement('div');
+  ov.id='sp-assign-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:380px;padding:20px;">'
+    +'<div style="font-size:15px;font-weight:600;margin-bottom:14px;">Assign a Smart Plan</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;">'
+    +_smartPlans.map(function(p){
+      var actions=(p.steps||[]).filter(function(s){return s.kind==='do';}).length;
+      return '<button class="btn" onclick="spAssignToContact(\''+uid+'\',\''+p.id+'\')" style="justify-content:flex-start;text-align:left;">'+partnerEsc(p.name||'Untitled')+' <span style=\"font-size:11px;color:var(--text3);margin-left:6px;\">'+actions+' action'+(actions!==1?'s':'')+'</span></button>';
+    }).join('')
+    +'</div>'
+    +'<button class="btn btn-sm" onclick="document.getElementById(\'sp-assign-overlay\').remove()" style="margin-top:14px;width:100%;">Cancel</button></div>';
+  document.body.appendChild(ov);
+}
+window.spOpenAssign = spOpenAssign;
+
+async function spAssignToContact(uid, planId){
+  var ov=document.getElementById('sp-assign-overlay'); if(ov) ov.remove();
+  var plan=_smartPlans.find(function(x){return x.id===planId;}); if(!plan) return;
+  var today=_spTodayStr();
+  var patch={
+    smartPlanId: plan.id,
+    smartPlanName: plan.name||'Plan',
+    smartPlanOwner: _spAgentId(),
+    smartPlanStatus: 'active',
+    smartPlanStep: 0,
+    smartPlanNextDue: today,       // runner fires from here, consuming any leading wait
+    smartPlanEnrolledAt: today
+  };
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+    var b=(allBuyers||myBuyers||[]).find(function(x){return x.uid===uid;});
+    if(b) Object.assign(b, patch);
+    var row=document.getElementById('sp-contact-row-'+uid);
+    if(row && b) row.innerHTML=spContactRowHtml(b);
+  } catch(e){ alert('Failed to assign plan: '+e.message); }
+}
+window.spAssignToContact = spAssignToContact;
+
+async function spStopForContact(uid){
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), { smartPlanStatus:'stopped' });
+    var b=(allBuyers||myBuyers||[]).find(function(x){return x.uid===uid;});
+    if(b){ b.smartPlanStatus='stopped'; var row=document.getElementById('sp-contact-row-'+uid); if(row) row.innerHTML=spContactRowHtml(b); }
+  } catch(e){ alert('Failed to stop plan: '+e.message); }
+}
+window.spStopForContact = spStopForContact;
+
+// Test trigger — fire the Worker campaign runner on demand (so you don't wait for the daily cron)
+async function spRunNow(){
+  if(!confirm('Run the campaign engine now? This will fire any due steps for enrolled contacts.')) return;
+  try {
+    var r=await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'run-campaigns'}, body:'{}' });
+    var j=await r.json().catch(function(){return {};});
+    alert('Campaign run triggered. '+(j.processed!=null?(j.processed+' contact(s) processed, '+(j.fired||0)+' step(s) fired.'):'Check your Zapier task history to confirm.'));
+  } catch(e){ alert('Failed to trigger: '+e.message); }
+}
+window.spRunNow = spRunNow;
 
 async function saveClientField(uid, field, value) {
   try {
