@@ -509,6 +509,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Agent Hub</button>
     <button class="nb" data-pg="messages" onclick="go('messages',this)">💬 Messages <span id="agent-msg-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Email</button>
+    <button class="nb" data-pg="marketing" onclick="go('marketing',this)">📣 Marketing</button>
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
     <button class="nb" data-pg="onboarding" onclick="go('onboarding',this)" id="nb-onboarding" style="display:none;">🎓 My Onboarding</button>
     <button class="nb" data-pg="listing-desc" onclick="go('listing-desc',this)">✍️ Listing Generator</button>
@@ -1128,6 +1129,33 @@ textarea{resize:vertical;min-height:68px;}
     <div style="font-size:32px;margin-bottom:8px;">&#10003;</div>
     <div style="font-weight:500;color:var(--text);margin-bottom:4px;">All clear!</div>
     <div>No tasks yet.</div>
+  </div>
+</div>
+
+<!-- MARKETING / SMART PLANS -->
+<div class="page" id="page-marketing">
+  <div class="ph"><div class="pt">📣 Marketing</div><span class="pill" style="background:#EDE9FE;color:#6D28D9;border:1px solid #C4B5FD;">Smart Plans</span></div>
+  <!-- LIST VIEW -->
+  <div id="sp-list-view">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:13px;color:var(--text2);">Build automated multi-step campaigns (VM drops, letters, texts) and assign them to contacts.</div>
+      <button class="btn btn-g" onclick="spNewPlan()" style="white-space:nowrap;">+ New Smart Plan</button>
+    </div>
+    <div id="sp-list"><div style="text-align:center;padding:30px;color:var(--text3);font-size:13px;">Loading plans…</div></div>
+  </div>
+  <!-- BUILDER VIEW (hidden until editing) -->
+  <div id="sp-builder-view" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="btn btn-sm" onclick="spCloseBuilder()">← Back</button>
+      <input type="text" id="sp-name" placeholder="Smart Plan name…" style="flex:1;min-width:160px;font-size:15px;font-weight:600;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);"/>
+      <select id="sp-audience" style="font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);">
+        <option value="any">Any contact</option>
+        <option value="buyer">Buyers</option>
+        <option value="seller">Sellers</option>
+      </select>
+      <button class="btn btn-g" onclick="spSavePlan()">Save Plan</button>
+    </div>
+    <div id="sp-canvas" style="max-width:560px;margin:0 auto;"></div>
   </div>
 </div>
 
@@ -6363,6 +6391,7 @@ function go(page, el) {
   if (page === 'onboarding') { renderOnboarding(); }
   if (page === 'agent-todo') { if(!_todos.length) todoLoad(); else todoRender(); }
   if (page === 'agent-dash') { renderAgentDashboard(); }
+  if (page === 'marketing') { renderMarketing(); }
   if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'messages') { renderMessagesPage(); }
   if (page === 'newsletter') {
@@ -22571,6 +22600,266 @@ async function fuTestDueNow(nameMatch){
   return list.length;
 }
 window.fuTestDueNow = fuTestDueNow;
+
+// ══════════════════════════════════════════════════════════════════
+// SMART PLANS (Marketing) — Build 1: visual builder + save template
+// Per-agent templates. Steps: WAIT (delay) + DO (channel action).
+// Channels: vm (slybroadcast), letter (thanks.io), text (zapier), zapier (generic).
+// Sending/credentials handled later (Build 2/3). This build = create & save.
+// ══════════════════════════════════════════════════════════════════
+var _smartPlans = [];          // loaded plan templates
+var _currentPlan = null;       // plan being edited in the builder
+
+var SP_CHANNELS = {
+  vm:     { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
+  letter: { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
+  text:   { label:'Text',     icon:'💬', color:'#065F46', bg:'#D1FAE5', desc:'SMS via your Zapier → OpenPhone' },
+  zapier: { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap' }
+};
+
+function _spAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
+function _spCol(){ return fb.collection(fb.db,'agents',_spAgentId(),'smartPlans'); }
+function _spDoc(id){ return fb.doc(fb.db,'agents',_spAgentId(),'smartPlans',id); }
+function _spId(){ return 'sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
+
+async function renderMarketing(){
+  await loadSmartPlans();
+  spRenderList();
+}
+window.renderMarketing = renderMarketing;
+
+async function loadSmartPlans(){
+  try {
+    var snap = await fb.getDocs(_spCol());
+    _smartPlans = [];
+    snap.forEach(function(d){ var p=d.data(); p.id=d.id; _smartPlans.push(p); });
+    _smartPlans.sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+  } catch(e){ console.log('loadSmartPlans err:', e.message); _smartPlans=[]; }
+}
+
+function spRenderList(){
+  var el=document.getElementById('sp-list'); if(!el) return;
+  if(!_smartPlans.length){
+    el.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);"><div style="font-size:36px;margin-bottom:10px;">📣</div><div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;">No smart plans yet</div><div style="font-size:12px;">Create one to automate follow-up across VM, letters, and texts.</div></div>';
+    return;
+  }
+  el.innerHTML=_smartPlans.map(function(p){
+    var steps=(p.steps||[]);
+    var actions=steps.filter(function(s){return s.kind==='do';});
+    var chips=actions.map(function(s){ var c=SP_CHANNELS[s.channel]||{}; return '<span style="font-size:14px;" title="'+(c.label||s.channel)+'">'+(c.icon||'•')+'</span>'; }).join(' ');
+    return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+        +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="spEditPlan(\''+p.id+'\')">'
+          +'<div style="font-size:15px;font-weight:600;color:var(--text);">'+partnerEsc(p.name||'Untitled Plan')+'</div>'
+          +'<div style="font-size:12px;color:var(--text2);margin-top:3px;">'+actions.length+' action'+(actions.length!==1?'s':'')+' · '+(p.audience||'any')+' &nbsp; '+chips+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+          +'<button class="btn btn-sm" onclick="spEditPlan(\''+p.id+'\')">Edit</button>'
+          +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spDeletePlan(\''+p.id+'\')">✕</button>'
+        +'</div>'
+      +'</div></div>';
+  }).join('');
+}
+
+function spNewPlan(){
+  _currentPlan={ id:_spId(), name:'', audience:'any', steps:[], _isNew:true };
+  spOpenBuilder();
+}
+window.spNewPlan = spNewPlan;
+
+function spEditPlan(id){
+  var p=_smartPlans.find(function(x){return x.id===id;});
+  if(!p) return;
+  _currentPlan=JSON.parse(JSON.stringify(p));   // working copy
+  _currentPlan._isNew=false;
+  spOpenBuilder();
+}
+window.spEditPlan = spEditPlan;
+
+function spOpenBuilder(){
+  document.getElementById('sp-list-view').style.display='none';
+  document.getElementById('sp-builder-view').style.display='block';
+  document.getElementById('sp-name').value=_currentPlan.name||'';
+  document.getElementById('sp-audience').value=_currentPlan.audience||'any';
+  spRenderCanvas();
+}
+
+function spCloseBuilder(){
+  document.getElementById('sp-builder-view').style.display='none';
+  document.getElementById('sp-list-view').style.display='block';
+  _currentPlan=null;
+  spRenderList();
+}
+window.spCloseBuilder = spCloseBuilder;
+
+function _spStepSummary(s){
+  if(s.kind==='wait'){
+    var n=s.amount||1, u=s.unit||'days';
+    return 'Wait '+n+' '+u+(n===1?u.replace(/s$/,''):'').slice(0,0)+(n===1?u.replace(/s$/,''):u).slice(0); // simple
+  }
+  return '';
+}
+
+function spRenderCanvas(){
+  var canvas=document.getElementById('sp-canvas'); if(!canvas) return;
+  var steps=_currentPlan.steps||[];
+  var html='';
+  // Trigger header (enrollment is manual for now)
+  html+='<div style="background:var(--surface);border:1px dashed var(--border2);border-radius:var(--r);padding:12px 16px;text-align:center;margin-bottom:0;">'
+    +'<div style="font-size:11px;font-weight:700;color:#1D4ED8;text-transform:uppercase;letter-spacing:0.04em;">WHEN</div>'
+    +'<div style="font-size:13px;color:var(--text2);margin-top:2px;">Contact is assigned to this plan</div></div>';
+  // Steps with + between
+  html+=_spPlusBtn(0);
+  steps.forEach(function(s,i){
+    html+=_spStepCard(s,i);
+    html+=_spPlusBtn(i+1);
+  });
+  if(!steps.length){
+    html+='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px;">Tap + to add your first step</div>';
+  }
+  canvas.innerHTML=html;
+}
+
+function _spPlusBtn(idx){
+  return '<div style="display:flex;justify-content:center;padding:8px 0;"><button onclick="spAddStep('+idx+')" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--green-dk);font-size:18px;font-weight:600;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">+</button></div>';
+}
+
+function _spStepCard(s,i){
+  if(s.kind==='wait'){
+    var n=s.amount||1, u=s.unit||'days';
+    return '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:var(--r);padding:12px 16px;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+        +'<div><span style="font-size:11px;font-weight:700;color:#C2410C;text-transform:uppercase;letter-spacing:0.04em;">WAIT</span>'
+        +'<span style="font-size:14px;color:var(--text);margin-left:8px;">'+n+' '+u+'</span></div>'
+        +'<div style="display:flex;gap:6px;">'
+          +'<button class="btn btn-sm" onclick="spEditStep('+i+')">Edit</button>'
+          +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spDeleteStep('+i+')">✕</button>'
+        +'</div></div></div>';
+  }
+  var c=SP_CHANNELS[s.channel]||{label:s.channel,icon:'•',color:'#666',bg:'#f3f4f6'};
+  var preview=(s.content||'').slice(0,90);
+  return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
+    +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div><span style="font-size:11px;font-weight:700;color:'+c.color+';text-transform:uppercase;letter-spacing:0.04em;">DO</span>'
+        +'<span style="font-size:14px;color:var(--text);margin-left:8px;font-weight:600;">'+c.icon+' '+c.label+'</span></div>'
+        +(preview?'<div style="font-size:12px;color:var(--text3);margin-top:4px;">'+partnerEsc(preview)+(s.content&&s.content.length>90?'…':'')+'</div>':'<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;">No content set</div>')
+      +'</div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+        +'<button class="btn btn-sm" onclick="spEditStep('+i+')">Edit</button>'
+        +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spDeleteStep('+i+')">✕</button>'
+      +'</div></div></div>';
+}
+
+function spAddStep(idx){
+  var box=document.createElement('div');
+  box.id='sp-pick-overlay';
+  box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px;';
+  box.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:360px;padding:20px;">'
+    +'<div style="font-size:15px;font-weight:600;margin-bottom:14px;">Add a step</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;">'
+      +'<button class="btn" onclick="spInsertStep('+idx+',\'wait\')" style="justify-content:flex-start;text-align:left;">⏱️ Wait — delay before next step</button>'
+      +Object.keys(SP_CHANNELS).map(function(k){ var c=SP_CHANNELS[k]; return '<button class="btn" onclick="spInsertStep('+idx+',\''+k+'\')" style="justify-content:flex-start;text-align:left;">'+c.icon+' '+c.label+' <span style=\"font-size:11px;color:var(--text3);margin-left:4px;\">'+c.desc+'</span></button>'; }).join('')
+    +'</div>'
+    +'<button class="btn btn-sm" onclick="document.getElementById(\'sp-pick-overlay\').remove()" style="margin-top:14px;width:100%;">Cancel</button>'
+  +'</div>';
+  document.body.appendChild(box);
+}
+window.spAddStep = spAddStep;
+
+function spInsertStep(idx, kind){
+  var ov=document.getElementById('sp-pick-overlay'); if(ov) ov.remove();
+  var step;
+  if(kind==='wait') step={ id:_spId(), kind:'wait', amount:2, unit:'days' };
+  else step={ id:_spId(), kind:'do', channel:kind, content:'' };
+  _currentPlan.steps.splice(idx,0,step);
+  spRenderCanvas();
+  spEditStep(idx);   // open editor immediately
+}
+window.spInsertStep = spInsertStep;
+
+function spEditStep(i){
+  var s=_currentPlan.steps[i]; if(!s) return;
+  var ov=document.createElement('div');
+  ov.id='sp-edit-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px;';
+  var inner;
+  if(s.kind==='wait'){
+    inner='<div style="font-size:15px;font-weight:600;margin-bottom:14px;">Wait</div>'
+      +'<div style="display:flex;gap:8px;align-items:center;">'
+        +'<input type="number" id="sp-wait-amt" min="1" value="'+(s.amount||1)+'" style="width:80px;font-size:14px;padding:8px;border:1px solid var(--border);border-radius:var(--r-sm);"/>'
+        +'<select id="sp-wait-unit" style="flex:1;font-size:14px;padding:8px;border:1px solid var(--border);border-radius:var(--r-sm);">'
+          +'<option value="minutes" '+(s.unit==='minutes'?'selected':'')+'>minutes</option>'
+          +'<option value="hours" '+(s.unit==='hours'?'selected':'')+'>hours</option>'
+          +'<option value="days" '+((!s.unit||s.unit==='days')?'selected':'')+'>days</option>'
+        +'</select>'
+      +'</div>';
+  } else {
+    var c=SP_CHANNELS[s.channel]||{};
+    var ph = s.channel==='vm' ? 'Voice message label / script (what your VM drop says)…'
+           : s.channel==='letter' ? 'Letter body text…'
+           : s.channel==='text' ? 'Text message (use {first} for first name)…'
+           : 'Payload / note to send to your Zap…';
+    inner='<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(c.icon||'')+' '+(c.label||'Action')+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">'+(c.desc||'')+'</div>'
+      +'<textarea id="sp-step-content" rows="5" placeholder="'+ph+'" style="width:100%;box-sizing:border-box;font-size:14px;padding:10px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+(s.content||'')+'</textarea>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:8px;">Sending runs through your own '+(s.channel==='text'||s.channel==='zapier'?'Zapier webhook':(c.label||'')+' account')+' (set up in Build 2/3).</div>';
+  }
+  ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:400px;padding:20px;">'
+    +inner
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
+      +'<button class="btn" onclick="document.getElementById(\'sp-edit-overlay\').remove()">Cancel</button>'
+      +'<button class="btn btn-g" onclick="spSaveStep('+i+')">Done</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+}
+window.spEditStep = spEditStep;
+
+function spSaveStep(i){
+  var s=_currentPlan.steps[i]; if(!s){ document.getElementById('sp-edit-overlay').remove(); return; }
+  if(s.kind==='wait'){
+    var amt=parseInt((document.getElementById('sp-wait-amt')||{}).value,10)||1;
+    var unit=(document.getElementById('sp-wait-unit')||{}).value||'days';
+    s.amount=Math.max(1,amt); s.unit=unit;
+  } else {
+    var ta=document.getElementById('sp-step-content');
+    s.content=ta?ta.value:'';
+  }
+  document.getElementById('sp-edit-overlay').remove();
+  spRenderCanvas();
+}
+window.spSaveStep = spSaveStep;
+
+function spDeleteStep(i){
+  _currentPlan.steps.splice(i,1);
+  spRenderCanvas();
+}
+window.spDeleteStep = spDeleteStep;
+
+async function spSavePlan(){
+  if(!_currentPlan) return;
+  var name=(document.getElementById('sp-name').value||'').trim();
+  if(!name){ alert('Give your plan a name.'); return; }
+  _currentPlan.name=name;
+  _currentPlan.audience=(document.getElementById('sp-audience').value)||'any';
+  _currentPlan.updatedAt=Date.now();
+  if(_currentPlan._isNew){ _currentPlan.createdAt=Date.now(); _currentPlan.createdBy=_spAgentId(); }
+  var save={ name:_currentPlan.name, audience:_currentPlan.audience, steps:_currentPlan.steps||[],
+             updatedAt:_currentPlan.updatedAt, createdAt:_currentPlan.createdAt||Date.now(), createdBy:_currentPlan.createdBy||_spAgentId() };
+  try {
+    await fb.setDoc(_spDoc(_currentPlan.id), save);
+    await loadSmartPlans();
+    spCloseBuilder();
+  } catch(e){ alert('Failed to save plan: '+e.message); }
+}
+window.spSavePlan = spSavePlan;
+
+async function spDeletePlan(id){
+  if(!confirm('Delete this smart plan? Contacts already enrolled will stop receiving it.')) return;
+  try { await fb.deleteDoc(_spDoc(id)); await loadSmartPlans(); spRenderList(); }
+  catch(e){ alert('Failed to delete: '+e.message); }
+}
+window.spDeletePlan = spDeletePlan;
 
 async function saveClientField(uid, field, value) {
   try {
