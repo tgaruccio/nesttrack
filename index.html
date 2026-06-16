@@ -1315,6 +1315,7 @@ textarea{resize:vertical;min-height:68px;}
     <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
       <div style="font-size:13px;font-weight:600;">🔔 Follow-Ups <span id="ad-followup-count" style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"></span></div>
     </div>
+    <div id="ad-text-tasks" style="padding:4px 0;"></div>
     <div id="ad-followup-deck" style="padding:12px 0 4px;"><div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">Loading...</div></div>
   </div>
 
@@ -10832,6 +10833,7 @@ async function renderAgentDashboard() {
 
   // ── Follow-up deck (hero) ──
   try { renderFollowUpDeck(); } catch(e) { console.log('followup deck err:', e.message); }
+  try { loadTextTasks(); } catch(e) { console.log('text tasks err:', e.message); }
 
   // ── Stat banner ──
   el = document.getElementById('ad-stat-clients');
@@ -22584,6 +22586,54 @@ function renderFollowUpDeck(){
 }
 window.renderFollowUpDeck = renderFollowUpDeck;
 
+// ═══ Texts to send (from 'Text (you send)' smart-plan steps) ═══
+var _textTasks = [];
+async function loadTextTasks(){
+  if(!currentUser) return;
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db,'users',currentUser.uid,'textTasks'));
+    _textTasks = [];
+    snap.forEach(function(d){ var t=d.data(); if(!t.done){ t.id=d.id; _textTasks.push(t); } });
+    _textTasks.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+  } catch(e){ console.log('loadTextTasks:', e.message); _textTasks=[]; }
+  renderTextTasks();
+}
+window.loadTextTasks = loadTextTasks;
+
+function renderTextTasks(){
+  var el=document.getElementById('ad-text-tasks'); if(!el) return;
+  if(!_textTasks.length){ el.innerHTML=''; return; }
+  el.innerHTML='<div style="background:#E0F2FE;border:1px solid #BAE6FD;border-radius:var(--r);padding:12px 14px;margin-bottom:8px;">'
+    +'<div style="font-size:13px;font-weight:700;color:#0369A1;margin-bottom:8px;">📲 Texts to send ('+_textTasks.length+')</div>'
+    +_textTasks.map(function(t){
+        return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;">'
+          +'<div style="font-size:13px;font-weight:600;color:var(--text);">'+partnerEsc(t.contactName||'Contact')+(t.planName?' <span style="font-weight:400;color:var(--text3);font-size:11px;">· '+partnerEsc(t.planName)+'</span>':'')+'</div>'
+          +'<div style="font-size:12px;color:var(--text2);margin:4px 0 8px;white-space:pre-wrap;">'+partnerEsc(t.message||'')+'</div>'
+          +'<div style="display:flex;gap:6px;">'
+            +'<button class="btn btn-sm btn-g" onclick="ttSend(\''+t.id+'\')" style="flex:1;">💬 Send text</button>'
+            +'<button class="btn btn-sm" onclick="ttDone(\''+t.id+'\')">✓ Done</button>'
+          +'</div></div>';
+      }).join('')
+    +'</div>';
+}
+window.renderTextTasks = renderTextTasks;
+
+function ttSend(id){
+  var t=_textTasks.find(function(x){return x.id===id;}); if(!t) return;
+  var phone=String(t.phone||'').replace(/[^0-9+]/g,'');
+  // ?&body= works on both iOS and Android to pre-fill the message
+  var link='sms:'+phone+'?&body='+encodeURIComponent(t.message||'');
+  window.location.href=link;
+}
+window.ttSend = ttSend;
+
+async function ttDone(id){
+  try { await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'textTasks',id),{done:true}); } catch(e){ console.log('ttDone:',e.message); }
+  _textTasks=_textTasks.filter(function(x){return x.id!==id;});
+  renderTextTasks();
+}
+window.ttDone = ttDone;
+
 function fuChannel(uid,kind){
   var b=(allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; }); if (!b) return;
   var phone=(b.phone||'').replace(/[^0-9+]/g,'');
@@ -22653,10 +22703,11 @@ var _smartPlans = [];          // loaded plan templates
 var _currentPlan = null;       // plan being edited in the builder
 
 var SP_CHANNELS = {
-  vm:     { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
-  letter: { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
-  text:   { label:'Text',     icon:'💬', color:'#065F46', bg:'#D1FAE5', desc:'SMS via your Zapier → OpenPhone' },
-  zapier: { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap' }
+  vm:      { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
+  letter:  { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
+  texttap: { label:'Text (you send)', icon:'📲', color:'#0369A1', bg:'#E0F2FE', desc:'Push reminder — you tap to send from your own phone' },
+  text:    { label:'Text (Zapier)', icon:'💬', color:'#065F46', bg:'#D1FAE5', desc:'Automated SMS via your Zapier → OpenPhone' },
+  zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap' }
 };
 
 function _spAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
@@ -22782,6 +22833,7 @@ function _spStepCard(s,i){
   var preview=(s.content||'').slice(0,90);
   var _rdy, _rdyLabel;
   if(s.channel==='vm'){ _rdy=!!(s.audioName&&s.audioName.trim()); _rdyLabel=_rdy?'✓ Recording selected':'⚠ No recording — tap Edit to pick one'; }
+  else if(s.channel==='texttap'){ _rdy=!!(s.smsBody&&s.smsBody.trim()); _rdyLabel=_rdy?'✓ Text written':'⚠ No message — tap Edit to write it'; }
   else if(s.channel==='letter'){ _rdy=!!((s.letterTemplateId&&String(s.letterTemplateId).trim())||(s.letterBody&&s.letterBody.trim())); _rdyLabel=_rdy?'✓ Letter ready':'⚠ No template or text — tap Edit'; }
   else { _rdy=!!(s.webhookUrl&&s.webhookUrl.trim()); _rdyLabel=_rdy?'✓ Zap connected':'⚠ No webhook URL — won\'t fire'; }
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
@@ -22844,7 +22896,15 @@ function spEditStep(i){
   } else {
     var c=SP_CHANNELS[s.channel]||{};
     var hdr='<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(c.icon||'')+' '+(c.label||'Action')+'</div>';
-    if(s.channel==='vm'){
+    if(s.channel==='texttap'){
+      inner=hdr
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">When due, you get a push reminder. Tap it to open this queue, then tap Send to text from your own phone with this message pre-filled.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Pre-written text message</label>'
+        +'<textarea id="sp-step-sms" rows="5" placeholder="Hi {first}, just checking in…" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;margin:4px 0 8px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+partnerEsc(s.smsBody||'')+'</textarea>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Use {first} or {last} to auto-fill the contact\'s name.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="What this text is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
+    } else if(s.channel==='vm'){
       inner=hdr
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Sends a ringless voicemail through your Slybroadcast account (set up in your Profile).</div>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Audio file name <span style="font-weight:400;">(the recording\'s name in your Slybroadcast account)</span></label>'
@@ -22903,6 +22963,8 @@ function spSaveStep(i){
     if(letterEl) s.letterBody=letterEl.value;
     var letterTplEl=document.getElementById('sp-step-letter-tplid');
     if(letterTplEl) s.letterTemplateId=letterTplEl.value.trim();
+    var smsEl=document.getElementById('sp-step-sms');
+    if(smsEl) s.smsBody=smsEl.value;
   }
   document.getElementById('sp-edit-overlay').remove();
   spRenderCanvas();
