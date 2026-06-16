@@ -5189,23 +5189,39 @@ async function saveAgentProfile() {
   const status = document.getElementById('ap-status');
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), data);
-    // Encrypt + store marketing secrets (only if newly entered; blank = keep existing)
+    // Encrypt + store marketing secrets (only if newly entered). Keep field value unless save confirmed.
+    var credError = '';
     try {
       var slyPassEl = document.getElementById('ap-sly-pass');
       var thanksEl = document.getElementById('ap-thanksio');
       var secretPatch = {};
+      var slyOk = true, thanksOk = true;
       if (slyPassEl && slyPassEl.value.trim()) {
-        var r1 = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'encrypt-cred'}, body: JSON.stringify({text: slyPassEl.value.trim()}) });
-        var j1 = await r1.json(); if (j1 && j1.cipher) secretPatch.slyPassEnc = j1.cipher;
-        slyPassEl.value = '';
+        slyOk = false;
+        try {
+          var r1 = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'encrypt-cred'}, body: JSON.stringify({text: slyPassEl.value.trim()}) });
+          var j1 = await r1.json();
+          if (r1.ok && j1 && j1.cipher) { secretPatch.slyPassEnc = j1.cipher; slyOk = true; }
+          else { credError = (j1 && j1.error) ? j1.error : 'Slybroadcast password could not be encrypted.'; }
+        } catch(e1){ credError = 'Could not reach the encryption service: ' + e1.message; }
       }
       if (thanksEl && thanksEl.value.trim() && thanksEl.value.trim().indexOf('•')===-1) {
-        var r2 = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'encrypt-cred'}, body: JSON.stringify({text: thanksEl.value.trim()}) });
-        var j2 = await r2.json(); if (j2 && j2.cipher) secretPatch.thanksioKeyEnc = j2.cipher;
-        thanksEl.value = '••••••••';
+        thanksOk = false;
+        try {
+          var r2 = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'encrypt-cred'}, body: JSON.stringify({text: thanksEl.value.trim()}) });
+          var j2 = await r2.json();
+          if (r2.ok && j2 && j2.cipher) { secretPatch.thanksioKeyEnc = j2.cipher; thanksOk = true; }
+          else if (!credError) { credError = (j2 && j2.error) ? j2.error : 'thanks.io key could not be encrypted.'; }
+        } catch(e2){ if(!credError) credError = 'Could not reach the encryption service: ' + e2.message; }
       }
       if (Object.keys(secretPatch).length) await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), secretPatch);
-    } catch(secErr) { console.log('cred encrypt err:', secErr.message); }
+      // Only clear/mask fields whose encrypted value was actually saved
+      if (slyOk && slyPassEl && secretPatch.slyPassEnc) slyPassEl.value = '';
+      if (thanksOk && thanksEl && secretPatch.thanksioKeyEnc) thanksEl.value = '••••••••';
+    } catch(secErr) { credError = secErr.message; }
+    if (credError) {
+      alert('Profile saved, but marketing credentials were NOT saved:\n\n' + credError + '\n\nYour entries are kept in the fields. This usually means the ENCRYPTION_KEY secret is not set in Cloudflare, or the Worker is not deployed with the latest code.');
+    }
     userProfile = { ...userProfile, ...data };
     await loadAssignedAgentProfile();
     updateAgentRefs();
