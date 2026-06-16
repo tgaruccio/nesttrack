@@ -1281,6 +1281,14 @@ textarea{resize:vertical;min-height:68px;}
     </div>
   </div>
 
+  <!-- Follow-Ups Due -->
+  <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:0;flex-shrink:0;">
+    <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:13px;font-weight:600;">🔔 Follow-Ups <span id="ad-followup-count" style="font-size:11px;color:var(--text3);font-weight:400;margin-left:4px;"></span></div>
+    </div>
+    <div id="ad-followup-deck" style="padding:12px 0 4px;"><div style="text-align:center;padding:16px;color:var(--text3);font-size:13px;">Loading...</div></div>
+  </div>
+
   <!-- Today's Tasks -->
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:0;flex-shrink:0;">
     <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
@@ -10752,6 +10760,9 @@ async function renderAgentDashboard() {
   var active = (allBuyers||myBuyers||[]).filter(function(b){ return !b.pending; });
   var pending = (myBuyers||[]).filter(function(b){ return b.pending; });
 
+  // ── Follow-up deck (hero) ──
+  try { renderFollowUpDeck(); } catch(e) { console.log('followup deck err:', e.message); }
+
   // ── Stat banner ──
   el = document.getElementById('ad-stat-clients');
   if (el) el.textContent = active.length + ' client' + (active.length !== 1 ? 's' : '');
@@ -11624,6 +11635,14 @@ async function openBuyerDetail(uid, scrollTo) {
         <div style="font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;">CRM Status</div>
         <select onchange="saveClientStatus('${uid}',this.value)" style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="pipeline" ${(!b.crmStatus||b.crmStatus==='auto'||b.crmStatus==='pipeline')?'selected':''}>Pipeline</option><option value="active" ${b.crmStatus==='active'?'selected':''}>Active</option><option value="nurture" ${b.crmStatus==='nurture'?'selected':''}>Nurture</option><option value="cold" ${b.crmStatus==='cold'?'selected':''}>Cold</option><option value="past" ${(b.crmStatus==='past'||b.crmStatus==='closed')?'selected':''}>Past Client</option><option value="contact" ${b.crmStatus==='contact'?'selected':''}>Contact Only</option></select>
       </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;width:90px;flex-shrink:0;">Follow-Up</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="fu-toggle-${uid}" ${b.followUp?'checked':''} onchange="saveFollowUp('${uid}')" style="width:16px;height:16px;"/> Track
+        </label>
+        <select id="fu-cadence-${uid}" onchange="saveFollowUp('${uid}')" ${b.followUp?'':'disabled'} style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="hot" ${b.followUpCadence==='hot'?'selected':''}>Hot · every 3 days</option><option value="warm" ${(!b.followUpCadence||b.followUpCadence==='warm')?'selected':''}>Warm · every 14 days</option><option value="sphere" ${b.followUpCadence==='sphere'?'selected':''}>Sphere · every 90 days</option></select>
+      </div>
+      <div id="fu-status-${uid}" style="font-size:11px;color:var(--text3);padding-left:100px;">${followUpStatusText(b)}</div>
     </div>
     ${renderClientDealsSection(uid)}
     ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`}
@@ -16339,17 +16358,18 @@ async function submitPublicOffer(listingId) {
         data.pdfUrl  = await fb.getDownloadURL(snap.ref);
       } catch(pdfErr) { console.log('PDF upload failed:', pdfErr.message); }
     }
-    var _offerRef = await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
+    await fb.addDoc(fb.collection(fb.db,'offer_listings',listingId,'offers'), data);
     // Increment offer count — silent fail for unauthenticated users
     fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId), {
       offerCount: fb.increment(1)
     }).catch(function(){});
-    // Auto-send to client runs SERVER-SIDE on the Worker (it can read the client's
-    // private email; the unauthenticated browser cannot). Worker checks autoSend itself.
     try {
-      fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'auto-send-offer'},
-        body:JSON.stringify({listingId:listingId, offerId:(_offerRef&&_offerRef.id)||''})}).catch(function(){});
-    } catch(asErr){ console.log('Auto-send dispatch err:',asErr.message); }
+      var lSnap = await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId));
+      if (lSnap.exists() && lSnap.data().autoSend && lSnap.data().clientUid) {
+        var newSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings',listingId,'offers'),fb.orderBy('submittedAt','desc')));
+        if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
+      }
+    } catch(asErr){ console.log('Auto-send err:',asErr.message); }
     // Notify listing agent that offer was received
     try {
       var lData = (await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId))).data();
@@ -22361,6 +22381,174 @@ async function saveClientStatus(uid, status) {
   } catch(e) { alert('Could not save status: ' + e.message); }
 }
 window.saveClientStatus = saveClientStatus;
+
+// ══════════════════════════════════════════════════════
+// OPT-IN FOLLOW-UP — Step 1: data foundation
+// A contact is just a contact until you deliberately TRACK it.
+// followUp on/off (opt-in), cadence hot/warm/sphere, lastTouch, nextDue.
+// ══════════════════════════════════════════════════════
+function _fuTodayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function _fuDays(cadence){ return cadence==='hot'?3:(cadence==='sphere'?90:14); }
+function _fuComputeNextDue(lastTouchStr, cadence){
+  var base = lastTouchStr ? new Date(lastTouchStr+'T00:00:00') : new Date();
+  if (isNaN(base.getTime())) base = new Date();
+  base.setDate(base.getDate()+_fuDays(cadence));
+  return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+}
+function followUpStatusText(b){
+  if (!b || !b.followUp) return 'Not tracked — turn on to add to your follow-up list.';
+  var cad = b.followUpCadence||'warm';
+  var cadLabel = cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm');
+  var due = b.followUpNextDue;
+  if (!due) return 'Tracking · '+cadLabel;
+  var dueDate = new Date(due+'T00:00:00'); if (isNaN(dueDate.getTime())) return 'Tracking · '+cadLabel;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var diff = Math.round((dueDate-today)/86400000);
+  var lbl = dueDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  if (diff<=0) return '⏰ '+cadLabel+' · due now';
+  return cadLabel+' · next touch '+lbl+' (in '+diff+' day'+(diff===1?'':'s')+')';
+}
+window.followUpStatusText = followUpStatusText;
+
+async function saveFollowUp(uid){
+  var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
+  if (!b) return;
+  var toggle = document.getElementById('fu-toggle-'+uid);
+  var cadenceEl = document.getElementById('fu-cadence-'+uid);
+  var on = toggle ? toggle.checked : false;
+  var cadence = cadenceEl ? cadenceEl.value : 'warm';
+  var patch = { followUp:on, followUpCadence:cadence };
+  if (on){
+    var lastTouch = b.followUpLastTouch || _fuTodayStr();
+    patch.followUpLastTouch = lastTouch;
+    patch.followUpNextDue = _fuComputeNextDue(lastTouch, cadence);
+  }
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+    Object.assign(b, patch);
+    if (cadenceEl) cadenceEl.disabled = !on;
+    var statusEl = document.getElementById('fu-status-'+uid);
+    if (statusEl) statusEl.innerHTML = followUpStatusText(b);
+  } catch(e){ alert('Failed to save follow-up: '+e.message); }
+}
+window.saveFollowUp = saveFollowUp;
+
+// ── Step 2+3: the daily deck + one-tap actions ──
+function _fuDaysSince(dateStr){
+  if (!dateStr) return null;
+  var d=new Date(dateStr+'T00:00:00'); if (isNaN(d.getTime())) return null;
+  var t=new Date(); t.setHours(0,0,0,0);
+  return Math.round((t-d)/86400000);
+}
+function _fuDueList(){
+  var todayStr=_fuTodayStr();
+  return (allBuyers||myBuyers||[]).filter(function(b){
+    return b.followUp===true && b.followUpNextDue && b.followUpNextDue <= todayStr;
+  }).sort(function(a,b){ return (a.followUpNextDue||'') < (b.followUpNextDue||'') ? -1 : 1; });
+}
+function renderFollowUpDeck(){
+  var deck=document.getElementById('ad-followup-deck'); if (!deck) return;
+  var due=_fuDueList();
+  var countEl=document.getElementById('ad-followup-count');
+  if (countEl) countEl.textContent = due.length ? (due.length+' due today') : '';
+  if (!due.length){
+    deck.innerHTML='<div style="text-align:center;padding:20px 16px;color:var(--green-dk);font-size:13px;font-weight:500;">✓ All caught up — no follow-ups due.</div>';
+    return;
+  }
+  deck.innerHTML = due.map(function(b){
+    var name=((b.firstName||'')+' '+(b.lastName||'')).trim()||'Contact';
+    var cad=b.followUpCadence||'warm';
+    var cadLabel=cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm');
+    var since=_fuDaysSince(b.followUpLastTouch);
+    var whyNow=cadLabel+(since!=null?' · last touched '+(since===0?'today':since+' day'+(since===1?'':'s')+' ago'):' · never touched');
+    var note=b.followUpNote||'';
+    var phone=(b.phone||'').replace(/[^0-9+]/g,'');
+    var email=b.email||'';
+    function btn(label,disabled,onclick,extra){
+      return '<button '+(disabled?'disabled ':'onclick="'+onclick+'" ')+'style="flex:1;padding:9px 6px;border-radius:8px;border:1px solid var(--border);background:'+(disabled?'var(--surface2)':'var(--surface)')+';color:'+(disabled?'var(--text3)':'var(--text)')+';font-size:13px;font-weight:600;cursor:'+(disabled?'default':'pointer')+';'+(extra||'')+'">'+label+'</button>';
+    }
+    return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin:0 12px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
+        +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="openBuyerDetail(\''+b.uid+'\')">'
+          +'<div style="font-size:15px;font-weight:600;color:var(--text);">'+partnerEsc(name)+'</div>'
+          +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(whyNow)+'</div>'
+          +(note?'<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;">"'+partnerEsc(note)+'"</div>':'')
+        +'</div>'
+        +'<span style="font-size:10px;background:'+(cad==='hot'?'#FEE2E2':(cad==='sphere'?'#EFF6FF':'#FEF3C7'))+';color:'+(cad==='hot'?'#B91C1C':(cad==='sphere'?'#1D4ED8':'#92400E'))+';border-radius:20px;padding:2px 9px;font-weight:600;white-space:nowrap;">'+cadLabel+'</span>'
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:12px;">'
+        +btn('📞 Call', !phone, "fuChannel('"+b.uid+"','call')")
+        +btn('💬 Text', !phone, "fuChannel('"+b.uid+"','text')")
+        +btn('✉️ Email', !email, "fuChannel('"+b.uid+"','email')")
+      +'</div>'
+      +'<div style="display:flex;gap:6px;margin-top:6px;">'
+        +btn('✓ Done', false, "fuLogTouch('"+b.uid+"')", 'background:var(--green);color:#fff;border-color:var(--green);')
+        +btn('💤 Snooze 7d', false, "fuSnooze('"+b.uid+"')")
+        +btn('✕ Remove', false, "fuRemove('"+b.uid+"')", 'color:#E24B4A;')
+      +'</div>'
+    +'</div>';
+  }).join('');
+}
+window.renderFollowUpDeck = renderFollowUpDeck;
+
+function fuChannel(uid,kind){
+  var b=(allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; }); if (!b) return;
+  var phone=(b.phone||'').replace(/[^0-9+]/g,'');
+  // Open the channel first so the dialer/Messages/mail still launches…
+  if (kind==='call' && phone) window.location.href='tel:'+phone;
+  else if (kind==='text' && phone) window.location.href='sms:'+phone;
+  else if (kind==='email' && b.email) window.location.href='mailto:'+b.email;
+  else return; // nothing to open → don't log
+  // …then log it as a touch (reaching out counts), reschedule to next cadence.
+  fuLogTouch(uid);
+}
+window.fuChannel = fuChannel;
+
+async function fuLogTouch(uid){
+  var b=(allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; }); if (!b) return;
+  var today=_fuTodayStr();
+  var cadence=b.followUpCadence||'warm';
+  var patch={ followUpLastTouch:today, followUpNextDue:_fuComputeNextDue(today,cadence) };
+  try { await fb.updateDoc(fb.doc(fb.db,'users',uid),patch); Object.assign(b,patch); renderFollowUpDeck(); }
+  catch(e){ alert('Failed to log: '+e.message); }
+}
+window.fuLogTouch = fuLogTouch;
+
+async function fuSnooze(uid){
+  var b=(allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; }); if (!b) return;
+  var base=new Date(); base.setDate(base.getDate()+7);
+  var due=base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
+  try { await fb.updateDoc(fb.doc(fb.db,'users',uid),{followUpNextDue:due}); b.followUpNextDue=due; renderFollowUpDeck(); }
+  catch(e){ alert('Failed to snooze: '+e.message); }
+}
+window.fuSnooze = fuSnooze;
+
+async function fuRemove(uid){
+  var b=(allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; }); if (!b) return;
+  try { await fb.updateDoc(fb.doc(fb.db,'users',uid),{followUp:false}); b.followUp=false; renderFollowUpDeck(); }
+  catch(e){ alert('Failed to remove: '+e.message); }
+}
+window.fuRemove = fuRemove;
+
+// ── TEST HELPER (console only) — make tracked contacts show as due now ──
+// Usage in browser console:  fuTestDueNow()  → marks ALL tracked contacts due today
+//                            fuTestDueNow('First')  → only those whose name contains "First"
+async function fuTestDueNow(nameMatch){
+  var today=_fuTodayStr();
+  var list=(allBuyers||myBuyers||[]).filter(function(b){
+    if (b.followUp!==true) return false;
+    if (!nameMatch) return true;
+    var n=((b.firstName||'')+' '+(b.lastName||'')).toLowerCase();
+    return n.indexOf(String(nameMatch).toLowerCase())!==-1;
+  });
+  for (var i=0;i<list.length;i++){
+    try { await fb.updateDoc(fb.doc(fb.db,'users',list[i].uid),{followUpNextDue:today}); list[i].followUpNextDue=today; } catch(e){}
+  }
+  if (typeof renderFollowUpDeck==='function') renderFollowUpDeck();
+  console.log('Marked '+list.length+' tracked contact(s) due now. Open the Agent Dashboard to see the deck.');
+  return list.length;
+}
+window.fuTestDueNow = fuTestDueNow;
 
 async function saveClientField(uid, field, value) {
   try {
