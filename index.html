@@ -22849,7 +22849,9 @@ function spEditStep(i){
       inner=hdr
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Sends a ringless voicemail through your Slybroadcast account (set up in your Profile).</div>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Audio file name <span style="font-weight:400;">(the recording\'s name in your Slybroadcast account)</span></label>'
-        +'<input type="text" id="sp-step-audio" placeholder="e.g. Seller Top of Mind" value="'+partnerEsc(s.audioName||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<div style="display:flex;gap:6px;margin:4px 0 6px;"><button class="btn btn-sm" onclick="spLoadRecordings()" style="white-space:nowrap;">\u2193 Load my recordings</button><select id="sp-step-audio-select" onchange="if(this.value){document.getElementById(\'sp-step-audio\').value=this.value;}" style="flex:1;font-size:13px;padding:8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"><option value="">— pick from Slybroadcast —</option></select></div>'
+        +'<div id="sp-rec-status" style="font-size:11px;color:var(--text3);margin-bottom:6px;"></div>'
+        +'<input type="text" id="sp-step-audio" placeholder="e.g. Seller Top of Mind" value="'+partnerEsc(s.audioName||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:0 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
         +'<input type="text" id="sp-step-content" placeholder="What this VM is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
         +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">Record &amp; name the audio in Slybroadcast first, then enter its exact name here.</div>';
@@ -22901,6 +22903,34 @@ function spSaveStep(i){
   spRenderCanvas();
 }
 window.spSaveStep = spSaveStep;
+
+// Load the agent's Slybroadcast recordings into the VM step picker (also a credential test)
+async function spLoadRecordings(){
+  var status=document.getElementById('sp-rec-status');
+  var sel=document.getElementById('sp-step-audio-select');
+  if(status) status.innerHTML='<span style="color:var(--text3);">Connecting to Slybroadcast…</span>';
+  try {
+    var uid = (currentUser && currentUser.uid) || (userProfile && userProfile.uid);
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'list-sly-audio'}, body: JSON.stringify({uid: uid}) });
+    var j = await r.json();
+    if (j.error){
+      if(status) status.innerHTML='<span style="color:#E24B4A;">✕ '+partnerEsc(j.error)+'</span><br><span style="color:var(--text3);">Check your Slybroadcast login in Profile.</span>';
+      return;
+    }
+    var files = j.files||[];
+    if(!files.length){
+      if(status) status.innerHTML='<span style="color:#D97706;">Connected, but no recordings found in your account.</span>';
+      return;
+    }
+    if(sel){
+      sel.innerHTML='<option value="">— pick from Slybroadcast —</option>'+files.map(function(f){ return '<option value="'+partnerEsc(f)+'">'+partnerEsc(f)+'</option>'; }).join('');
+    }
+    if(status) status.innerHTML='<span style="color:var(--green-dk);">✓ Connected — '+files.length+' recording'+(files.length!==1?'s':'')+' loaded. Pick one above.</span>';
+  } catch(e){
+    if(status) status.innerHTML='<span style="color:#E24B4A;">✕ Could not connect: '+partnerEsc(e.message)+'</span>';
+  }
+}
+window.spLoadRecordings = spLoadRecordings;
 
 function spDeleteStep(i){
   _currentPlan.steps.splice(i,1);
