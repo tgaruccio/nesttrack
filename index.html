@@ -22915,7 +22915,7 @@ async function spLoadRecordings(){
     }
     var files = j.files||[];
     if(!files.length){
-      if(status) status.innerHTML='<span style="color:#D97706;">Connected, but no recordings found in your account.</span>';
+      if(status) status.innerHTML='<span style="color:#D97706;">Connected, but no recordings parsed. Raw response below — copy this and send it:</span><textarea readonly style="width:100%;height:90px;margin-top:6px;font-size:10px;font-family:monospace;border:1px solid var(--border);border-radius:4px;padding:6px;" onclick="this.select()">'+partnerEsc(j.raw||'(empty response)')+'</textarea>';
       return;
     }
     if(sel){
@@ -23039,7 +23039,28 @@ async function spRunNow(){
   try {
     var r=await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'run-campaigns'}, body:'{}' });
     var j=await r.json().catch(function(){return {};});
-    alert('Campaign run triggered. '+(j.processed!=null?(j.processed+' contact(s) processed, '+(j.fired||0)+' step(s) fired.'):'Check your Zapier task history to confirm.'));
+    var msg = 'Processed: '+(j.processed||0)+'   Fired: '+(j.fired||0)+'\n';
+    if (j.diag) {
+      var d = j.diag;
+      if (d.error) { msg += '\n⚠ '+d.error; }
+      else {
+        msg += '\nToday (ET): '+d.today
+          +'\nActive enrollments found: '+d.activeFound
+          +'\n  • skipped (no plan/wrong status): '+d.noPlanId
+          +'\n  • skipped (not due yet): '+d.notDue
+          +'\n  • skipped (plan missing): '+d.planMissing
+          +'\n  • due & processed: '+d.dueProcessed;
+        if (d.sample && d.sample.length) {
+          msg += '\n\nSample enrollments:';
+          d.sample.forEach(function(s){ msg += '\n• '+(s.name||'?').trim()+' | plan:'+s.plan+' | status:'+s.status+' | due:'+s.due+' | owner:'+s.owner+' | step:'+s.step; });
+        }
+        if (d.fires && d.fires.length) {
+          msg += '\n\nSend attempts:';
+          d.fires.forEach(function(f){ msg += '\n'+(f.ok?'✓':'✗')+' '+(f.contact||'').trim()+' ['+f.channel+']: '+f.reason; });
+        }
+      }
+    }
+    alert(msg);
   } catch(e){ alert('Failed to trigger: '+e.message); }
 }
 window.spRunNow = spRunNow;
