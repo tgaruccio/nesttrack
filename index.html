@@ -11640,7 +11640,9 @@ async function openBuyerDetail(uid, scrollTo) {
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap;">
           <input type="checkbox" id="fu-toggle-${uid}" ${b.followUp?'checked':''} onchange="saveFollowUp('${uid}')" style="width:16px;height:16px;"/> Track
         </label>
-        <select id="fu-cadence-${uid}" onchange="saveFollowUp('${uid}')" ${b.followUp?'':'disabled'} style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="hot" ${b.followUpCadence==='hot'?'selected':''}>Hot · every 3 days</option><option value="warm" ${(!b.followUpCadence||b.followUpCadence==='warm')?'selected':''}>Warm · every 14 days</option><option value="sphere" ${b.followUpCadence==='sphere'?'selected':''}>Sphere · every 90 days</option></select>
+        <select id="fu-cadence-${uid}" onchange="fuCadenceChanged('${uid}')" ${b.followUp?'':'disabled'} style="flex:1;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="hot" ${b.followUpCadence==='hot'?'selected':''}>Hot · every 3 days</option><option value="warm" ${(!b.followUpCadence||b.followUpCadence==='warm')?'selected':''}>Warm · every 14 days</option><option value="sphere" ${b.followUpCadence==='sphere'?'selected':''}>Sphere · every 90 days</option><option value="custom" ${b.followUpCadence==='custom'?'selected':''}>Custom…</option></select>
+        <input type="number" id="fu-custom-${uid}" min="1" max="999" value="${b.followUpCustomDays||7}" onchange="saveFollowUp('${uid}')" ${b.followUp&&b.followUpCadence==='custom'?'':'disabled'} style="width:54px;display:${b.followUpCadence==='custom'?'inline-block':'none'};font-size:13px;padding:6px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;"/>
+        <span id="fu-custom-label-${uid}" style="display:${b.followUpCadence==='custom'?'inline':'none'};font-size:12px;color:var(--text3);white-space:nowrap;">days</span>
       </div>
       <div id="fu-status-${uid}" style="font-size:11px;color:var(--text3);padding-left:100px;">${followUpStatusText(b)}</div>
     </div>
@@ -22388,17 +22390,24 @@ window.saveClientStatus = saveClientStatus;
 // followUp on/off (opt-in), cadence hot/warm/sphere, lastTouch, nextDue.
 // ══════════════════════════════════════════════════════
 function _fuTodayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function _fuDays(cadence){ return cadence==='hot'?3:(cadence==='sphere'?90:14); }
-function _fuComputeNextDue(lastTouchStr, cadence){
+function _fuDays(cadence, customDays){
+  if (cadence==='custom') return Math.max(1, parseInt(customDays,10)||7);
+  return cadence==='hot'?3:(cadence==='sphere'?90:14);
+}
+function _fuCadenceLabel(b){
+  var cad=(b&&b.followUpCadence)||'warm';
+  if (cad==='custom') return 'Every '+_fuDays('custom', b&&b.followUpCustomDays)+' days';
+  return cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm');
+}
+function _fuComputeNextDue(lastTouchStr, cadence, customDays){
   var base = lastTouchStr ? new Date(lastTouchStr+'T00:00:00') : new Date();
   if (isNaN(base.getTime())) base = new Date();
-  base.setDate(base.getDate()+_fuDays(cadence));
+  base.setDate(base.getDate()+_fuDays(cadence, customDays));
   return base.getFullYear()+'-'+String(base.getMonth()+1).padStart(2,'0')+'-'+String(base.getDate()).padStart(2,'0');
 }
 function followUpStatusText(b){
   if (!b || !b.followUp) return 'Not tracked — turn on to add to your follow-up list.';
-  var cad = b.followUpCadence||'warm';
-  var cadLabel = cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm');
+  var cadLabel = _fuCadenceLabel(b);
   var due = b.followUpNextDue;
   if (!due) return 'Tracking · '+cadLabel;
   var dueDate = new Date(due+'T00:00:00'); if (isNaN(dueDate.getTime())) return 'Tracking · '+cadLabel;
@@ -22410,23 +22419,37 @@ function followUpStatusText(b){
 }
 window.followUpStatusText = followUpStatusText;
 
+function fuCadenceChanged(uid){
+  var cadenceEl=document.getElementById('fu-cadence-'+uid);
+  var customEl=document.getElementById('fu-custom-'+uid);
+  var labelEl=document.getElementById('fu-custom-label-'+uid);
+  var isCustom = cadenceEl && cadenceEl.value==='custom';
+  if (customEl){ customEl.style.display=isCustom?'inline-block':'none'; customEl.disabled=!isCustom; }
+  if (labelEl) labelEl.style.display=isCustom?'inline':'none';
+  saveFollowUp(uid);
+}
+window.fuCadenceChanged = fuCadenceChanged;
+
 async function saveFollowUp(uid){
   var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
   if (!b) return;
   var toggle = document.getElementById('fu-toggle-'+uid);
   var cadenceEl = document.getElementById('fu-cadence-'+uid);
+  var customEl = document.getElementById('fu-custom-'+uid);
   var on = toggle ? toggle.checked : false;
   var cadence = cadenceEl ? cadenceEl.value : 'warm';
-  var patch = { followUp:on, followUpCadence:cadence };
+  var customDays = customEl ? Math.max(1, parseInt(customEl.value,10)||7) : (b.followUpCustomDays||7);
+  var patch = { followUp:on, followUpCadence:cadence, followUpCustomDays:customDays };
   if (on){
     var lastTouch = b.followUpLastTouch || _fuTodayStr();
     patch.followUpLastTouch = lastTouch;
-    patch.followUpNextDue = _fuComputeNextDue(lastTouch, cadence);
+    patch.followUpNextDue = _fuComputeNextDue(lastTouch, cadence, customDays);
   }
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
     Object.assign(b, patch);
     if (cadenceEl) cadenceEl.disabled = !on;
+    if (customEl) customEl.disabled = !on || cadence!=='custom';
     var statusEl = document.getElementById('fu-status-'+uid);
     if (statusEl) statusEl.innerHTML = followUpStatusText(b);
   } catch(e){ alert('Failed to save follow-up: '+e.message); }
@@ -22458,7 +22481,7 @@ function renderFollowUpDeck(){
   deck.innerHTML = due.map(function(b){
     var name=((b.firstName||'')+' '+(b.lastName||'')).trim()||'Contact';
     var cad=b.followUpCadence||'warm';
-    var cadLabel=cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm');
+    var cadLabel=cad==='custom'?('Every '+_fuDays('custom',b.followUpCustomDays)+'d'):(cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm'));
     var since=_fuDaysSince(b.followUpLastTouch);
     var whyNow=cadLabel+(since!=null?' · last touched '+(since===0?'today':since+' day'+(since===1?'':'s')+' ago'):' · never touched');
     var note=b.followUpNote||'';
@@ -22474,7 +22497,7 @@ function renderFollowUpDeck(){
           +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(whyNow)+'</div>'
           +(note?'<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;">"'+partnerEsc(note)+'"</div>':'')
         +'</div>'
-        +'<span style="font-size:10px;background:'+(cad==='hot'?'#FEE2E2':(cad==='sphere'?'#EFF6FF':'#FEF3C7'))+';color:'+(cad==='hot'?'#B91C1C':(cad==='sphere'?'#1D4ED8':'#92400E'))+';border-radius:20px;padding:2px 9px;font-weight:600;white-space:nowrap;">'+cadLabel+'</span>'
+        +'<span style="font-size:10px;background:'+(cad==='hot'?'#FEE2E2':(cad==='sphere'?'#EFF6FF':(cad==='custom'?'#EDE9FE':'#FEF3C7')))+';color:'+(cad==='hot'?'#B91C1C':(cad==='sphere'?'#1D4ED8':(cad==='custom'?'#6D28D9':'#92400E')))+';border-radius:20px;padding:2px 9px;font-weight:600;white-space:nowrap;">'+cadLabel+'</span>'
       +'</div>'
       +'<div style="display:flex;gap:6px;margin-top:12px;">'
         +btn('📞 Call', !phone, "fuChannel('"+b.uid+"','call')")
@@ -22508,7 +22531,7 @@ async function fuLogTouch(uid){
   var b=(allBuyers||myBuyers||[]).find(function(x){ return x.uid===uid; }); if (!b) return;
   var today=_fuTodayStr();
   var cadence=b.followUpCadence||'warm';
-  var patch={ followUpLastTouch:today, followUpNextDue:_fuComputeNextDue(today,cadence) };
+  var patch={ followUpLastTouch:today, followUpNextDue:_fuComputeNextDue(today,cadence,b.followUpCustomDays) };
   try { await fb.updateDoc(fb.doc(fb.db,'users',uid),patch); Object.assign(b,patch); renderFollowUpDeck(); }
   catch(e){ alert('Failed to log: '+e.message); }
 }
