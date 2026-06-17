@@ -3355,6 +3355,7 @@ function setupPlacesAC(inputId) {
     if(!preds.length) return;
     curPreds = preds;
     dd = document.createElement('div');
+    dd.className='nt-addr-dd';
     dd.style.cssText='position:absolute;z-index:99999;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-height:240px;overflow:auto;font-size:14px;';
     preds.forEach(function(p,i){
       var row=document.createElement('div');
@@ -3398,6 +3399,31 @@ function setupPlacesAC(inputId) {
   input.addEventListener('blur', function(){ setTimeout(closeDD,150); });
   window.addEventListener('scroll', position, true);
 }
+
+// Drop-in replacement for prompt() that asks for an address in a real input — so Places autocomplete works.
+function promptAddress(message, current){
+  return new Promise(function(resolve){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:18vh 16px 16px;';
+    var card=document.createElement('div');
+    card.style.cssText='background:var(--surface,#fff);color:var(--text,#111);width:100%;max-width:420px;border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,0.3);padding:18px;';
+    var aid='addr-prompt-input';
+    card.innerHTML='<div style="font-size:14px;font-weight:600;margin-bottom:10px;">'+escapeHtml(message||'Property address')+'</div>'
+      +'<input id="'+aid+'" type="text" autocomplete="off" placeholder="123 Maple St, Avon Lake, OH 44012" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid var(--border,#e5e7eb);border-radius:9px;font-size:15px;background:var(--surface,#fff);color:var(--text,#111);" />'
+      +'<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">'
+      +'<button id="addr-prompt-cancel" class="btn btn-sm" style="background:#F3F4F6;color:#374151;">Cancel</button>'
+      +'<button id="addr-prompt-ok" class="btn btn-sm" style="background:var(--green,#059669);color:#fff;">OK</button></div>';
+    ov.appendChild(card); document.body.appendChild(ov);
+    var input=card.querySelector('#'+aid); input.value=current||'';
+    function done(val){ try{ov.remove();}catch(_){ } resolve(val); }
+    card.querySelector('#addr-prompt-cancel').addEventListener('click', function(){ done(null); });
+    card.querySelector('#addr-prompt-ok').addEventListener('click', function(){ done(input.value.trim()); });
+    ov.addEventListener('mousedown', function(e){ if(e.target===ov) done(null); });
+    input.addEventListener('keydown', function(e){ if(e.key==='Enter'){ if(document.querySelector('.nt-addr-dd')) return; e.preventDefault(); done(input.value.trim()); } else if(e.key==='Escape'){ done(null); } });
+    setTimeout(function(){ input.focus(); try{ setupPlacesAC(aid); }catch(_){ } }, 30);
+  });
+}
+window.promptAddress = promptAddress;
 
 // Load the Google Maps JS (Places library) once, if a key is configured
 (function _loadGoogleMaps(){
@@ -4704,7 +4730,7 @@ async function dtGenerateForDeal(dealId){
   if(!window.PDFLib){ alert('PDF engine still loading — give it a second and try again.'); return; }
   var _d=(_deals||[]).find(function(x){return x.id===dealId;});
   if(_d && _d.dealType!=='seller' && !(_d.address&&_d.address.trim())){
-    var a=prompt('Property address for this offer/document:','');
+    var a=await promptAddress('Property address for this offer/document:','');
     if(a===null) return;
     a=a.trim();
     if(a){ _d.address=a; try{ await fb.updateDoc(_dealDoc(dealId),{address:a}); }catch(_){}
@@ -21780,10 +21806,10 @@ async function deleteDeal(dealId) {
 }
 window.deleteDeal = deleteDeal;
 
-function editDealAddress(dealId) {
+async function editDealAddress(dealId) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
   var current = deal ? (deal.address||'') : '';
-  var newAddr = prompt('Enter property address:', current);
+  var newAddr = await promptAddress('Enter property address:', current);
   if (newAddr === null) return;
   newAddr = newAddr.trim();
   if (deal) deal.address = newAddr;
@@ -22000,7 +22026,7 @@ window.syncDealsFromClients = syncDealsFromClients;
 async function setPropertyAddress(uid) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
   var current = b ? (b.propertyAddress||'') : '';
-  var newAddr = prompt('Property address:', current);
+  var newAddr = await promptAddress('Property address:', current);
   if (newAddr === null) return;
   newAddr = newAddr.trim();
   try {
