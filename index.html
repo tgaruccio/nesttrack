@@ -529,15 +529,12 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 The Home Sellers Trail</button>
   <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
 
-  <div class="ns">Home Search</div>
-  <button class="nb active" data-pg="idx" onclick="go('idx',this)">🔍 Search Homes <span class="nb-badge pill-g" style="background:var(--green-lt);color:var(--green-dk);">Live</span></button>
+  <div class="ns">Touring</div>
   <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
-  <button class="nb" data-pg="saved" onclick="go('saved',this)">🏠 Saved Homes <span class="nb-badge" id="sc-saved">0</span></button>
-  <button class="nb" data-pg="dash" onclick="go('dash',this)">📊 My Search Profile</button>
+  <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Property Photo Analyzer</button>
 
   <div class="ns">Buyer Tools</div>
   <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
-  <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Property Photo Analyzer</button>
   <button class="nb" data-pg="school" onclick="go('school',this)">🏫 School Districts</button>
   <button class="nb" data-pg="commute" onclick="go('commute',this)">🚗 Commute Calculator</button>
   <button class="nb" data-pg="offer" onclick="go('offer',this)">💡 Offer Strategy</button>
@@ -730,9 +727,6 @@ textarea{resize:vertical;min-height:68px;}
   <div>
     <div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.12em;margin-bottom:8px;">Buyer Tools</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-      <button onclick="go('saved',document.querySelector('[data-pg=saved]'))" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 10px;display:flex;flex-direction:column;gap:4px;cursor:pointer;text-align:left;font-family:inherit;">
-        <span style="font-size:20px;">🏠</span><span style="font-size:12px;font-weight:500;color:var(--text);">Saved Homes</span>
-      </button>
       <button onclick="go('tour',document.querySelector('[data-pg=tour]'))" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 10px;display:flex;flex-direction:column;gap:4px;cursor:pointer;text-align:left;font-family:inherit;">
         <span style="font-size:20px;">🚶</span><span style="font-size:12px;font-weight:500;color:var(--text);">Tour Mode</span>
       </button>
@@ -796,9 +790,6 @@ textarea{resize:vertical;min-height:68px;}
     </button>
     <button onclick="go('docs-explainer',document.querySelector('[data-pg=docs-explainer]'))" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r);padding:13px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;font-family:inherit;">
       <span style="font-size:20px;">📄</span><span style="font-size:13px;font-weight:500;">Document Explainer</span>
-    </button>
-    <button onclick="go('dash',document.querySelector('[data-pg=dash]'))" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r);padding:13px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;font-family:inherit;">
-      <span style="font-size:20px;">📊</span><span style="font-size:13px;font-weight:500;">My Dashboard</span>
     </button>
   </div>
 
@@ -13516,8 +13507,8 @@ const TRAIL_STAGES = [
   { id:3, emoji:'🔍', label:'Search', color:'#7F77DD',
     title:'Touring Homes',
     body:'The fun part! You ride through listings, tour homes, and use the app to take notes on every room and system. {agentFirst} points out things others miss — good and bad.',
-    facts:['Browse live MLS listings in the app','Use Tour Mode to take notes room-by-room','{agentFirst} attends showings with you','Save and rate your favorites'],
-    action:{label:'Search Homes', page:'idx'} },
+    facts:['{agentFirst} lines up homes that match your criteria','Use Tour Mode to take notes room-by-room','{agentFirst} attends showings with you','Rate and compare each home as you go'],
+    action:{label:'Tour Mode', page:'tour'} },
   { id:4, emoji:'✍️', label:'Make Offer', color:'#EF9F27',
     title:'Writing Offers',
     body:'Found the one? Time to make your move. {agentFirst} crafts a strategic offer — the right price, the right terms, the right contingencies. Use the AI Offer Strategy tool to think it through.',
@@ -18651,9 +18642,7 @@ var SEARCH_PAGES = [
   {label:'Clients', icon:'👥', pg:'agent', tab:'buyers'},
   {label:'My Team', icon:'👥', pg:'agent', tab:'team'},
   {label:'My Onboarding', icon:'🎓', pg:'onboarding'},
-  {label:'Home Search', icon:'🔍', pg:'idx'},
   {label:'Tour Mode', icon:'🚶', pg:'tour'},
-  {label:'Saved Homes', icon:'🏠', pg:'saved'},
   {label:'Offer Strategy', icon:'💡', pg:'offer'},
   {label:'Commute Calculator', icon:'🚗', pg:'commute'},
   {label:'School Districts', icon:'🏫', pg:'school'},
@@ -23715,7 +23704,7 @@ async function sendPortalInvite() {
     +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:14px;">What\'s waiting for you inside</div>'
     +'<div style="margin-bottom:12px;"><span style="font-size:16px;">🗺️</span> <strong style="font-size:13px;">Your Step-by-Step Journey</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">See exactly where you are in the process at all times — from initial consult to closing day, clearly laid out.</div></div>'
     +'<div style="margin-bottom:12px;"><span style="font-size:16px;">📅</span> <strong style="font-size:13px;">Live Transaction Timeline</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">Once under contract, every key date — inspection, appraisal, clear to close, closing — tracked in real time so nothing slips.</div></div>'
-    +'<div style="margin-bottom:12px;"><span style="font-size:16px;">🏠</span> <strong style="font-size:13px;">Home Search + Touring Mode</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">Search homes and use Touring Mode during showings to rate each home in real time, add notes, and compare them side by side after.</div></div>'
+    +'<div style="margin-bottom:12px;"><span style="font-size:16px;">🚶</span> <strong style="font-size:13px;">Touring Mode</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">Use Touring Mode during showings to rate each home in real time, add notes, and compare them side by side after.</div></div>'
     +'<div style="margin-bottom:12px;"><span style="font-size:16px;">📸</span> <strong style="font-size:13px;">AI Photo Analyzer</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">Upload listing photos and get an instant AI breakdown of what you\'re actually looking at.</div></div>'
     +'<div style="margin-bottom:12px;"><span style="font-size:16px;">🚩</span> <strong style="font-size:13px;">AI Red Flag Scanner</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">AI scans listings for potential issues before you fall in love with the wrong house.</div></div>'
     +'<div style="margin-bottom:12px;"><span style="font-size:16px;">🧮</span> <strong style="font-size:13px;">Mortgage Calculator + Net Sheet</strong><div style="font-size:12px;color:#666;margin-top:2px;padding-left:26px;">Run real numbers instantly — monthly payment estimates, closing costs, and net proceeds if you\'re also selling.</div></div>'
