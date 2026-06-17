@@ -3706,7 +3706,10 @@ const DEFAULT_LENDERS = [
 async function loadTeamLenders() {
   try {
     var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
-    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
+    var _lendersSnapOwnerAll = (typeof isOwner==='function' && isOwner());
+    var snap = _lendersSnapOwnerAll
+      ? await fb.getDocs(fb.collection(fb.db, 'team_lenders'))
+      : await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
     snap.forEach(function(doc) {
       var l = doc.data();
       var idx = DEFAULT_LENDERS.findIndex(function(x){ return x.id === l.id; });
@@ -3955,7 +3958,10 @@ async function signOut() {
 async function loadTeamAgents() {
   try {
     var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
-    const snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'team_agents'), fb.where('teamId','==', myTeam)));
+    var _agentsSnapOwnerAll = (typeof isOwner==='function' && isOwner());
+    const snap = _agentsSnapOwnerAll
+      ? await fb.getDocs(fb.collection(fb.db, 'team_agents'))
+      : await fb.getDocs(fb.query(fb.collection(fb.db, 'team_agents'), fb.where('teamId','==', myTeam)));
     const firestoreIds = [];
     snap.forEach(doc => {
       const a = doc.data();
