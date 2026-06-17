@@ -7212,10 +7212,16 @@ function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
 }
 
 
+var MAIL_DOMAIN = 'mail.garucciogroup.com';
 function agentFromField() {
-  var name = ((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'');
-  name = name.trim() || (userProfile&&userProfile.name) || 'Nest Track';
-  return name + ' <notifications@mail.garucciogroup.com>';
+  var first = (userProfile&&userProfile.firstName)||'';
+  var last = (userProfile&&userProfile.lastName)||'';
+  var name = (first+' '+last).trim() || (userProfile&&userProfile.name) || 'Nest Track';
+  // Per-agent sending address (name-based slug) on the verified domain.
+  var slug = (first+last).toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(!slug) slug = (name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(!slug) slug = 'agent';
+  return name + ' <' + slug + '@' + MAIL_DOMAIN + '>';
 }
 function agentReplyTo() {
   return (userProfile&&userProfile.email) || null;
