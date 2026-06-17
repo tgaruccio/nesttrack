@@ -3764,6 +3764,7 @@ var agentPartners = [];
 const SPONSORED_PARTNERS = [
   {id:'sp_tomlender', cat:'Lender', name:'Tom Garuccio', co:'Ask Local Mortgage', phone:'440-754-7449', email:'Tom@GaruccioGroup.com', applyLink:'https://1660690.my1003app.com/2784866/register', topPick:true, note:'Pre-approval and financing handled in-house.'}
 ];
+var _sponsoredPartners = SPONSORED_PARTNERS.slice(); // runtime copy, loaded from platform_partners/sponsored (owner-managed)
 var _teamPartners = [];        // the team's shared list (owned by the team leader)
 var _personalPartners = [];    // this agent's own additions (members only)
 var _hiddenPartnerIds = [];    // team/sponsored partner ids this user hid from their own view
@@ -8510,7 +8511,7 @@ function _resolvePartnerTeamId(agentId){
 function _rebuildAgentPartners(){
   var hidden = _hiddenPartnerIds || [];
   var out = [];
-  SPONSORED_PARTNERS.forEach(function(p){ if (hidden.indexOf(p.id)===-1) out.push(Object.assign({},p,{_src:'sponsored'})); });
+  _sponsoredPartners.forEach(function(p){ if (hidden.indexOf(p.id)===-1) out.push(Object.assign({},p,{_src:'sponsored'})); });
   (_teamPartners||[]).forEach(function(p){ if (hidden.indexOf(p.id)===-1) out.push(Object.assign({},p,{_src:'team'})); });
   (_personalPartners||[]).forEach(function(p){ out.push(Object.assign({},p,{_src:'personal'})); });
   agentPartners = out;
@@ -8555,6 +8556,16 @@ async function loadAgentPartners(agentId) {
       }
     }
   } catch(e) { console.log('loadAgentPartners:', e.message); }
+  // Sponsored (platform-wide) partners — everyone reads; only the owner seeds/writes.
+  try {
+    var spSnap = await fb.getDoc(fb.doc(fb.db,'platform_partners','sponsored'));
+    if (spSnap.exists() && Array.isArray(spSnap.data().partners)) {
+      _sponsoredPartners = spSnap.data().partners;
+    } else if (canWrite && typeof isOwner==='function' && isOwner()) {
+      _sponsoredPartners = SPONSORED_PARTNERS.slice();
+      try { await fb.setDoc(fb.doc(fb.db,'platform_partners','sponsored'),{partners:_sponsoredPartners}); } catch(e){}
+    }
+  } catch(e) { console.log('sponsored load:', e.message); }
   _rebuildAgentPartners();
 }
 window.loadAgentPartners = loadAgentPartners;
@@ -8572,6 +8583,42 @@ async function _savePersonalPartners() {
 async function _saveHidden() { if (_partnerIsLeaderView()) await _saveTeamPartners(); else await _savePersonalPartners(); }
 async function saveAgentPartners() { if (_partnerIsLeaderView()) await _saveTeamPartners(); else await _savePersonalPartners(); }
 window.saveAgentPartners = saveAgentPartners;
+
+// Sponsored (platform-wide) — owner only.
+async function _saveSponsored() {
+  try { await fb.setDoc(fb.doc(fb.db,'platform_partners','sponsored'), {partners:_sponsoredPartners, updatedAt:Date.now()}); } catch(e){ alert('Could not save sponsored partners: '+e.message); }
+}
+async function deleteSponsored(id) {
+  if (!(typeof isOwner==='function' && isOwner())) { alert('Only the platform owner can manage sponsored partners.'); return; }
+  if (!confirm('Remove this sponsored partner? It disappears from EVERYONE\u2019s list across all teams.')) return;
+  _sponsoredPartners = _sponsoredPartners.filter(function(x){ return x.id!==id; });
+  await _saveSponsored();
+  _rebuildAgentPartners();
+  renderAgentPartnersEditor();
+}
+window.deleteSponsored = deleteSponsored;
+
+// Hide a team/sponsored partner from this user's own view (does not delete it for anyone else).
+async function hidePartner(id) {
+  if ((_hiddenPartnerIds||[]).indexOf(id)===-1) _hiddenPartnerIds.push(id);
+  await _saveHidden();
+  _rebuildAgentPartners();
+  renderAgentPartnersEditor();
+}
+window.hidePartner = hidePartner;
+async function unhidePartner(id) {
+  _hiddenPartnerIds = (_hiddenPartnerIds||[]).filter(function(x){ return x!==id; });
+  await _saveHidden();
+  _rebuildAgentPartners();
+  renderAgentPartnersEditor();
+}
+window.unhidePartner = unhidePartner;
+// Resolve a hidden id back to its partner object (for the "hidden" list).
+function _findAnyPartner(id){
+  return _sponsoredPartners.find(function(x){return x.id===id;})
+    || (_teamPartners||[]).find(function(x){return x.id===id;})
+    || (_personalPartners||[]).find(function(x){return x.id===id;}) || null;
+}
 
 function filterPartners(cat, el) {
   document.querySelectorAll('#partner-filter .chip').forEach(function(c){ c.classList.remove('active'); });
@@ -8616,7 +8663,7 @@ window.renderPartners = renderPartners;
 
 // ── Agent backend partner editor ──
 function _partnerTier(id){
-  if (SPONSORED_PARTNERS.some(function(x){return x.id===id;})) return 'sponsored';
+  if (_sponsoredPartners.some(function(x){return x.id===id;})) return 'sponsored';
   if ((_teamPartners||[]).some(function(x){return x.id===id;})) return 'team';
   if ((_personalPartners||[]).some(function(x){return x.id===id;})) return 'personal';
   return null;
@@ -8645,6 +8692,8 @@ function renderAgentPartnersEditor() {
   var el = document.getElementById('agent-partners-editor');
   if (!el) return;
   var leader = _partnerIsLeaderView() || (typeof isTeamLeader==='function' && isTeamLeader());
+  var owner = (typeof isOwner==='function' && isOwner());
+  var hidden = _hiddenPartnerIds || [];
   var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
     + '<div style="font-size:14px;font-weight:600;flex:1;">'+(leader?'Team Partner List':'My Partners')+'</div>'
     + '<button class="btn btn-sm btn-g" onclick="openAddPartnerModal()">+ Add Partner</button>'
@@ -8655,48 +8704,76 @@ function renderAgentPartnersEditor() {
         : 'Your team\u2019s shared partners appear below. Add your own \u2014 they\u2019re visible only to you.')
     + '</div>';
 
-  // Sponsored (read-only for everyone)
-  var sponsored = SPONSORED_PARTNERS.filter(function(p){ return (_hiddenPartnerIds||[]).indexOf(p.id)===-1; });
-  html += _editorCatGroup('Preferred (platform)', sponsored.map(function(p){return Object.assign({},p);}), function(p){
-    return '<span style="font-size:10px;color:var(--text3);">Always shown</span>';
-  });
+  // ── Owner-only: Sponsored manager (platform-wide) ──
+  if (owner) {
+    html += '<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r);padding:12px 14px;margin-bottom:18px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+      + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#92400E;flex:1;">Sponsored \u2014 shown on EVERY team\u2019s list</div>'
+      + '<button class="btn btn-sm" onclick="openAddPartnerModal(null,\'sponsored\')" style="font-size:11px;background:#92400E;color:#fff;border-color:#92400E;">+ Add Sponsored</button>'
+      + '</div>'
+      + (_sponsoredPartners.length ? _sponsoredPartners.map(function(p){
+          return _editorRow(p, '<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\',\'sponsored\')" style="font-size:11px;">Edit</button>'
+            + '<button class="btn btn-sm" onclick="deleteSponsored(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>');
+        }).join('') : '<div style="font-size:12px;color:#92400E;">No sponsored partners.</div>')
+      + '</div>';
+  } else {
+    var sp = _sponsoredPartners.filter(function(p){ return hidden.indexOf(p.id)===-1; });
+    html += _editorCatGroup('Preferred (platform)', sp, function(p){
+      return '<button class="btn btn-sm" onclick="hidePartner(\''+p.id+'\')" style="font-size:11px;">Hide</button>';
+    });
+  }
 
-  // Team list
-  html += _editorCatGroup(leader ? 'Shared with your team' : 'From your team', (_teamPartners||[]), function(p){
-    if (leader) return '<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
-      +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>';
-    return '<span style="font-size:10px;color:var(--text3);">Team</span>';
-  });
+  // ── Team list ──
+  html += _editorCatGroup(leader ? 'Shared with your team' : 'From your team',
+    (_teamPartners||[]).filter(function(p){ return leader || hidden.indexOf(p.id)===-1; }),
+    function(p){
+      if (leader) return '<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
+        +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>';
+      return '<button class="btn btn-sm" onclick="hidePartner(\''+p.id+'\')" style="font-size:11px;">Hide</button>';
+    });
 
-  // Personal (members only)
+  // ── Personal (members only) ──
   if (!leader) {
     html += _editorCatGroup('My own partners', (_personalPartners||[]), function(p){
       return '<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
         +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>';
     });
-    if (!(_personalPartners||[]).length) html += '<div style="color:var(--text3);font-size:12.5px;margin-top:-6px;">No personal partners yet \u2014 add your own above.</div>';
+    if (!(_personalPartners||[]).length) html += '<div style="color:var(--text3);font-size:12.5px;margin-top:-6px;margin-bottom:14px;">No personal partners yet \u2014 add your own above.</div>';
   } else if (!(_teamPartners||[]).length) {
-    html += '<div style="color:var(--text3);font-size:13px;">No team partners yet. Add your first one above.</div>';
+    html += '<div style="color:var(--text3);font-size:13px;margin-bottom:14px;">No team partners yet. Add your first one above.</div>';
+  }
+
+  // ── Hidden from your view ──
+  var hiddenObjs = hidden.map(_findAnyPartner).filter(Boolean);
+  if (hiddenObjs.length) {
+    html += '<div style="margin-top:6px;border-top:0.5px solid var(--border);padding-top:12px;">'
+      + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:8px;">Hidden from your view ('+hiddenObjs.length+')</div>'
+      + hiddenObjs.map(function(p){ return _editorRow(p, '<button class="btn btn-sm" onclick="unhidePartner(\''+p.id+'\')" style="font-size:11px;">Unhide</button>'); }).join('')
+      + '</div>';
   }
   el.innerHTML = html;
 }
 window.renderAgentPartnersEditor = renderAgentPartnersEditor;
 
 var _editingPartnerId = null;
-function openAddPartnerModal(id) {
+var _addPartnerMode = null;
+function openAddPartnerModal(id, mode) {
   _editingPartnerId = id || null;
-  var p = id ? agentPartners.find(function(x){ return x.id===id; }) : null;
-  var catOpts = ALL_PARTNER_CATS.map(function(ct){
-    return '<option value="'+ct+'"'+(p&&p.cat===ct?' selected':'')+'>'+ct+'</option>';
-  }).join('');
+  _addPartnerMode = mode || null;
+  var p = id ? (agentPartners.find(function(x){ return x.id===id; }) || _findAnyPartner(id)) : null;
+  var catSet = ALL_PARTNER_CATS.slice();
+  agentPartners.forEach(function(x){ if (x.cat && catSet.indexOf(x.cat)===-1) catSet.push(x.cat); });
+  var catList = catSet.map(function(ct){ return '<option value="'+partnerEsc(ct)+'"></option>'; }).join('');
+  var titlePrefix = (mode==='sponsored') ? 'Sponsored ' : '';
   var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:400;display:flex;align-items:center;justify-content:center;padding:16px;" id="add-partner-overlay">'
     +'<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">'
-    +'<div style="font-weight:600;font-size:15px;">'+(p?'Edit':'Add')+' Partner</div>'
+    +'<div style="font-weight:600;font-size:15px;">'+titlePrefix+(p?'Edit':'Add')+' Partner</div>'
     +'<button onclick="document.getElementById(\'add-partner-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2);">&#x2715;</button>'
     +'</div>'
+    + (mode==='sponsored' ? '<div style="background:#FFFBEB;color:#92400E;font-size:11.5px;padding:8px 20px;border-bottom:1px solid #FDE68A;">This partner shows on every team\u2019s list across the platform.</div>' : '')
     +'<div style="padding:16px 20px 20px;display:flex;flex-direction:column;gap:10px;">'
-    +'<div><label class="flabel">Category</label><select id="ap-cat"><option value="">Select category</option>'+catOpts+'</select></div>'
+    +'<div><label class="flabel">Category</label><input type="text" id="ap-cat" list="ap-cat-list" autocomplete="off" placeholder="e.g. Lender, Roofing, or type your own" value="'+partnerEsc(p?p.cat||'':'')+'"/><datalist id="ap-cat-list">'+catList+'</datalist></div>'
     +'<div class="fg2">'
     +'<div><label class="flabel">Name</label><input type="text" id="ap-name" value="'+partnerEsc(p?p.name||'':'')+'"/></div>'
     +'<div><label class="flabel">Company</label><input type="text" id="ap-co" value="'+partnerEsc(p?p.co||'':'')+'"/></div>'
@@ -8730,10 +8807,15 @@ async function savePartnerEdit() {
     topPick: document.getElementById('ap-toppick').checked,
   };
   var leader = _partnerIsLeaderView() || (typeof isTeamLeader==='function' && isTeamLeader());
+  var owner = (typeof isOwner==='function' && isOwner());
   if (_editingPartnerId) {
     var tier = _partnerTier(_editingPartnerId);
-    if (tier==='sponsored') { alert('Sponsored partners can\u2019t be edited here.'); return; }
-    if (tier==='team') {
+    if (tier==='sponsored') {
+      if (!owner) { alert('Only the platform owner can edit sponsored partners.'); return; }
+      var si = _sponsoredPartners.findIndex(function(x){ return x.id===_editingPartnerId; });
+      if (si!==-1) _sponsoredPartners[si]=p; else _sponsoredPartners.push(p);
+      await _saveSponsored();
+    } else if (tier==='team') {
       if (!leader) { alert('Only the team leader can edit shared team partners.'); return; }
       var ti = _teamPartners.findIndex(function(x){ return x.id===_editingPartnerId; });
       if (ti!==-1) _teamPartners[ti]=p; else _teamPartners.push(p);
@@ -8743,6 +8825,11 @@ async function savePartnerEdit() {
       if (pi!==-1) _personalPartners[pi]=p; else _personalPartners.push(p);
       await _savePersonalPartners();
     }
+  } else if (_addPartnerMode==='sponsored') {
+    if (!owner) { alert('Only the platform owner can add sponsored partners.'); return; }
+    if (!p.id || p.id.indexOf('sp_')!==0) p.id = 'sp_'+Date.now();
+    _sponsoredPartners.push(p);
+    await _saveSponsored();
   } else {
     if (leader) { _teamPartners.push(p); await _saveTeamPartners(); }
     else { _personalPartners.push(p); await _savePersonalPartners(); }
