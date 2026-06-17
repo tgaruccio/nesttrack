@@ -4844,6 +4844,26 @@ async function dtRenderFilledPdf(tpl, pdfBytes, pfVals, ckVals, csVals){
   var pages=pdfDoc.getPages();
   (tpl.boxes||[]).forEach(function(b){
     var page=pages[b.page-1]; if(!page) return;
+    var _R=((page.getRotation().angle % 360)+360)%360;
+    if(_R!==0){
+      // Rotation-aware path: PDFs with a /Rotate flag (scanned/landscape forms).
+      // Boxes were tagged on the DISPLAYED (rotation-applied) page, so work in display space then map to media space.
+      var _mw=page.getWidth(), _mh=page.getHeight();
+      var dispW=(_R===90||_R===270)?_mh:_mw, dispH=(_R===90||_R===270)?_mw:_mh;
+      if(b.type==='check'){
+        if(ckVals[b.id]){
+          var bwd=b.w*dispW, bhd=b.h*dispH;
+          var szc=Math.min(bwd,bhd)*1.2; if(szc<7) szc=Math.max(7,bhd*1.5);
+          var cwd=font.widthOfTextAtSize('X',szc);
+          var pc=dtRotMap(_R,_mw,_mh, b.x*dispW+(bwd-cwd)/2, b.y*dispH+bhd/2+szc*0.35);
+          page.drawText('X',{x:pc.x,y:pc.y,size:szc,font:font,color:P.rgb(0,0,0),rotate:P.degrees(pc.rot)});
+        }
+      } else {
+        var txtR=b.type==='prefill'?(pfVals[b.bind]||''):(csVals[b.id]||'');
+        if(txtR){ dtDrawWrappedRot(page,String(txtR),b,dispW,dispH,(b.fontSize||10),_R,_mw,_mh,font,P); }
+      }
+      return;
+    }
     var pw=page.getWidth(), ph=page.getHeight();
     var bw=b.w*pw, bh=b.h*ph, x=b.x*pw;
     var topPdf=ph-(b.y*ph);        // box top edge (pdf y, from bottom)
@@ -4864,6 +4884,27 @@ async function dtRenderFilledPdf(tpl, pdfBytes, pfVals, ckVals, csVals){
     }
   });
   return await pdfDoc.save();
+}
+function dtRotMap(R,mw,mh,Dx,Dy){
+  // Map a point in DISPLAY space (origin top-left, y down) to PDF media space (origin bottom-left)
+  // plus the text rotation needed so it reads upright after the viewer applies /Rotate.
+  if(R===90)  return {x:Dy,      y:Dx,      rot:90};
+  if(R===180) return {x:mw-Dx,   y:Dy,      rot:180};
+  if(R===270) return {x:mw-Dy,   y:mh-Dx,   rot:-90};
+  return {x:Dx, y:mh-Dy, rot:0};
+}
+function dtDrawWrappedRot(page,text,b,dispW,dispH,fs,R,mw,mh,font,P){
+  var Dleft=b.x*dispW+1, Dtop=b.y*dispH, maxW=b.w*dispW-2, lh=fs*1.25;
+  var maxDy=Dtop+b.h*dispH+fs;
+  var words=String(text).split(/\s+/), line='', Dy=Dtop+fs;
+  function draw(s){ var p=dtRotMap(R,mw,mh,Dleft,Dy); page.drawText(s,{x:p.x,y:p.y,size:fs,font:font,color:P.rgb(0,0,0),rotate:P.degrees(p.rot)}); }
+  for(var i=0;i<words.length;i++){
+    var test=line?line+' '+words[i]:words[i];
+    if(font.widthOfTextAtSize(test,fs)>maxW && line){
+      draw(line); line=words[i]; Dy+=lh; if(Dy>maxDy) return;
+    } else line=test;
+  }
+  if(line) draw(line);
 }
 function dtDrawWrapped(page, text, x, firstBaseline, maxW, fs, minY, font, P){
   var words=text.split(/\s+/), line='', y=firstBaseline, lh=fs*1.25;
