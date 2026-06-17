@@ -22452,6 +22452,15 @@ async function saveClientStatus(uid, status) {
     var b = (myBuyers||[]).find(function(x){ return x.uid === uid; });
     if (b) b.crmStatus = status;
     renderBuyers();
+    // Nudge: if this contact just converted but is still in an active cold smart plan, offer to pull them out
+    if (b && b.smartPlanId && b.smartPlanStatus==='active' && (status==='active' || status==='past')) {
+      var who = b.firstName || 'This contact';
+      var label = (status==='past') ? 'a past client' : 'active';
+      var planNm = b.smartPlanName || 'cold plan';
+      if (confirm(who + ' is now ' + label + ' but is still running in the "' + planNm + '" cold campaign.\n\nPull them out and move to your follow-up list?')) {
+        spMoveToFollowUp(uid);
+      }
+    }
   } catch(e) { alert('Could not save status: ' + e.message); }
 }
 window.saveClientStatus = saveClientStatus;
@@ -23095,7 +23104,10 @@ function spContactRowHtml(b){
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
       +'<div style="font-size:12px;color:var(--text);"><span style="font-size:11px;font-weight:700;color:#6D28D9;">📣 SMART PLAN</span> '+partnerEsc(b.smartPlanName||'Plan')
       +(due?' <span style="color:var(--text3);">· next step '+partnerEsc(due)+'</span>':'')+'</div>'
-      +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spStopForContact(\''+b.uid+'\')">Stop Plan</button>'
+      +'<div style="display:flex;gap:6px;">'
+        +'<button class="btn btn-sm btn-g" onclick="spMoveToFollowUp(\''+b.uid+'\')">✋ They replied</button>'
+        +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spStopForContact(\''+b.uid+'\')">Stop</button>'
+      +'</div>'
       +'</div>';
   }
   if (b && b.smartPlanStatus==='completed'){
@@ -23159,6 +23171,20 @@ async function spStopForContact(uid){
   } catch(e){ alert('Failed to stop plan: '+e.message); }
 }
 window.spStopForContact = spStopForContact;
+
+// They engaged → pull out of the cold plan and move into the warm follow-up deck (due now, hot cadence)
+async function spMoveToFollowUp(uid){
+  var b=(allBuyers||[]).concat(myBuyers||[]).find(function(x){return x.uid===uid;});
+  var today=_fuTodayStr();
+  var patch={ smartPlanStatus:'stopped', followUp:true, followUpCadence:'hot', followUpNextDue:today };
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+    if(b){ Object.assign(b,patch); var row=document.getElementById('sp-contact-row-'+uid); if(row) row.innerHTML=spContactRowHtml(b); }
+    if(typeof renderFollowUpDeck==='function') try{ renderFollowUpDeck(); }catch(e){}
+    if(typeof renderBuyers==='function') try{ renderBuyers(); }catch(e){}
+  } catch(e){ alert('Could not move to follow-up: '+e.message); }
+}
+window.spMoveToFollowUp = spMoveToFollowUp;
 
 // Test trigger — fire the Worker campaign runner on demand (so you don't wait for the daily cron)
 async function spRunNow(){
