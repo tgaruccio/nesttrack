@@ -3307,10 +3307,19 @@ window.dispatchEvent(new Event('firebase-ready'));
 // If this is a public offer link, hide login screen immediately
 (function() {
   var hash = window.location.hash;
-  // Handle agent invite link
-  if (hash && /^#agent-invite=[A-Z0-9]+$/i.test(hash)) {
-    var agentCode = hash.split('=')[1];
-    window._agentInviteCode = agentCode;
+  function _ip(h, key){ var m=h.match(new RegExp('[&;]'+key+'=([^&;]+)')); try{ return m?decodeURIComponent(m[1]):''; }catch(_){ return ''; } }
+  // Agent/lender invite link: #agent-invite=CODE[&e=..&n=..]
+  var agm = hash.match(/^#agent-invite=([A-Za-z0-9]+)/i);
+  if (agm) {
+    window._agentInviteCode = agm[1];
+    window._inviteEmail = _ip(hash,'e'); window._inviteName = _ip(hash,'n');
+    window.history.replaceState(null,'',location.pathname);
+  }
+  // Client invite link: #invite=CODE[&e=..&n=..]
+  var clm = !agm ? hash.match(/^#invite=([A-Za-z0-9]+)/i) : null;
+  if (clm) {
+    window._clientInviteCode = clm[1];
+    window._inviteEmail = _ip(hash,'e'); window._inviteName = _ip(hash,'n');
     window.history.replaceState(null,'',location.pathname);
   }
   if (hash && /^#offer=[A-Z0-9]+$/i.test(hash)) {
@@ -3875,6 +3884,54 @@ function loginTab(t, el) {
   document.getElementById('pane-' + t).classList.add('active');
 }
 
+// Build an invite link that carries the invitee's email + name so signup can pre-fill them.
+function _inviteLink(prefix, code, email, name){
+  var s = location.origin + location.pathname + '#' + prefix + '=' + code;
+  if(email) s += '&e=' + encodeURIComponent(email);
+  if(name)  s += '&n=' + encodeURIComponent(name);
+  return s;
+}
+
+// Configure the login screen based on whether the visitor arrived on an invite link.
+// Invited  -> straight to Sign Up, agent picker + code field hidden, name/email pre-filled, welcome banner.
+// No invite -> invite-only: Sign Up hidden, existing users just Sign In.
+function initAuthScreen(){
+  var signupTab = document.querySelectorAll('.tabb')[1];
+  var tabGroup  = document.querySelector('.login-card .tab-group');
+  if(window._clientInviteCode || window._agentInviteCode){
+    try{ if(signupTab) loginTab('signup', signupTab); }catch(_){}
+    if(tabGroup) tabGroup.style.display='none';
+    var invF=document.getElementById('su-invite'); if(invF){ invF.value=(window._clientInviteCode||window._agentInviteCode||''); var iw=invF.closest('div'); if(iw) iw.style.display='none'; }
+    var agF=document.getElementById('su-agent'); if(agF){ var aw=agF.closest('div'); if(aw) aw.style.display='none'; }
+    var pane=document.getElementById('pane-signup');
+    if(pane && !document.getElementById('su-invite-banner')){
+      var nm = window._inviteName ? (' \u2014 welcome, '+escapeHtml(window._inviteName.split(' ')[0])) : '';
+      var b=document.createElement('div'); b.id='su-invite-banner';
+      b.style.cssText='background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;border-radius:10px;padding:11px 13px;font-size:13px;margin-bottom:12px;font-weight:500;';
+      b.innerHTML='\u2713 You\u2019re invited'+nm+'. Just finish creating your account below.';
+      pane.insertBefore(b, pane.firstChild);
+    }
+    if(window._inviteName){
+      var p=window._inviteName.trim().split(/\s+/);
+      var f=document.getElementById('su-first'), l=document.getElementById('su-last');
+      if(f && !f.value) f.value=p[0]||'';
+      if(l && !l.value && p.length>1) l.value=p.slice(1).join(' ');
+    }
+    if(window._inviteEmail){ var e=document.getElementById('su-email'); if(e && !e.value) e.value=window._inviteEmail; }
+  } else {
+    if(signupTab) signupTab.style.display='none';
+    var si=document.getElementById('pane-signin');
+    if(si && !document.getElementById('si-invite-note')){
+      var n=document.createElement('div'); n.id='si-invite-note';
+      n.style.cssText='text-align:center;font-size:12px;color:var(--text3);margin-top:12px;';
+      n.textContent='Accounts are by invitation. Ask your agent for an invite link.';
+      si.appendChild(n);
+    }
+  }
+}
+window.initAuthScreen = initAuthScreen;
+document.addEventListener('DOMContentLoaded', initAuthScreen);
+
 async function signIn() {
   const email = document.getElementById('si-email').value.trim();
   const pass = document.getElementById('si-pass').value;
@@ -3895,11 +3952,12 @@ async function signUp() {
   const email = document.getElementById('su-email').value.trim();
   const phone = document.getElementById('su-phone').value.trim();
   const pass = document.getElementById('su-pass').value;
-  const invite = document.getElementById('su-invite').value.trim();
+  const invite = (document.getElementById('su-invite').value.trim()) || window._clientInviteCode || '';
   const err = document.getElementById('su-error');
   err.style.display = 'none';
   if (!first || !last || !email || !pass) { err.textContent = 'Please fill in all required fields'; err.style.display = 'block'; return; }
   if (pass.length < 6) { err.textContent = 'Password must be at least 6 characters'; err.style.display = 'block'; return; }
+  if (!invite && !window._agentInviteCode) { err.textContent = 'Nest Track is invite-only. Ask your agent for an invite link to set up your account.'; err.style.display = 'block'; return; }
 
   try {
     const cred = await fb.createUserWithEmailAndPassword(fb.auth, email, pass);
@@ -12455,7 +12513,7 @@ async function createInvite() {
   if (!first || !email) { alert('First name and email are required.'); return; }
 
   var code = Math.random().toString(36).substring(2,8).toUpperCase();
-  var link = location.origin + location.pathname + '#invite=' + code;
+  var link = _inviteLink('invite', code, email, ((first||'')+' '+(last||'')).trim());
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === agentId; });
   var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
 
@@ -12567,7 +12625,7 @@ async function resendInvite(uid) {
   if (!buyer || !buyer.pending) { alert('This client has already accepted their invite.'); return; }
   if (!buyer.inviteCode) { alert('No invite code found.'); return; }
   var code = buyer.inviteCode;
-  var link = location.origin + location.pathname + '#invite=' + code;
+  var link = _inviteLink('invite', code, buyer.email, ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim());
   var first = buyer.firstName || 'there';
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.agentId; });
   var agentName = agentEntry ? agentEntry.name : 'Tom Garuccio';
@@ -12666,7 +12724,7 @@ async function addLenderAndInvite() {
   // Build lender invite email (blue themed)
   var first = name.split(' ')[0];
   var code = 'LND' + Math.random().toString(36).substr(2,8).toUpperCase();
-  var link = location.origin + location.pathname + '#agent-invite=' + code;
+  var link = _inviteLink('agent-invite', code, email, name);
   try {
     await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
       name, email: email.toLowerCase(), code, role: 'lender', lenderId: id,
@@ -12787,7 +12845,7 @@ async function sendAgentInvite() {
   var email = (document.getElementById('ta-email')||{}).value.trim();
   if (!name || !email) { alert('Please fill in the agent name and email first, then click Send Invite Email.'); return; }
   var code = 'AGT' + Math.random().toString(36).substr(2,8).toUpperCase();
-  var link = location.origin + location.pathname + '#agent-invite=' + code;
+  var link = _inviteLink('agent-invite', code, email, name);
   var first = name.split(' ')[0];
   try {
     // Store invite in Firestore
@@ -12907,7 +12965,7 @@ async function addAgentAndInvite() {
 
   // Build + show invite email preview
   var code = 'AGT' + Math.random().toString(36).substr(2,8).toUpperCase();
-  var link = location.origin + location.pathname + '#agent-invite=' + code;
+  var link = _inviteLink('agent-invite', code, email, name);
   var first = name.split(' ')[0];
   try {
     await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
@@ -13441,16 +13499,7 @@ function downloadICS(type) {
 window.downloadICS = downloadICS;
 
 
-// Pre-fill invite code from URL
-window.addEventListener('load', () => {
-  const m = location.hash.match(/invite=([A-Z0-9]+)/);
-  if (m) {
-    const inv = document.getElementById('su-invite');
-    if (inv) inv.value = m[1];
-    // Switch to signup tab
-    setTimeout(() => { const t = document.querySelectorAll('.tabb')[1]; if(t) t.click(); }, 100);
-  }
-});
+// (Invite-link routing + pre-fill is handled reliably by initAuthScreen on DOMContentLoaded.)
 
 // ─── HOME BUYING GUIDE (Oregon Trail Style) ───
 const TRAIL_STAGES = [
@@ -23632,7 +23681,7 @@ async function sendPortalInvite() {
   if (!b || !b.email) { alert('No email on file.'); return; }
 
   var code = Math.random().toString(36).substring(2,8).toUpperCase();
-  var link = location.origin + location.pathname + '#invite=' + code;
+  var link = _inviteLink('invite', code, b.email, ((b.firstName||'')+' '+(b.lastName||'')).trim());
   var note = (document.getElementById('pi-note')||{}).value || '';
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === b.agentId; });
   var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
