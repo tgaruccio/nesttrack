@@ -3327,29 +3327,74 @@ window.dispatchEvent(new Event('firebase-ready'));
 const PROXY_URL = 'https://app.tom-b52.workers.dev';
 // ─── ONESIGNAL CONFIG ───
 const ONESIGNAL_APP_ID = 'effa5e11-e85f-4b00-bf87-1f6d415ff51e';
-const GOOGLE_PLACES_KEY = ''; // Disabled: legacy Places Autocomplete widget is blocked for new Google customers (since Mar 1 2025). Needs migration to PlaceAutocompleteElement before re-enabling.
+const GOOGLE_PLACES_KEY = 'AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY'; // requires "Places API (New)" enabled on this key in Google Cloud Console
 
 // ── Single model constant — only update this one line when Anthropic releases new versions ──
 const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 
 // Setup Google Places autocomplete on an input element
+// Address autocomplete on an existing input, using the current Places API (AutocompleteSuggestion).
+// Keeps your input element + all existing input.value logic; just adds a styled prediction dropdown.
+var _placesSession = null;
+function _placesSessionToken(){
+  try { if (!_placesSession) _placesSession = new google.maps.places.AutocompleteSessionToken(); } catch(e){}
+  return _placesSession;
+}
 function setupPlacesAC(inputId) {
-  if (!GOOGLE_PLACES_KEY || !window.google || !window.google.maps || !window.google.maps.places) return;
-  try {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-    const ac = new google.maps.places.Autocomplete(input, {
-      types: ['address'],
-      componentRestrictions: { country: 'us' }
+  if (!GOOGLE_PLACES_KEY || !window.google || !window.google.maps || !window.google.maps.places || !google.maps.places.AutocompleteSuggestion) return;
+  var input = document.getElementById(inputId);
+  if (!input || input.dataset.acReady) return;
+  input.dataset.acReady = '1';
+  input.setAttribute('autocomplete','off');
+  var dd=null, curPreds=[], active=-1, debounce=null, reqSeq=0;
+  function closeDD(){ if(dd){ dd.remove(); dd=null; } curPreds=[]; active=-1; }
+  function position(){ if(!dd) return; var r=input.getBoundingClientRect(); dd.style.left=(r.left+window.scrollX)+'px'; dd.style.top=(r.bottom+window.scrollY+2)+'px'; dd.style.width=r.width+'px'; }
+  function highlight(){ if(!dd) return; Array.prototype.forEach.call(dd.children, function(it,i){ it.style.background = (i===active)?'#F3F4F6':'#fff'; }); }
+  function render(preds){
+    closeDD();
+    if(!preds.length) return;
+    curPreds = preds;
+    dd = document.createElement('div');
+    dd.style.cssText='position:absolute;z-index:99999;background:#fff;border:1px solid var(--border,#e5e7eb);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-height:240px;overflow:auto;font-size:14px;';
+    preds.forEach(function(p,i){
+      var row=document.createElement('div');
+      row.textContent=p.text;
+      row.style.cssText='padding:10px 12px;cursor:pointer;'+(i<preds.length-1?'border-bottom:1px solid #f2f2f2;':'');
+      row.addEventListener('pointerdown', function(ev){ ev.preventDefault(); choose(p); });
+      row.addEventListener('mouseenter', function(){ active=i; highlight(); });
+      dd.appendChild(row);
     });
-    ac.addListener('place_changed', () => {
-      const place = ac.getPlace();
-      if (place && place.formatted_address) {
-        input.value = place.formatted_address;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-  } catch(e) { console.log('Places AC:', e.message); }
+    document.body.appendChild(dd);
+    position();
+  }
+  async function choose(p){
+    try { var pl=p.prediction.toPlace(); await pl.fetchFields({fields:['formattedAddress']}); input.value=pl.formattedAddress||p.text; }
+    catch(e){ input.value=p.text; }
+    input.dispatchEvent(new Event('input',{bubbles:true}));
+    input.dispatchEvent(new Event('change',{bubbles:true}));
+    _placesSession=null; // a selection ends the billing session
+    closeDD();
+  }
+  async function query(v){
+    if(!v || v.trim().length<3){ closeDD(); return; }
+    var mine=++reqSeq;
+    try {
+      var resp=await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:v, sessionToken:_placesSessionToken(), includedRegionCodes:['us'] });
+      if(mine!==reqSeq) return;
+      var preds=(resp.suggestions||[]).filter(function(s){return s.placePrediction;}).map(function(s){ return { text:s.placePrediction.text.text, prediction:s.placePrediction }; });
+      render(preds);
+    } catch(e){ closeDD(); }
+  }
+  input.addEventListener('input', function(){ var v=input.value; clearTimeout(debounce); debounce=setTimeout(function(){ query(v); }, 250); });
+  input.addEventListener('keydown', function(e){
+    if(!dd) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); active=Math.min(active+1,curPreds.length-1); highlight(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); active=Math.max(active-1,0); highlight(); }
+    else if(e.key==='Enter'){ if(active>=0 && curPreds[active]){ e.preventDefault(); choose(curPreds[active]); } }
+    else if(e.key==='Escape'){ closeDD(); }
+  });
+  input.addEventListener('blur', function(){ setTimeout(closeDD,150); });
+  window.addEventListener('scroll', position, true);
 }
 
 // Load the Google Maps JS (Places library) once, if a key is configured
@@ -3360,12 +3405,12 @@ function setupPlacesAC(inputId) {
   var s = document.createElement('script');
   s.id = 'gmaps-js';
   s.async = true;
-  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_PLACES_KEY) + '&libraries=places';
+  s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_PLACES_KEY) + '&libraries=places&loading=async&v=weekly';
   document.head.appendChild(s);
 })();
 
 // Lazily attach address autocomplete to any address field the user focuses (handles dynamically rendered forms)
-var _AC_ADDR_IDS = ['off-addr','nbhd-addr','mv-addr','sc-addr','val-addr','f-addr','t-addr','lm-address','appt-address','inv-address','nd-address','ld-address','ms-address','bd-title-address'];
+var _AC_ADDR_IDS = ['off-addr','nbhd-addr','mv-addr','sc-addr','val-addr','f-addr','t-addr','lm-address','appt-address','inv-address','nd-address','ld-address','ms-address','bd-title-address','new-netpay-address','new-sale-address','txn-buyer-address','txn-seller-address'];
 document.addEventListener('focusin', function(e){
   var el = e.target;
   if (!el || el.tagName !== 'INPUT' || el.dataset.acAttached) return;
