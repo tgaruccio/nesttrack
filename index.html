@@ -4200,7 +4200,16 @@ async function backfillTeamFields(){
       if(!a.teamId){ taJobs.push(fb.updateDoc(fb.doc(fb.db,'team_agents',d.id), { teamId: agentTeamId(a) })); }
     });
     if(taJobs.length){ await Promise.all(taJobs); }
-    console.log('backfillTeamFields: stamped '+jobs.length+' user doc(s), '+taJobs.length+' team_agents doc(s)');
+    // Stamp teamId onto team_lenders docs that predate the field (additive, safe).
+    var myT = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+    var tlSnap = await fb.getDocs(fb.collection(fb.db,'team_lenders'));
+    var tlJobs=[];
+    tlSnap.forEach(function(d){
+      var l=d.data()||{};
+      if(!l.teamId){ tlJobs.push(fb.updateDoc(fb.doc(fb.db,'team_lenders',d.id), { teamId: myT })); }
+    });
+    if(tlJobs.length){ await Promise.all(tlJobs); }
+    console.log('backfillTeamFields: stamped '+jobs.length+' user doc(s), '+taJobs.length+' team_agents doc(s), '+tlJobs.length+' team_lenders doc(s)');
   }catch(e){ console.log('backfillTeamFields error:', e.message); }
 }
 window.backfillTeamFields=backfillTeamFields;
@@ -12496,7 +12505,7 @@ async function addLenderAndInvite() {
   var existing = DEFAULT_LENDERS.find(function(l){ return l.email && l.email.toLowerCase() === email.toLowerCase(); });
   if (existing) { alert('A lender with that email already exists.'); return; }
 
-  var lenderData = { id, name, role: 'Licensed Mortgage Professional', phone, email, company, applyLink, addedAt: new Date().toISOString() };
+  var lenderData = { id, name, role: 'Licensed Mortgage Professional', phone, email, company, applyLink, teamId: (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom', addedAt: new Date().toISOString() };
   DEFAULT_LENDERS.push(lenderData);
   try {
     await fb.setDoc(fb.doc(fb.db, 'team_lenders', id), lenderData);
