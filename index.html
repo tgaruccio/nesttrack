@@ -3700,9 +3700,6 @@ const TIMELINE_STEPS = [
 
 // ─── PARTNERS ───
 const DEFAULT_PARTNERS = [
-  {cat:'Lender',name:'Tom Garuccio',co:'Ask Local Mortgage',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',topPick:true,note:"Pre-approval and financing handled in-house."},
-  {cat:'Lender',name:'Brad Binder',co:'Ask Local Mortgage',phone:'440-822-7506',web:'asklocal.com',topPick:true,note:"Best rates, lowest fees, and incredible service."},
-  {cat:'Lender',name:'Theresa Owca',co:'CrossCountry Mortgage',phone:'440-799-3752'},
   {cat:'General Inspector',name:'Robert Garuccio',co:'Beyond Today Inspections',phone:'440-429-5445',email:'Robg@beyondtodayinspections.com',web:'beyondtodayinspections.com',topPick:true,note:"Detailed, honest - preferred pricing for clients."},
   {cat:'General Inspector',name:'Dustin Kinn',co:'Kinn Inspections',phone:'216-630-5606',email:'dustin@kinninspections.com',web:'kinninspections.com',note:"Home inspection + radon, sewer scopes, mold."},
   {cat:'General Inspector',name:'Sean',co:'Frontline Home Inspections',phone:'330-437-8420'},
@@ -3761,6 +3758,18 @@ const ALL_PARTNER_CATS = [
 ];
 
 var agentPartners = [];
+// ── Partner tiers ─────────────────────────────────────────────────────────────
+// Platform-sponsored partners: injected into EVERY agent's visible list, regardless of team.
+// Tom is the in-house lender now; this same tier will hold paid sponsored partners later.
+const SPONSORED_PARTNERS = [
+  {id:'sp_tomlender', cat:'Lender', name:'Tom Garuccio', co:'Ask Local Mortgage', phone:'440-754-7449', email:'Tom@GaruccioGroup.com', applyLink:'https://1660690.my1003app.com/2784866/register', topPick:true, note:'Pre-approval and financing handled in-house.'}
+];
+var _teamPartners = [];        // the team's shared list (owned by the team leader)
+var _personalPartners = [];    // this agent's own additions (members only)
+var _hiddenPartnerIds = [];    // team/sponsored partner ids this user hid from their own view
+var _partnerTeamId = null;     // resolved team id for the loaded list
+var _partnerAgentId = null;    // the agent whose list is loaded
+function _partnerIsLeaderView(){ return _partnerAgentId && _partnerAgentId === _partnerTeamId; }
 
 
 // ─── DEFAULT TEAM ───
@@ -8474,9 +8483,12 @@ function partnerActionButtons(p) {
   return buttons.length ? `<div class="partner-actions">${buttons.join('')}</div>` : '';
 }
 function partnerCard(p) {
+  var srcTag = p._src==='sponsored'
+    ? '<span style="font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#92400E;background:#FEF3C7;border-radius:4px;padding:1px 6px;margin-left:6px;">Preferred</span>'
+    : (p._src==='team' ? '<span style="font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#3730A3;background:#EEF2FF;border-radius:4px;padding:1px 6px;margin-left:6px;">Team</span>' : '');
   return `<div class="partner-card">
     ${p.topPick?'<span class="top-pick">Top Pick</span>':''}
-    <div class="partner-cat">${partnerEsc(p.cat)}</div>
+    <div class="partner-cat">${partnerEsc(p.cat)}${srcTag}</div>
     <div class="partner-name">${partnerEsc(p.name)}</div>
     <div class="partner-co">${partnerEsc(p.co)}</div>
     ${p.note?`<div style="font-size:11.5px;color:var(--text3);font-style:italic;line-height:1.5;margin:7px 0;">${partnerEsc(p.note)}</div>`:''}
@@ -8488,28 +8500,77 @@ function partnerCard(p) {
 // DYNAMIC PARTNER SYSTEM
 // ===================================================
 
+function _resolvePartnerTeamId(agentId){
+  if (userProfile && userProfile.agentId === agentId && userProfile.teamId) return userProfile.teamId;
+  if (typeof DEFAULT_AGENTS !== 'undefined') { var a = DEFAULT_AGENTS.find(function(x){ return x.id===agentId; }); if (a) return agentTeamId(a); }
+  if (typeof assignedAgent !== 'undefined' && assignedAgent && assignedAgent.id===agentId && assignedAgent.teamId) return assignedAgent.teamId;
+  return agentId; // fallback: treat as own team (correct for leaders / Tom)
+}
+// Merge the three tiers into the flat list the UI renders.
+function _rebuildAgentPartners(){
+  var hidden = _hiddenPartnerIds || [];
+  var out = [];
+  SPONSORED_PARTNERS.forEach(function(p){ if (hidden.indexOf(p.id)===-1) out.push(Object.assign({},p,{_src:'sponsored'})); });
+  (_teamPartners||[]).forEach(function(p){ if (hidden.indexOf(p.id)===-1) out.push(Object.assign({},p,{_src:'team'})); });
+  (_personalPartners||[]).forEach(function(p){ out.push(Object.assign({},p,{_src:'personal'})); });
+  agentPartners = out;
+}
 async function loadAgentPartners(agentId) {
   agentId = agentId || (userProfile && userProfile.agentId) || 'tom';
+  _partnerAgentId = agentId;
+  var teamId = _resolvePartnerTeamId(agentId);
+  _partnerTeamId = teamId;
+  var isLeaderView = (agentId === teamId); // a leader's own doc IS the team list
+  // Only the agent themselves (not a client viewing their list) may write/seed/migrate these docs.
+  var canWrite = (typeof isAgent!=='undefined' && isAgent && userProfile && userProfile.agentId===agentId);
+  _teamPartners = []; _personalPartners = []; _hiddenPartnerIds = [];
   try {
-    var snap = await fb.getDoc(fb.doc(fb.db, 'agent_partners', agentId));
-    if (snap.exists() && snap.data().partners && snap.data().partners.length) {
-      agentPartners = snap.data().partners;
-    } else {
-      agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
-      if (isAgent && (userProfile.agentId === agentId || agentId === 'tom')) {
-        try { await fb.setDoc(fb.doc(fb.db,'agent_partners',agentId),{partners:agentPartners}); } catch(e){}
+    // Team list = the leader's doc (agent_partners/{teamId})
+    var teamSnap = await fb.getDoc(fb.doc(fb.db,'agent_partners', teamId));
+    if (teamSnap.exists() && Array.isArray(teamSnap.data().partners)) {
+      _teamPartners = teamSnap.data().partners;
+      // One-time migration: strip the legacy hardcoded lenders (Tom is sponsored now; Brad/Theresa removed).
+      if (!teamSnap.data()._v2) {
+        _teamPartners = _teamPartners.filter(function(p){ return !(p.cat==='Lender' && /garuccio|binder|owca/i.test(p.name||'')); });
+        if (canWrite && isLeaderView) { try { await fb.setDoc(fb.doc(fb.db,'agent_partners',teamId),{partners:_teamPartners, hidden:(teamSnap.data().hidden||[]), _v2:true}); } catch(e){} }
+      }
+      if (isLeaderView) _hiddenPartnerIds = teamSnap.data().hidden || [];
+    } else if (canWrite && isLeaderView) {
+      // First load for this team's leader. Seed ONLY Tom's team from the legacy defaults; new teams start empty.
+      _teamPartners = (teamId==='tom' || (typeof isOwner==='function' && isOwner()))
+        ? DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'tp'+i}); })
+        : [];
+      try { await fb.setDoc(fb.doc(fb.db,'agent_partners',teamId),{partners:_teamPartners, hidden:[], _v2:true}); } catch(e){}
+    }
+    // Personal list + this user's hidden = the member's own doc (only when they're not the team leader)
+    if (!isLeaderView) {
+      var meSnap = await fb.getDoc(fb.doc(fb.db,'agent_partners', agentId));
+      if (meSnap.exists() && meSnap.data()._v2) {
+        _personalPartners = Array.isArray(meSnap.data().partners) ? meSnap.data().partners : [];
+        _hiddenPartnerIds = meSnap.data().hidden || [];
+      } else if (meSnap.exists() && canWrite) {
+        // Legacy doc was a full copy of Tom's old list — reset to empty personal under the new model.
+        _personalPartners = []; _hiddenPartnerIds = [];
+        try { await fb.setDoc(fb.doc(fb.db,'agent_partners',agentId),{partners:[], hidden:[], _v2:true}); } catch(e){}
       }
     }
-  } catch(e) {
-    agentPartners = DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'p'+i}); });
-  }
+  } catch(e) { console.log('loadAgentPartners:', e.message); }
+  _rebuildAgentPartners();
 }
 window.loadAgentPartners = loadAgentPartners;
 
-async function saveAgentPartners() {
-  var agentId = (userProfile && userProfile.agentId) || 'tom';
-  await fb.setDoc(fb.doc(fb.db,'agent_partners',agentId),{partners:agentPartners});
+// Save the team list (leader's doc).
+async function _saveTeamPartners() {
+  try { await fb.setDoc(fb.doc(fb.db,'agent_partners', _partnerTeamId), {partners:_teamPartners, hidden:(_partnerIsLeaderView()?_hiddenPartnerIds:[]), _v2:true}); } catch(e){ console.log('saveTeam:',e.message); }
 }
+// Save this user's personal list + hidden (member's own doc).
+async function _savePersonalPartners() {
+  var id = _partnerAgentId || (userProfile && userProfile.agentId) || 'tom';
+  try { await fb.setDoc(fb.doc(fb.db,'agent_partners', id), {partners:_personalPartners, hidden:_hiddenPartnerIds, _v2:true}); } catch(e){ console.log('savePersonal:',e.message); }
+}
+// Persist whichever doc holds this user's hidden list.
+async function _saveHidden() { if (_partnerIsLeaderView()) await _saveTeamPartners(); else await _savePersonalPartners(); }
+async function saveAgentPartners() { if (_partnerIsLeaderView()) await _saveTeamPartners(); else await _savePersonalPartners(); }
 window.saveAgentPartners = saveAgentPartners;
 
 function filterPartners(cat, el) {
@@ -8554,32 +8615,69 @@ async function renderPartners(cat) {
 window.renderPartners = renderPartners;
 
 // ── Agent backend partner editor ──
+function _partnerTier(id){
+  if (SPONSORED_PARTNERS.some(function(x){return x.id===id;})) return 'sponsored';
+  if ((_teamPartners||[]).some(function(x){return x.id===id;})) return 'team';
+  if ((_personalPartners||[]).some(function(x){return x.id===id;})) return 'personal';
+  return null;
+}
+function _editorRow(p, controls){
+  return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:6px;">'
+    +'<div style="flex:1;min-width:0;">'
+    +'<div style="font-size:13px;font-weight:500;">'+partnerEsc(p.name)+(p.topPick?' <span style="font-size:10px;color:var(--green-dk);">&#9733;</span>':'')+'</div>'
+    +'<div style="font-size:12px;color:var(--text2);">'+partnerEsc(p.co||'')+(p.phone?' &middot; '+partnerEsc(p.phone):'')+'</div>'
+    +'</div>'+controls+'</div>';
+}
+function _editorCatGroup(title, partners, controlsFor){
+  if (!partners.length) return '';
+  var cats = [];
+  partners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
+  return '<div style="margin-bottom:16px;">'
+    + (title ? '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text2);margin-bottom:8px;">'+title+'</div>' : '')
+    + cats.map(function(cat){
+        var cps = partners.filter(function(p){ return p.cat===cat; });
+        return '<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:5px;">'+partnerEsc(cat)+'</div>'
+          + cps.map(function(p){ return _editorRow(p, controlsFor(p)); }).join('')+'</div>';
+      }).join('')
+    + '</div>';
+}
 function renderAgentPartnersEditor() {
   var el = document.getElementById('agent-partners-editor');
   if (!el) return;
-  var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">'
-    + '<div style="font-size:14px;font-weight:500;flex:1;">My Partner List</div>'
+  var leader = _partnerIsLeaderView() || (typeof isTeamLeader==='function' && isTeamLeader());
+  var html = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">'
+    + '<div style="font-size:14px;font-weight:600;flex:1;">'+(leader?'Team Partner List':'My Partners')+'</div>'
     + '<button class="btn btn-sm btn-g" onclick="openAddPartnerModal()">+ Add Partner</button>'
-    + (isTeamLeader() ? '<button class="btn btn-sm" onclick="saveMasterPartnerList()" style="font-size:11px;background:#1D9E75;color:#fff;border-color:#1D9E75;">Save as Master</button>' : '')
-    + '<button class="btn btn-sm" onclick="resetPartnersToDefault()" style="font-size:11px;">Restore Defaults</button>'
+    + '</div>'
+    + '<div style="font-size:11.5px;color:var(--text3);margin:-6px 0 14px;line-height:1.5;">'
+    + (leader
+        ? 'Partners you add here are shared with your whole team. Each agent can also add their own.'
+        : 'Your team\u2019s shared partners appear below. Add your own \u2014 they\u2019re visible only to you.')
     + '</div>';
-  var cats = [];
-  agentPartners.forEach(function(p){ if (cats.indexOf(p.cat)===-1) cats.push(p.cat); });
-  cats.forEach(function(cat) {
-    var cps = agentPartners.filter(function(p){ return p.cat===cat; });
-    html += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);margin-bottom:6px;">'+partnerEsc(cat)+'</div>'
-      + cps.map(function(p){
-          return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:6px;">'
-            +'<div style="flex:1;min-width:0;">'
-            +'<div style="font-size:13px;font-weight:500;">'+partnerEsc(p.name)+(p.topPick?' <span style="font-size:10px;color:var(--green-dk);">&#9733;</span>':'')+'</div>'
-            +'<div style="font-size:12px;color:var(--text2);">'+partnerEsc(p.co||'')+(p.phone?' &middot; '+partnerEsc(p.phone):'')+'</div>'
-            +'</div>'
-            +'<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
-            +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>'
-            +'</div>';
-        }).join('')+'</div>';
+
+  // Sponsored (read-only for everyone)
+  var sponsored = SPONSORED_PARTNERS.filter(function(p){ return (_hiddenPartnerIds||[]).indexOf(p.id)===-1; });
+  html += _editorCatGroup('Preferred (platform)', sponsored.map(function(p){return Object.assign({},p);}), function(p){
+    return '<span style="font-size:10px;color:var(--text3);">Always shown</span>';
   });
-  if (!agentPartners.length) html += '<div style="color:var(--text3);font-size:13px;">No partners yet. Add one above.</div>';
+
+  // Team list
+  html += _editorCatGroup(leader ? 'Shared with your team' : 'From your team', (_teamPartners||[]), function(p){
+    if (leader) return '<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
+      +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>';
+    return '<span style="font-size:10px;color:var(--text3);">Team</span>';
+  });
+
+  // Personal (members only)
+  if (!leader) {
+    html += _editorCatGroup('My own partners', (_personalPartners||[]), function(p){
+      return '<button class="btn btn-sm" onclick="openAddPartnerModal(\''+p.id+'\')" style="font-size:11px;">Edit</button>'
+        +'<button class="btn btn-sm" onclick="deletePartner(\''+p.id+'\')" style="font-size:11px;color:#E24B4A;">&#x2715;</button>';
+    });
+    if (!(_personalPartners||[]).length) html += '<div style="color:var(--text3);font-size:12.5px;margin-top:-6px;">No personal partners yet \u2014 add your own above.</div>';
+  } else if (!(_teamPartners||[]).length) {
+    html += '<div style="color:var(--text3);font-size:13px;">No team partners yet. Add your first one above.</div>';
+  }
   el.innerHTML = html;
 }
 window.renderAgentPartnersEditor = renderAgentPartnersEditor;
@@ -8631,11 +8729,25 @@ async function savePartnerEdit() {
     note: document.getElementById('ap-note').value.trim(),
     topPick: document.getElementById('ap-toppick').checked,
   };
+  var leader = _partnerIsLeaderView() || (typeof isTeamLeader==='function' && isTeamLeader());
   if (_editingPartnerId) {
-    var idx = agentPartners.findIndex(function(x){ return x.id===_editingPartnerId; });
-    if (idx !== -1) agentPartners[idx] = p; else agentPartners.push(p);
-  } else { agentPartners.push(p); }
-  await saveAgentPartners();
+    var tier = _partnerTier(_editingPartnerId);
+    if (tier==='sponsored') { alert('Sponsored partners can\u2019t be edited here.'); return; }
+    if (tier==='team') {
+      if (!leader) { alert('Only the team leader can edit shared team partners.'); return; }
+      var ti = _teamPartners.findIndex(function(x){ return x.id===_editingPartnerId; });
+      if (ti!==-1) _teamPartners[ti]=p; else _teamPartners.push(p);
+      await _saveTeamPartners();
+    } else {
+      var pi = _personalPartners.findIndex(function(x){ return x.id===_editingPartnerId; });
+      if (pi!==-1) _personalPartners[pi]=p; else _personalPartners.push(p);
+      await _savePersonalPartners();
+    }
+  } else {
+    if (leader) { _teamPartners.push(p); await _saveTeamPartners(); }
+    else { _personalPartners.push(p); await _savePersonalPartners(); }
+  }
+  _rebuildAgentPartners();
   var ov = document.getElementById('add-partner-overlay');
   if (ov) ov.remove();
   renderAgentPartnersEditor();
@@ -8643,15 +8755,20 @@ async function savePartnerEdit() {
 window.savePartnerEdit = savePartnerEdit;
 
 async function deletePartner(id) {
-  // Protect Tom Garuccio as platform lender -- cannot be removed
-  var p = agentPartners.find(function(p){ return p.id===id; });
-  if (p && p.cat === 'Lender' && (p.name||'').toLowerCase().includes('garuccio')) {
-    alert('Tom Garuccio cannot be removed as lender. He is the platform lender for all agents.');
-    return;
-  }
-  if (!confirm('Remove this partner from your list?')) return;
-  agentPartners = agentPartners.filter(function(p){ return p.id!==id; });
-  await saveAgentPartners();
+  var tier = _partnerTier(id);
+  var leader = _partnerIsLeaderView() || (typeof isTeamLeader==='function' && isTeamLeader());
+  if (tier==='sponsored') { alert('Tom is the platform lender and is shown to everyone. (Hiding it from your own view is coming next.)'); return; }
+  if (tier==='team') {
+    if (!leader) { alert('This is a shared team partner. (Hiding it from your own view is coming next.)'); return; }
+    if (!confirm('Remove this from the team list? It disappears for everyone on your team.')) return;
+    _teamPartners = _teamPartners.filter(function(x){ return x.id!==id; });
+    await _saveTeamPartners();
+  } else if (tier==='personal') {
+    if (!confirm('Remove this partner from your list?')) return;
+    _personalPartners = _personalPartners.filter(function(x){ return x.id!==id; });
+    await _savePersonalPartners();
+  } else { return; }
+  _rebuildAgentPartners();
   renderAgentPartnersEditor();
 }
 window.deletePartner = deletePartner;
