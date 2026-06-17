@@ -3990,6 +3990,7 @@ async function syncHardcodedAgentsToFirestore() {
           id: a.id, name: a.name, role: a.role || 'REALTOR®',
           phone: a.phone || '', email: a.email || '',
           isDefault: a.isDefault || false,
+          teamId: agentTeamId(a),
           syncedAt: new Date().toISOString()
         });
       }
@@ -4190,7 +4191,15 @@ async function backfillTeamFields(){
       }
     });
     if(jobs.length){ await Promise.all(jobs); }
-    console.log('backfillTeamFields: stamped '+jobs.length+' agent doc(s)');
+    // Also stamp teamId onto team_agents docs that predate the field (additive, safe — nothing filters on it yet).
+    var taSnap = await fb.getDocs(fb.collection(fb.db,'team_agents'));
+    var taJobs=[];
+    taSnap.forEach(function(d){
+      var a=d.data()||{};
+      if(!a.teamId){ taJobs.push(fb.updateDoc(fb.doc(fb.db,'team_agents',d.id), { teamId: agentTeamId(a) })); }
+    });
+    if(taJobs.length){ await Promise.all(taJobs); }
+    console.log('backfillTeamFields: stamped '+jobs.length+' user doc(s), '+taJobs.length+' team_agents doc(s)');
   }catch(e){ console.log('backfillTeamFields error:', e.message); }
 }
 window.backfillTeamFields=backfillTeamFields;
