@@ -3705,7 +3705,8 @@ const DEFAULT_LENDERS = [
 
 async function loadTeamLenders() {
   try {
-    var snap = await fb.getDocs(fb.collection(fb.db, 'team_lenders'));
+    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
     snap.forEach(function(doc) {
       var l = doc.data();
       var idx = DEFAULT_LENDERS.findIndex(function(x){ return x.id === l.id; });
