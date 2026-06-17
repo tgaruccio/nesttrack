@@ -1150,6 +1150,22 @@ textarea{resize:vertical;min-height:68px;}
         <span style="font-size:11px;color:var(--purple-dk);opacity:0.85;">AI listing copy</span>
       </button>
     </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 10px;">Sending connections</div>
+    <div id="sp-connect-tiles" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
+      <div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:8px;">Loading…</div>
+    </div>
+
+    <!-- Connect modal -->
+    <div id="connect-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+      <div style="background:var(--surface);border-radius:var(--r);max-width:420px;width:100%;padding:22px;max-height:85vh;overflow:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div id="connect-modal-title" style="font-size:16px;font-weight:700;color:var(--text);"></div>
+          <button onclick="closeConnectModal()" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text3);">&times;</button>
+        </div>
+        <div id="connect-modal-body"></div>
+      </div>
+    </div>
+
     <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 12px;">Campaigns</div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:13px;color:var(--text2);">Build automated multi-step campaigns (VM drops, letters, texts) and assign them to contacts.</div>
@@ -22713,8 +22729,93 @@ function _spId(){ return 'sp_'+Date.now()+'_'+Math.random().toString(36).slice(2
 async function renderMarketing(){
   await loadSmartPlans();
   spRenderList();
+  try { renderConnectTiles(); } catch(e){ console.log('connect tiles err:', e.message); }
 }
 window.renderMarketing = renderMarketing;
+
+// ─── Sending connections (Slybroadcast + thanks.io) ───
+var _connectCreds = { slyEmail:'', slyCallerId:'', hasSlyPass:false, hasThanksio:false };
+
+async function renderConnectTiles(){
+  var el=document.getElementById('sp-connect-tiles'); if(!el) return;
+  try {
+    var snap=await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+    var d=snap.exists()?snap.data():{};
+    _connectCreds={ slyEmail:d.slyEmail||'', slyCallerId:d.slyCallerId||'', hasSlyPass:!!d.slyPass, hasThanksio:!!d.thanksioKey };
+  } catch(e){ console.log('connect creds err:', e.message); }
+  var slyOn=!!_connectCreds.slyEmail;
+  var tioOn=!!_connectCreds.hasThanksio;
+  function tile(on, onLabel, offLabel, sub, provider){
+    var bg = on ? '#F0FDF4' : 'var(--surface)';
+    var bd = on ? '#6EE7B7' : 'var(--border)';
+    var titleColor = on ? '#065F46' : 'var(--text)';
+    var icon = on ? '✓' : '+';
+    return '<button onclick="openConnectModal(\''+provider+'\')" style="background:'+bg+';border:1.5px solid '+bd+';border-radius:var(--r);padding:14px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;cursor:pointer;font-family:inherit;text-align:left;">'
+      +'<span style="font-size:13px;font-weight:600;color:'+titleColor+';">'+icon+' '+(on?onLabel:offLabel)+'</span>'
+      +'<span style="font-size:11px;color:var(--text3);">'+sub+'</span>'
+    +'</button>';
+  }
+  el.innerHTML =
+    tile(slyOn, 'Slybroadcast connected', 'Connect Slybroadcast', slyOn?'VM drops ready':'to send VM drops', 'sly')
+    + tile(tioOn, 'thanks.io connected', 'Connect thanks.io', tioOn?'Letters ready':'to send letters', 'thanksio');
+}
+window.renderConnectTiles = renderConnectTiles;
+
+function openConnectModal(provider){
+  var modal=document.getElementById('connect-modal');
+  var title=document.getElementById('connect-modal-title');
+  var body=document.getElementById('connect-modal-body');
+  if(!modal) return;
+  if(provider==='sly'){
+    title.textContent='Connect Slybroadcast';
+    body.innerHTML=''
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send ringless voicemail drops from your own Slybroadcast account.</div>'
+      +'<label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast email</label>'
+      +'<input type="email" id="cm-sly-email" autocomplete="off" value="'+partnerEsc(_connectCreds.slyEmail||'')+'" placeholder="you@email.com"/>'
+      +'<label class="flabel" style="color:var(--text2);font-weight:600;margin-top:10px;">Password</label>'
+      +'<input type="password" id="cm-sly-pass" autocomplete="new-password" placeholder="'+(_connectCreds.hasSlyPass?'•••••••• (leave blank to keep)':'enter password')+'"/>'
+      +'<label class="flabel" style="color:var(--text2);font-weight:600;margin-top:10px;">Caller ID <span style="font-weight:400;color:var(--text3);">(your phone #)</span></label>'
+      +'<input type="tel" id="cm-sly-callerid" value="'+partnerEsc(_connectCreds.slyCallerId||'')+'" placeholder="2165551234"/>'
+      +'<div id="cm-status" style="font-size:12px;margin-top:12px;"></div>'
+      +'<button class="btn btn-g" onclick="saveConnect(\'sly\')" style="margin-top:14px;width:100%;">Save connection</button>';
+  } else {
+    title.textContent='Connect thanks.io';
+    body.innerHTML=''
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send physical letters from your own thanks.io account.</div>'
+      +'<label class="flabel" style="color:var(--text2);font-weight:600;">thanks.io API key</label>'
+      +'<input type="text" id="cm-tio-key" autocomplete="off" placeholder="'+(_connectCreds.hasThanksio?'•••••••• (leave blank to keep)':'paste your API key')+'"/>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:6px;">Find it in your thanks.io dashboard under Profile → API.</div>'
+      +'<div id="cm-status" style="font-size:12px;margin-top:12px;"></div>'
+      +'<button class="btn btn-g" onclick="saveConnect(\'thanksio\')" style="margin-top:14px;width:100%;">Save connection</button>';
+  }
+  modal.style.display='flex';
+}
+window.openConnectModal = openConnectModal;
+
+function closeConnectModal(){ var m=document.getElementById('connect-modal'); if(m) m.style.display='none'; }
+window.closeConnectModal = closeConnectModal;
+
+async function saveConnect(provider){
+  var status=document.getElementById('cm-status');
+  var patch={};
+  if(provider==='sly'){
+    var em=document.getElementById('cm-sly-email'), pw=document.getElementById('cm-sly-pass'), ci=document.getElementById('cm-sly-callerid');
+    patch.slyEmail=em?em.value.trim():''; patch.slyCallerId=ci?ci.value.trim():'';
+    if(pw && pw.value.trim()) patch.slyPass=pw.value.trim();
+  } else {
+    var k=document.getElementById('cm-tio-key');
+    if(k && k.value.trim() && k.value.trim().indexOf('•')===-1) patch.thanksioKey=k.value.trim();
+    else if(!_connectCreds.hasThanksio){ if(status){ status.innerHTML='<span style="color:#E24B4A;">Please paste your API key.</span>'; } return; }
+  }
+  if(status) status.innerHTML='<span style="color:var(--text3);">Saving…</span>';
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), patch);
+    closeConnectModal();
+    if(typeof spToast==='function') spToast('✓ '+(provider==='sly'?'Slybroadcast':'thanks.io')+' connected');
+    renderConnectTiles();
+  } catch(e){ if(status) status.innerHTML='<span style="color:#E24B4A;">Could not save: '+partnerEsc(e.message)+'</span>'; }
+}
+window.saveConnect = saveConnect;
 
 async function loadSmartPlans(){
   try {
