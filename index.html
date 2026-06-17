@@ -3379,11 +3379,13 @@ function setupPlacesAC(inputId) {
     if(!v || v.trim().length<3){ closeDD(); return; }
     var mine=++reqSeq;
     try {
-      var resp=await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input:v, sessionToken:_placesSessionToken(), includedRegionCodes:['us'] });
+      var req={ input:v };
+      var tok=_placesSessionToken(); if(tok) req.sessionToken=tok;
+      var resp=await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
       if(mine!==reqSeq) return;
-      var preds=(resp.suggestions||[]).filter(function(s){return s.placePrediction;}).map(function(s){ return { text:s.placePrediction.text.text, prediction:s.placePrediction }; });
+      var preds=(resp.suggestions||[]).filter(function(s){return s.placePrediction;}).map(function(s){ var tt=s.placePrediction.text; return { text:(tt&&tt.text)?tt.text:(tt?tt.toString():''), prediction:s.placePrediction }; });
       render(preds);
-    } catch(e){ closeDD(); }
+    } catch(e){ console.log('addr autocomplete:', e && (e.message||e)); closeDD(); }
   }
   input.addEventListener('input', function(){ var v=input.value; clearTimeout(debounce); debounce=setTimeout(function(){ query(v); }, 250); });
   input.addEventListener('keydown', function(e){
