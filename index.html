@@ -2656,15 +2656,12 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div id="ap-status" style="display:none;font-size:12px;margin-top:-12px;margin-bottom:10px;text-align:center;"></div>
 
-      <!-- Fields grid -->
+      <!-- Fields: grouped sections -->
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:8px 2px 10px;">Branding</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
           <label class="flabel" style="color:var(--text2);font-weight:600;">Brokerage Name</label>
           <input type="text" id="ap-brokerage" placeholder="The Garuccio Group at Real Brokerage"/>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">Calendar / Booking Link</label>
-          <input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/>
         </div>
         <div>
           <label class="flabel" style="color:var(--text2);font-weight:600;">Email Tagline <span style="font-weight:400;color:var(--text3);">(under your name)</span></label>
@@ -2674,6 +2671,26 @@ textarea{resize:vertical;min-height:68px;}
           <label class="flabel" style="color:var(--text2);font-weight:600;">License Number <span style="font-weight:400;color:var(--text3);">(email footer)</span></label>
           <input type="text" id="ap-license" placeholder="e.g. 2019003560"/>
         </div>
+      </div>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:8px 2px 10px;">Booking &amp; reviews</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Calendar / Booking Link</label>
+          <input type="url" id="ap-calendly" placeholder="https://calendly.com/..."/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Google Review Link</label>
+          <input type="url" id="ap-google" placeholder="https://g.page/r/..."/>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Zillow Review Link</label>
+          <input type="url" id="ap-zillow" placeholder="https://www.zillow.com/reviews/..."/>
+        </div>
+      </div>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:8px 2px 10px;">Integrations</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div>
           <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">ShowingTime iCal URL
             <span onclick="showProfileHelp('showingtime')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>
@@ -2685,35 +2702,6 @@ textarea{resize:vertical;min-height:68px;}
             <span onclick="showProfileHelp('zapier')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>
           </label>
           <input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/>
-        </div>
-        <div style="border-top:0.5px solid var(--border);padding-top:12px;margin-top:4px;">
-          <div style="font-size:12px;font-weight:700;color:#6D28D9;margin-bottom:2px;">📣 Marketing — Smart Plan Sending</div>
-          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Connect your own accounts so VM drops &amp; letters send from you (no Zapier needed for these).</div>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast Email <span style="font-weight:400;color:var(--text3);">(for VM drops)</span></label>
-          <input type="email" id="ap-sly-email" placeholder="you@email.com" autocomplete="off"/>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast Password</label>
-          <input type="password" id="ap-sly-pass" placeholder="••••••••" autocomplete="new-password"/>
-          <div style="font-size:10px;color:var(--text3);margin-top:2px;">Stored encrypted. Leave blank to keep your saved password.</div>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast Caller ID <span style="font-weight:400;color:var(--text3);">(your phone #)</span></label>
-          <input type="tel" id="ap-sly-callerid" placeholder="2165551234"/>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">thanks.io API Key <span style="font-weight:400;color:var(--text3);">(for letters)</span></label>
-          <input type="text" id="ap-thanksio" placeholder="thanks.io API key" autocomplete="off"/>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">Google Review Link</label>
-          <input type="url" id="ap-google" placeholder="https://g.page/r/..."/>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;">Zillow Review Link</label>
-          <input type="url" id="ap-zillow" placeholder="https://www.zillow.com/reviews/..."/>
         </div>
       </div>
 
@@ -5087,10 +5075,6 @@ function renderAgentProfileEditor() {
       if(el && d.showingTimeUrl) el.value=d.showingTimeUrl;
       var ze=document.getElementById('ap-zapier');
       if(ze && d.zapierWebhookUrl) ze.value=d.zapierWebhookUrl;
-      var slye=document.getElementById('ap-sly-email'); if(slye && d.slyEmail) slye.value=d.slyEmail;
-      var slyc=document.getElementById('ap-sly-callerid'); if(slyc && d.slyCallerId) slyc.value=d.slyCallerId;
-      var tio=document.getElementById('ap-thanksio'); if(tio && d.thanksioKey) tio.value='••••••••';
-      // password & thanks.io key not pre-filled in cleartext; dots = keep existing
       var br=document.getElementById('ap-brokerage');
       if(br && d.brokerage) br.value=d.brokerage;
       var tg=document.getElementById('ap-tagline');
@@ -5181,8 +5165,6 @@ async function saveAgentProfile() {
     bio: document.getElementById('ap-bio').value.trim(),
     showingTimeUrl: document.getElementById('ap-showingtime') ? document.getElementById('ap-showingtime').value.trim() : '',
     zapierWebhookUrl: document.getElementById('ap-zapier') ? document.getElementById('ap-zapier').value.trim() : '',
-    slyEmail: document.getElementById('ap-sly-email') ? document.getElementById('ap-sly-email').value.trim() : '',
-    slyCallerId: document.getElementById('ap-sly-callerid') ? document.getElementById('ap-sly-callerid').value.trim() : '',
     brokerage: document.getElementById('ap-brokerage') ? document.getElementById('ap-brokerage').value.trim() : '',
     emailTagline: document.getElementById('ap-tagline') ? document.getElementById('ap-tagline').value.trim() : '',
     licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
@@ -5192,19 +5174,6 @@ async function saveAgentProfile() {
   const status = document.getElementById('ap-status');
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), data);
-    // Store marketing secrets as plain fields (protected by Firestore rules). Only update if newly entered.
-    try {
-      var slyPassEl = document.getElementById('ap-sly-pass');
-      var thanksEl = document.getElementById('ap-thanksio');
-      var secretPatch = {};
-      if (slyPassEl && slyPassEl.value.trim()) { secretPatch.slyPass = slyPassEl.value.trim(); }
-      if (thanksEl && thanksEl.value.trim() && thanksEl.value.trim().indexOf('•')===-1) { secretPatch.thanksioKey = thanksEl.value.trim(); }
-      if (Object.keys(secretPatch).length) {
-        await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), secretPatch);
-        if (secretPatch.slyPass && slyPassEl) slyPassEl.value = '';
-        if (secretPatch.thanksioKey && thanksEl) thanksEl.value = '••••••••';
-      }
-    } catch(secErr) { alert('Profile saved, but marketing credentials were not saved: ' + secErr.message); }
     userProfile = { ...userProfile, ...data };
     await loadAssignedAgentProfile();
     updateAgentRefs();
@@ -22773,7 +22742,7 @@ function openConnectModal(provider){
       +'<label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast email</label>'
       +'<input type="email" id="cm-sly-email" autocomplete="off" value="'+partnerEsc(_connectCreds.slyEmail||'')+'" placeholder="you@email.com"/>'
       +'<label class="flabel" style="color:var(--text2);font-weight:600;margin-top:10px;">Password</label>'
-      +'<input type="password" id="cm-sly-pass" autocomplete="new-password" placeholder="'+(_connectCreds.hasSlyPass?'•••••••• (leave blank to keep)':'enter password')+'"/>'
+      +'<input type="password" id="cm-sly-pass" autocomplete="new-password" placeholder="'+(_connectCreds.hasSlyPass?'Password applied — leave blank to keep':'enter password')+'"/>'
       +'<label class="flabel" style="color:var(--text2);font-weight:600;margin-top:10px;">Caller ID <span style="font-weight:400;color:var(--text3);">(your phone #)</span></label>'
       +'<input type="tel" id="cm-sly-callerid" value="'+partnerEsc(_connectCreds.slyCallerId||'')+'" placeholder="2165551234"/>'
       +'<div id="cm-status" style="font-size:12px;margin-top:12px;"></div>'
@@ -22783,7 +22752,7 @@ function openConnectModal(provider){
     body.innerHTML=''
       +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send physical letters from your own thanks.io account.</div>'
       +'<label class="flabel" style="color:var(--text2);font-weight:600;">thanks.io API key</label>'
-      +'<input type="text" id="cm-tio-key" autocomplete="off" placeholder="'+(_connectCreds.hasThanksio?'•••••••• (leave blank to keep)':'paste your API key')+'"/>'
+      +'<input type="text" id="cm-tio-key" autocomplete="off" placeholder="'+(_connectCreds.hasThanksio?'API key applied — leave blank to keep':'paste your API key')+'"/>'
       +'<div style="font-size:11px;color:var(--text3);margin-top:6px;">Find it in your thanks.io dashboard under Profile → API.</div>'
       +'<div id="cm-status" style="font-size:12px;margin-top:12px;"></div>'
       +'<button class="btn btn-g" onclick="saveConnect(\'thanksio\')" style="margin-top:14px;width:100%;">Save connection</button>';
