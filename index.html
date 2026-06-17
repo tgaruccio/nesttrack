@@ -3953,7 +3953,8 @@ async function signOut() {
 
 async function loadTeamAgents() {
   try {
-    const snap = await fb.getDocs(fb.collection(fb.db, 'team_agents'));
+    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+    const snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'team_agents'), fb.where('teamId','==', myTeam)));
     const firestoreIds = [];
     snap.forEach(doc => {
       const a = doc.data();
