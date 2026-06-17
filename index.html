@@ -11243,9 +11243,26 @@ async function todoLoad() {
 }
 window.todoLoad = todoLoad;
 
+var TC_LEAD_DAYS = 1; // TC tasks only hit the to-do list this many days before they're due
 function injectDealReminders() {
   if (!_deals || !_deals.length) return;
   if (typeof TC_TASKS === 'undefined' || typeof tcTaskStatus !== 'function') return;
+  var _td = _tcToday();
+  // Declutter: drop TC auto-reminders that aren't due-soon yet (they stay in the deal's TC tab).
+  var beforeLen = _todos.length;
+  _todos = _todos.filter(function(t){
+    if (!t.isTC || !t.isAutoReminder || t.done) return true; // keep manual, non-TC, or already-done
+    var deal = _deals.find(function(d){ return d.id === t.dealId; });
+    var task = TC_TASKS.find(function(x){ return x.key === t.tcKey; });
+    if (!deal || !task) return true;                 // can't evaluate → leave it alone
+    var st = tcTaskStatus(deal, task);
+    if (st === 'overdue') return true;               // always keep overdue
+    if (st !== 'now') return false;                  // done/skip/upcoming → drop stale reminder
+    var ed = task.end(deal);
+    if (!ed) return true;
+    return Math.floor((ed.getTime() - _td.getTime())/86400000) <= TC_LEAD_DAYS; // keep only if due-soon
+  });
+  var pruned = beforeLen - _todos.length;
   var injected = 0;
   _deals.forEach(function(deal) {
     if (deal.status === 'Closed' || (typeof dealStatusFromStep==='function' && dealStatusFromStep(deal)==='Closed')) return;
@@ -11256,9 +11273,11 @@ function injectDealReminders() {
     TC_TASKS.forEach(function(t) {
       var st = tcTaskStatus(deal, t);
       if (st !== 'now' && st !== 'overdue') return;   // only active tasks surface as to-dos
+      var ed = t.end(deal);
+      // Only surface as a to-do when it's coming due (within TC_LEAD_DAYS) or overdue — keeps the list clean.
+      if (st === 'now' && ed && Math.floor((ed.getTime() - _td.getTime())/86400000) > TC_LEAD_DAYS) return;
       var reminderId = 'tc_' + deal.id + '_' + t.key;
       if (_todos.some(function(x){ return x.id === reminderId; })) return;  // already on the list
-      var ed = t.end(deal);
       var ds = ed ? (ed.getFullYear()+'-'+('0'+(ed.getMonth()+1)).slice(-2)+'-'+('0'+ed.getDate()).slice(-2)) : '';
       var tag = (st === 'overdue') ? '[TC \u00b7 OVERDUE]' : '[TC]';
       _todos.unshift({
@@ -11270,7 +11289,7 @@ function injectDealReminders() {
       injected++;
     });
   });
-  if (injected > 0) { todoSave(); todoRender(); todoUpdateBadge(); }
+  if (injected > 0 || pruned > 0) { todoSave(); todoRender(); todoUpdateBadge(); }
   if (typeof syncTCReminders==='function') syncTCReminders();
 }
 window.injectDealReminders = injectDealReminders;
@@ -11294,12 +11313,14 @@ async function syncTCReminders() {
       var st = tcTaskStatus(deal, t);
       // Cancel the scheduled push if the task is handled, the deal is off/closed, or it doesn't apply.
       if (deal.tcEnabled===false || closed || st==='done' || st==='skip') { fb.deleteDoc(ref).catch(function(){}); return; }
-      var start = t.start(deal);
-      if (!start || start < today) return; // only schedule future window-opens (already-active tasks show in-app)
-      var ds = start.getFullYear()+'-'+('0'+(start.getMonth()+1)).slice(-2)+'-'+('0'+start.getDate()).slice(-2);
+      var end = t.end(deal);
+      if (!end) return;
+      var rem = new Date(end.getTime() - TC_LEAD_DAYS*86400000); // notify the day before it's due
+      if (rem < today) return; // only schedule future reminders (due-soon tasks already show in-app)
+      var ds = rem.getFullYear()+'-'+('0'+(rem.getMonth()+1)).slice(-2)+'-'+('0'+rem.getDate()).slice(-2);
       fb.setDoc(ref, {
         reminderTime: ds + 'T08:00',
-        text: '\ud83e\udd16 ' + t.label + ' \u2014 ' + name + (addr?(' ('+addr+')'):''),
+        text: '\ud83e\udd16 ' + t.label + ' coming due \u2014 ' + name + (addr?(' ('+addr+')'):''),
         uid: uid, fired: false, createdAt: Date.now()
       }).catch(function(){});
     });
