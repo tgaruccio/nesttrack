@@ -7574,6 +7574,14 @@ window.populateBuyerStepSelector = populateBuyerStepSelector;
 
 // ─── NET SHEET CALCULATOR ───
 // Line items sourced from actual Erieview Title Agency closing (Bay Village, 3/31/26)
+// Parse a commission/percent value, allowing a legitimate 0. Only falls back to
+// the default when the input is truly blank or non-numeric (NOT when it's zero).
+function _pctOr(val, def) {
+  var x = parseFloat(String(val == null ? '' : val).replace(/[^0-9.]/g, ''));
+  return isNaN(x) ? def : x;
+}
+window._pctOr = _pctOr;
+
 function calcNetSheet() {
   var price = parseFloat(document.getElementById('ns-price').value) || 0;
   var result = document.getElementById('ns-result');
@@ -7582,8 +7590,8 @@ function calcNetSheet() {
   var county = document.getElementById('ns-county').value;
   var taxes = parseFloat(document.getElementById('ns-taxes').value) || 0;
   var mortgage = parseFloat(document.getElementById('ns-mortgage').value) || 0;
-  var listPct = parseFloat(document.getElementById('ns-list-pct').value) || 2.5;
-  var buyPct = parseFloat(document.getElementById('ns-buy-pct').value) || 2.5;
+  var listPct = _pctOr(document.getElementById('ns-list-pct').value, 2.5);
+  var buyPct = _pctOr(document.getElementById('ns-buy-pct').value, 2.5);
   var credits = parseFloat(document.getElementById('ns-credits').value) || 0;
   var warranty = parseFloat(document.getElementById('ns-warranty').value) || 0;
 
@@ -15777,7 +15785,7 @@ function openListingModal(l) {
     + '<div><label class="flabel">Offer Deadline (optional)</label><input type="datetime-local" id="lm-deadline" value="'+partnerEsc(l?l.deadline||'':'')+'"/></div>'
     + '<div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin:8px 0 4px;">Net Sheet Defaults <span style="font-weight:400;text-transform:none;">(optional — used to auto-fill net sheet)</span></div>'
     + '<div class="fg2">'
-    + '<div><label class="flabel">Listing Commission %</label><input type="number" id="lm-list-pct" placeholder="2.5" step="0.25" value="'+(l&&l.listPct?l.listPct:'')+'"/></div>'
+    + '<div><label class="flabel">Listing Commission %</label><input type="number" id="lm-list-pct" placeholder="2.5" step="0.25" value="'+(l&&(l.listPct||l.listPct===0)?l.listPct:'')+'"/></div>'
     + '<div><label class="flabel">Annual Property Taxes ($)</label><input type="number" id="lm-taxes" placeholder="6000" value="'+(l&&l.taxes?l.taxes:'')+'"/></div>'
     + '<div><label class="flabel">County</label><select id="lm-county"><option value="cuyahoga"'+(l&&l.county==="cuyahoga"?' selected':'')+'>Cuyahoga</option><option value="lorain"'+(l&&l.county==="lorain"?' selected':'')+'>Lorain</option><option value="medina"'+(l&&l.county==="medina"?' selected':'')+'>Medina</option></select></div>'
     + '<div><label class="flabel">Mortgage Balance ($)</label><input type="number" id="lm-mortgage" placeholder="0" value="'+(l&&l.mortgage?l.mortgage:'')+'"/></div>'
@@ -15886,7 +15894,7 @@ async function saveListing(existingId) {
   var code = existingId ? (_listings.find(function(l){ return l.id===existingId; })||{}).code : Math.random().toString(36).substring(2,8).toUpperCase();
   var autoSendEl = document.getElementById('lm-autosend');
   var autoSend = autoSendEl ? autoSendEl.checked : false;
-  var listPct  = document.getElementById('lm-list-pct') ? (parseFloat(document.getElementById('lm-list-pct').value)||null) : null;
+  var listPct  = (function(){ var el=document.getElementById('lm-list-pct'); if(!el) return null; var x=parseFloat(el.value); return isNaN(x)?null:x; })();
   var taxes    = document.getElementById('lm-taxes') ? (parseFloat(document.getElementById('lm-taxes').value)||null) : null;
   var county   = document.getElementById('lm-county') ? document.getElementById('lm-county').value : null;
   var mortgage = document.getElementById('lm-mortgage') ? (parseFloat(document.getElementById('lm-mortgage').value)||null) : null;
@@ -16420,8 +16428,8 @@ async function sendOfferToClient(listingId, offerId) {
   // Compute net sheet
   var nsPrice    = parseFloat((o.offerPrice||'0').replace(/[^0-9.]/g,''))||0;
   var nsCredits  = parseFloat(String(o.closingCosts||'0').replace(/[^0-9.]/g,''))||0;
-  var nsBuyPct   = parseFloat(String(o.buyerAgentComm||'2.5').replace(/[^0-9.]/g,''))||2.5;
-  var nsListPct  = listing.listPct || 2.5;
+  var nsBuyPct   = _pctOr(o.buyerAgentComm, 2.5);
+  var nsListPct  = _pctOr(listing.listPct, 2.5);
   var nsTaxes    = listing.taxes || 0;
   var nsCounty   = listing.county || 'cuyahoga';
   var nsMortgage = listing.mortgage || 0;
@@ -16536,7 +16544,7 @@ async function sendOfferToClient(listingId, offerId) {
         inp.appendChild(opt);
       });
     } else {
-      inp.type=type||'number'; inp.value=val||'';
+      inp.type=type||'number'; inp.value=(val || val === 0) ? val : '';
       if (step) inp.step=step;
     }
     inp.oninput = function(){ updateSORNet(); };
@@ -16618,8 +16626,8 @@ function updateSORNet() {
   var ctx = window._sorCtx;
   if (!ctx) return;
   var price    = parseFloat(document.getElementById('sor-price').value)||0;
-  var listPct  = parseFloat(document.getElementById('sor-list-pct').value)||2.5;
-  var buyPct   = parseFloat(document.getElementById('sor-buy-pct').value)||2.5;
+  var listPct  = _pctOr(document.getElementById('sor-list-pct').value, 2.5);
+  var buyPct   = _pctOr(document.getElementById('sor-buy-pct').value, 2.5);
   var taxes    = parseFloat(document.getElementById('sor-taxes').value)||0;
   var county   = document.getElementById('sor-county').value;
   var mortgage = parseFloat(document.getElementById('sor-mortgage').value)||0;
@@ -17168,9 +17176,9 @@ function runNetSheetFromOffer(listingId, offerId) {
       var mortEl    = document.getElementById('ns-mortgage');
       if (priceEl && o.offerPrice) { var price = parseFloat(o.offerPrice.replace(/[^0-9.]/g,''))||0; if (price) priceEl.value = price; }
       if (creditsEl && o.closingCosts) { var cr = parseFloat(String(o.closingCosts).replace(/[^0-9.]/g,''))||0; if (cr) creditsEl.value = cr; }
-      if (buyPctEl && o.buyerAgentComm) { var bp = parseFloat(String(o.buyerAgentComm).replace(/[^0-9.]/g,''))||0; if (bp) buyPctEl.value = bp; }
+      if (buyPctEl && (o.buyerAgentComm || o.buyerAgentComm === 0 || o.buyerAgentComm === '0')) { buyPctEl.value = _pctOr(o.buyerAgentComm, 2.5); }
       if (listing) {
-        if (listPctEl && listing.listPct) listPctEl.value = listing.listPct;
+        if (listPctEl && (listing.listPct || listing.listPct === 0)) listPctEl.value = listing.listPct;
         if (taxesEl && listing.taxes) taxesEl.value = listing.taxes;
         if (countyEl && listing.county) countyEl.value = listing.county;
         if (mortEl && listing.mortgage) mortEl.value = listing.mortgage;
