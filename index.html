@@ -4439,7 +4439,7 @@ async function dtCopyTemplateToTeam(tp, destTeamId){
   await fb.uploadBytes(sRef, new Uint8Array(buf), {contentType:'application/pdf'});
   var url=await fb.getDownloadURL(sRef);
   await fb.setDoc(fb.doc(fb.db,'agents',destTeamId,'docTemplates',newId), {
-    name: tp.name||'Shared Template', boxes: tp.boxes||[], stages: tp.stages||[], trailStages: tp.trailStages||[], numPages: tp.numPages||1,
+    name: tp.name||'Shared Template', boxes: tp.boxes||[], stages: tp.stages||[], trailStages: tp.trailStages||[], sellerStages: tp.sellerStages||[], numPages: tp.numPages||1,
     pdfPath: destPath, pdfUrl: url, sharedFrom: (userProfile&&userProfile.agentId)||'tom',
     createdAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp()
   });
@@ -4491,7 +4491,7 @@ function dtNewTemplate(){
     if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
     var rd=new FileReader();
     rd.onload=function(){
-      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], stages:[], trailStages:[], selId:null, drag:null, dirtyPdf:true };
+      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], stages:[], trailStages:[], sellerStages:[], selId:null, drag:null, dirtyPdf:true };
       document.getElementById('dt-name').value='';
       dtOpenBuilder();
     };
@@ -4532,7 +4532,7 @@ async function dtEditTemplate(id){
   try{
     var resp=await fetch(tp.pdfUrl);
     var ab=await resp.arrayBuffer();
-    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), stages:(tp.stages||[]).slice(), trailStages:(tp.trailStages||[]).slice(), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
+    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), stages:(tp.stages||[]).slice(), trailStages:(tp.trailStages||[]).slice(), sellerStages:(tp.sellerStages||[]).slice(), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
     document.getElementById('dt-name').value=tp.name||'';
     dtOpenBuilder();
   }catch(e){ alert('Could not open template: '+e.message); }
@@ -4594,20 +4594,37 @@ function dtRenderPalette(){
   html+='<button class="btn btn-sm" style="width:100%;margin-bottom:6px;background:#0891B2;color:#fff;" onclick="dtAddBox(\'date\')">+ Date field</button>';
   html+='<button class="btn btn-sm" style="width:100%;background:#D97706;color:#fff;" onclick="dtAddBox(\'custom\')">+ Custom field</button>';
   html+='<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.45;"><b style="color:#1e40af;">Prefill</b> auto-fills from the deal. <b style="color:#7C3AED;">Checkbox</b> you toggle at draft. <b style="color:#D97706;">Custom</b> you type at draft.</div>';
-  html+='<div style="border-top:1px solid var(--border);margin:14px 0 8px;"></div>';
-  html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 4px;">Suggest on TC step</div>';
-  html+='<div style="font-size:10px;color:var(--text3);margin-bottom:7px;line-height:1.45;">Check a step and a “Draft this doc” button appears on that task in the deal’s Transaction Coordinator.</div>';
+  html+='<div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>';
+  html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 8px;">Show this doc on\u2026</div>';
+  function _dtTagGroup(title, help, count, items){
+    var badge = count>0
+      ? '<span style="font-size:9px;font-weight:700;color:#1D4ED8;background:#EFF6FF;border-radius:8px;padding:2px 7px;">'+count+' tagged</span>'
+      : '<span style="font-size:10px;color:var(--text3);">none</span>';
+    return '<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;">'
+      + '<div onclick="dtTagGroupToggle(this)" style="display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer;background:var(--surface2);">'
+      + '<span style="flex:1;font-size:11px;font-weight:600;color:var(--text2);">'+title+'</span>'+badge
+      + '<span class="dt-tg-chev" style="font-size:9px;color:var(--text3);transition:transform .15s;">\u25B6</span></div>'
+      + '<div class="dt-tg-body" style="display:none;padding:9px 11px;border-top:1px solid var(--border);">'
+      + '<div style="font-size:10px;color:var(--text3);margin-bottom:8px;line-height:1.45;">'+help+'</div>'+items+'</div></div>';
+  }
+  var _tcItems='';
   if(typeof TC_TASKS!=='undefined'){ TC_TASKS.forEach(function(t){
     var on=(dtState.stages||[]).indexOf(t.key)>=0;
-    html+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleStage(\''+t.key+'\',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(t.label)+'</label>';
+    _tcItems+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleStage(\''+t.key+'\',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(t.label)+'</label>';
   }); }
-  html+='<div style="border-top:1px solid var(--border);margin:14px 0 8px;"></div>';
-  html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 4px;">Show on client trail step</div>';
-  html+='<div style="font-size:10px;color:var(--text3);margin-bottom:7px;line-height:1.45;">Check a step and this doc shows on the client\u2019s trail at that stage.</div>';
+  var _btItems='';
   if(typeof TRAIL_STAGES!=='undefined'){ TRAIL_STAGES.forEach(function(s){
     var on=(dtState.trailStages||[]).indexOf(s.id)>=0;
-    html+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleTrailStage('+s.id+',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(s.title||('Step '+s.id))+'</label>';
+    _btItems+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleTrailStage('+s.id+',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(s.title||('Step '+s.id))+'</label>';
   }); }
+  var _stItems='';
+  if(typeof SELLER_STEPS!=='undefined'){ SELLER_STEPS.forEach(function(s,si){
+    var on=(dtState.sellerStages||[]).indexOf(si)>=0;
+    _stItems+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleSellerStage('+si+',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(s.title||('Step '+(si+1)))+'</label>';
+  }); }
+  html+=_dtTagGroup('Agent \u2014 TC workflow step', 'A \u201cDraft this doc\u201d button appears on that task in the deal\u2019s Transaction Coordinator.', (dtState.stages||[]).length, _tcItems);
+  html+=_dtTagGroup('Client \u2014 buyer trail step', 'This doc shows on the buyer\u2019s trail at that stage.', (dtState.trailStages||[]).length, _btItems);
+  html+=_dtTagGroup('Client \u2014 seller trail step', 'This doc shows on the seller\u2019s trail at that stage.', (dtState.sellerStages||[]).length, _stItems);
   p.innerHTML=html;
   p.querySelectorAll('.dt-chip').forEach(function(ch){
     ch.addEventListener('dragstart',function(e){ e.dataTransfer.setData('text/dtbind', ch.dataset.bind); e.dataTransfer.effectAllowed='copy'; });
@@ -4638,6 +4655,22 @@ function dtToggleTrailStage(key,on){
   if(!on && i>=0) dtState.trailStages.splice(i,1);
 }
 window.dtToggleTrailStage = dtToggleTrailStage;
+function dtToggleSellerStage(key,on){
+  if(!dtState.sellerStages) dtState.sellerStages=[];
+  var i=dtState.sellerStages.indexOf(key);
+  if(on && i<0) dtState.sellerStages.push(key);
+  if(!on && i>=0) dtState.sellerStages.splice(i,1);
+}
+window.dtToggleSellerStage = dtToggleSellerStage;
+function dtTagGroupToggle(h){
+  var body=h.parentElement.querySelector('.dt-tg-body');
+  var chev=h.querySelector('.dt-tg-chev');
+  if(!body) return;
+  var open=body.style.display!=='none';
+  body.style.display=open?'none':'block';
+  if(chev) chev.style.transform=open?'':'rotate(90deg)';
+}
+window.dtTagGroupToggle = dtTagGroupToggle;
 
 function dtAddBox(type, bind, fx, fy){
   if(!dtState.pdf) return;
@@ -4744,7 +4777,7 @@ async function dtSaveTemplate(){
       await fb.uploadBytes(sRef, dtState.pdfBytes, {contentType:'application/pdf'});
       pdfUrl=await fb.getDownloadURL(sRef);
     }
-    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], stages:dtState.stages||[], trailStages:dtState.trailStages||[], updatedAt:fb.serverTimestamp() };
+    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], stages:dtState.stages||[], trailStages:dtState.trailStages||[], sellerStages:dtState.sellerStages||[], updatedAt:fb.serverTimestamp() };
     if(!dtState.id) docData.createdAt=fb.serverTimestamp();
     await fb.setDoc(dtDoc(id), docData, {merge:true});
     dtCloseBuilder();
@@ -14201,46 +14234,35 @@ function showSellerStep(i) {
       actEl.appendChild(btn);
     }
 
-    // Doc chips for seller trail stages
-    var _sellerTrailDocMap = {
-      0: ['listing-agreement','consumer-guide','wire-fraud'],
-      1: ['listing-prep'],
-      4: ['listing-agreement','disclosure','anti-discrimination','consumer-guide','wire-fraud'],
-      8: ['purchase','agency'],
-      9: ['contingency'],
-      12: ['closing']
-    };
-    var _sDocs = _sellerTrailDocMap[i] || [];
-    if (_sDocs.length) {
-      var _sdNames = {'listing-agreement':'Listing Agreement','consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','listing-prep':'Listing Prep Checklist','anti-discrimination':'Anti-Discrimination','disclosure':'Property Disclosure','purchase':'Purchase Agreement','agency':'Agency Disclosure','contingency':'Removal of Contingencies','closing':'Closing Statement'};
+    // Documents for this step — from Doc Generator templates tagged to this seller trail step
+    (function(){
       var _swrap = document.createElement('div');
-      _swrap.style.cssText = 'margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);';
+      _swrap.style.cssText = 'margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);display:none;';
       var _slabel = document.createElement('div');
       _slabel.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
       _slabel.textContent = 'Documents for this step';
       _swrap.appendChild(_slabel);
       var _srow = document.createElement('div');
       _srow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-      _sDocs.forEach(function(dk) {
-        var _sb = document.createElement('button');
-        _sb.className = 'btn btn-sm';
-        _sb.style.cssText = 'background:#FEF3C7;color:#92400E;border-color:#F59E0B;font-size:11.5px;';
-        _sb.textContent = _sdNames[dk] || dk;
-        (function(key) {
-          _sb.onclick = function() {
-            det.style.display = 'none';
-            go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
-            setTimeout(function() {
-              var sel = document.getElementById('de-doc');
-              if (sel) { sel.value = key; showDocInfo(); explainDoc(); }
-            }, 300);
-          };
-        })(dk);
-        _srow.appendChild(_sb);
-      });
       _swrap.appendChild(_srow);
       actEl.appendChild(_swrap);
-    }
+      function _spaint(){
+        var tpls = (window._dtTemplates||[]).filter(function(tp){ return (tp.sellerStages||[]).indexOf(i)>=0; });
+        if (!tpls.length) { _swrap.style.display='none'; return; }
+        _srow.innerHTML='';
+        tpls.forEach(function(tp){
+          var _sb = document.createElement('button');
+          _sb.className = 'btn btn-sm';
+          _sb.style.cssText = 'background:#FEF3C7;color:#92400E;border-color:#F59E0B;font-size:11.5px;';
+          _sb.textContent = tp.name || 'Document';
+          _sb.onclick = function(){ if (tp.pdfUrl) window.open(tp.pdfUrl,'_blank','noopener'); };
+          _srow.appendChild(_sb);
+        });
+        _swrap.style.display='block';
+      }
+      if (window._dtTemplates) _spaint();
+      else if (typeof _ensureTrailTemplates==='function') _ensureTrailTemplates().then(_spaint).catch(function(){});
+    })();
     actEl.style.display = (actEl.children.length > 0) ? 'block' : 'none';
   }
   det.style.display = 'block';
