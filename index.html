@@ -4439,7 +4439,7 @@ async function dtCopyTemplateToTeam(tp, destTeamId){
   await fb.uploadBytes(sRef, new Uint8Array(buf), {contentType:'application/pdf'});
   var url=await fb.getDownloadURL(sRef);
   await fb.setDoc(fb.doc(fb.db,'agents',destTeamId,'docTemplates',newId), {
-    name: tp.name||'Shared Template', boxes: tp.boxes||[], stages: tp.stages||[], numPages: tp.numPages||1,
+    name: tp.name||'Shared Template', boxes: tp.boxes||[], stages: tp.stages||[], trailStages: tp.trailStages||[], numPages: tp.numPages||1,
     pdfPath: destPath, pdfUrl: url, sharedFrom: (userProfile&&userProfile.agentId)||'tom',
     createdAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp()
   });
@@ -4491,7 +4491,7 @@ function dtNewTemplate(){
     if(f.type!=='application/pdf'){ alert('Please choose a PDF file.'); return; }
     var rd=new FileReader();
     rd.onload=function(){
-      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], stages:[], selId:null, drag:null, dirtyPdf:true };
+      dtState={ id:null, name:'', pdfBytes:new Uint8Array(rd.result), pdf:null, numPages:1, curPage:1, pageSizes:[], boxes:[], stages:[], trailStages:[], selId:null, drag:null, dirtyPdf:true };
       document.getElementById('dt-name').value='';
       dtOpenBuilder();
     };
@@ -4532,7 +4532,7 @@ async function dtEditTemplate(id){
   try{
     var resp=await fetch(tp.pdfUrl);
     var ab=await resp.arrayBuffer();
-    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), stages:(tp.stages||[]).slice(), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
+    dtState={ id:tp.id, name:tp.name||'', pdfBytes:new Uint8Array(ab), pdf:null, numPages:tp.numPages||1, curPage:1, pageSizes:[], boxes:JSON.parse(JSON.stringify(tp.boxes||[])), stages:(tp.stages||[]).slice(), trailStages:(tp.trailStages||[]).slice(), selId:null, drag:null, dirtyPdf:false, pdfPath:tp.pdfPath, pdfUrl:tp.pdfUrl };
     document.getElementById('dt-name').value=tp.name||'';
     dtOpenBuilder();
   }catch(e){ alert('Could not open template: '+e.message); }
@@ -4601,6 +4601,13 @@ function dtRenderPalette(){
     var on=(dtState.stages||[]).indexOf(t.key)>=0;
     html+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleStage(\''+t.key+'\',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(t.label)+'</label>';
   }); }
+  html+='<div style="border-top:1px solid var(--border);margin:14px 0 8px;"></div>';
+  html+='<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);margin:0 0 4px;">Show on client trail step</div>';
+  html+='<div style="font-size:10px;color:var(--text3);margin-bottom:7px;line-height:1.45;">Check a step and this doc shows on the client\u2019s trail at that stage.</div>';
+  if(typeof TRAIL_STAGES!=='undefined'){ TRAIL_STAGES.forEach(function(s){
+    var on=(dtState.trailStages||[]).indexOf(s.id)>=0;
+    html+='<label style="display:flex;align-items:center;gap:7px;padding:5px 7px;margin-bottom:4px;border:1px solid var(--border);border-radius:7px;cursor:pointer;font-size:11px;"><input type="checkbox" '+(on?'checked':'')+' onchange="dtToggleTrailStage('+s.id+',this.checked)" style="width:14px;height:14px;flex-shrink:0;"/> '+escapeHtml(s.title||('Step '+s.id))+'</label>';
+  }); }
   p.innerHTML=html;
   p.querySelectorAll('.dt-chip').forEach(function(ch){
     ch.addEventListener('dragstart',function(e){ e.dataTransfer.setData('text/dtbind', ch.dataset.bind); e.dataTransfer.effectAllowed='copy'; });
@@ -4624,6 +4631,13 @@ function dtToggleStage(key,on){
   if(on && i<0) dtState.stages.push(key);
   if(!on && i>=0) dtState.stages.splice(i,1);
 }
+function dtToggleTrailStage(key,on){
+  if(!dtState.trailStages) dtState.trailStages=[];
+  var i=dtState.trailStages.indexOf(key);
+  if(on && i<0) dtState.trailStages.push(key);
+  if(!on && i>=0) dtState.trailStages.splice(i,1);
+}
+window.dtToggleTrailStage = dtToggleTrailStage;
 
 function dtAddBox(type, bind, fx, fy){
   if(!dtState.pdf) return;
@@ -4730,7 +4744,7 @@ async function dtSaveTemplate(){
       await fb.uploadBytes(sRef, dtState.pdfBytes, {contentType:'application/pdf'});
       pdfUrl=await fb.getDownloadURL(sRef);
     }
-    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], stages:dtState.stages||[], updatedAt:fb.serverTimestamp() };
+    var docData={ name:name, pdfPath:pdfPath, pdfUrl:pdfUrl, numPages:dtState.numPages||1, boxes:dtState.boxes||[], stages:dtState.stages||[], trailStages:dtState.trailStages||[], updatedAt:fb.serverTimestamp() };
     if(!dtState.id) docData.createdAt=fb.serverTimestamp();
     await fb.setDoc(dtDoc(id), docData, {merge:true});
     dtCloseBuilder();
@@ -13884,6 +13898,22 @@ function keepJourneyMapUsable(detailId){
   }
 }
 
+// Load the assigned agent's team Doc Generator templates into window._dtTemplates
+// (for the client trail + explainer; agents already load these via dtLoadLibrary).
+async function _ensureTrailTemplates(){
+  if (window._dtTemplates) return window._dtTemplates;
+  var teamId = (userProfile && userProfile.teamId)
+    || (typeof assignedAgent!=='undefined' && assignedAgent && (assignedAgent.teamId || (typeof agentTeamId==='function' ? agentTeamId(assignedAgent) : null)))
+    || (userProfile && userProfile.agentId) || 'tom';
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db,'agents',teamId,'docTemplates'));
+    var arr=[]; snap.forEach(function(d){ var o=d.data(); o.id=d.id; arr.push(o); });
+    window._dtTemplates = arr;
+  } catch(e){ console.log('trail templates:', e.message); window._dtTemplates = window._dtTemplates || []; }
+  return window._dtTemplates;
+}
+window._ensureTrailTemplates = _ensureTrailTemplates;
+
 function showTrailStage(id) {
   const s = TRAIL_STAGES.find(x => x.id === id);
   if (!s) return;
@@ -13936,47 +13966,35 @@ function showTrailStage(id) {
   _seeBtn.onclick = function(){ openStep(id); };
   acts.appendChild(_seeBtn);
 
-  // Doc chips for buyer trail stages
-  const _trailDocMap = {
-    1: ['buyer-rep','consumer-guide','wire-fraud'],
-    4: ['purchase','agency','disclosure','wire-fraud'],
-    5: ['contingency'],
-    7: ['contingency'],
-    9: ['purchase','agency'],
-    10: ['closing'],
-    11: ['closing']
-  };
-  const _trailDocs = _trailDocMap[id] || [];
-  if (_trailDocs.length) {
-    const _docNames = {'buyer-rep':'Buyer Rep Agreement','consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','purchase':'Purchase Agreement','agency':'Agency Disclosure','disclosure':'Property Disclosure','contingency':'Removal of Contingencies','closing':'Closing Statement'};
-    const _wrap = document.createElement('div');
-    _wrap.style.cssText = 'width:100%;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);';
-    const _label = document.createElement('div');
+  // Documents for this step — pulled live from Doc Generator templates tagged to this trail stage
+  (function(){
+    var _wrap = document.createElement('div');
+    _wrap.style.cssText = 'width:100%;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);display:none;';
+    var _label = document.createElement('div');
     _label.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
     _label.textContent = 'Documents for this step';
     _wrap.appendChild(_label);
-    const _row = document.createElement('div');
+    var _row = document.createElement('div');
     _row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-    _trailDocs.forEach(function(dk) {
-      const _b = document.createElement('button');
-      _b.className = 'btn btn-sm';
-      _b.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;font-size:11.5px;';
-      _b.textContent = _docNames[dk] || dk;
-      (function(key) {
-        _b.onclick = function() {
-          document.getElementById('trail-detail').style.display = 'none';
-          go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
-          setTimeout(function() {
-            const sel = document.getElementById('de-doc');
-            if (sel) { sel.value = key; showDocInfo(); explainDoc(); }
-          }, 300);
-        };
-      })(dk);
-      _row.appendChild(_b);
-    });
     _wrap.appendChild(_row);
     acts.appendChild(_wrap);
-  }
+    function _paint(){
+      var tpls = (window._dtTemplates||[]).filter(function(tp){ return (tp.trailStages||[]).indexOf(id)>=0; });
+      if (!tpls.length) { _wrap.style.display='none'; return; }
+      _row.innerHTML = '';
+      tpls.forEach(function(tp){
+        var _b = document.createElement('button');
+        _b.className = 'btn btn-sm';
+        _b.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;font-size:11.5px;';
+        _b.textContent = tp.name || 'Document';
+        _b.onclick = function(){ if (tp.pdfUrl) window.open(tp.pdfUrl, '_blank', 'noopener'); };
+        _row.appendChild(_b);
+      });
+      _wrap.style.display = 'block';
+    }
+    if (window._dtTemplates) _paint();
+    else if (typeof _ensureTrailTemplates==='function') _ensureTrailTemplates().then(_paint).catch(function(){});
+  })();
 
   updateAgentTokens(document.getElementById('trail-detail'));
   document.getElementById('trail-detail').style.display = 'block';
