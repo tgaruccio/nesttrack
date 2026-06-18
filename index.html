@@ -11341,11 +11341,19 @@ function openMsgThread(buyerUid) {
   var name = ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email||'Client';
   var initials = ((buyer.firstName||'?')[0]+(buyer.lastName||'?')[0]).toUpperCase();
   var phone = (buyer.phone||'').replace(/[^0-9]/g,'');
-  var stepName = (TIMELINE_STEPS[(buyer.currentStep||1)-1]||{}).name||'';
+  var _isSeller = (buyer.currentSellerStep != null && buyer.currentStep == null);
+  var _rmSteps = _isSeller ? ((typeof SELLER_STEPS!=='undefined')?SELLER_STEPS:[]) : ((typeof TIMELINE_STEPS!=='undefined')?TIMELINE_STEPS:[]);
+  var _rmCur = _isSeller ? (buyer.currentSellerStep||1) : (buyer.currentStep||1);
+  var _rmCi = -1;
+  for (var _i=0;_i<_rmSteps.length;_i++){ if((_rmSteps[_i].id||(_i+1))===_rmCur){ _rmCi=_i; break; } }
+  if (_rmCi<0) _rmCi = Math.max(0, Math.min(_rmSteps.length-1, _rmCur-1));
+  var _rmCurName = (_rmSteps[_rmCi]||{}).name||'';
+  var _rmNextName = (_rmSteps[_rmCi+1]||{}).name||'';
+  var stepStripHtml = '<strong style="color:var(--text2);">Step '+_rmCur+': '+partnerEsc(_rmCurName)+'</strong>'+(_rmNextName?' \u00b7 Next: '+partnerEsc(_rmNextName):'');
 
   document.getElementById('msg-avatar').textContent = initials;
   document.getElementById('msg-name').textContent = name;
-  document.getElementById('msg-step').textContent = stepName;
+  var _msEl=document.getElementById('msg-step'); if(_msEl) _msEl.innerHTML = stepStripHtml;
   document.getElementById('msg-call').href = phone ? 'tel:'+phone : '#';
   document.getElementById('msg-sms').href = phone ? 'sms:'+phone : '#';
 
@@ -11398,6 +11406,14 @@ function openMsgThread(buyerUid) {
   });
 }
 window.openMsgThread = openMsgThread;
+
+// Open a deal's room: jump to Messages and open that client's thread (the deal <-> chat door).
+function openDealRoom(clientUid){
+  if(!clientUid) return;
+  try { go('messages', document.querySelector('[data-pg=messages]')); } catch(e){}
+  setTimeout(function(){ try{ openMsgThread(clientUid); }catch(e){} }, 400);
+}
+window.openDealRoom = openDealRoom;
 
 function closeMsgThread() {
   document.getElementById('msg-active').style.display = 'none';
@@ -21581,6 +21597,7 @@ function renderDealCards(deals) {
       +'<div id="dtab-comms-'+deal.id+'" class="dtabpane-'+deal.id+'" style="display:'+(_dealTabActive(deal.id)==='comms'?'':'none')+';">'+(renderDealComms(deal)||'<div style="font-size:12px;color:var(--text3);padding:10px 2px;">No messages logged yet \\u2014 emails you send from this deal show up here.</div>').replace('<details style="margin-bottom:8px;">','<details open style="margin-bottom:8px;">')+'</div>'
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
+      +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openDealRoom(\''+deal.clientUid+'\')">\ud83d\udcac Chat</button>':'')
       +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd Address</button>'
       +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Send Timeline</button>':'')
