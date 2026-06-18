@@ -20067,15 +20067,14 @@ function srTabShowings() {
   // ShowingTime PDF attachment
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">'    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">📎 Attach ShowingTime Report</div>'    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Optional — attach your ShowingTime PDF and it will be included with the report email.</div>'    + '<input type="file" id="sr-pdf-attach" accept=".pdf" onchange="srStorePDFAttachment(event)" style="font-size:12px;"/>'    + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">✅ '+_srCurrent.pdfAttachName+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')    + '</div>';
 
-  // AI feedback summary from the ShowingTime PDF
+  // Buyer feedback summary — single box, manual or AI-drafted from the ShowingTime PDF
   html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">✨ AI Feedback Summary</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Attach your ShowingTime PDF above, then generate a seller-ready summary of the showing feedback. Edit it before it goes in the report.</div>'
-    + '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;">'+(_srCurrent.feedbackSummary?'✨ Regenerate Summary':'✨ Generate Feedback Summary')+'</button>'
-    + '<div id="sr-feedback-summary-wrap" style="margin-top:10px;'+(_srCurrent.feedbackSummary?'':'display:none;')+'">'
-    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Your AI-generated summary will appear here. You can edit it freely." style="width:100%;box-sizing:border-box;font-size:13px;height:200px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
-    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;">This appears in the report as “What Buyers Are Saying.”</div>'
-    + '</div></div>';
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">🗣️ Buyer Feedback Summary</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Summarize what buyers are saying. Write it yourself, or attach your ShowingTime PDF above and let AI draft it for you.</div>'
+    + '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;margin-bottom:10px;">'+(_srCurrent.feedbackSummary?'✨ Regenerate from PDF':'✨ Generate from ShowingTime PDF')+'</button>'
+    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Summarize buyer feedback themes, interest levels, price opinions… or generate it from your ShowingTime PDF above." style="width:100%;box-sizing:border-box;font-size:13px;height:180px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
+    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;">Appears in the report below your showing activity.</div>'
+    + '</div>';
 
   // Showing rows
   html += '<div id="sr-showings-list">';
@@ -20104,11 +20103,7 @@ function srTabShowings() {
     + '</div>'
     + '</div>';
 
-  // Feedback notes
-  html += '<div>'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Showing Feedback Summary</label>'
-    + '<textarea id="sr-feedback-notes" placeholder="Summarize buyer feedback themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:80px;resize:vertical;">'+partnerEsc(_srCurrent.feedbackNotes||'')+'</textarea>'
-    + '</div>';
+  // (Old manual feedback box removed — consolidated into the Buyer Feedback Summary box above)
 
   // Update display
   if (_srCurrent.reverseProspecting) {
@@ -20200,7 +20195,7 @@ async function srGenerateFeedbackSummary() {
     if (wrap) wrap.style.display = 'block';
     var ta = document.getElementById('sr-feedback-summary');
     if (ta) ta.value = _srCurrent.feedbackSummary;
-    if (btn) { btn.disabled = false; btn.textContent = '\u2728 Regenerate Summary'; }
+    if (btn) { btn.disabled = false; btn.textContent = '\u2728 Regenerate from PDF'; }
   } catch (e) {
     alert('Could not generate the summary: ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
@@ -20488,14 +20483,6 @@ function srBuildEmailHtml() {
     html += '</div>';
   }
 
-  // AI buyer feedback summary
-  if (_srCurrent.feedbackSummary) {
-    html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
-    html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:10px;">\ud83d\udde3\ufe0f What Buyers Are Saying</div>';
-    html += '<div style="font-size:14px;color:#333;line-height:1.7;">'+_srCurrent.feedbackSummary.replace(/\n/g,'<br/>')+'</div>';
-    html += '</div>';
-  }
-
   // Report title
   html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
   html += '<div style="font-size:22px;font-weight:700;color:#111;margin-bottom:2px;">Weekly Listing Report</div>';
@@ -20585,13 +20572,16 @@ function srBuildEmailHtml() {
       html += '<div style="font-size:13px;"><strong>'+dateStr+'</strong>'+(s.agent?' — '+s.agent:'')+(s.brokerage?', '+s.brokerage:'')+'</div>';
       html += '</div>';
     });
-    if (_srCurrent.feedbackNotes && _srCurrent.feedbackNotes.trim()) {
-      html += '<div style="background:#F0FDF4;border-radius:8px;padding:12px;margin-top:12px;">';
-      html += '<div style="font-size:12px;font-weight:700;color:'+darkGreen+';margin-bottom:4px;">Buyer Feedback Summary</div>';
-      html += '<div style="font-size:13px;color:#333;line-height:1.6;">'+_srCurrent.feedbackNotes.replace(/\n/g,'<br/>')+'</div>';
-      html += '</div>';
-    }
     html += '</div>';
+  }
+
+  // Buyer feedback summary — manual or AI-drafted, shown below activity (after the personal note up top)
+  if (_srCurrent.feedbackSummary && _srCurrent.feedbackSummary.trim()) {
+    html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
+    html += '<div style="background:#F0FDF4;border-radius:8px;padding:14px 16px;">';
+    html += '<div style="font-size:14px;font-weight:700;color:'+darkGreen+';margin-bottom:6px;">🗣️ What Buyers Are Saying</div>';
+    html += '<div style="font-size:13px;color:#333;line-height:1.7;">'+_srCurrent.feedbackSummary.replace(/\n/g,'<br/>')+'</div>';
+    html += '</div></div>';
   }
 
   // What I did
