@@ -2071,20 +2071,6 @@ textarea{resize:vertical;min-height:68px;}
       <label class="flabel">Select a Document</label>
       <select id="de-doc" onchange="showDocInfo()">
         <option value="">-- Choose a document --</option>
-        <option value="purchase">📋 Residential Purchase Agreement</option>
-        <option value="buyer-rep">🤝 Exclusive Buyer Representation Agreement</option>
-        <option value="agency">👥 Agency Disclosure Statement</option>
-        <option value="consumer-guide">📖 Consumer Guide to Agency Relationships</option>
-        <option value="contingency">✂️ Amendment — Removal of Contingencies</option>
-        <option value="disclosure">🏠 Ohio Residential Property Disclosure Form</option>
-        <option value="wire-fraud">⚠️ Wire Fraud Alert</option>
-        <option value="closing">💰 Closing Settlement Statement</option>
-        <option value="other">❓ General Question</option>
-        <optgroup label="— Seller Documents —">
-        <option value="listing-agreement">📝 Listing Agreement</option>
-        <option value="anti-discrimination">⚖️ Ohio Anti-Discrimination Notice</option>
-        <option value="listing-prep">🏡 Listing Prep Checklist</option>
-        </optgroup>
       </select>
     </div>
     <div id="de-doc-context" style="display:none;background:var(--surface2);border-radius:var(--r-sm);padding:10px 14px;">
@@ -2738,17 +2724,7 @@ textarea{resize:vertical;min-height:68px;}
       <button class="btn btn-g" style="width:100%;margin-top:12px;" onclick="scheduleSave()">Save Schedule</button>
     </div>
 
-    <!-- CARD 4: DOCUMENT LIBRARY -->
-    <div class="card" id="profile-card-documents" style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
-        <div>
-          <div style="font-size:15px;font-weight:600;">📄 Document Library</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Update a URL here and it updates everywhere in buyer and seller trails instantly.</div>
-        </div>
-        <button class="btn btn-sm btn-g" onclick="saveDocLibrary()">Save</button>
-      </div>
-      <div id="doc-library-list" style="display:flex;flex-direction:column;gap:8px;"></div>
-    </div>
+    <!-- Document Library removed — client docs now stream from tagged Doc Generator templates -->
 
     <!-- CARD 5: EMAIL EDITOR (TL only) -->
     <div class="card" id="email-editor-card" style="display:none;flex-direction:column;gap:0;">
@@ -5296,8 +5272,6 @@ function dpGenerate(pkgId){
 window.dpGenerate=dpGenerate;
 
 function renderAgentProfileEditor() {
-  loadDocLibrary();
-  renderDocLibrary();
   if (isTeamLeader()) {
     loadCustomEmailTemplates().then(renderEmailEditorList);
   }
@@ -6874,45 +6848,30 @@ function showSellerStepEdu(i) {
     + '<p style="font-size:13.5px;color:var(--text2);line-height:1.75;margin-bottom:12px;">'+s.body+'</p>'
     + (s.tip ? '<div style="background:#FEF3C7;border-radius:8px;padding:12px 14px;font-size:12.5px;color:#92400E;font-style:italic;">'+s.tip+'</div>' : '');
   document.getElementById('step-modal').style.display = 'flex';
-  // Add doc chips for seller steps
-  var _sellerDocMap = {
-    4: ['listing-agreement','consumer-guide','anti-discrimination','disclosure'], // Listing
-    8: ['purchase','agency','disclosure'],  // Under Contract
-    11: ['closing'],  // Final Numbers
-    12: ['closing']   // Closing Day
-  };
-  var _sellerDocs = _sellerDocMap[i] || [];
-  if (_sellerDocs.length) {
-    var _docNames2 = {'listing-agreement':'Listing Agreement','anti-discrimination':'Anti-Discrimination','listing-prep':'Listing Prep Checklist','consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','disclosure':'Property Disclosure','purchase':'Purchase Agreement','agency':'Agency Disclosure','closing':'Closing Statement'};
-    var _body2 = document.getElementById('step-modal-body');
-    var _wrap2 = document.createElement('div');
-    _wrap2.style.cssText = 'margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border);';
-    var _label2 = document.createElement('div');
-    _label2.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
-    _label2.textContent = 'Documents for this step';
+  // Doc chips for seller steps — from tagged Doc Generator templates
+  (function(){
+    var tpls=(window._dtTemplates||[]).filter(function(tp){ return (tp.sellerStages||[]).indexOf(i)>=0; });
+    if(!tpls.length) return;
+    var _body2=document.getElementById('step-modal-body'); if(!_body2) return;
+    var _wrap2=document.createElement('div');
+    _wrap2.style.cssText='margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border);';
+    var _label2=document.createElement('div');
+    _label2.style.cssText='font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
+    _label2.textContent='Documents for this step';
     _wrap2.appendChild(_label2);
-    var _row2 = document.createElement('div');
-    _row2.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-    _sellerDocs.forEach(function(dk) {
-      var _b2 = document.createElement('button');
-      _b2.className = 'btn btn-sm';
-      _b2.style.cssText = 'background:#FEF3C7;color:#92400E;border-color:#F59E0B;font-size:11.5px;';
-      _b2.textContent = _docNames2[dk] || dk;
-      (function(key) {
-        _b2.onclick = function() {
-          closeM('step-modal');
-          go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
-          setTimeout(function() {
-            var sel = document.getElementById('de-doc');
-            if (sel) { sel.value = key; showDocInfo(); explainDoc(); }
-          }, 300);
-        };
-      })(dk);
+    var _row2=document.createElement('div');
+    _row2.style.cssText='display:flex;gap:6px;flex-wrap:wrap;';
+    tpls.forEach(function(tp){
+      var _b2=document.createElement('button');
+      _b2.className='btn btn-sm';
+      _b2.style.cssText='background:#FEF3C7;color:#92400E;border-color:#F59E0B;font-size:11.5px;';
+      _b2.textContent=tp.name||'Document';
+      _b2.onclick=function(){ closeM('step-modal'); openDocInExplainer(tp.id); };
       _row2.appendChild(_b2);
     });
     _wrap2.appendChild(_row2);
-    if (_body2) _body2.appendChild(_wrap2);
-  }
+    _body2.appendChild(_wrap2);
+  })();
 }
 window.showSellerStepEdu = showSellerStepEdu;
 
@@ -9464,6 +9423,8 @@ function _applyHomeSections() {
 }
 window._applyHomeSections = _applyHomeSections;
 function renderHome() {
+  // Preload Doc Generator templates so home trail popups can show tagged docs
+  if (!window._dtTemplates && typeof _ensureTrailTemplates==='function') { _ensureTrailTemplates().catch(function(){}); }
   // Welcome header
   var first = (userProfile && userProfile.firstName) || 'there';
   var initials = ((userProfile&&userProfile.firstName||'')[0]||'') + ((userProfile&&userProfile.lastName||'')[0]||'');
@@ -9771,28 +9732,8 @@ function showHomeTrailStage(id) {
       acts += '<button class="btn btn-g" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));document.getElementById(\'home-buyer-popup\').style.display=\'none\';">' + A(s.action.label) + '</button>';
     }
   }
-  // Doc chips
-  var _htDocMap = {
-    1: ['buyer-rep','consumer-guide','wire-fraud'],
-    4: ['purchase','agency','disclosure','wire-fraud'],
-    5: ['contingency'],
-    7: ['contingency'],
-    9: ['purchase','agency'],
-    10: ['closing'],
-    11: ['closing']
-  };
-  var _htDocs = _htDocMap[id] || [];
-  var _htNames = {'buyer-rep':'Buyer Rep Agreement','consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','purchase':'Purchase Agreement','agency':'Agency Disclosure','disclosure':'Property Disclosure','contingency':'Removal of Contingencies','closing':'Closing Statement'};
-  if (_htDocs.length) {
-    acts += '<div style="width:100%;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">'
-      + '<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:7px;">Documents for this step</div>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-      + _htDocs.map(function(dk){
-          return '<button class="btn btn-sm" style="background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;font-size:11.5px;" onclick="document.getElementById(\'home-buyer-popup\').style.display=\'none\';go(\'docs-explainer\',document.querySelector(\'[data-pg=docs-explainer]\'));setTimeout(function(){var s=document.getElementById(\'de-doc\');if(s){s.value=\''+dk+'\';showDocInfo();explainDoc();}},300);">'
-            + (_htNames[dk]||dk) + '</button>';
-        }).join('')
-      + '</div></div>';
-  }
+  // Doc chips — from Doc Generator templates tagged to this buyer trail step
+  acts += _tplDocBtnsHtml(function(tp){ return (tp.trailStages||[]).indexOf(id)>=0; }, 'home-buyer-popup', 'buyer');
   _fillPopup('home-buyer-popup', 'Stop ' + id + ' of 11', A(s.title), body, null, acts);
 }
 window.showHomeTrailStage = showHomeTrailStage;
@@ -9804,26 +9745,7 @@ function showHomeSellerStep(i) {
   if (s.action && s.action.page) {
     acts += '<button class="btn btn-g" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));document.getElementById(\'home-sell-popup\').style.display=\'none\';">' + s.action.label + ' →</button>';
   }
-  var _hsDocMap = {
-    0: ['listing-agreement','consumer-guide','wire-fraud'],
-    1: ['listing-prep'],
-    4: ['listing-agreement','disclosure','anti-discrimination','consumer-guide','wire-fraud'],
-    8: ['purchase','agency'],
-    9: ['contingency'],
-    12: ['closing']
-  };
-  var _hsDocs = _hsDocMap[i] || [];
-  var _hsNames = {'listing-agreement':'Listing Agreement','consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','listing-prep':'Listing Prep Checklist','anti-discrimination':'Anti-Discrimination','disclosure':'Property Disclosure','purchase':'Purchase Agreement','agency':'Agency Disclosure','contingency':'Removal of Contingencies','closing':'Closing Statement'};
-  if (_hsDocs.length) {
-    acts += '<div style="width:100%;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">'
-      + '<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:7px;">Documents for this step</div>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-      + _hsDocs.map(function(dk){
-          return '<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E;border-color:#F59E0B;font-size:11.5px;" onclick="document.getElementById(\'home-sell-popup\').style.display=\'none\';go(\'docs-explainer\',document.querySelector(\'[data-pg=docs-explainer]\'));setTimeout(function(){var s=document.getElementById(\'de-doc\');if(s){s.value=\''+dk+'\';showDocInfo();explainDoc();}},300);">'
-            + (_hsNames[dk]||dk) + '</button>';
-        }).join('')
-      + '</div></div>';
-  }
+  acts += _tplDocBtnsHtml(function(tp){ return (tp.sellerStages||[]).indexOf(i)>=0; }, 'home-sell-popup', 'seller');
   _fillPopup('home-sell-popup', 'Step ' + (i+1) + ' of ' + SELLER_STEPS.length, s.title, s.body, s.tip||null, acts);
 }
 window.showHomeSellerStep = showHomeSellerStep;
@@ -9839,25 +9761,7 @@ function showHomeMJStep(i) {
       acts += '<button class="btn btn-g btn-sm" onclick="go(\'' + s.action.page + '\',document.querySelector(\'[data-pg=' + s.action.page + ']\'));">' + s.action.label + '</button>';
     }
   }
-  var _hmjDocMap = {
-    0: ['consumer-guide','wire-fraud'],
-    1: ['consumer-guide'],
-    3: ['wire-fraud'],
-    9: ['closing'],
-    10: ['closing']
-  };
-  var _hmjDocs = _hmjDocMap[i] || [];
-  var _hmjNames = {'consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','closing':'Closing Statement'};
-  if (_hmjDocs.length) {
-    acts += '<div style="width:100%;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">'
-      + '<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:7px;">Documents for this step</div>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
-      + _hmjDocs.map(function(dk){
-          return '<button class="btn btn-sm" style="background:#EFF6FF;color:#185FA5;border-color:#B5D4F4;font-size:11.5px;" onclick="document.getElementById(\'home-mort-popup\').style.display=\'none\';go(\'docs-explainer\',document.querySelector(\'[data-pg=docs-explainer]\'));setTimeout(function(){var s=document.getElementById(\'de-doc\');if(s){s.value=\''+dk+'\';showDocInfo();explainDoc();}},300);">'
-            + (_hmjNames[dk]||dk) + '</button>';
-        }).join('')
-      + '</div></div>';
-  }
+  var _hmjDocs = [];
   _fillPopup('home-mort-popup', 'Step ' + (i+1) + ' of ' + MJ_STEPS.length, s.title, s.body, s.tip||null, acts);
 }
 window.showHomeMJStep = showHomeMJStep;
@@ -14411,44 +14315,9 @@ function showMJStep(i) {
     act.appendChild(el);
   } else act.style.display='none';
 
-  // Mortgage doc chips
-  var _mjDocMap = {
-    0: ['consumer-guide','wire-fraud'],
-    1: ['consumer-guide'],
-    3: ['wire-fraud'],
-    9: ['closing'],
-    10: ['closing']
-  };
-  var _mjDocs = _mjDocMap[i] || [];
-  var _mjNames = {'consumer-guide':'Consumer Guide','wire-fraud':'Wire Fraud Alert','closing':'Closing Statement'};
-  // Remove any previous doc chips
+  // Mortgage doc chips removed — docs now stream from tagged Doc Generator templates on the buyer/seller trails
   var prevChips = document.getElementById('mj-doc-chips');
   if (prevChips) prevChips.remove();
-  if (_mjDocs.length) {
-    var wrap = document.createElement('div');
-    wrap.id = 'mj-doc-chips';
-    wrap.style.cssText = 'margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);';
-    var lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
-    lbl.textContent = 'Documents for this step';
-    wrap.appendChild(lbl);
-    var row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-    _mjDocs.forEach(function(dk) {
-      var btn = document.createElement('button');
-      btn.className = 'btn btn-sm';
-      btn.style.cssText = 'background:#EFF6FF;color:#185FA5;border-color:#B5D4F4;font-size:11.5px;';
-      btn.textContent = _mjNames[dk] || dk;
-      (function(key){ btn.onclick = function(){
-        document.getElementById('mj-detail').style.display='none';
-        go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
-        setTimeout(function(){ var s=document.getElementById('de-doc'); if(s){s.value=key;showDocInfo();explainDoc();} },300);
-      }; })(dk);
-      row.appendChild(btn);
-    });
-    wrap.appendChild(row);
-    act.parentNode.appendChild(wrap);
-  }
 
   var det = document.getElementById('mj-detail');
   det.style.display='block';
@@ -14941,335 +14810,10 @@ const _origLoadProps = loadProperties;
 
 
 // ─── DOCUMENT EXPLAINER ───
-const DOC_PDFS = {
-  'wire-fraud': 'https://drive.google.com/file/d/19ZXyopnWzew1RoZw-4_sGQ2w3dX8AJuL/preview',
-  'disclosure': 'https://drive.google.com/file/d/1NI_KDiIDWSaXXKGLF8sIlal0Ohi-ipBw/preview',
-  'contingency': 'https://drive.google.com/file/d/14L8h1cSH97XAIZBzjz62DWUQTMT1QSBW/preview',
-  'purchase': 'https://drive.google.com/file/d/18hSRXIk-scF-pwttW59EwYZiv8NcGmUn/preview',
-  'buyer-rep': 'https://drive.google.com/file/d/1DF7tds1cI73Y45Gi183etgVQEZ9a-sA-/preview',
-  'consumer-guide': 'https://drive.google.com/file/d/1NcFDrCH6DJ6Qh4MPH3XQMocTSO0mYeUb/preview',
-  'agency': 'https://drive.google.com/file/d/18Hzgat-_OgR9II5dNF4LWLaPHDsFuKpC/preview',
-  'closing': 'https://drive.google.com/file/d/1f9DcKphE5Sdk97AHbV3MU66dZtQocZOO/preview',
-  'listing-agreement': 'https://drive.google.com/file/d/1wfM--W8ekQJ9wb9J7nn0h4O2glSnSsad/preview',
-  'anti-discrimination': 'https://drive.google.com/file/d/1INycoLGc_2He16QkzYY4mk6day6tkdNu/preview',
-  'listing-prep': 'https://drive.google.com/file/d/1HNXaUZ0mUDgh0E7Z2URwfoqwb64XgwpV/preview',
-};
+const DOC_PDFS = {};
 
 
-const DOC_DATA = {
-  'purchase': {
-    name: 'Residential Purchase Agreement',
-    when: '📋 Used at: Step 4 — Writing Offers',
-    desc: 'This is the main contract used to make an offer on a home. It covers the purchase price, earnest money, loan type, inspection period, closing date, and everything included in the sale. Once signed by both buyer and seller, it becomes a legally binding contract.',
-    context: `RESIDENTIAL PURCHASE AGREEMENT (Real Brokerage / Real of Ohio, Version 12.30.2025)
-
-KEY SECTIONS:
-- DURATION OF OFFER: Offer expires at a set date/time unless accepted
-- EARNEST MONEY: Deposit (typically $1,000-$5,000+) held by listing brokerage or title company, due within 4 days of binding agreement. Returned to buyer if financing falls through or inspection terminates deal
-- FINANCING: Buyer applies within 5 days, appraisal ordered within 5 days, loan commitment within 30 days (all defaults if left blank)
-- CLOSING COSTS: Seller can agree to pay a dollar amount or percentage toward buyer closing costs
-- CLOSING: All documents and funds placed in escrow with title company. Closing funds over $10,000 must be wired
-- POSSESSION: Buyer gets possession at closing unless Post-Closing Possession Addendum signed
-- TITLE: Seller provides marketable title with general warranty deed, free of liens. Seller provides Owner's Fee Policy of Title Insurance
-- INSPECTIONS: Buyer chooses inspections (general, mold, radon, structural, septic, sewer scope, termites, etc.). Default inspection period is 10 days
-- INSPECTION RELEASE: Within 5 days after inspections, buyer must: (1) release contingency, (2) submit Request to Remedy, or (3) terminate. Failure to respond = acceptance of property as-is
-- FIXTURES INCLUDED: All built-ins, appliances, ceiling fans, garage openers, HVAC, water heater, window coverings, etc. unless specifically excluded
-- HOME WARRANTY: Optional - buyer or seller can pay
-- PROPERTY DISCLOSURE: Seller must provide Ohio Residential Property Disclosure Form within 3 days of acceptance
-- LEAD PAINT: Required disclosure for homes built before 1978
-- EARNEST MONEY DISPUTE: If buyer and seller disagree, escrow agent holds funds until written agreement or court order. Returns to buyer after 2 years if unresolved
-- WIRE FRAUD WARNING: Never wire money based on email instructions alone - always verify by phone
-- BUYER BROKER COMPENSATION: Seller agrees to pay buyer's agent at closing (amount filled in)
-- ENTIRE AGREEMENT: All changes must be in writing and signed by all parties`,
-    qs: [
-      'What happens to my earnest money if I back out?',
-      'What does the inspection period mean and how long do I have?',
-      'What is included in the sale vs what can the seller keep?',
-      'What does "time is of the essence" mean for me?',
-      'What if the appraisal comes in lower than the purchase price?',
-      'When do I actually get the keys?'
-    ]
-  },
-  'buyer-rep': {
-    name: 'Exclusive Buyer Representation Agreement',
-    when: '🤝 Used at: Step 1 — Initial Consultation',
-    desc: 'This agreement establishes that {agentFull} is exclusively representing you as a buyer. It spells out what {agentFirst} must do for you, how compensation works, and how long the agreement lasts.',
-    context: `EXCLUSIVE BUYER REPRESENTATION AGREEMENT (Ohio REALTORS, v2.7.1, 2024)
-
-KEY SECTIONS:
-- PURPOSE: Grants Brokerage exclusive right to locate property and assist in negotiations on buyer's behalf
-- TERM: Agreement runs from start date to end date. Automatically extends through closing if under contract
-- DUTIES OF BROKERAGE ({agentFirst} must by Ohio law):
-  * Exercise reasonable skill and care
-  * Follow buyer's lawful instructions
-  * Be loyal to buyer's interests
-  * Disclose material facts
-  * Keep confidential information confidential
-  * Advise buyer to seek expert advice when needed
-  * Account for all money received
-- CONTEMPORANEOUS OFFERS: {agentFirst} can represent multiple buyers at same time. If two of {agentPossessive} buyers want same property, {agentFirst} must notify both in writing - buyer can request referral to another agent
-- DUAL AGENCY: If buyer wants to purchase a Real Brokerage listing, dual agency situation exists - {agentFirst} would represent both buyer and seller in neutral capacity. Buyer consents or does not consent
-- DUTIES OF BUYER: Use {agentFirst} exclusively, cooperate, provide requested information, don't record video/photos without seller's written consent
-- COMPENSATION: Broker fees not set by law - fully negotiable. Can be paid by seller, buyer, or third party. Buyer pays brokerage per agreed terms; offset by any compensation received from seller's side. Brokerage cannot retain more than buyer's obligation
-- DISPUTE RESOLUTION: Disputes go to binding arbitration (American Arbitration Association) - parties give up right to jury trial
-- WIRE FRAUD: Never send funds or personal info by email - always verify by phone`,
-    qs: [
-      'What does "exclusive" mean — can I work with other agents?',
-      'What does {agentFirst} legally have to do for me?',
-      'How does {agentFirst} get paid and do I owe money?',
-      'What is dual agency and should I be worried about it?',
-      'What happens if {agentFirst} and I have a disagreement?',
-      'Can I get out of this agreement if things don\'t work out?'
-    ]
-  },
-  'agency': {
-    name: 'Agency Disclosure Statement',
-    when: '📋 Used at: Step 4 — Writing Offers (attached to purchase agreement)',
-    desc: 'Required by Ohio law. This form identifies exactly who each agent in the transaction is working for — you (the buyer) or the seller. Signing this confirms you understand the relationship, not that you owe anyone money.',
-    context: `AGENCY DISCLOSURE STATEMENT (Ohio, Effective 02/10/19)
-
-KEY SECTIONS:
-- PURPOSE: Required by Ohio law. Confirms buyer has been advised of the role of agents in the transaction. SIGNING DOES NOT OBLIGATE YOU TO PAY THE AGENT
-- THREE POSSIBLE SCENARIOS:
-  1. TWO AGENTS IN DIFFERENT BROKERAGES: Your agent represents only you. Seller's agent represents only seller. Clean separation
-  2. TWO AGENTS IN SAME BROKERAGE: Two agents from same company each represent their own client. Brokerage itself acts as dual agent (neutral)
-  3. ONE AGENT: Single agent either acts as dual agent (neutral for both) OR represents only one party while other party represents themselves
-- DUAL AGENCY EXPLAINED:
-  * Dual agent must treat both parties honestly
-  * Cannot advocate for one side over the other
-  * Cannot disclose confidential info that would give one party advantage
-  * Cannot suggest specific terms or prices
-  * Cannot act in biased manner for one party
-- CONSENT: By signing, buyer confirms they understand the agency relationship disclosed and voluntarily consent to it
-- RIGHT TO REFUSE: If buyer does not agree to dual agency, they can request a different agent in the brokerage or go to another brokerage entirely`,
-    qs: [
-      'Does signing this mean I owe the agent money?',
-      'What is dual agency and what does it mean for me?',
-      'Who is the agent working for in my transaction?',
-      'What can I do if I don\'t want dual agency?',
-      'What can and can\'t a dual agent tell me?'
-    ]
-  },
-  'consumer-guide': {
-    name: 'Consumer Guide to Agency Relationships',
-    when: '📖 Used at: Step 1 — Initial Consultation',
-    desc: 'An informational document from Real of Ohio explaining the different types of agent relationships available to buyers and sellers in Ohio. Required by law — signing just confirms you received it.',
-    context: `CONSUMER GUIDE TO AGENCY RELATIONSHIPS (Real of Ohio, Last Revised December 2024)
-
-KEY INFORMATION:
-- SELLER REPRESENTATION: Listing agent must follow seller's lawful instructions, be loyal to seller, promote seller's best interests, disclose material facts, maintain confidentiality, act with skill and care, account for money
-- BUYER REPRESENTATION: Buyer's agent must follow buyer's lawful instructions, be loyal to buyer, promote buyer's best interests, disclose material facts, maintain confidentiality, account for money. ALL buyers must sign written agency agreement before touring homes or making offers
-- WHAT BUYER AGREEMENT MUST INCLUDE: Expiration dates, fair housing info, relationship exclusivity, compensation terms. Must state broker fees are NOT set by law and are fully negotiable
-- DUAL AGENCY (Real of Ohio specific): Real of Ohio represents both buyers and sellers. If one Real of Ohio agent represents a buyer who wants to buy a Real of Ohio listing, each agent represents their own client but Real of Ohio acts as dual agent (neutral). If SAME agent represents both - that agent and Real of Ohio are dual agents only if both parties agree in writing
-- SELF-REPRESENTATION: Buyer can choose to represent themselves on Real of Ohio listings. In that case, listing agent represents seller and buyer represents own interests. Don't share info with listing agent you wouldn't want seller to know
-- FAIR HOUSING: Illegal to discriminate based on race, color, religion, sex, familial status, ancestry, military status, disability, or national origin
-- SIGNATURE: Signing this guide only confirms receipt - does NOT obligate you to work with Real of Ohio`,
-    qs: [
-      'Does signing this obligate me to work with Real of Ohio?',
-      'What is the difference between a buyer\'s agent and a seller\'s agent?',
-      'Why do I have to sign a buyer agreement before seeing homes?',
-      'What is dual agency and how does it work at Real of Ohio?',
-      'What are my fair housing rights as a buyer?'
-    ]
-  },
-  'contingency': {
-    name: 'Amendment — Removal of Contingencies',
-    when: '✂️ Used at: Step 7 — After Home Inspection',
-    desc: 'This amendment is used after inspections to formally respond. Buyer can fully remove contingencies (accepting the home as-is), remove contingencies subject to agreed conditions (repairs/credits), or the parties can negotiate specific terms here.',
-    context: `AMENDMENT TO PURCHASE AGREEMENT FOR REMOVAL OF CONTINGENCIES (Real Brokerage)
-
-KEY SECTIONS:
-- PURPOSE: Amendment to the original Purchase Agreement — used after inspections to formally document how buyer and seller are moving forward
-- CONCURRENCY: Can be removed cleanly or removed subject to conditions listed below
-- INSPECTION CONTINGENCIES THAT CAN BE ADDRESSED:
-  (a) General Home Inspection
-  (b) Septic Tank Inspection  
-  (c) Well Water Flow Rate
-  (d) Potability Inspection
-  (e) Termite/Wood Destroying Insects
-  (f) Radon
-  (g) Other inspections
-- TWO OPTIONS FOR EACH:
-  * REMOVED: Buyer fully accepts property, contingency is gone, deal moves forward as-is for that item
-  * REMOVED SUBJECT TO CONDITION LISTED BELOW: Contingency removed BUT only because seller agreed to specific conditions (repairs, credits, price reduction)
-- CONDITIONS SECTION: Where specific agreed repairs or credits are written in detail
-- ALL OTHER TERMS: Rest of purchase agreement remains in full force
-- SIGNATURES REQUIRED: Both buyers and both sellers must sign and date
-- CONTEXT: This comes after buyer submits "Request to Remedy" and seller agrees to terms. This formally closes the inspection contingency so the deal can proceed to closing`,
-    qs: [
-      'What does "removing a contingency" actually mean?',
-      'If I remove the inspection contingency, can I still back out?',
-      'What should I make sure is in the Conditions section?',
-      'What happens if the seller doesn\'t do the agreed repairs?',
-      'Do I have to remove all contingencies at once?',
-      'What is the difference between removing and waiving an inspection?'
-    ]
-  },
-  'disclosure': {
-    name: 'Ohio Residential Property Disclosure Form',
-    when: '🏠 Used at: Step 5 — Under Contract (within 3 days of acceptance)',
-    desc: 'Required by Ohio law (O.R.C. 5302.30). The seller fills this out disclosing known issues with the property — water, sewer, roof, foundation, electrical, plumbing, mold, hazardous materials, and more. This is based on the seller\'s ACTUAL KNOWLEDGE only.',
-    context: `STATE OF OHIO RESIDENTIAL PROPERTY DISCLOSURE FORM (Eff. 6/2022, O.R.C. 5302.30)
-
-KEY SECTIONS THE SELLER MUST DISCLOSE:
-A) WATER SUPPLY: Source (public, well, shared), any leaks or problems, water quantity
-B) SEWER SYSTEM: Type (public, septic, leach field), any leaks, backups, last inspection date
-C) ROOF: Any current or previous leaks, gutter problems
-D) WATER INTRUSION: Any water leakage, moisture, flooding in basement/crawl space, mold inspection history
-E) STRUCTURAL: Foundation problems, settling, cracks, floor issues, fire/smoke damage
-F) WOOD DESTROYING INSECTS/TERMITES: Any history or current presence
-G) MECHANICAL SYSTEMS: Problems with electrical, plumbing, central heat, central A/C, sump pump, fireplace, sprinklers, water softener, security system, vacuum, appliances
-H) HAZARDOUS MATERIALS: Lead paint, asbestos, urea-formaldehyde insulation, radon gas levels, other toxic substances
-I) UNDERGROUND STORAGE TANKS/WELLS: Any underground tanks, oil/gas wells, abandoned wells, mineral rights leases
-J) FLOOD PLAIN: Whether property is in designated flood plain or Lake Erie Coastal Erosion Area
-K) DRAINAGE/EROSION: Any flooding, drainage, settling, grading or erosion problems
-L) ZONING/CODE VIOLATIONS: Any violations, historic designation, proposed assessments, HOA/community association fees
-M) BOUNDARY LINES: Disputes, encroachments, shared driveways, party walls
-N) OTHER KNOWN MATERIAL DEFECTS: Any other non-observable physical conditions dangerous to occupants
-
-IMPORTANT BUYER RIGHTS:
-- If seller doesn't provide this form before you sign the purchase agreement, seller must provide it within 3 days of acceptance
-- You then have 3 days to review and either approve or terminate
-- Form is based on SELLER'S ACTUAL KNOWLEDGE only - not a warranty
-- Does NOT replace professional inspections
-- Buyer should still get full inspection even if disclosure looks clean`,
-    qs: [
-      'If the seller says "No" to everything, does that mean the house is fine?',
-      'What happens if the seller lied or forgot to disclose something?',
-      'Can I back out after reviewing the disclosure?',
-      'Should I still get an inspection if the disclosure looks clean?',
-      'What does "Unknown" mean when the seller checks that box?',
-      'What is a material defect under Ohio law?'
-    ]
-  },
-  'wire-fraud': {
-    name: 'Wire Fraud Alert',
-    when: '⚠️ Used at: Step 4 — Writing Offers & Step 11 — Closing',
-    desc: 'A warning document about a very real and growing crime. Criminals hack email accounts and send fake wire transfer instructions. Once money is sent to a fraudulent account it is almost never recovered. This is why you always verify wiring instructions by PHONE — never by email.',
-    context: `WIRE FRAUD ALERT (Real Brokerage)
-
-KEY WARNINGS:
-- Wire fraud is increasingly common in real estate transactions — criminals specifically target real estate because large sums of money are transferred
-- COMMON SCHEME: Hackers break into email accounts (of agents, title companies, lenders) and intercept or replace wire instructions. They send "updated" instructions that look legitimate, including copied logos and personal information
-- SENSE OF URGENCY: Fraudulent emails often create urgency — "you must wire TODAY" — to prevent you from stopping to verify
-- FUNDS SENT TO FRAUDULENT ACCOUNTS: Almost never recovered. Banks are not liable for following your wire instructions even if they were fraudulent
-
-RULES TO FOLLOW:
-1. ALWAYS confirm wire instructions by personally SPEAKING with the intended recipient (title company, escrow officer)
-2. Do NOT use the phone number in the email — find the number independently (from original documents, company website)
-3. NEVER send funds based on email instructions alone — even if the email looks 100% legitimate
-4. NEVER email personal or financial information (SSN, credit card, bank account numbers, routing numbers)
-5. If you receive an email requesting personal/financial info or asking you to click a link — call your escrow officer at a verified number BEFORE doing anything
-6. If you suspect fraud — immediately contact your broker, title company, and loan officer
-
-WHEN DOES THIS APPLY: Any time you wire money — earnest money deposit, down payment, closing funds`,
-    qs: [
-      'How do I safely send my earnest money?',
-      'How do I verify wire instructions are legitimate?',
-      'What do I do if I think I received fraudulent wire instructions?',
-      'Can the bank recover my money if I wire to the wrong account?',
-      'What information should I never send by email?',
-      'Is it safer to bring a cashier\'s check instead of wiring?'
-    ]
-  },
-  'closing': {
-    name: 'Closing Settlement Statement (HUD/ALTA)',
-    when: '💰 Used at: Step 11 — Closing Day',
-    desc: 'The closing settlement statement (also called the ALTA Settlement Statement or HUD-1) is the final accounting of where every dollar goes at closing. It shows exactly what the buyer pays and what the seller receives after all costs, commissions, taxes, and credits are applied.',
-    context: `CLOSING SETTLEMENT STATEMENT (Ohio, standard form)
-
-KEY SECTIONS:
-SELLER'S COLUMN (what happens on seller's side):
-- 1a. Sales Price: Full purchase price
-- 2a. Down Payment: Buyer's down payment credit
-- 3a. Balance: Sales price minus down payment (= loan amount roughly)
-- 4a-19a. Expenses: All seller's costs:
-  * Title search, recording fees, title insurance
-  * Attorney fees, notary fees, survey
-  * Real estate commission
-  * Any other negotiated costs
-- 20a. Total Expenses: Sum of all seller costs
-- 21a. Balance Less Expenses: What seller actually nets
-- 22a-30a. Other Adjustments: Tax prorations, special assessments, HOA dues prorated to closing date
-- 31a. Balance Due to Seller: Final amount seller receives at closing
-
-BUYER'S COLUMN (what buyer pays):
-- 1b. Sales Price: Full purchase price
-- 2b. Down Payment: Amount buyer is putting down
-- 3b. Balance: Remaining balance (= mortgage amount)
-- 4b-19b. Expenses: All buyer's costs:
-  * Title search, recording fees, title insurance (buyer's half)
-  * Attorney fees, notary
-  * Survey (if applicable)
-  * Buyer's broker compensation (if any)
-- 20b. Total Expenses: Sum of all buyer costs
-- 21b. Balance Plus Expenses: Total buyer must pay
-- 22b-30b. Other Adjustments: Tax credits, HOA prorations, seller credits applied
-- 31b. Balance Due From Buyer: Final cash to close (wire or cashier's check)
-- 32b. Total Due From/To Buyer: Grand total
-
-IMPORTANT: Compare to your Closing Disclosure (CD) sent 3 days before closing. Numbers should match. Any significant difference should be questioned with title company and {agentFirst}.`,
-    qs: [
-      'What is "cash to close" and how is it calculated?',
-      'What are tax prorations and why do they appear on my statement?',
-      'Why am I paying half the title insurance — isn\'t that the seller\'s responsibility?',
-      'What are recording fees?',
-      'How does my seller credit appear on the closing statement?',
-      'Should my closing statement match my Closing Disclosure exactly?'
-    ]
-  },
-  'other': {
-    name: 'General Question',
-    when: '❓ Any time during your transaction',
-    desc: 'Have a general real estate question or something from a document not listed? Describe it here and Claude will explain it using knowledge of Ohio real estate law and standard practice.',
-    context: 'General Ohio real estate transaction knowledge base. {agentFull}, REALTOR, Greater Cleveland / west suburbs market. Mortgage questions are handled by Tom Garuccio.',
-    qs: [
-      'What is earnest money and when do I get it back?',
-      'What is title insurance and do I really need it?',
-      'What does "as-is" mean in a real estate contract?',
-      'What is a contingency and why does it matter?',
-      'What is a deed and when do I get it?',
-      'What does it mean to be "in escrow"?'
-    ]
-  },
-  'listing-agreement': {
-    name: 'Listing Agreement',
-    when: '📝 Signed at: Initial Listing Consultation — Step 1',
-    desc: 'This is the contract between you (the seller) and your agent that authorizes them to list and market your home. It defines the listing price, commission, listing period, and what happens if the home sells. Once signed, your agent represents you exclusively.',
-    context: 'Ohio Listing Agreement / Exclusive Right to Sell. Seller authorizes agent to list property on MLS and market it. Key terms include: listing price, commission rate, listing period (typically 90-180 days), what triggers commission (sale during listing period or within a protection period after), seller obligations, agent marketing duties, and termination conditions.',
-    qs: [
-      'What does "exclusive right to sell" mean?',
-      'What happens if I find my own buyer?',
-      'Can I cancel this agreement?',
-      'What is the protection period after the listing expires?',
-      'What is included in the commission?'
-    ]
-  },
-  'anti-discrimination': {
-    name: 'Ohio Anti-Discrimination Notice',
-    when: '⚖️ Signed at: Initial Listing Consultation — Step 1',
-    desc: 'This document confirms that your property will be marketed and sold in compliance with federal and Ohio fair housing laws. As a seller, you agree not to discriminate based on race, color, religion, sex, national origin, disability, familial status, or ancestry.',
-    context: 'Ohio Anti-Discrimination Notice / Fair Housing Compliance. Required by Ohio law. Seller acknowledges federal Fair Housing Act and Ohio Civil Rights Act requirements. Property must be made available to all qualified buyers regardless of protected class. Agent cannot follow discriminatory instructions from seller.',
-    qs: [
-      'What are the protected classes under fair housing law?',
-      'What am I agreeing to as a seller?',
-      'Can I choose who I sell to?',
-      'What happens if fair housing laws are violated?'
-    ]
-  },
-  'listing-prep': {
-    name: 'Listing Prep Checklist',
-    when: '🏡 Used at: Step 2 — Home Prep & Strategy',
-    desc: 'A comprehensive checklist of everything to do before your home hits the market. Covers curb appeal, interior improvements, staging tips, cleaning, repairs, and what buyers notice most during showings.',
-    context: 'Listing Prep Checklist — Pre-market preparation guide. Covers: exterior/curb appeal (paint, landscaping, driveway), interior repairs (fixtures, caulk, grout, doors), deep cleaning (windows, baseboards, appliances), decluttering and depersonalizing, staging key rooms (living room, kitchen, master bedroom), odor elimination, lighting improvements, and photo-ready tips.',
-    qs: [
-      'What updates give the best return on investment?',
-      'Do I need to fix everything before listing?',
-      'How important is staging?',
-      'What do buyers notice most during showings?'
-    ]
-  }
-};
+const DOC_DATA = {};
 
 // ── Doc Explainer: template-backed (reads the agent's real uploaded docs) ──
 var _tplTextCache = {};
@@ -15343,60 +14887,42 @@ async function _explainTemplate(id){
 }
 window._explainTemplate=_explainTemplate;
 
+// Open a template in the Document Explainer (used by trail chips + home popups).
+function openDocInExplainer(tplId){
+  go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
+  setTimeout(function(){
+    if(typeof _populateDocExplainer==='function'){
+      _populateDocExplainer().then(function(){
+        var s=document.getElementById('de-doc'); if(s){ s.value='tpl:'+tplId; showDocInfo(); }
+      });
+    }
+  }, 200);
+}
+window.openDocInExplainer = openDocInExplainer;
+
+// Build "Documents for this step" buttons from tagged templates (string form, for home popups).
+function _tplDocBtnsHtml(matchFn, popupId, accent){
+  var tpls=(window._dtTemplates||[]).filter(matchFn);
+  if(!tpls.length) return '';
+  var style = (accent==='seller') ? 'background:#FEF3C7;color:#92400E;border-color:#F59E0B;' : 'background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;';
+  var hide = popupId ? ("document.getElementById('"+popupId+"').style.display='none';") : '';
+  return '<div style="width:100%;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border);">'
+    +'<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:7px;">Documents for this step</div>'
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+    + tpls.map(function(tp){ return '<button class="btn btn-sm" style="'+style+'font-size:11.5px;" onclick="'+hide+'openDocInExplainer(\''+tp.id+'\')">'+escapeHtml(tp.name||'Document')+'</button>'; }).join('')
+    +'</div></div>';
+}
+window._tplDocBtnsHtml = _tplDocBtnsHtml;
+
 function showDocInfo() {
   const val = document.getElementById('de-doc').value;
   if (val && val.indexOf('tpl:')===0) { _showTemplateDoc(val.slice(4)); return; }
-  const doc = DOC_DATA[val];
-  const ctx = document.getElementById('de-doc-context');
-  const split = document.getElementById('de-split');
-  const empty = document.getElementById('de-empty');
-  const qs = document.getElementById('de-common-qs');
-
-  if (!doc || !val) {
-    ctx.style.display = 'none';
-    if (split) split.style.display = 'none';
-    if (empty) empty.style.display = 'block';
-    return;
-  }
-
-  // Show doc info
-  document.getElementById('de-doc-desc').textContent = doc.desc;
-  document.getElementById('de-doc-when').textContent = doc.when;
-  ctx.style.display = 'block';
-
-  // Common questions
-  document.getElementById('de-qs-list').innerHTML = doc.qs.map(q =>
-    `<button class="btn btn-sm" onclick="quickDocQ(this.textContent)">${q}</button>`
-  ).join('');
-  qs.style.display = 'block';
-
-  // Load PDF if available
-  const pdfUrl = DOC_PDFS[val];
-  const frame = document.getElementById('de-pdf-frame');
-  const titleEl = document.getElementById('de-pdf-title');
-  const linkEl = document.getElementById('de-pdf-link');
-
-  if (split) {
-    split.style.display = 'flex';
-    if (empty) empty.style.display = 'none';
-  }
-
-  if (pdfUrl && frame) {
-    frame.src = pdfUrl;
-    if (titleEl) titleEl.textContent = doc.name;
-    if (linkEl) {
-      // Convert preview URL back to view URL for the open link
-      linkEl.href = pdfUrl.replace('/preview', '/view');
-    }
-    if (frame.parentElement) frame.parentElement.style.display = 'block';
-  } else if (frame) {
-    // No PDF - hide the viewer for 'other' type
-    if (frame.parentElement) frame.parentElement.style.display = 'none';
-  }
-
-  // Reset result
-  const out = document.getElementById('de-result');
-  if (out) out.style.display = 'none';
+  var ctx = document.getElementById('de-doc-context');
+  var split = document.getElementById('de-split');
+  var empty = document.getElementById('de-empty');
+  if (ctx) ctx.style.display = 'none';
+  if (split) split.style.display = 'none';
+  if (empty) empty.style.display = 'block';
 }
 window.showDocInfo = showDocInfo;
 
@@ -15410,46 +14936,7 @@ window.quickDocQ = quickDocQ;
 async function explainDoc() {
   const docKey = document.getElementById('de-doc').value;
   if (docKey && docKey.indexOf('tpl:')===0) { return _explainTemplate(docKey.slice(4)); }
-  const text = document.getElementById('de-text').value.trim();
-  const question = document.getElementById('de-question').value.trim();
-  if (!docKey) { alert('Please select a document first'); return; }
-  // If no question provided, give overview
-  if (!text && !question) {
-    document.getElementById('de-question').value = 'Give me a plain-English overview of what this document is, when I sign it, and the most important things I should understand as a buyer.';
-  }
-  const doc = DOC_DATA[docKey];
-  const out = document.getElementById('de-result'); think(out);
-  try {
-    const prompt = `You are a real estate expert helping a home buyer understand their transaction documents. You work with {agentFull} as the buyer's REALTOR. Mortgage and pre-approval questions are handled by Tom Garuccio.
-
-DOCUMENT: ${A(doc.name)}
-${A(doc.when)}
-
-FULL DOCUMENT KNOWLEDGE BASE:
-${A(doc.context)}
-
-${text ? `SECTION THE BUYER IS CONFUSED BY:
-"${text}"` : ''}
-
-${question ? `BUYER'S QUESTION: ${question}` : ''}
-
-Explain this clearly in plain English as if talking to a first-time home buyer. Be:
-- Direct and clear — no legal jargon without explanation
-- Honest about what it means for them specifically
-- Practical — what do they need to DO or KNOW based on this?
-- Brief with a clear bottom line
-
-End with: "Questions? Ask {agentFirst}." — keep it friendly.
-
-IMPORTANT: This is explanation only, not legal advice. For anything complex, always recommend they consult {agentFirst} or an attorney.`;
-
-    const d = await claudeAPI({model:CLAUDE_MODEL, max_tokens:900, messages:[{role:'user', content:prompt}]});
-    out.innerHTML = `<div class="ai-resp">${d.content[0].text}</div>`;
-    out.style.display = 'block';
-  } catch(e) {
-    out.innerHTML = `<div class="ai-resp" style="color:var(--red-dk);">Failed: ${e.message}</div>`;
-    out.style.display = 'block';
-  }
+  alert('Please select a document first.');
 }
 window.explainDoc = explainDoc;
 
