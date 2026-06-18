@@ -11421,28 +11421,52 @@ window.openDealRoom = openDealRoom;
 // ── Slice 2: step content posts into the client's room (concise + video link); email keeps the full breakdown ──
 function _streamWatchUrl(vid){ return vid ? ('https://iframe.cloudflarestream.com/'+vid) : ''; }
 
-function _stepChatParts(isSeller, stepNum){
+function _emailToChatText(html){
+  if(!html) return '';
+  var s = String(html)
+    .replace(/\{\{DATES_TABLE\}\}/g, '')
+    .replace(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, function(m,href,label){ var L=String(label).replace(/<[^>]+>/g,'').trim(); return (L?L+': ':'')+href; })
+    .replace(/<li[^>]*>/gi, '\n\u2022 ')
+    .replace(/<\/(p|div|ul|ol|h[1-6]|tr)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+  var tmp = document.createElement('textarea');
+  tmp.innerHTML = s;
+  var text = tmp.value;
+  return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
+}
+
+function _stepChatParts(isSeller, stepNum, client){
+  var emap = isSeller ? ((typeof SELLER_STEP_EMAILS!=='undefined')?SELLER_STEP_EMAILS:{}) : ((typeof BUYER_STEP_EMAILS!=='undefined')?BUYER_STEP_EMAILS:{});
+  var def = emap[stepNum];
+  var first = (client && client.firstName) || 'there';
+  var agentObj = (client && typeof DEFAULT_AGENTS!=='undefined') ? DEFAULT_AGENTS.find(function(a){ return a.id===client.agentId; }) : null;
+  var agentName = agentObj ? agentObj.name : ((((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim() || 'Your Agent');
   var steps = isSeller ? ((typeof SELLER_STEPS!=='undefined')?SELLER_STEPS:[]) : ((typeof TIMELINE_STEPS!=='undefined')?TIMELINE_STEPS:[]);
-  var idx=-1;
-  for(var i=0;i<steps.length;i++){ if((steps[i].id||(i+1))===stepNum){ idx=i; break; } }
-  if(idx<0) idx=Math.max(0,Math.min(steps.length-1, stepNum-1));
-  var s = steps[idx]||{};
-  var title = s.name || s.title || ('Step '+stepNum);
-  var body = (s.summary || s.body || '').trim();
-  var bullets = s.bullets || [];
-  var tip = (s.tip || '').trim();
-  var url = _streamWatchUrl(s.videoId);
-  var text = '\uD83D\uDCCD You\u2019re now at: ' + title;
-  if(body) text += '\n\n' + body;
-  if(bullets && bullets.length){ text += '\n'; for(var b=0;b<bullets.length;b++){ text += '\n\u2022 ' + bullets[b]; } }
-  if(tip) text += '\n\n\uD83D\uDCA1 ' + tip;
-  if(url) text += '\n\n\u25B6 Watch: ' + url;
-  return { title:title, text:text };
+  var sidx=-1; for(var i=0;i<steps.length;i++){ if((steps[i].id||(i+1))===stepNum){ sidx=i; break; } }
+  if(sidx<0) sidx=Math.max(0,Math.min(steps.length-1, stepNum-1));
+  var sObj = steps[sidx]||{};
+  var videoUrl = _streamWatchUrl(sObj.videoId);
+  var subject = def ? A(def.subject||'') : (sObj.name || sObj.title || ('Step '+stepNum));
+  var text='';
+  if(def && typeof def.body==='function'){
+    try { text = _emailToChatText(def.body(first, agentName)); } catch(e){ text=''; }
+  }
+  if(!text){
+    text = A((sObj.summary || sObj.body || '')).trim();
+    var bl = sObj.bullets || [];
+    if(bl.length){ text += '\n'; for(var b=0;b<bl.length;b++){ text += '\n\u2022 ' + A(bl[b]); } }
+    if(sObj.tip) text += '\n\n\uD83D\uDCA1 ' + A(sObj.tip);
+  }
+  var full = (subject ? subject + '\n\n' : '') + (text||'');
+  if(videoUrl) full += '\n\n\u25B6 Watch: ' + videoUrl;
+  return { title: subject || ('Step '+stepNum), text: full.replace(/^\s+|\s+$/g,'') };
 }
 
 function _postStepToChat(clientUid, isSeller, stepNum){
   if(!clientUid) return;
-  var p = _stepChatParts(isSeller, stepNum);
+  var client = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(b){ return b.uid===clientUid; }) : null;
+  var p = _stepChatParts(isSeller, stepNum, client);
   if(!p || !p.text) return;
   var agentName = (((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim()||'Your Agent';
   try{
