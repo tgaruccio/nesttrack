@@ -2424,6 +2424,10 @@ textarea{resize:vertical;min-height:68px;}
     <button onclick="setCRMFilter('past')" id="crm-tab-past" style="flex:1;padding:7px 4px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Past</button>
     <button onclick="setCRMFilter('contact')" id="crm-tab-contact" style="flex:1;padding:7px 4px;font-size:11px;font-weight:500;background:var(--surface);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Contact</button>
   </div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+    <label style="font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0;">Segment:</label>
+    <select id="segment-filter" onchange="setSegmentFilter(this.value)" style="flex:1;max-width:260px;font-size:12px;"><option value="all">All segments</option></select>
+  </div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
   </div>
@@ -3084,11 +3088,16 @@ textarea{resize:vertical;min-height:68px;}
 <div class="mo" id="import-modal" style="display:none;">
   <div class="mbox" style="max-width:520px;">
     <div class="mhdr"><div class="mtitle">Import Contacts from CSV</div><button class="xbtn" onclick="closeM('import-modal')">✕</button></div>
-    <div class="notice">CSV should have columns: <strong>firstName, lastName, email, phone, crmStatus, journeyType</strong>. Extra columns are ignored.</div>
+    <div class="notice">CSV should have columns: <strong>firstName, lastName, email, phone, crmStatus, journeyType</strong>. Optional: <strong>segment</strong>. Extra columns are ignored.</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
       <div>
         <label class="flabel">Upload CSV File</label>
         <input type="file" id="import-csv-file" accept=".csv" style="font-size:13px;" onchange="previewCSV(event)"/>
+      </div>
+      <div>
+        <label class="flabel">Segment / Source <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
+        <input type="text" id="import-segment" placeholder="e.g. March FB Ad, Spring Home Expo, FSBO 44130" style="width:100%;box-sizing:border-box;font-size:13px;"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;">Tags this whole upload so you can filter and bulk-manage them later. A &quot;segment&quot; column in your CSV overrides this per row.</div>
       </div>
       <a href="#" onclick="downloadCSVTemplate();return false;" style="font-size:12px;color:var(--green-dk);">⬇ Download template CSV</a>
       <div id="import-preview" style="display:none;flex-direction:column;gap:8px;">
@@ -10320,6 +10329,25 @@ async function renderBuyers() {
     });
   }
 
+  // Segment dropdown options (from this agent's contacts, independent of active filters) + apply segment filter
+  var _segSet = {};
+  (allBuyers||[]).forEach(function(b){
+    var mine = (b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId || (isOwner() && _adminShowAll));
+    if (mine && b.segment) _segSet[b.segment] = 1;
+  });
+  var _segOpts = Object.keys(_segSet).sort();
+  var _segSel = document.getElementById('segment-filter');
+  if (_segSel) {
+    var _segCur = window._segmentFilter || 'all';
+    if (_segCur !== 'all' && _segOpts.indexOf(_segCur) < 0) { window._segmentFilter = 'all'; _segCur = 'all'; }
+    _segSel.innerHTML = '<option value="all">All segments</option>' + _segOpts.map(function(s){
+      return '<option value="'+s.replace(/"/g,'&quot;')+'"'+(s===_segCur?' selected':'')+'>'+s+'</option>';
+    }).join('');
+  }
+  if (window._segmentFilter && window._segmentFilter !== 'all') {
+    myBuyers = myBuyers.filter(function(b){ return (b.segment||'') === window._segmentFilter; });
+  }
+
   const total = myBuyers.length;
   const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
   const closed = myBuyers.filter(b => (b.currentStep||1) === 11).length;
@@ -10378,7 +10406,7 @@ async function renderBuyers() {
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
-        <div>${crmStatusPill(b)}</div>
+        <div>${crmStatusPill(b)}${b.segment?' <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:#EEF2FF;color:#4F46E5;">&#127991; '+b.segment+'</span>':''}</div>
         ${agentLine}${coAgentLine}
         ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; if(!b.pending) ctBtns+=' <button onclick="event.stopPropagation();go(\'messages\',document.querySelector(\'[data-pg=messages]\'));setTimeout(function(){openMsgThread(\''+b.uid+'\')},400);" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 9px;font-size:10.5px;cursor:pointer;">&#128172; Message</button>'; ctBtns+='</div>'; } return ctBtns; })()}
       </div>
@@ -22497,6 +22525,10 @@ function setCRMFilter(filter) {
 }
 window.setCRMFilter = setCRMFilter;
 
+window._segmentFilter = 'all';
+function setSegmentFilter(v){ window._segmentFilter = v; renderBuyers(); }
+window.setSegmentFilter = setSegmentFilter;
+
 async function saveClientStatus(uid, status) {
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), {crmStatus: status});
@@ -23638,7 +23670,7 @@ function openImportModal() {
 window.openImportModal = openImportModal;
 
 function downloadCSVTemplate() {
-  var csv = 'firstName,lastName,email,phone,crmStatus,journeyType\nSarah,Mitchell,sarah@email.com,440-555-0100,pipeline,buyer\nJohn,Smith,john@email.com,216-555-0200,active,both\n';
+  var csv = 'firstName,lastName,email,phone,crmStatus,journeyType,segment\nSarah,Mitchell,sarah@email.com,440-555-0100,pipeline,buyer,Spring Home Expo\nJohn,Smith,john@email.com,216-555-0200,active,both,March FB Ad\n';
   var blob = new Blob([csv], {type:'text/csv'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -23669,6 +23701,7 @@ function previewCSV(event) {
         phone: row.phone || '',
         crmStatus: row.crmstatus || row.crm || 'pipeline',
         journeyType: row.journeytype || row.journey || 'buyer',
+        segment: row.segment || row.source || '',
       });
     }
     // Find conflicts
@@ -23733,6 +23766,7 @@ async function confirmImport() {
 
   var toImport = _importRows.filter(function(r){ return !skipEmails.includes((r.email||'').toLowerCase()); });
   var agentId = userProfile.agentId || 'tom';
+  var batchSegment = ((document.getElementById('import-segment')||{}).value||'').trim();
   var imported = 0, failed = 0;
 
   for (var i = 0; i < toImport.length; i++) {
@@ -23745,6 +23779,7 @@ async function confirmImport() {
         agentId: agentId, lenderId: 'none', role: 'buyer',
         journeyType: r.journeyType || 'buyer',
         crmStatus: r.crmStatus || 'pipeline',
+        segment: (r.segment && r.segment.trim()) || batchSegment || '',
         currentStep: 0, currentSellerStep: 0,
         portalAccess: false, isContact: true,
         createdAt: fb.serverTimestamp(),
