@@ -2628,13 +2628,11 @@ textarea{resize:vertical;min-height:68px;}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <label style="font-size:12px;color:var(--text3);font-weight:600;">Year:</label>
       <select id="finance-year" onchange="onFinanceYearChange()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
-      <select id="finance-tag-filter" onchange="renderFinances()" style="display:none;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"><option value="all">All</option><option value="personal">Personal</option><option value="team">Team</option></select>
       <div style="flex:1;"></div>
       <button class="btn btn-sm btn-g" onclick="exportFinancesCSV()">⬇ Export Report</button>
     </div>
     <div id="finance-summary"></div>
-    <div id="finance-income"></div>
-    <div id="finance-expenses"></div>
+    <div id="finance-body"></div>
   </div>
 
   <!-- PROFILE PANEL (via gear icon on dashboard) -->
@@ -6093,20 +6091,33 @@ window.exportTeamStatsCSV = exportTeamStatsCSV;
 
 // ─── MY FINANCES (personal, private to each agent) ───
 var _financeEntries = [];
+var _financeConfig = { incomeLines: [], expenseLines: [] };
 var _financeYear = new Date().getFullYear();
-var FINANCE_INCOME_CATS = ['Commission','Referral Fee','Bonus','Rebate','Other Income'];
-var FINANCE_EXPENSE_CATS = ['Marketing & Ads','Brokerage Fees & Dues','Software & Tools','Mileage & Auto','Gifts & Closing','Signs & Printing','Education','Office & Supplies','Meals','Other'];
+var _finExpanded = {};
+var _finAddCtx = null;
+var FINANCE_INCOME_SEED = ['Mortgage Income','Rev Share','Title Share','Referral Fee'];
+var FINANCE_EXPENSE_SEED = ['Marketing','Transportation','Memberships & Dues','Software & Tools','Office & Supplies'];
 
 function _finCol(){ return fb.collection(fb.db,'finances',currentUser.uid,'entries'); }
 function _finDoc(id){ return fb.doc(fb.db,'finances',currentUser.uid,'entries',id); }
+function _finConfigDoc(){ return fb.doc(fb.db,'finances',currentUser.uid,'meta','config'); }
 function _finFmt(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function _finDateShort(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch(e){ return d||''; } }
 function _finLeader(){ return (typeof isTeamLeader==='function' && isTeamLeader()); }
-function _finCategories(type){
-  var base = type==='income'?FINANCE_INCOME_CATS:FINANCE_EXPENSE_CATS;
-  var set={}; base.forEach(function(c){set[c]=1;});
-  _financeEntries.forEach(function(e){ if(e.type===type && e.category) set[e.category]=1; });
-  return Object.keys(set).sort();
+
+function _finReceivedAgents(){
+  if(_finLeader()){
+    var tid=(typeof _teamStatsTeamId==='function')?_teamStatsTeamId():((userProfile&&(userProfile.teamId||userProfile.agentId))||'tom');
+    return (DEFAULT_AGENTS||[]).filter(function(a){
+      if(!a.id||!a.name) return false;
+      if(typeof agentTeamId==='function' && agentTeamId(a)!==tid) return false;
+      return true;
+    }).map(function(a){ return {id:a.id,name:a.name}; });
+  }
+  var meId=(userProfile&&userProfile.agentId)||'self';
+  var meA=(DEFAULT_AGENTS||[]).find(function(a){return a.id===meId;});
+  var nm=meA?meA.name:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim();
+  return [{ id:meId, name:nm||'Me' }];
 }
 
 async function loadFinances(){
@@ -6114,11 +6125,33 @@ async function loadFinances(){
   try{
     var snap=await fb.getDocs(_finCol());
     _financeEntries=[];
-    snap.forEach(function(d){ var e=d.data(); e.id=d.id; _financeEntries.push(e); });
+    snap.forEach(function(d){
+      var e=d.data(); e.id=d.id;
+      if(!e.section){
+        e.section = (e.type==='income')?'income':'expense';
+        if(!e.lineLabel) e.lineLabel = e.category || 'Other';
+        if(!e.lineKey) e.lineKey = e.lineLabel;
+      }
+      _financeEntries.push(e);
+    });
   }catch(e){ _financeEntries=[]; }
+  try{
+    var c=await fb.getDoc(_finConfigDoc());
+    _financeConfig = (c.exists() ? (c.data()||{}) : {});
+  }catch(e){ _financeConfig={}; }
+  if(!_financeConfig.incomeLines || !_financeConfig.incomeLines.length) _financeConfig.incomeLines = FINANCE_INCOME_SEED.slice();
+  if(!_financeConfig.expenseLines || !_financeConfig.expenseLines.length) _financeConfig.expenseLines = FINANCE_EXPENSE_SEED.slice();
+  _financeEntries.forEach(function(e){
+    if(e.section==='income' && e.lineLabel && _financeConfig.incomeLines.indexOf(e.lineLabel)<0) _financeConfig.incomeLines.push(e.lineLabel);
+    if(e.section==='expense' && e.lineLabel && _financeConfig.expenseLines.indexOf(e.lineLabel)<0) _financeConfig.expenseLines.push(e.lineLabel);
+  });
   renderFinances();
 }
 window.loadFinances=loadFinances;
+
+async function _finSaveConfig(){
+  try{ await fb.setDoc(_finConfigDoc(), { incomeLines:_financeConfig.incomeLines||[], expenseLines:_financeConfig.expenseLines||[] }); }catch(e){}
+}
 
 function initFinanceYearSelect(){
   var sel=document.getElementById('finance-year'); if(!sel) return;
@@ -6127,95 +6160,156 @@ function initFinanceYearSelect(){
   var list=Object.keys(years).map(Number).sort(function(a,b){return b-a;});
   sel.innerHTML=list.map(function(y){return '<option value="'+y+'"'+(y===_financeYear?' selected':'')+'>'+y+'</option>';}).join('');
 }
-
-function onFinanceYearChange(){
-  var sel=document.getElementById('finance-year'); if(sel) _financeYear=parseInt(sel.value)||_financeYear;
-  renderFinances();
-}
+function onFinanceYearChange(){ var sel=document.getElementById('finance-year'); if(sel) _financeYear=parseInt(sel.value)||_financeYear; renderFinances(); }
 window.onFinanceYearChange=onFinanceYearChange;
 
-function _renderFinSection(type, list, total){
-  var title = type==='income'?'\ud83d\udcb0 Income':'\ud83e\uddfe Expenses';
-  var accent = type==='income'?'var(--green-dk)':'#C0392B';
-  var today=new Date().toISOString().split('T')[0];
-  var cats=_finCategories(type);
-  var showTag=_finLeader();
-  var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;">';
-  h+='<div style="font-size:14px;font-weight:700;margin-bottom:10px;">'+title+'</div>';
-  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">';
-  h+='<input type="date" id="fin-'+type+'-date" value="'+today+'" style="font-size:12px;flex:1;min-width:120px;"/>';
-  h+='<input type="text" id="fin-'+type+'-cat" list="fin-'+type+'-cat-list" placeholder="Category (type new or pick)" style="font-size:12px;flex:1;min-width:130px;"/>';
-  h+='<datalist id="fin-'+type+'-cat-list">'+cats.map(function(c){return '<option value="'+partnerEsc(c)+'"></option>';}).join('')+'</datalist>';
-  if(showTag) h+='<select id="fin-'+type+'-tag" style="font-size:12px;min-width:96px;"><option value="personal">Personal</option><option value="team">Team</option></select>';
-  h+='<input type="text" id="fin-'+type+'-desc" placeholder="Description (optional)" style="font-size:12px;flex:2;min-width:140px;"/>';
-  h+='<input type="number" id="fin-'+type+'-amt" placeholder="0.00" step="0.01" min="0" style="font-size:12px;width:100px;"/>';
-  h+='<button class="btn btn-sm btn-g" onclick="addFinanceEntry(\''+type+'\')">+ Add</button>';
-  h+='</div>';
-  if(!list.length){
-    h+='<div style="font-size:12px;color:var(--text3);text-align:center;padding:14px;">No '+type+' entries here yet.</div>';
-  } else {
-    var sorted=list.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
-    h+=sorted.map(function(e){
-      var teamChip=(showTag && (e.tag||'personal')==='team') ? '<span style="font-size:9px;font-weight:700;background:#EEF2FF;color:#4F46E5;border-radius:8px;padding:1px 6px;margin-left:6px;">TEAM</span>' : '';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">'
-        +'<div style="font-size:11px;color:var(--text3);width:60px;flex-shrink:0;">'+_finDateShort(e.date)+'</div>'
-        +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(e.description||e.category||'')+teamChip+'</div><div style="font-size:11px;color:var(--text3);">'+partnerEsc(e.category||'')+'</div></div>'
-        +'<div style="font-size:13px;font-weight:700;color:'+accent+';flex-shrink:0;">'+_finFmt(e.amount)+'</div>'
-        +'<button onclick="deleteFinanceEntry(\''+e.id+'\')" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
+function _finYearEntries(){ var yr=String(_financeYear); return _financeEntries.filter(function(e){ return (e.date||'').slice(0,4)===yr; }); }
+function _finLineEntries(section, key){ return _finYearEntries().filter(function(e){ return e.section===section && (e.lineKey===key || e.lineLabel===key); }); }
+function _finLineTotal(section, key){ return _finLineEntries(section,key).reduce(function(s,e){return s+(Number(e.amount)||0);},0); }
+function _finAllLineEntries(section, key){ return _financeEntries.filter(function(e){ return e.section===section && (e.lineKey===key || e.lineLabel===key); }); }
+
+function _finResolve(section, ref){
+  if(section==='received'){
+    var a=_finReceivedAgents().find(function(x){return x.id===ref;});
+    return { key:ref, label:(a?a.name:ref) };
+  }
+  var arr = section==='income'?(_financeConfig.incomeLines||[]):(_financeConfig.expenseLines||[]);
+  var label=arr[parseInt(ref)]; if(label===undefined) label='';
+  return { key:label, label:label };
+}
+
+function _finSectionHeader(t){ return '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:16px 0 4px;">'+t+'</div>'; }
+
+function _finLineRow(section, ref, key, label, isExpense){
+  var entries=_finLineEntries(section, key);
+  var total=entries.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
+  var accent=isExpense?'#C0392B':'var(--green-dk)';
+  var addBg=isExpense?'#fef2f2':'var(--green-lt)';
+  var expanded=_finExpanded[section+'::'+key];
+  var custom=(section!=='received');
+  var h='<div style="border-bottom:1px solid var(--border);">';
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;gap:8px;">';
+  h+='<div onclick="toggleFinLine(\''+section+'\',\''+ref+'\')" style="flex:1;min-width:0;cursor:pointer;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px;">'+(entries.length?'<span style="font-size:9px;color:var(--text3);">'+(expanded?'\u25bc':'\u25b6')+'</span>':'')+'<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(label)+'</span></div>';
+  h+='<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">';
+  h+='<div style="font-size:13px;font-weight:600;color:'+(total?accent:'var(--text3)')+';">'+(total?((isExpense?'-':'')+_finFmt(total)):'-')+'</div>';
+  h+='<button onclick="openFinAdd(\''+section+'\',\''+ref+'\')" style="font-size:11px;color:'+accent+';background:'+addBg+';border:none;border-radius:10px;padding:2px 9px;cursor:pointer;">+ Add</button>';
+  if(custom) h+='<button onclick="removeFinLine(\''+section+'\',\''+ref+'\')" title="Remove line" style="font-size:13px;color:var(--text3);background:none;border:none;cursor:pointer;">\u2715</button>';
+  h+='</div></div>';
+  if(expanded && entries.length){
+    var sorted=entries.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
+    h+='<div style="padding:0 0 8px 16px;">'+sorted.map(function(e){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11.5px;color:var(--text3);">'
+        +'<span style="width:54px;flex-shrink:0;">'+_finDateShort(e.date)+'</span>'
+        +'<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(e.note||'')+'</span>'
+        +'<span style="font-weight:600;color:'+accent+';">'+(isExpense?'-':'')+_finFmt(e.amount)+'</span>'
+        +'<button onclick="deleteFinanceEntry(\''+e.id+'\')" style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;">\u2715</button>'
         +'</div>';
-    }).join('');
-    h+='<div style="display:flex;justify-content:space-between;padding-top:10px;font-size:13px;font-weight:700;"><span>Total</span><span style="color:'+accent+';">'+_finFmt(total)+'</span></div>';
+    }).join('')+'</div>';
   }
   h+='</div>';
   return h;
 }
 
 function renderFinances(){
-  if(!document.getElementById('finance-summary')) return;
+  if(!document.getElementById('finance-body')) return;
   initFinanceYearSelect();
-  var leader=_finLeader();
-  var tagSel=document.getElementById('finance-tag-filter');
-  if(tagSel) tagSel.style.display = leader ? 'inline-block' : 'none';
-  var tagFilter = (leader && tagSel) ? (tagSel.value||'all') : 'all';
-  var yr=String(_financeYear);
-  var entries=_financeEntries.filter(function(e){
-    if((e.date||'').slice(0,4)!==yr) return false;
-    if(tagFilter!=='all' && (e.tag||'personal')!==tagFilter) return false;
-    return true;
-  });
-  var income=entries.filter(function(e){return e.type==='income';});
-  var expenses=entries.filter(function(e){return e.type==='expense';});
-  var totalInc=income.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
-  var totalExp=expenses.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
-  var net=totalInc-totalExp;
+  var received=_finReceivedAgents();
+  var recvTotal=received.reduce(function(s,a){return s+_finLineTotal('received',a.id);},0);
+  var incLines=_financeConfig.incomeLines||[];
+  var expLines=_financeConfig.expenseLines||[];
+  var otherIncTotal=incLines.reduce(function(s,l){return s+_finLineTotal('income',l);},0);
+  var expTotal=expLines.reduce(function(s,l){return s+_finLineTotal('expense',l);},0);
+  var totalInc=recvTotal+otherIncTotal;
+  var net=totalInc-expTotal;
   document.getElementById('finance-summary').innerHTML=
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
     +'<div style="background:#F0FDF4;border:1px solid var(--green-md);border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Income</div><div style="font-size:17px;font-weight:800;color:var(--green-dk);">'+_finFmt(totalInc)+'</div></div>'
-    +'<div style="background:#FEF2F2;border:1px solid #F7C1C1;border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Expenses</div><div style="font-size:17px;font-weight:800;color:#C0392B;">'+_finFmt(totalExp)+'</div></div>'
+    +'<div style="background:#FEF2F2;border:1px solid #F7C1C1;border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Expenses</div><div style="font-size:17px;font-weight:800;color:#C0392B;">'+_finFmt(expTotal)+'</div></div>'
     +'<div style="background:'+(net>=0?'#EFF6FF':'#FEF2F2')+';border:1px solid var(--border);border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Net</div><div style="font-size:17px;font-weight:800;color:'+(net>=0?'#1D4ED8':'#C0392B')+';">'+_finFmt(net)+'</div></div>'
     +'</div>';
-  document.getElementById('finance-income').innerHTML=_renderFinSection('income', income, totalInc);
-  document.getElementById('finance-expenses').innerHTML=_renderFinSection('expense', expenses, totalExp);
+  var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:4px 16px 14px;margin-top:12px;">';
+  h+=_finSectionHeader('Income Received');
+  received.forEach(function(a){ h+=_finLineRow('received', a.id, a.id, a.name, false); });
+  h+=_finSectionHeader('Other Income');
+  incLines.forEach(function(l,i){ h+=_finLineRow('income', String(i), l, l, false); });
+  h+='<button onclick="addFinLine(\'income\')" style="margin-top:10px;font-size:12px;color:var(--green-dk);background:var(--green-lt);border:none;border-radius:10px;padding:5px 12px;cursor:pointer;">+ Add income source</button>';
+  h+=_finSectionHeader('Expenses');
+  expLines.forEach(function(l,i){ h+=_finLineRow('expense', String(i), l, l, true); });
+  h+='<button onclick="addFinLine(\'expense\')" style="margin-top:10px;font-size:12px;color:#C0392B;background:#fef2f2;border:none;border-radius:10px;padding:5px 12px;cursor:pointer;">+ Add expense category</button>';
+  h+='<div style="background:'+(net>=0?'var(--green-lt)':'#FEF2F2')+';border-radius:8px;padding:12px 14px;margin-top:18px;display:flex;justify-content:space-between;align-items:center;"><div style="font-size:15px;font-weight:700;color:'+(net>=0?'var(--green-dk)':'#C0392B')+';">Profit</div><div style="font-size:15px;font-weight:700;color:'+(net>=0?'var(--green-dk)':'#C0392B')+';">'+_finFmt(net)+'</div></div>';
+  h+='</div>';
+  document.getElementById('finance-body').innerHTML=h;
 }
 window.renderFinances=renderFinances;
 
-async function addFinanceEntry(type){
-  var date=((document.getElementById('fin-'+type+'-date')||{}).value)||'';
-  var cat=(((document.getElementById('fin-'+type+'-cat')||{}).value)||'').trim();
-  var desc=(((document.getElementById('fin-'+type+'-desc')||{}).value)||'').trim();
-  var amt=parseFloat(((document.getElementById('fin-'+type+'-amt')||{}).value)||'0');
-  var tagEl=document.getElementById('fin-'+type+'-tag');
-  var tag=tagEl?(tagEl.value||'personal'):'personal';
-  if(!date){ alert('Pick a date.'); return; }
+function toggleFinLine(section, ref){ var r=_finResolve(section, ref); var k=section+'::'+r.key; _finExpanded[k]=!_finExpanded[k]; renderFinances(); }
+window.toggleFinLine=toggleFinLine;
+
+function addFinLine(section){
+  var label=prompt(section==='income'?'Name this income source (e.g. Title Share, Mortgage, Rev Share):':'Name this expense category (e.g. Marketing, Transportation, Memberships):');
+  if(label===null) return;
+  label=label.trim(); if(!label) return;
+  var arr = section==='income' ? (_financeConfig.incomeLines=_financeConfig.incomeLines||[]) : (_financeConfig.expenseLines=_financeConfig.expenseLines||[]);
+  if(arr.indexOf(label)<0) arr.push(label);
+  _finSaveConfig();
+  renderFinances();
+}
+window.addFinLine=addFinLine;
+
+async function removeFinLine(section, ref){
+  var arr = section==='income'?(_financeConfig.incomeLines||[]):(_financeConfig.expenseLines||[]);
+  var idx=parseInt(ref); var label=arr[idx]; if(label===undefined) return;
+  var allEnts=_finAllLineEntries(section, label);
+  if(allEnts.length){ if(!confirm('Remove \u201c'+label+'\u201d and its '+allEnts.length+' entr'+(allEnts.length!==1?'ies':'y')+'? This cannot be undone.')) return; }
+  else { if(!confirm('Remove \u201c'+label+'\u201d?')) return; }
+  for(var i=0;i<allEnts.length;i++){ try{ await fb.deleteDoc(_finDoc(allEnts[i].id)); }catch(e){} }
+  _financeEntries=_financeEntries.filter(function(e){ return !(e.section===section && (e.lineKey===label||e.lineLabel===label)); });
+  arr.splice(idx,1);
+  _finSaveConfig();
+  renderFinances();
+}
+window.removeFinLine=removeFinLine;
+
+function openFinAdd(section, ref){
+  var r=_finResolve(section, ref);
+  _finAddCtx={ section:section, key:r.key, label:r.label };
+  var isExpense=section==='expense';
+  var today=new Date().toISOString().split('T')[0];
+  var ov=document.createElement('div');
+  ov.id='fin-add-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;';
+  ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);padding:18px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.25);">'
+    +'<div style="font-size:15px;font-weight:700;margin-bottom:2px;">Add to '+partnerEsc(r.label)+'</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">'+(isExpense?'Expense \u00b7 subtracts':'Income \u00b7 adds')+'</div>'
+    +'<label class="flabel">Amount</label><input type="number" id="fin-add-amt" step="0.01" min="0" placeholder="0.00" style="width:100%;box-sizing:border-box;font-size:14px;margin-bottom:10px;"/>'
+    +'<label class="flabel">Date</label><input type="date" id="fin-add-date" value="'+today+'" style="width:100%;box-sizing:border-box;font-size:13px;margin-bottom:10px;"/>'
+    +'<label class="flabel">Note (optional)</label><input type="text" id="fin-add-note" placeholder="e.g. 123 Main St closing" style="width:100%;box-sizing:border-box;font-size:13px;"/>'
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
+    +'<button class="btn btn-sm" onclick="document.getElementById(\'fin-add-overlay\').remove()">Cancel</button>'
+    +'<button class="btn btn-sm btn-g" onclick="submitFinAdd()">Add</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ var el=document.getElementById('fin-add-amt'); if(el) el.focus(); },50);
+}
+window.openFinAdd=openFinAdd;
+
+async function submitFinAdd(){
+  if(!_finAddCtx) return;
+  var ctx=_finAddCtx;
+  var amt=parseFloat((document.getElementById('fin-add-amt')||{}).value||'0');
+  var date=((document.getElementById('fin-add-date')||{}).value)||new Date().toISOString().split('T')[0];
+  var note=(((document.getElementById('fin-add-note')||{}).value)||'').trim();
   if(!amt||amt<=0){ alert('Enter an amount greater than 0.'); return; }
+  var ov=document.getElementById('fin-add-overlay'); if(ov) ov.remove();
   try{
-    var ref=await fb.addDoc(_finCol(), { type:type, date:date, category:cat, description:desc, amount:amt, tag:tag, createdAt:fb.serverTimestamp() });
-    _financeEntries.push({ id:ref.id, type:type, date:date, category:cat, description:desc, amount:amt, tag:tag });
+    var ref=await fb.addDoc(_finCol(), { section:ctx.section, lineKey:ctx.key, lineLabel:ctx.label, amount:amt, date:date, note:note, createdAt:fb.serverTimestamp() });
+    _financeEntries.push({ id:ref.id, section:ctx.section, lineKey:ctx.key, lineLabel:ctx.label, amount:amt, date:date, note:note });
     _financeYear=parseInt(date.slice(0,4))||_financeYear;
+    _finExpanded[ctx.section+'::'+ctx.key]=true;
     renderFinances();
   }catch(e){ alert('Could not save: '+e.message); }
 }
-window.addFinanceEntry=addFinanceEntry;
+window.submitFinAdd=submitFinAdd;
 
 async function deleteFinanceEntry(id){
   if(!confirm('Delete this entry?')) return;
@@ -6229,41 +6323,35 @@ window.deleteFinanceEntry=deleteFinanceEntry;
 
 function exportFinancesCSV(){
   var yr=String(_financeYear);
-  var leader=_finLeader();
-  var tagSel=document.getElementById('finance-tag-filter');
-  var tagFilter=(leader && tagSel)?(tagSel.value||'all'):'all';
-  var ents=_financeEntries.filter(function(e){
-    if((e.date||'').slice(0,4)!==yr) return false;
-    if(tagFilter!=='all' && (e.tag||'personal')!==tagFilter) return false;
-    return true;
-  }).sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
+  var ents=_finYearEntries().slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
+  var received=_finReceivedAgents();
+  var nameByKey={}; received.forEach(function(a){ nameByKey[a.id]=a.name; });
+  var secName={received:'Income Received',income:'Other Income',expense:'Expenses'};
   var rows=[];
   rows.push(['NestTrack Finance Report']);
   rows.push(['Year', yr]);
-  if(leader) rows.push(['Scope', tagFilter==='all'?'All (Personal + Team)':(tagFilter.charAt(0).toUpperCase()+tagFilter.slice(1))]);
   rows.push([]);
-  rows.push(['Type','Tag','Date','Category','Description','Amount']);
-  ents.forEach(function(e){ rows.push([e.type, e.tag||'personal', e.date, e.category||'', e.description||'', e.amount]); });
-  rows.push([]);
-  rows.push(['SUMMARY BY CATEGORY']);
-  ['income','expense'].forEach(function(tp){
-    var byCat={};
-    ents.filter(function(e){return e.type===tp;}).forEach(function(e){ var c=e.category||'(uncategorized)'; byCat[c]=(byCat[c]||0)+(Number(e.amount)||0); });
-    var keys=Object.keys(byCat).sort();
-    if(keys.length){
-      rows.push([tp==='income'?'Income':'Expenses']);
-      keys.forEach(function(c){ rows.push(['',c,'','','',byCat[c]]); });
-    }
+  rows.push(['Section','Line Item','Date','Note','Amount','Effect']);
+  ents.forEach(function(e){
+    var lbl=e.lineLabel||nameByKey[e.lineKey]||e.lineKey||'';
+    rows.push([secName[e.section]||e.section, lbl, e.date, e.note||'', e.amount, e.section==='expense'?'-':'+']);
   });
   rows.push([]);
-  var ti=ents.filter(function(e){return e.type==='income';}).reduce(function(s,e){return s+(Number(e.amount)||0);},0);
-  var te=ents.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+(Number(e.amount)||0);},0);
-  rows.push(['Total Income','','','','',ti]);
-  rows.push(['Total Expenses','','','','',te]);
-  rows.push(['Net','','','','',ti-te]);
+  rows.push(['SUMMARY BY LINE ITEM']);
+  received.forEach(function(a){ var t=_finLineTotal('received',a.id); if(t) rows.push(['Income Received',a.name,'','',t,'+']); });
+  (_financeConfig.incomeLines||[]).forEach(function(l){ var t=_finLineTotal('income',l); if(t) rows.push(['Other Income',l,'','',t,'+']); });
+  (_financeConfig.expenseLines||[]).forEach(function(l){ var t=_finLineTotal('expense',l); if(t) rows.push(['Expenses',l,'','',t,'-']); });
+  rows.push([]);
+  var recvTotal=received.reduce(function(s,a){return s+_finLineTotal('received',a.id);},0);
+  var otherInc=(_financeConfig.incomeLines||[]).reduce(function(s,l){return s+_finLineTotal('income',l);},0);
+  var expTotal=(_financeConfig.expenseLines||[]).reduce(function(s,l){return s+_finLineTotal('expense',l);},0);
+  var ti=recvTotal+otherInc;
+  rows.push(['Total Income','','','',ti,'']);
+  rows.push(['Total Expenses','','','',expTotal,'']);
+  rows.push(['Net / Profit','','','',ti-expTotal,'']);
   var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download='finance-report-'+yr+(tagFilter!=='all'?'-'+tagFilter:'')+'.csv'; a.click();
+  a.href=URL.createObjectURL(blob); a.download='finance-report-'+yr+'.csv'; a.click();
 }
 window.exportFinancesCSV=exportFinancesCSV;
 
