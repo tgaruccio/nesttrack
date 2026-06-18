@@ -3273,7 +3273,7 @@ textarea{resize:vertical;min-height:68px;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 import { getStorage, ref as storageRef, deleteObject, listAll, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
@@ -3295,7 +3295,7 @@ const rtdb = getDatabase(fbApp);
 const storage = getStorage(fbApp);
 
 // Expose for non-module code
-window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment, uploadBytes, getDownloadURL };
+window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment, uploadBytes, getDownloadURL };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -6724,7 +6724,7 @@ async function showApp() {
     if (startLabel) startLabel.style.display = 'none';
     setTimeout(function() {
       go('agent-dash', agentBtn);
-      watchAllAgentChats();
+      watchThreadsInbox();
       setTimeout(renderAgentDashboard, 1500);
     }, 100);
     setTimeout(oneSignalRegister, 4000);
@@ -10768,6 +10768,51 @@ function _msgRelTime(ts){
   return d.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
 }
 
+var _threads = [];
+var _threadsUnsub = null;
+var _threadLastRead = {};
+function _loadThreadReads(){ try{ _threadLastRead = JSON.parse(localStorage.getItem('threadReads_'+(currentUser&&currentUser.uid))||'{}')||{}; }catch(e){ _threadLastRead={}; } }
+function _saveThreadReads(){ try{ localStorage.setItem('threadReads_'+(currentUser&&currentUser.uid), JSON.stringify(_threadLastRead)); }catch(e){} }
+function _injectReplyTodo(uid, name){
+  if(!_todos) return;
+  var replyId='reply_'+uid;
+  if (_todos.some(function(t){ return t.id===replyId && !t.done; })) return;
+  _todos.unshift({ id:replyId, text:'\uD83D\uDCAC Reply to '+(name||'Client'), date:new Date().toISOString().split('T')[0], time:'', done:false, createdAt:Date.now(), clientUid:uid, clientName:name||'Client', isAutoReminder:true });
+  todoSave(); todoRender(); todoUpdateBadge();
+}
+// Scalable inbox: ONE indexed query over the threads summary table — no per-room listeners.
+function watchThreadsInbox(){
+  _loadThreadReads();
+  var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email && a.email.toLowerCase()===((userProfile&&userProfile.email)||'').toLowerCase(); });
+  var myAgentId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'';
+  if (!myAgentId) { if (typeof watchAllAgentChats==='function') watchAllAgentChats(); return; }
+  try{
+    if (_threadsUnsub) { try{_threadsUnsub();}catch(e){} _threadsUnsub=null; }
+    var qy = fb.query(fb.collection(fb.db,'threads'), fb.where('agentId','==',myAgentId), fb.orderBy('lastTs','desc'), fb.limit(60));
+    _threadsUnsub = fb.onSnapshot(qy, function(snap){
+      _threads = []; agentUnreadCounts = {}; agentLastMsg = {};
+      snap.forEach(function(d){
+        var t = d.data(); if(!t || !t.clientUid) return;
+        _threads.push(t);
+        agentLastMsg[t.clientUid] = { text:t.lastText||'', ts:t.lastTs||0, role:t.lastRole||'' };
+        if (t.lastRole==='buyer' && (t.lastTs||0) > (_threadLastRead[t.roomId]||0)) {
+          agentUnreadCounts[t.clientUid] = 1;
+          _injectReplyTodo(t.clientUid, t.clientName);
+        }
+      });
+      try{ updateAgentUnreadBadge(); }catch(e){}
+      try{ renderMessagesPage(); }catch(e){}
+    }, function(err){
+      console.log('threads inbox error \u2014 falling back:', err.message);
+      if (typeof watchAllAgentChats==='function') watchAllAgentChats();
+    });
+  }catch(e){
+    console.log('watchThreadsInbox:', e.message);
+    if (typeof watchAllAgentChats==='function') watchAllAgentChats();
+  }
+}
+window.watchThreadsInbox = watchThreadsInbox;
+
 function watchAllAgentChats() {
   agentUnreadListeners.forEach(function(fn){ try{fn();}catch(e){} });
   agentUnreadListeners = [];
@@ -10839,8 +10884,10 @@ window.updateAgentUnreadBadge = updateAgentUnreadBadge;
 
 function clearAgentUnreadForBuyer(buyerUid) {
   delete agentUnreadCounts[buyerUid];
+  try { _threadLastRead['chat_'+buyerUid] = Date.now(); _saveThreadReads(); } catch(e){}
   try { localStorage.setItem('lastSeen_'+currentUser.uid, String(Date.now())); } catch(e){}
   updateAgentUnreadBadge();
+  try{ renderMessagesPage(); }catch(e){}
 }
 window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
@@ -11042,42 +11089,43 @@ var _msgListener = null;
 function renderMessagesPage() {
   var container = document.getElementById('msg-list-items');
   if (!container) return;
-  var roster = (myBuyers||[]).filter(function(b){ return !b.pending; });
   var si = document.getElementById('msg-search');
   var q = si ? (si.value||'').toLowerCase().trim() : '';
 
-  var list;
+  var rows = [];
   if (q) {
-    list = roster.filter(function(b){
-      var hay = (((b.firstName||'')+' '+(b.lastName||'')).trim()+' '+(b.email||'')).toLowerCase();
-      return hay.indexOf(q) !== -1;
+    var roster = (myBuyers||[]).filter(function(b){ return !b.pending; });
+    roster.forEach(function(b){
+      var nm = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
+      if ((nm+' '+(b.email||'')).toLowerCase().indexOf(q)===-1) return;
+      var lm = agentLastMsg[b.uid];
+      rows.push({ uid:b.uid, name:nm, lm:lm, ts:(lm&&lm.ts)||0 });
     });
+    rows.sort(function(a,b){ if(b.ts!==a.ts) return b.ts-a.ts; return a.name.localeCompare(b.name); });
   } else {
-    list = roster.filter(function(b){ return agentLastMsg[b.uid]; });
+    (_threads||[]).forEach(function(t){
+      if(!t || !t.clientUid) return;
+      rows.push({ uid:t.clientUid, name:t.clientName||'Client', lm:{text:t.lastText||'',ts:t.lastTs||0,role:t.lastRole||''}, ts:t.lastTs||0 });
+    });
   }
 
-  list.sort(function(a,b){
-    var la = (agentLastMsg[a.uid]||{}).ts||0, lb = (agentLastMsg[b.uid]||{}).ts||0;
-    if (lb !== la) return lb - la;
-    return (((a.firstName||'')+(a.lastName||'')).localeCompare((b.firstName||'')+(b.lastName||'')));
-  });
-
-  if (!list.length) {
+  if (!rows.length) {
     container.innerHTML = q
       ? '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">No matches</div>'
       : '<div style="padding:24px 18px;text-align:center;font-size:13px;color:var(--text3);">No conversations yet.<br>Search above to start one.</div>';
     return;
   }
 
-  container.innerHTML = list.map(function(b) {
-    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
-    var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
-    var unread = (agentUnreadCounts||{})[b.uid]||0;
-    var isActive = _msgCurrentBuyer && _msgCurrentBuyer.uid === b.uid;
-    var lm = agentLastMsg[b.uid];
-    var sub = lm ? _msgPreview(lm) : 'Start a conversation';
-    var timeStr = lm ? _msgRelTime(lm.ts) : '';
-    return '<button onclick="openMsgThread(\''+b.uid+'\')" data-uid="'+b.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+  container.innerHTML = rows.map(function(r) {
+    var name = r.name || 'Client';
+    var pp = name.trim().split(/\s+/);
+    var initials = ((pp[0]||'?')[0]+((pp[1]||' ')[0]||'')).toUpperCase();
+    var unread = (agentUnreadCounts||{})[r.uid]||0;
+    var isActive = _msgCurrentBuyer && _msgCurrentBuyer.uid === r.uid;
+    var lm = r.lm;
+    var sub = (lm&&lm.text) ? _msgPreview(lm) : 'Start a conversation';
+    var timeStr = (lm&&lm.ts) ? _msgRelTime(lm.ts) : '';
+    return '<button onclick="openMsgThread(\''+r.uid+'\')" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
       + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--surface2)')+';color:'+(unread?'#fff':'var(--text2)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
