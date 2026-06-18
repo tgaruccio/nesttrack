@@ -5633,6 +5633,16 @@ function renderTeamStats() {
       +'</div>';
   }).join('');
 
+  var _totUnits = 0, _totVol = 0;
+  sorted.forEach(function(a){ var r = _teamStatsData[a.id] || {}; _totUnits += (r.units||0); _totVol += (r.volume||0); });
+  lb.innerHTML += '<div style="background:var(--green-lt);border:1px solid var(--green-md);border-radius:var(--r);padding:14px 16px;margin-top:4px;display:flex;align-items:center;gap:12px;">'
+    +'<div style="font-size:20px;min-width:28px;text-align:center;">\ud83d\udcca</div>'
+    +'<div style="flex:1;font-size:14px;font-weight:700;color:var(--green-dk);">Team Total</div>'
+    +'<div style="display:flex;gap:16px;align-items:center;">'
+    +'<div style="text-align:center;"><div style="font-size:11px;color:var(--text3);margin-bottom:2px;">TOTAL SALES</div><div style="font-size:18px;font-weight:700;color:var(--green-dk);width:60px;">'+_totUnits+'</div></div>'
+    +'<div style="text-align:center;"><div style="font-size:11px;color:var(--text3);margin-bottom:2px;">TOTAL VOLUME</div><div style="font-size:15px;font-weight:700;color:var(--green-dk);">'+(_totVol?'$'+_totVol.toLocaleString():'-')+'</div></div>'
+    +'</div></div>';
+
   if (isTL) renderTeamStatsFinancials();
 }
 window.renderTeamStats = renderTeamStats;
