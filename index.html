@@ -6651,6 +6651,7 @@ function go(page, el) {
   if (page === 'agent-dash') { renderAgentDashboard(); }
   if (page === 'marketing') { renderMarketing(); }
   if (page === 'doc-templates') { dtLoadLibrary(); }
+  if (page === 'docs-explainer') { _populateDocExplainer(); }
   if (page === 'messages') { renderMessagesPage(); }
   if (page === 'newsletter') {
     _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
@@ -14020,7 +14021,11 @@ function showTrailStage(id) {
         _b.className = 'btn btn-sm';
         _b.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;font-size:11.5px;';
         _b.textContent = tp.name || 'Document';
-        _b.onclick = function(){ if (tp.pdfUrl) window.open(tp.pdfUrl, '_blank', 'noopener'); };
+        _b.onclick = function(){
+          var det=document.getElementById('trail-detail'); if(det) det.style.display='none';
+          go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
+          setTimeout(function(){ if(typeof _populateDocExplainer==='function'){ _populateDocExplainer().then(function(){ var s=document.getElementById('de-doc'); if(s){ s.value='tpl:'+tp.id; showDocInfo(); } }); } }, 200);
+        };
         _row.appendChild(_b);
       });
       _wrap.style.display = 'block';
@@ -14255,7 +14260,10 @@ function showSellerStep(i) {
           _sb.className = 'btn btn-sm';
           _sb.style.cssText = 'background:#FEF3C7;color:#92400E;border-color:#F59E0B;font-size:11.5px;';
           _sb.textContent = tp.name || 'Document';
-          _sb.onclick = function(){ if (tp.pdfUrl) window.open(tp.pdfUrl,'_blank','noopener'); };
+          _sb.onclick = function(){
+            go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
+            setTimeout(function(){ if(typeof _populateDocExplainer==='function'){ _populateDocExplainer().then(function(){ var s=document.getElementById('de-doc'); if(s){ s.value='tpl:'+tp.id; showDocInfo(); } }); } }, 200);
+          };
           _srow.appendChild(_sb);
         });
         _swrap.style.display='block';
@@ -15263,8 +15271,81 @@ IMPORTANT: Compare to your Closing Disclosure (CD) sent 3 days before closing. N
   }
 };
 
+// ── Doc Explainer: template-backed (reads the agent's real uploaded docs) ──
+var _tplTextCache = {};
+async function _populateDocExplainer(){
+  try { await _ensureTrailTemplates(); } catch(e){}
+  var sel = document.getElementById('de-doc'); if(!sel) return;
+  var old = sel.querySelector('optgroup[data-tpls]'); if(old) old.remove();
+  var tpls = (window._dtTemplates||[]);
+  if(!tpls.length) return;
+  var og = document.createElement('optgroup'); og.label='\u2014 Your Documents \u2014'; og.setAttribute('data-tpls','1');
+  tpls.forEach(function(tp){
+    var o=document.createElement('option'); o.value='tpl:'+tp.id; o.textContent='\uD83D\uDCC4 '+(tp.name||'Document'); og.appendChild(o);
+  });
+  var first = sel.querySelector('option');
+  if(first && first.nextSibling) sel.insertBefore(og, first.nextSibling); else sel.appendChild(og);
+}
+window._populateDocExplainer = _populateDocExplainer;
+
+async function _extractTemplateText(tp){
+  if(!tp || !tp.id) return '';
+  if(_tplTextCache[tp.id]!=null) return _tplTextCache[tp.id];
+  if(!tp.pdfUrl || !window.pdfjsLib){ _tplTextCache[tp.id]=''; return ''; }
+  try{
+    var resp = await fetch(tp.pdfUrl); var ab = await resp.arrayBuffer();
+    var pdf = await pdfjsLib.getDocument({data:new Uint8Array(ab)}).promise;
+    var n = Math.min(pdf.numPages||1, 15); var parts=[];
+    for(var p=1;p<=n;p++){ var pg=await pdf.getPage(p); var tc=await pg.getTextContent(); parts.push(tc.items.map(function(it){return it.str;}).join(' ')); }
+    var txt = parts.join('\n').replace(/[ \t]+/g,' ').trim();
+    _tplTextCache[tp.id]=txt; return txt;
+  }catch(e){ console.log('extract:',e.message); _tplTextCache[tp.id]=''; return ''; }
+}
+
+function _showTemplateDoc(id){
+  var tp=(window._dtTemplates||[]).find(function(x){return x.id===id;});
+  var ctx=document.getElementById('de-doc-context'), split=document.getElementById('de-split'), empty=document.getElementById('de-empty');
+  if(!tp){ if(split)split.style.display='none'; if(empty)empty.style.display='block'; if(ctx)ctx.style.display='none'; return; }
+  document.getElementById('de-doc-desc').textContent = tp.name||'Document';
+  document.getElementById('de-doc-when').textContent = '';
+  if(ctx) ctx.style.display='block';
+  var genQ=['What is this document and why am I signing it?','What are the most important parts for me?','Is there anything in here I should watch out for?'];
+  document.getElementById('de-qs-list').innerHTML = genQ.map(function(q){ return '<button class="btn btn-sm" onclick="quickDocQ(this.textContent)">'+q+'</button>'; }).join('');
+  document.getElementById('de-common-qs').style.display='block';
+  if(split){ split.style.display='flex'; if(empty)empty.style.display='none'; }
+  var frame=document.getElementById('de-pdf-frame'), titleEl=document.getElementById('de-pdf-title'), linkEl=document.getElementById('de-pdf-link');
+  if(tp.pdfUrl && frame){ frame.src=tp.pdfUrl; if(titleEl)titleEl.textContent=tp.name||'Document'; if(linkEl)linkEl.href=tp.pdfUrl; if(frame.parentElement)frame.parentElement.style.display='block'; }
+  else if(frame && frame.parentElement){ frame.parentElement.style.display='none'; }
+  var out=document.getElementById('de-result'); if(out)out.style.display='none';
+  _extractTemplateText(tp).catch(function(){});
+}
+
+async function _explainTemplate(id){
+  var tp=(window._dtTemplates||[]).find(function(x){return x.id===id;});
+  if(!tp){ alert('Please select a document first'); return; }
+  var text=document.getElementById('de-text').value.trim();
+  var question=document.getElementById('de-question').value.trim();
+  if(!text && !question){ document.getElementById('de-question').value='Give me a plain-English overview of what this document is, when I sign it, and the most important things to understand.'; question=document.getElementById('de-question').value; }
+  var out=document.getElementById('de-result'); think(out);
+  var extracted=''; try{ extracted = await _extractTemplateText(tp); }catch(e){}
+  try{
+    var prompt = 'You are a real estate expert helping a client understand a transaction document in plain English.\n\n'
+      + 'DOCUMENT: '+(tp.name||'Document')+'\n\n'
+      + (extracted
+          ? 'DOCUMENT TEXT (extracted from the actual PDF):\n'+extracted.slice(0,12000)+'\n\n'
+          : 'No machine-readable text could be extracted (this PDF may be a scan/image). Explain based on the document name and general knowledge, and tell the client to read the original PDF shown above.\n\n')
+      + (text?'SECTION THE CLIENT IS CONFUSED BY:\n"'+text+'"\n\n':'')
+      + (question?'CLIENT QUESTION: '+question+'\n\n':'')
+      + 'Explain clearly and simply, as if to a first-time buyer or seller. Be direct, practical, and brief with a clear bottom line. End with: "Questions? Ask your agent." IMPORTANT: explanation only, not legal advice \u2014 recommend they consult their agent or an attorney for anything complex.';
+    var d = await claudeAPI({model:CLAUDE_MODEL, max_tokens:900, messages:[{role:'user', content:prompt}]});
+    out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>'; out.style.display='block';
+  }catch(e){ out.innerHTML='<div class="ai-resp" style="color:var(--red-dk);">Failed: '+e.message+'</div>'; out.style.display='block'; }
+}
+window._explainTemplate=_explainTemplate;
+
 function showDocInfo() {
   const val = document.getElementById('de-doc').value;
+  if (val && val.indexOf('tpl:')===0) { _showTemplateDoc(val.slice(4)); return; }
   const doc = DOC_DATA[val];
   const ctx = document.getElementById('de-doc-context');
   const split = document.getElementById('de-split');
@@ -15328,6 +15409,7 @@ window.quickDocQ = quickDocQ;
 
 async function explainDoc() {
   const docKey = document.getElementById('de-doc').value;
+  if (docKey && docKey.indexOf('tpl:')===0) { return _explainTemplate(docKey.slice(4)); }
   const text = document.getElementById('de-text').value.trim();
   const question = document.getElementById('de-question').value.trim();
   if (!docKey) { alert('Please select a document first'); return; }
