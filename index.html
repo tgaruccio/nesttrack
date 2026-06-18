@@ -2200,7 +2200,7 @@ textarea{resize:vertical;min-height:68px;}
 <!-- AGENT MESSAGES PAGE -->
 <div class="page" id="page-messages" style="padding:0;gap:0;overflow:hidden;flex-direction:column;">
   <!-- Header -->
-  <div style="padding:14px 16px;border-bottom:0.5px solid var(--border);font-size:15px;font-weight:600;background:var(--surface);flex-shrink:0;">Messages</div>
+  <div style="padding:14px 16px;border-bottom:0.5px solid var(--border);background:var(--surface);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;"><span style="font-size:15px;font-weight:600;">Messages</span><button onclick="openContactPicker()" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">&#9998; New</button></div>
   <div style="padding:10px 12px;border-bottom:0.5px solid var(--border);background:var(--surface);flex-shrink:0;"><input type="text" id="msg-search" placeholder="Search contacts..." oninput="filterMsgList(this.value)" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:20px;background:var(--surface2);font-family:inherit;outline:none;" /></div>
   <!-- Client list — full width, always visible -->
   <div id="msg-list-items" style="flex:1;overflow-y:auto;"></div>
@@ -11112,7 +11112,7 @@ function renderMessagesPage() {
   if (!rows.length) {
     container.innerHTML = q
       ? '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">No matches</div>'
-      : '<div style="padding:24px 18px;text-align:center;font-size:13px;color:var(--text3);">No conversations yet.<br>Search above to start one.</div>';
+      : '<div style="padding:28px 18px;text-align:center;color:var(--text3);"><div style="font-size:13px;margin-bottom:12px;">No conversations yet.</div><button onclick="openContactPicker()" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">&#9998; New message</button></div>';
     return;
   }
 
@@ -11139,6 +11139,59 @@ function filterMsgList(q) {
   renderMessagesPage();
 }
 window.filterMsgList = filterMsgList;
+
+// Contact picker: browse OR search the full roster to start a new conversation.
+function openContactPicker(){
+  var existing = document.getElementById('contact-picker'); if(existing) existing.remove();
+  var ov = document.createElement('div');
+  ov.id='contact-picker';
+  ov.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:300;display:flex;flex-direction:column;';
+  ov.innerHTML =
+    '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
+    +'<button onclick="document.getElementById(\'contact-picker\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
+    +'<div style="flex:1;font-size:15px;font-weight:600;">New message</div>'
+    +'</div>'
+    +'<div style="padding:10px 12px;border-bottom:0.5px solid var(--border);background:var(--surface);flex-shrink:0;"><input type="text" id="cp-search" placeholder="Search contacts..." oninput="renderContactPicker(this.value)" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:20px;background:var(--surface2);font-family:inherit;outline:none;" /></div>'
+    +'<div id="cp-list" style="flex:1;overflow-y:auto;"></div>';
+  document.body.appendChild(ov);
+  renderContactPicker('');
+  setTimeout(function(){ var s=document.getElementById('cp-search'); if(s) s.focus(); },50);
+}
+window.openContactPicker = openContactPicker;
+
+function renderContactPicker(q){
+  var list = document.getElementById('cp-list'); if(!list) return;
+  q = (q||'').toLowerCase().trim();
+  var contacts = (myBuyers||[]).filter(function(b){ return !b.pending; });
+  if(q){
+    contacts = contacts.filter(function(b){
+      var nm = (((b.firstName||'')+' '+(b.lastName||'')).trim()+' '+(b.email||'')).toLowerCase();
+      return nm.indexOf(q)!==-1;
+    });
+  }
+  contacts.sort(function(a,b){ return (((a.firstName||'')+(a.lastName||'')).toLowerCase()).localeCompare(((b.firstName||'')+(b.lastName||'')).toLowerCase()); });
+  if(!contacts.length){ list.innerHTML='<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">'+(myBuyers&&myBuyers.length?'No contacts found':'No contacts yet')+'</div>'; return; }
+  var capped=false;
+  if(!q && contacts.length>200){ contacts=contacts.slice(0,200); capped=true; }
+  list.innerHTML = (capped?'<div style="padding:8px 14px;font-size:11px;color:var(--text3);">Showing first 200 \u2014 search to narrow.</div>':'') + contacts.map(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
+    var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
+    var sub = b.email||'';
+    return '<button onclick="pickContact(\''+b.uid+'\')" style="width:100%;text-align:left;background:none;border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:var(--surface2);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="font-size:13.5px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'
+      +(sub?'<div style="font-size:11.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>':'')
+      +'</div></button>';
+  }).join('');
+}
+window.renderContactPicker = renderContactPicker;
+
+function pickContact(uid){
+  var cp=document.getElementById('contact-picker'); if(cp) cp.remove();
+  if(typeof openMsgThread==='function') openMsgThread(uid);
+}
+window.pickContact = pickContact;
 
 window.renderMessagesPage = renderMessagesPage;
 
