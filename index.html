@@ -19858,6 +19858,7 @@ function srOpenBuilderWithListing(listingId, l) {
     subject: 'Your Weekly Listing Update — ' + (l.address||''),
     reverseProspecting: 0,
     feedbackNotes: '',
+    feedbackSummary: '',
     offers: [],
     quickShowingCount: 0,
     pdfAttachBase64: null,
@@ -19979,6 +19980,8 @@ function srSaveCurrentTab() {
     if (rpEl) _srCurrent.reverseProspecting = parseInt(rpEl.value)||0;
     var fbEl = document.getElementById('sr-feedback-notes');
     if (fbEl) _srCurrent.feedbackNotes = fbEl.value;
+    var fsEl = document.getElementById('sr-feedback-summary');
+    if (fsEl) _srCurrent.feedbackSummary = fsEl.value;
   } else if (tab==='online') {
     ['zillow','realtor','redfin','homes','social'].forEach(function(p) {
       var v = document.getElementById('sr-'+p+'-views');
@@ -20064,6 +20067,16 @@ function srTabShowings() {
   // ShowingTime PDF attachment
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">'    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">📎 Attach ShowingTime Report</div>'    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Optional — attach your ShowingTime PDF and it will be included with the report email.</div>'    + '<input type="file" id="sr-pdf-attach" accept=".pdf" onchange="srStorePDFAttachment(event)" style="font-size:12px;"/>'    + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">✅ '+_srCurrent.pdfAttachName+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')    + '</div>';
 
+  // AI feedback summary from the ShowingTime PDF
+  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">✨ AI Feedback Summary</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Attach your ShowingTime PDF above, then generate a seller-ready summary of the showing feedback. Edit it before it goes in the report.</div>'
+    + '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;">'+(_srCurrent.feedbackSummary?'✨ Regenerate Summary':'✨ Generate Feedback Summary')+'</button>'
+    + '<div id="sr-feedback-summary-wrap" style="margin-top:10px;'+(_srCurrent.feedbackSummary?'':'display:none;')+'">'
+    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Your AI-generated summary will appear here. You can edit it freely." style="width:100%;box-sizing:border-box;font-size:13px;height:200px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
+    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;">This appears in the report as “What Buyers Are Saying.”</div>'
+    + '</div></div>';
+
   // Showing rows
   html += '<div id="sr-showings-list">';
   s.forEach(function(sh, i) {
@@ -20144,6 +20157,56 @@ function srStorePDFAttachment(event) {
   reader.readAsDataURL(file);
 }
 window.srStorePDFAttachment = srStorePDFAttachment;
+
+async function srGenerateFeedbackSummary() {
+  if (!_srCurrent.pdfAttachBase64) { alert('Attach your ShowingTime PDF above first.'); return; }
+  if (typeof pdfjsLib === 'undefined') { alert('PDF reader is still loading — try again in a moment.'); return; }
+  var btn = document.getElementById('sr-ai-summary-btn');
+  var orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Reading report\u2026'; }
+  try {
+    var bin = atob(_srCurrent.pdfAttachBase64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+    var pages = Math.min(pdf.numPages || 1, 20);
+    var parts = [];
+    for (var p = 1; p <= pages; p++) {
+      var pg = await pdf.getPage(p);
+      var tc = await pg.getTextContent();
+      parts.push(tc.items.map(function(it){ return it.str; }).join(' '));
+    }
+    var text = parts.join('\n').replace(/[ \t]+/g, ' ').trim();
+    if (!text || text.length < 40) {
+      alert('Could not read text from this PDF (it may be a scan). You can still attach it and write the summary manually.');
+      if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
+      return;
+    }
+    if (btn) btn.textContent = 'Summarizing\u2026';
+    var addr = (_srCurrent.listing && _srCurrent.listing.address) || '';
+    var prompt = 'You are an expert listing agent writing a showing-feedback summary FOR YOUR SELLER, based on a ShowingTime Listing Activity Report.\n\n'
+      + (addr ? ('PROPERTY: ' + addr + '\n\n') : '')
+      + 'REPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
+      + 'Write a clear, honest, seller-facing summary. Structure it as:\n'
+      + '1. One opening line on overall activity (number of showings, traffic level and trend).\n'
+      + '2. The 2-3 most common themes in the feedback (e.g. price, condition, specific objections), noting roughly how often each came up.\n'
+      + '3. A couple of short, representative direct quotes from agent comments.\n'
+      + '4. A brief, neutral "What this suggests" paragraph framing the options to discuss (e.g. price vs. condition) without being pushy or alarming.\n\n'
+      + 'Plain English, direct but constructive. No greeting and no signature \u2014 this drops straight into a report. Keep it under about 250 words.';
+    var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1100, messages: [{ role: 'user', content: prompt }] });
+    var out = (d && d.content && d.content[0] && d.content[0].text) || '';
+    _srCurrent.feedbackSummary = out.trim();
+    var wrap = document.getElementById('sr-feedback-summary-wrap');
+    if (wrap) wrap.style.display = 'block';
+    var ta = document.getElementById('sr-feedback-summary');
+    if (ta) ta.value = _srCurrent.feedbackSummary;
+    if (btn) { btn.disabled = false; btn.textContent = '\u2728 Regenerate Summary'; }
+  } catch (e) {
+    alert('Could not generate the summary: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
+  }
+}
+window.srGenerateFeedbackSummary = srGenerateFeedbackSummary;
 
 async function srCountRPWithAI() {
   var el = document.getElementById('sr-rp-paste');
@@ -20422,6 +20485,14 @@ function srBuildEmailHtml() {
         html += videoEmailBlock(_srCurrent.videoUrl, 'Watch My Personal Message');
       }
     }
+    html += '</div>';
+  }
+
+  // AI buyer feedback summary
+  if (_srCurrent.feedbackSummary) {
+    html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
+    html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:10px;">\ud83d\udde3\ufe0f What Buyers Are Saying</div>';
+    html += '<div style="font-size:14px;color:#333;line-height:1.7;">'+_srCurrent.feedbackSummary.replace(/\n/g,'<br/>')+'</div>';
     html += '</div>';
   }
 
