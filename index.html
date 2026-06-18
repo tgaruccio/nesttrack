@@ -9562,6 +9562,7 @@ function sendChatMessage() {
   }).then(function() {
     input.value = '';
     input.style.height = 'auto';
+    try{ if(typeof _bumpThread==='function') _bumpThread((currentChatRoom||'').replace('chat_',''), text, isAgent?'agent':'buyer'); }catch(e){}
     var badge = document.getElementById('chat-unread-badge');
     if (badge) badge.remove();
     // Push notification to all relevant recipients
@@ -10843,6 +10844,34 @@ function clearAgentUnreadForBuyer(buyerUid) {
 }
 window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
+// ── Scalable inbox: write one summary row per conversation on every send (read by a single indexed query later) ──
+function _bumpThread(clientUid, text, role, ts){
+  if(!clientUid) return;
+  var b = (((typeof myBuyers!=='undefined'&&myBuyers)||[]).find(function(x){return x.uid===clientUid;}))
+       || (((typeof allBuyers!=='undefined'&&allBuyers)||[]).find(function(x){return x.uid===clientUid;}));
+  var clientName, agentId, teamId;
+  if (b){ clientName=((b.firstName||'')+' '+(b.lastName||'')).trim(); agentId=b.agentId||''; teamId=b.teamId||''; }
+  else { clientName=(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(); agentId=(userProfile&&userProfile.agentId)||''; teamId=(userProfile&&userProfile.teamId)||''; }
+  try{
+    fb.setDoc(fb.doc(fb.db,'threads','chat_'+clientUid), {
+      roomId:'chat_'+clientUid, clientUid:clientUid, clientName:clientName||'',
+      agentId:agentId||'', teamId:teamId||'',
+      lastText:String(text||'').replace(/\s+/g,' ').slice(0,140), lastTs:(ts||Date.now()), lastRole:role||''
+    }, {merge:true});
+  }catch(e){ console.log('bumpThread:', e.message); }
+}
+window._bumpThread=_bumpThread;
+
+// One-time: index existing conversations from the in-memory last-message map (run once after opening Messages).
+async function _backfillThreads(){
+  var uids = Object.keys(agentLastMsg||{}); var n=0;
+  for (var i=0;i<uids.length;i++){ var lm=agentLastMsg[uids[i]]||{}; _bumpThread(uids[i], lm.text||'', lm.role||'', lm.ts||Date.now()); n++; }
+  console.log('Indexed '+n+' conversations into threads.');
+  if (typeof showDealToast==='function') showDealToast('Indexed '+n+' conversations', null, null);
+  return n;
+}
+window._backfillThreads=_backfillThreads;
+
 
 function switchAgentTab(tab) {
   var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances');
@@ -11514,6 +11543,7 @@ function _postStepToChat(clientUid, isSeller, stepNum){
     fb.push(fb.ref(fb.rtdb, 'chats/chat_'+clientUid+'/messages'), {
       text:p.text, senderId:(currentUser&&currentUser.uid)||'', senderName:agentName, ts:Date.now(), role:'agent', kind:'step'
     });
+    try{ if(typeof _bumpThread==='function') _bumpThread(clientUid, p.text, 'agent'); }catch(e){}
     if(typeof sendPushToUser==='function') sendPushToUser(clientUid, 'Update on your transaction', p.title);
   }catch(e){ console.log('postStepToChat:', e.message); }
 }
@@ -11551,6 +11581,7 @@ function sendAgentMsg() {
   fb.push(fb.ref(fb.rtdb, 'chats/'+roomId+'/messages'), {
     text: text, senderId: currentUser.uid, senderName: agentName, ts: Date.now(), role: 'agent'
   });
+  try{ if(typeof _bumpThread==='function') _bumpThread(_msgCurrentBuyer.uid, text, 'agent'); }catch(e){}
   // Auto-complete reply to-do for this client
   var replyId = 'reply_'+_msgCurrentBuyer.uid;
   var replyTodo = _todos && _todos.find(function(t){ return t.id===replyId && !t.done; });
