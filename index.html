@@ -2628,8 +2628,9 @@ textarea{resize:vertical;min-height:68px;}
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <label style="font-size:12px;color:var(--text3);font-weight:600;">Year:</label>
       <select id="finance-year" onchange="onFinanceYearChange()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
+      <select id="finance-tag-filter" onchange="renderFinances()" style="display:none;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"><option value="all">All</option><option value="personal">Personal</option><option value="team">Team</option></select>
       <div style="flex:1;"></div>
-      <button class="btn btn-sm btn-g" onclick="exportFinancesCSV()">⬇ CSV</button>
+      <button class="btn btn-sm btn-g" onclick="exportFinancesCSV()">⬇ Export Report</button>
     </div>
     <div id="finance-summary"></div>
     <div id="finance-income"></div>
@@ -6100,6 +6101,13 @@ function _finCol(){ return fb.collection(fb.db,'finances',currentUser.uid,'entri
 function _finDoc(id){ return fb.doc(fb.db,'finances',currentUser.uid,'entries',id); }
 function _finFmt(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function _finDateShort(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch(e){ return d||''; } }
+function _finLeader(){ return (typeof isTeamLeader==='function' && isTeamLeader()); }
+function _finCategories(type){
+  var base = type==='income'?FINANCE_INCOME_CATS:FINANCE_EXPENSE_CATS;
+  var set={}; base.forEach(function(c){set[c]=1;});
+  _financeEntries.forEach(function(e){ if(e.type===type && e.category) set[e.category]=1; });
+  return Object.keys(set).sort();
+}
 
 async function loadFinances(){
   if(!currentUser){ return; }
@@ -6127,27 +6135,31 @@ function onFinanceYearChange(){
 window.onFinanceYearChange=onFinanceYearChange;
 
 function _renderFinSection(type, list, total){
-  var cats = type==='income'?FINANCE_INCOME_CATS:FINANCE_EXPENSE_CATS;
   var title = type==='income'?'\ud83d\udcb0 Income':'\ud83e\uddfe Expenses';
   var accent = type==='income'?'var(--green-dk)':'#C0392B';
   var today=new Date().toISOString().split('T')[0];
+  var cats=_finCategories(type);
+  var showTag=_finLeader();
   var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;">';
   h+='<div style="font-size:14px;font-weight:700;margin-bottom:10px;">'+title+'</div>';
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">';
   h+='<input type="date" id="fin-'+type+'-date" value="'+today+'" style="font-size:12px;flex:1;min-width:120px;"/>';
-  h+='<select id="fin-'+type+'-cat" style="font-size:12px;flex:1;min-width:130px;">'+cats.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select>';
+  h+='<input type="text" id="fin-'+type+'-cat" list="fin-'+type+'-cat-list" placeholder="Category (type new or pick)" style="font-size:12px;flex:1;min-width:130px;"/>';
+  h+='<datalist id="fin-'+type+'-cat-list">'+cats.map(function(c){return '<option value="'+partnerEsc(c)+'"></option>';}).join('')+'</datalist>';
+  if(showTag) h+='<select id="fin-'+type+'-tag" style="font-size:12px;min-width:96px;"><option value="personal">Personal</option><option value="team">Team</option></select>';
   h+='<input type="text" id="fin-'+type+'-desc" placeholder="Description (optional)" style="font-size:12px;flex:2;min-width:140px;"/>';
   h+='<input type="number" id="fin-'+type+'-amt" placeholder="0.00" step="0.01" min="0" style="font-size:12px;width:100px;"/>';
   h+='<button class="btn btn-sm btn-g" onclick="addFinanceEntry(\''+type+'\')">+ Add</button>';
   h+='</div>';
   if(!list.length){
-    h+='<div style="font-size:12px;color:var(--text3);text-align:center;padding:14px;">No '+type+' entries for '+_financeYear+' yet.</div>';
+    h+='<div style="font-size:12px;color:var(--text3);text-align:center;padding:14px;">No '+type+' entries here yet.</div>';
   } else {
     var sorted=list.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
     h+=sorted.map(function(e){
+      var teamChip=(showTag && (e.tag||'personal')==='team') ? '<span style="font-size:9px;font-weight:700;background:#EEF2FF;color:#4F46E5;border-radius:8px;padding:1px 6px;margin-left:6px;">TEAM</span>' : '';
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">'
         +'<div style="font-size:11px;color:var(--text3);width:60px;flex-shrink:0;">'+_finDateShort(e.date)+'</div>'
-        +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(e.description||e.category||'')+'</div><div style="font-size:11px;color:var(--text3);">'+partnerEsc(e.category||'')+'</div></div>'
+        +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(e.description||e.category||'')+teamChip+'</div><div style="font-size:11px;color:var(--text3);">'+partnerEsc(e.category||'')+'</div></div>'
         +'<div style="font-size:13px;font-weight:700;color:'+accent+';flex-shrink:0;">'+_finFmt(e.amount)+'</div>'
         +'<button onclick="deleteFinanceEntry(\''+e.id+'\')" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
         +'</div>';
@@ -6161,8 +6173,16 @@ function _renderFinSection(type, list, total){
 function renderFinances(){
   if(!document.getElementById('finance-summary')) return;
   initFinanceYearSelect();
+  var leader=_finLeader();
+  var tagSel=document.getElementById('finance-tag-filter');
+  if(tagSel) tagSel.style.display = leader ? 'inline-block' : 'none';
+  var tagFilter = (leader && tagSel) ? (tagSel.value||'all') : 'all';
   var yr=String(_financeYear);
-  var entries=_financeEntries.filter(function(e){ return (e.date||'').slice(0,4)===yr; });
+  var entries=_financeEntries.filter(function(e){
+    if((e.date||'').slice(0,4)!==yr) return false;
+    if(tagFilter!=='all' && (e.tag||'personal')!==tagFilter) return false;
+    return true;
+  });
   var income=entries.filter(function(e){return e.type==='income';});
   var expenses=entries.filter(function(e){return e.type==='expense';});
   var totalInc=income.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
@@ -6181,14 +6201,16 @@ window.renderFinances=renderFinances;
 
 async function addFinanceEntry(type){
   var date=((document.getElementById('fin-'+type+'-date')||{}).value)||'';
-  var cat=((document.getElementById('fin-'+type+'-cat')||{}).value)||'';
+  var cat=(((document.getElementById('fin-'+type+'-cat')||{}).value)||'').trim();
   var desc=(((document.getElementById('fin-'+type+'-desc')||{}).value)||'').trim();
   var amt=parseFloat(((document.getElementById('fin-'+type+'-amt')||{}).value)||'0');
+  var tagEl=document.getElementById('fin-'+type+'-tag');
+  var tag=tagEl?(tagEl.value||'personal'):'personal';
   if(!date){ alert('Pick a date.'); return; }
   if(!amt||amt<=0){ alert('Enter an amount greater than 0.'); return; }
   try{
-    var ref=await fb.addDoc(_finCol(), { type:type, date:date, category:cat, description:desc, amount:amt, createdAt:fb.serverTimestamp() });
-    _financeEntries.push({ id:ref.id, type:type, date:date, category:cat, description:desc, amount:amt });
+    var ref=await fb.addDoc(_finCol(), { type:type, date:date, category:cat, description:desc, amount:amt, tag:tag, createdAt:fb.serverTimestamp() });
+    _financeEntries.push({ id:ref.id, type:type, date:date, category:cat, description:desc, amount:amt, tag:tag });
     _financeYear=parseInt(date.slice(0,4))||_financeYear;
     renderFinances();
   }catch(e){ alert('Could not save: '+e.message); }
@@ -6207,13 +6229,41 @@ window.deleteFinanceEntry=deleteFinanceEntry;
 
 function exportFinancesCSV(){
   var yr=String(_financeYear);
-  var rows=[['type','date','category','description','amount']];
-  _financeEntries.filter(function(e){return (e.date||'').slice(0,4)===yr;})
-    .sort(function(a,b){return (a.date||'').localeCompare(b.date||'');})
-    .forEach(function(e){ rows.push([e.type,e.date,e.category||'',e.description||'',e.amount]); });
-  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var leader=_finLeader();
+  var tagSel=document.getElementById('finance-tag-filter');
+  var tagFilter=(leader && tagSel)?(tagSel.value||'all'):'all';
+  var ents=_financeEntries.filter(function(e){
+    if((e.date||'').slice(0,4)!==yr) return false;
+    if(tagFilter!=='all' && (e.tag||'personal')!==tagFilter) return false;
+    return true;
+  }).sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
+  var rows=[];
+  rows.push(['NestTrack Finance Report']);
+  rows.push(['Year', yr]);
+  if(leader) rows.push(['Scope', tagFilter==='all'?'All (Personal + Team)':(tagFilter.charAt(0).toUpperCase()+tagFilter.slice(1))]);
+  rows.push([]);
+  rows.push(['Type','Tag','Date','Category','Description','Amount']);
+  ents.forEach(function(e){ rows.push([e.type, e.tag||'personal', e.date, e.category||'', e.description||'', e.amount]); });
+  rows.push([]);
+  rows.push(['SUMMARY BY CATEGORY']);
+  ['income','expense'].forEach(function(tp){
+    var byCat={};
+    ents.filter(function(e){return e.type===tp;}).forEach(function(e){ var c=e.category||'(uncategorized)'; byCat[c]=(byCat[c]||0)+(Number(e.amount)||0); });
+    var keys=Object.keys(byCat).sort();
+    if(keys.length){
+      rows.push([tp==='income'?'Income':'Expenses']);
+      keys.forEach(function(c){ rows.push(['',c,'','','',byCat[c]]); });
+    }
+  });
+  rows.push([]);
+  var ti=ents.filter(function(e){return e.type==='income';}).reduce(function(s,e){return s+(Number(e.amount)||0);},0);
+  var te=ents.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+(Number(e.amount)||0);},0);
+  rows.push(['Total Income','','','','',ti]);
+  rows.push(['Total Expenses','','','','',te]);
+  rows.push(['Net','','','','',ti-te]);
+  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download='my-finances-'+yr+'.csv'; a.click();
+  a.href=URL.createObjectURL(blob); a.download='finance-report-'+yr+(tagFilter!=='all'?'-'+tagFilter:'')+'.csv'; a.click();
 }
 window.exportFinancesCSV=exportFinancesCSV;
 
