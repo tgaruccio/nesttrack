@@ -11341,9 +11341,12 @@ function openMsgThread(buyerUid) {
   var name = ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email||'Client';
   var initials = ((buyer.firstName||'?')[0]+(buyer.lastName||'?')[0]).toUpperCase();
   var phone = (buyer.phone||'').replace(/[^0-9]/g,'');
-  var _isSeller = (buyer.currentSellerStep != null && buyer.currentStep == null);
+  var _rmDeal = (typeof _deals!=='undefined' && _deals) ? _deals.find(function(d){ return d.clientUid===buyerUid; }) : null;
+  var _isSeller = _rmDeal ? (_rmDeal.dealType==='seller') : (buyer.currentSellerStep != null);
   var _rmSteps = _isSeller ? ((typeof SELLER_STEPS!=='undefined')?SELLER_STEPS:[]) : ((typeof TIMELINE_STEPS!=='undefined')?TIMELINE_STEPS:[]);
-  var _rmCur = _isSeller ? (buyer.currentSellerStep||1) : (buyer.currentStep||1);
+  var _rmCur;
+  if (_rmDeal && _rmDeal.step != null) _rmCur = _rmDeal.step || 1;
+  else _rmCur = _isSeller ? (buyer.currentSellerStep||1) : (buyer.currentStep||1);
   var _rmCi = -1;
   for (var _i=0;_i<_rmSteps.length;_i++){ if((_rmSteps[_i].id||(_i+1))===_rmCur){ _rmCi=_i; break; } }
   if (_rmCi<0) _rmCi = Math.max(0, Math.min(_rmSteps.length-1, _rmCur-1));
