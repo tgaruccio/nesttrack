@@ -21917,6 +21917,14 @@ async function setDealStep(dealId, next) {
   var justClosed = (!isSeller && next>=11 && cur<11) || (isSeller && next>=13 && cur<13);
   if (justClosed) _activeFilter = 'closed';
   filterDeals(_activeFilter);
+  if (justUC && (!deal.address || !deal.address.trim()) && typeof promptAddress==='function') {
+    var _ucAddr = await promptAddress('Property address for this deal:', '');
+    if (_ucAddr && _ucAddr.trim()) {
+      deal.address = _ucAddr.trim();
+      try { await fb.updateDoc(_dealDoc(dealId), { address: deal.address }); } catch(e){ console.log('UC address save:', e.message); }
+      try { filterDeals(_activeFilter); } catch(e){}
+    }
+  }
   if (justUC && deal.clientUid && typeof openContractDatesModal==='function') {
     openContractDatesModal(deal.clientUid, isSeller?'seller':'buyer', (typeof _dealDatesObj==='function'?_dealDatesObj(deal):null)||{}, deal.id);
   }
