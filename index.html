@@ -2404,6 +2404,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📊 Seller Reports</button>
     <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🤝 Partners</button>
     <button id="agent-tab-teamstats" onclick="switchAgentTab('teamstats')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;position:relative;">🏆 Team <span id="ad-team-chat-badge" style="display:none;position:absolute;top:4px;right:4px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;">!</span></button>
+    <button id="agent-tab-finances" onclick="switchAgentTab('finances')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">&#128181; Finances</button>
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
@@ -2619,6 +2620,20 @@ textarea{resize:vertical;min-height:68px;}
     <!-- ONBOARDING TRACKER -->
     <div id="team-onboarding-container"></div>
 
+  </div>
+
+  <!-- MY FINANCES PANEL -->
+  <div id="agent-finances-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
+    <div class="notice">Track your income and expenses — private to you. No one else on your team (not even a team leader) can see this.</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:12px;color:var(--text3);font-weight:600;">Year:</label>
+      <select id="finance-year" onchange="onFinanceYearChange()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
+      <div style="flex:1;"></div>
+      <button class="btn btn-sm btn-g" onclick="exportFinancesCSV()">⬇ CSV</button>
+    </div>
+    <div id="finance-summary"></div>
+    <div id="finance-income"></div>
+    <div id="finance-expenses"></div>
   </div>
 
   <!-- PROFILE PANEL (via gear icon on dashboard) -->
@@ -6074,6 +6089,133 @@ async function deleteSale(agentId, idx) {
 window.deleteSale = deleteSale;
 
 window.exportTeamStatsCSV = exportTeamStatsCSV;
+
+// ─── MY FINANCES (personal, private to each agent) ───
+var _financeEntries = [];
+var _financeYear = new Date().getFullYear();
+var FINANCE_INCOME_CATS = ['Commission','Referral Fee','Bonus','Rebate','Other Income'];
+var FINANCE_EXPENSE_CATS = ['Marketing & Ads','Brokerage Fees & Dues','Software & Tools','Mileage & Auto','Gifts & Closing','Signs & Printing','Education','Office & Supplies','Meals','Other'];
+
+function _finCol(){ return fb.collection(fb.db,'finances',currentUser.uid,'entries'); }
+function _finDoc(id){ return fb.doc(fb.db,'finances',currentUser.uid,'entries',id); }
+function _finFmt(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function _finDateShort(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch(e){ return d||''; } }
+
+async function loadFinances(){
+  if(!currentUser){ return; }
+  try{
+    var snap=await fb.getDocs(_finCol());
+    _financeEntries=[];
+    snap.forEach(function(d){ var e=d.data(); e.id=d.id; _financeEntries.push(e); });
+  }catch(e){ _financeEntries=[]; }
+  renderFinances();
+}
+window.loadFinances=loadFinances;
+
+function initFinanceYearSelect(){
+  var sel=document.getElementById('finance-year'); if(!sel) return;
+  var years={}; years[new Date().getFullYear()]=1; years[_financeYear]=1;
+  _financeEntries.forEach(function(e){ var y=parseInt((e.date||'').slice(0,4)); if(y) years[y]=1; });
+  var list=Object.keys(years).map(Number).sort(function(a,b){return b-a;});
+  sel.innerHTML=list.map(function(y){return '<option value="'+y+'"'+(y===_financeYear?' selected':'')+'>'+y+'</option>';}).join('');
+}
+
+function onFinanceYearChange(){
+  var sel=document.getElementById('finance-year'); if(sel) _financeYear=parseInt(sel.value)||_financeYear;
+  renderFinances();
+}
+window.onFinanceYearChange=onFinanceYearChange;
+
+function _renderFinSection(type, list, total){
+  var cats = type==='income'?FINANCE_INCOME_CATS:FINANCE_EXPENSE_CATS;
+  var title = type==='income'?'\ud83d\udcb0 Income':'\ud83e\uddfe Expenses';
+  var accent = type==='income'?'var(--green-dk)':'#C0392B';
+  var today=new Date().toISOString().split('T')[0];
+  var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;">';
+  h+='<div style="font-size:14px;font-weight:700;margin-bottom:10px;">'+title+'</div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">';
+  h+='<input type="date" id="fin-'+type+'-date" value="'+today+'" style="font-size:12px;flex:1;min-width:120px;"/>';
+  h+='<select id="fin-'+type+'-cat" style="font-size:12px;flex:1;min-width:130px;">'+cats.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select>';
+  h+='<input type="text" id="fin-'+type+'-desc" placeholder="Description (optional)" style="font-size:12px;flex:2;min-width:140px;"/>';
+  h+='<input type="number" id="fin-'+type+'-amt" placeholder="0.00" step="0.01" min="0" style="font-size:12px;width:100px;"/>';
+  h+='<button class="btn btn-sm btn-g" onclick="addFinanceEntry(\''+type+'\')">+ Add</button>';
+  h+='</div>';
+  if(!list.length){
+    h+='<div style="font-size:12px;color:var(--text3);text-align:center;padding:14px;">No '+type+' entries for '+_financeYear+' yet.</div>';
+  } else {
+    var sorted=list.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');});
+    h+=sorted.map(function(e){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">'
+        +'<div style="font-size:11px;color:var(--text3);width:60px;flex-shrink:0;">'+_finDateShort(e.date)+'</div>'
+        +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(e.description||e.category||'')+'</div><div style="font-size:11px;color:var(--text3);">'+partnerEsc(e.category||'')+'</div></div>'
+        +'<div style="font-size:13px;font-weight:700;color:'+accent+';flex-shrink:0;">'+_finFmt(e.amount)+'</div>'
+        +'<button onclick="deleteFinanceEntry(\''+e.id+'\')" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
+        +'</div>';
+    }).join('');
+    h+='<div style="display:flex;justify-content:space-between;padding-top:10px;font-size:13px;font-weight:700;"><span>Total</span><span style="color:'+accent+';">'+_finFmt(total)+'</span></div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+function renderFinances(){
+  if(!document.getElementById('finance-summary')) return;
+  initFinanceYearSelect();
+  var yr=String(_financeYear);
+  var entries=_financeEntries.filter(function(e){ return (e.date||'').slice(0,4)===yr; });
+  var income=entries.filter(function(e){return e.type==='income';});
+  var expenses=entries.filter(function(e){return e.type==='expense';});
+  var totalInc=income.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
+  var totalExp=expenses.reduce(function(s,e){return s+(Number(e.amount)||0);},0);
+  var net=totalInc-totalExp;
+  document.getElementById('finance-summary').innerHTML=
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
+    +'<div style="background:#F0FDF4;border:1px solid var(--green-md);border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Income</div><div style="font-size:17px;font-weight:800;color:var(--green-dk);">'+_finFmt(totalInc)+'</div></div>'
+    +'<div style="background:#FEF2F2;border:1px solid #F7C1C1;border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Expenses</div><div style="font-size:17px;font-weight:800;color:#C0392B;">'+_finFmt(totalExp)+'</div></div>'
+    +'<div style="background:'+(net>=0?'#EFF6FF':'#FEF2F2')+';border:1px solid var(--border);border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Net</div><div style="font-size:17px;font-weight:800;color:'+(net>=0?'#1D4ED8':'#C0392B')+';">'+_finFmt(net)+'</div></div>'
+    +'</div>';
+  document.getElementById('finance-income').innerHTML=_renderFinSection('income', income, totalInc);
+  document.getElementById('finance-expenses').innerHTML=_renderFinSection('expense', expenses, totalExp);
+}
+window.renderFinances=renderFinances;
+
+async function addFinanceEntry(type){
+  var date=((document.getElementById('fin-'+type+'-date')||{}).value)||'';
+  var cat=((document.getElementById('fin-'+type+'-cat')||{}).value)||'';
+  var desc=(((document.getElementById('fin-'+type+'-desc')||{}).value)||'').trim();
+  var amt=parseFloat(((document.getElementById('fin-'+type+'-amt')||{}).value)||'0');
+  if(!date){ alert('Pick a date.'); return; }
+  if(!amt||amt<=0){ alert('Enter an amount greater than 0.'); return; }
+  try{
+    var ref=await fb.addDoc(_finCol(), { type:type, date:date, category:cat, description:desc, amount:amt, createdAt:fb.serverTimestamp() });
+    _financeEntries.push({ id:ref.id, type:type, date:date, category:cat, description:desc, amount:amt });
+    _financeYear=parseInt(date.slice(0,4))||_financeYear;
+    renderFinances();
+  }catch(e){ alert('Could not save: '+e.message); }
+}
+window.addFinanceEntry=addFinanceEntry;
+
+async function deleteFinanceEntry(id){
+  if(!confirm('Delete this entry?')) return;
+  try{
+    await fb.deleteDoc(_finDoc(id));
+    _financeEntries=_financeEntries.filter(function(e){return e.id!==id;});
+    renderFinances();
+  }catch(e){ alert('Could not delete: '+e.message); }
+}
+window.deleteFinanceEntry=deleteFinanceEntry;
+
+function exportFinancesCSV(){
+  var yr=String(_financeYear);
+  var rows=[['type','date','category','description','amount']];
+  _financeEntries.filter(function(e){return (e.date||'').slice(0,4)===yr;})
+    .sort(function(a,b){return (a.date||'').localeCompare(b.date||'');})
+    .forEach(function(e){ rows.push([e.type,e.date,e.category||'',e.description||'',e.amount]); });
+  var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'}); var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='my-finances-'+yr+'.csv'; a.click();
+}
+window.exportFinancesCSV=exportFinancesCSV;
 
 window.renderDocLibrary = renderDocLibrary;
 
@@ -10524,10 +10666,10 @@ window.clearAgentUnreadForBuyer = clearAgentUnreadForBuyer;
 
 
 function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel');
-  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel'),fp=document.getElementById('agent-finances-panel');
+  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb,ftb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp,fp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -10604,6 +10746,10 @@ function switchAgentTab(tab) {
         ttsb2.style.display = 'none';
       }
     });
+  } else if (tab==='finances') {
+    if (ftb) { ftb.style.background='var(--green)'; ftb.style.color='#fff'; }
+    if (fp) fp.style.display='flex';
+    loadFinances();
   } else {
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (bp) bp.style.display='flex';
