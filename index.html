@@ -2412,6 +2412,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-g btn-sm" onclick="openAddContactModal()">+ Add Contact</button>
     <button class="btn btn-sm" onclick="openImportModal()">⬆ Import CSV</button>
     <button class="btn btn-sm" onclick="exportContactsCSV()">⬇ Export CSV</button>
+    <button class="btn btn-sm" id="select-mode-btn" onclick="toggleSelectMode()">&#9745; Select multiple</button>
     <button class="btn btn-sm" onclick="openReferralModal()">Send Referrals</button>
     <button class="btn btn-sm" id="admin-show-all-btn" onclick="toggleAdminShowAll()" style="display:none;">👤 My Clients Only</button>
   </div>
@@ -2436,8 +2437,11 @@ textarea{resize:vertical;min-height:68px;}
     <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;"><input type="checkbox" id="mass-select-all" onchange="toggleSelectAllContacts(this.checked)" style="width:15px;height:15px;cursor:pointer;"/> Select all shown</label>
     <span id="mass-sel-count" style="font-size:12px;color:var(--text2);"></span>
     <div style="flex:1;"></div>
+    <button class="btn btn-sm" id="bulk-segment-btn" onclick="openBulkAction('segment')" style="display:none;">&#127991; Segment</button>
+    <button class="btn btn-sm" id="bulk-plan-btn" onclick="openBulkAction('plan')" style="display:none;">&#128203; Smart Plan</button>
+    <button class="btn btn-sm" id="bulk-status-btn" onclick="openBulkAction('status')" style="display:none;">&#128260; Status</button>
     <button class="btn btn-sm" id="mass-clear-btn" onclick="clearContactSelection()" style="display:none;">Clear</button>
-    <button class="btn btn-sm" id="mass-delete-btn" onclick="massDeleteContacts()" style="display:none;background:#C0392B;color:#fff;border-color:#C0392B;">&#128465; Delete selected</button>
+    <button class="btn btn-sm" id="mass-delete-btn" onclick="massDeleteContacts()" style="display:none;background:#C0392B;color:#fff;border-color:#C0392B;">&#128465; Delete</button>
   </div>
   <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div><!-- /agent-buyers-panel -->
@@ -10419,7 +10423,7 @@ async function renderBuyers() {
       stepInfo = tags.length ? tags.join('<div style="height:3px;"></div>') : '<span style="font-size:11px;color:var(--text3);">No journey set</span>';
     }
     return `<div class="buyer-row" onclick="openBuyerDetail('${b.uid}')">
-      <input type="checkbox" class="contact-cb" onclick="event.stopPropagation();toggleContactSelect('${b.uid}',this.checked)" ${window._selectedContacts&&window._selectedContacts[b.uid]?'checked':''} title="Select" style="flex-shrink:0;width:16px;height:16px;cursor:pointer;align-self:center;" />
+      ${window._selectMode ? `<input type="checkbox" class="contact-cb" onclick="event.stopPropagation();toggleContactSelect('${b.uid}',this.checked)" ${window._selectedContacts&&window._selectedContacts[b.uid]?'checked':''} title="Select" style="flex-shrink:0;width:16px;height:16px;cursor:pointer;align-self:center;" />` : ''}
       <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
@@ -12662,6 +12666,16 @@ window.saveContactSegment=saveContactSegment;
 // ─── MASS SELECT + DELETE ───
 window._selectedContacts = {};
 window._shownContactUids = [];
+window._selectMode = false;
+
+function toggleSelectMode(){
+  window._selectMode = !window._selectMode;
+  if(!window._selectMode) window._selectedContacts = {};
+  var btn=document.getElementById('select-mode-btn');
+  if(btn){ btn.textContent = window._selectMode ? '\u2713 Done' : '\u2611 Select multiple'; btn.classList.toggle('btn-g', window._selectMode); }
+  renderBuyers();
+}
+window.toggleSelectMode = toggleSelectMode;
 
 function toggleContactSelect(uid, checked){
   if(checked) window._selectedContacts[uid]=true; else delete window._selectedContacts[uid];
@@ -12687,15 +12701,15 @@ function updateMassActionBar(){
   var shown = window._shownContactUids||[];
   var uids = Object.keys(window._selectedContacts||{});
   var bar = document.getElementById('mass-action-bar');
-  if(bar) bar.style.display = shown.length ? 'flex' : 'none';
+  if(bar) bar.style.display = (window._selectMode && shown.length) ? 'flex' : 'none';
   var cnt = document.getElementById('mass-sel-count');
-  if(cnt) cnt.textContent = uids.length ? (uids.length+' selected') : '';
+  if(cnt) cnt.textContent = uids.length ? (uids.length+' selected') : 'Tap rows to select';
   var sa = document.getElementById('mass-select-all');
   if(sa) sa.checked = shown.length>0 && uids.length>=shown.length;
-  var del = document.getElementById('mass-delete-btn');
-  if(del) del.style.display = uids.length ? 'inline-flex' : 'none';
-  var clr = document.getElementById('mass-clear-btn');
-  if(clr) clr.style.display = uids.length ? 'inline-flex' : 'none';
+  var has = uids.length>0;
+  ['bulk-segment-btn','bulk-plan-btn','bulk-status-btn','mass-clear-btn','mass-delete-btn'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.style.display = has ? 'inline-flex' : 'none';
+  });
 }
 window.updateMassActionBar = updateMassActionBar;
 
@@ -12719,10 +12733,86 @@ async function massDeleteContacts(){
   window._selectedContacts = {};
   if(typeof loadBuyersForAgent==='function') await loadBuyersForAgent();
   renderBuyers();
-  if(del){ del.disabled=false; del.textContent='\ud83d\uddd1 Delete selected'; }
+  if(del){ del.disabled=false; del.textContent='\ud83d\uddd1 Delete'; }
   alert('Deleted '+ok+' contact'+(ok!==1?'s':'')+(fail?' \u00b7 '+fail+' skipped/failed':'')+'.');
 }
 window.massDeleteContacts = massDeleteContacts;
+
+function openBulkAction(type){
+  var uids = Object.keys(window._selectedContacts||{});
+  if(!uids.length) return;
+  var inner='';
+  if(type==='segment'){
+    inner='<label class="flabel">Segment / Source</label>'
+      +'<input type="text" id="bulk-seg-input" list="bulk-seg-list" placeholder="Type new or pick existing" style="width:100%;box-sizing:border-box;font-size:13px;"/>'
+      +'<datalist id="bulk-seg-list">'+_agentSegments().map(function(s){return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>';}).join('')+'</datalist>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:4px;">Leave blank + Apply to clear the segment.</div>';
+  } else if(type==='plan'){
+    var plans=(typeof _smartPlans!=='undefined'&&_smartPlans)?_smartPlans:[];
+    if(!plans.length){ alert('No smart plans found. Create one under Smart Plans first.'); return; }
+    inner='<label class="flabel">Smart Plan</label><select id="bulk-plan-select" style="width:100%;box-sizing:border-box;font-size:13px;">'+plans.map(function(p){return '<option value="'+p.id+'">'+String(p.name||'Plan').replace(/</g,'&lt;')+'</option>';}).join('')+'</select>';
+  } else if(type==='status'){
+    var sts=[['pipeline','Pipeline'],['active','Active'],['nurture','Nurture'],['cold','Cold'],['past','Past Client'],['contact','Contact Only']];
+    inner='<label class="flabel">CRM Status</label><select id="bulk-status-select" style="width:100%;box-sizing:border-box;font-size:13px;">'+sts.map(function(s){return '<option value="'+s[0]+'">'+s[1]+'</option>';}).join('')+'</select>';
+  } else { return; }
+  var titles={segment:'Add to Segment',plan:'Add to Smart Plan',status:'Change Status'};
+  var ov=document.createElement('div');
+  ov.id='bulk-action-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;';
+  ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);padding:18px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.25);">'
+    +'<div style="font-size:15px;font-weight:700;margin-bottom:4px;">'+titles[type]+'</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Applies to '+uids.length+' selected contact'+(uids.length!==1?'s':'')+'.</div>'
+    +inner
+    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">'
+    +'<button class="btn btn-sm" onclick="document.getElementById(\'bulk-action-overlay\').remove()">Cancel</button>'
+    +'<button class="btn btn-sm btn-g" onclick="applyBulkAction(\''+type+'\')">Apply</button>'
+    +'</div></div>';
+  document.body.appendChild(ov);
+}
+window.openBulkAction = openBulkAction;
+
+async function _bulkEnrollPlan(uid, planId){
+  var plans=(typeof _smartPlans!=='undefined'&&_smartPlans)?_smartPlans:[];
+  var plan=plans.find(function(x){return x.id===planId;}); if(!plan) throw new Error('plan not found');
+  var today=(typeof _spTodayStr==='function')?_spTodayStr():new Date().toISOString().split('T')[0];
+  var patch={ smartPlanId:plan.id, smartPlanName:plan.name||'Plan', smartPlanOwner:(typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)||'tom')), smartPlanStatus:'active', smartPlanStep:0, smartPlanNextDue:today, smartPlanEnrolledAt:today };
+  await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+  var b=(allBuyers||[]).find(function(x){return x.uid===uid;});
+  if(b) Object.assign(b, patch);
+}
+
+async function applyBulkAction(type){
+  var uids = Object.keys(window._selectedContacts||{});
+  if(!uids.length) return;
+  var patch=null, planId=null;
+  if(type==='segment'){
+    patch={ segment: ((document.getElementById('bulk-seg-input')||{}).value||'').trim() };
+  } else if(type==='status'){
+    var st=(document.getElementById('bulk-status-select')||{}).value||'';
+    if(!st) return; patch={ crmStatus: st };
+  } else if(type==='plan'){
+    planId=(document.getElementById('bulk-plan-select')||{}).value||'';
+    if(!planId) return;
+  } else { return; }
+  var ov=document.getElementById('bulk-action-overlay'); if(ov) ov.remove();
+  var ok=0, fail=0;
+  for(var i=0;i<uids.length;i++){
+    var uid=uids[i];
+    try{
+      if(type==='plan'){ await _bulkEnrollPlan(uid, planId); }
+      else {
+        await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+        var b=(allBuyers||[]).find(function(x){return x.uid===uid;});
+        if(b) Object.assign(b, patch);
+      }
+      ok++;
+    }catch(e){ fail++; }
+  }
+  renderBuyers();
+  var verb={segment:'Segment updated',status:'Status updated',plan:'Enrolled in smart plan'}[type]||'Updated';
+  alert(verb+' for '+ok+' contact'+(ok!==1?'s':'')+(fail?' \u00b7 '+fail+' failed':'')+'.');
+}
+window.applyBulkAction = applyBulkAction;
 
 
 // INVITE
