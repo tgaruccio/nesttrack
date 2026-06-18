@@ -11428,15 +11428,14 @@ function _stepChatParts(isSeller, stepNum){
   if(idx<0) idx=Math.max(0,Math.min(steps.length-1, stepNum-1));
   var s = steps[idx]||{};
   var title = s.name || s.title || ('Step '+stepNum);
-  var blurb = (s.summary || s.body || '').trim();
-  if(blurb){
-    var dot = blurb.indexOf('. ');
-    if(dot>40 && dot<240) blurb = blurb.slice(0, dot+1);
-    else if(blurb.length>220) blurb = blurb.slice(0,220).trim()+'\u2026';
-  }
+  var body = (s.summary || s.body || '').trim();
+  var bullets = s.bullets || [];
+  var tip = (s.tip || '').trim();
   var url = _streamWatchUrl(s.videoId);
   var text = '\uD83D\uDCCD You\u2019re now at: ' + title;
-  if(blurb) text += '\n\n' + blurb;
+  if(body) text += '\n\n' + body;
+  if(bullets && bullets.length){ text += '\n'; for(var b=0;b<bullets.length;b++){ text += '\n\u2022 ' + bullets[b]; } }
+  if(tip) text += '\n\n\uD83D\uDCA1 ' + tip;
   if(url) text += '\n\n\u25B6 Watch: ' + url;
   return { title:title, text:text };
 }
@@ -13991,6 +13990,7 @@ async function saveContractDates(sendEmail) {
     // Only send plain timeline email if NOT on UC step (UC preview includes timeline)
     if (sendEmail && !isUC) sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
     if (isUC) showUnderContractEmailPreview(_cdmBuyerUid, dates, _cdmType);
+    if (sendEmail && isUC && typeof _postStepToChat==='function') _postStepToChat(_cdmBuyerUid, _cdmType==='seller', _cdmType==='seller'?9:5);
     // Sync dates to linked deal card, or auto-create deal if none exists
     try {
       var agentId2 = userProfile.agentId||'tom';
