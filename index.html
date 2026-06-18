@@ -10743,11 +10743,35 @@ window.renderBuyers = renderBuyers;
 // ─── WATCH ALL AGENT CHAT ROOMS FOR UNREAD ───
 var agentUnreadListeners = [];
 var agentUnreadCounts = {};
+var agentLastMsg = {};
+var _msgRenderTimer = null;
+function _scheduleMsgRender(){
+  if (!document.getElementById('msg-list-items')) return;
+  clearTimeout(_msgRenderTimer);
+  _msgRenderTimer = setTimeout(function(){ try{ renderMessagesPage(); }catch(e){} }, 250);
+}
+function _msgPreview(lm){
+  var t = (lm && lm.text) ? String(lm.text) : '';
+  t = t.replace(/\s+/g,' ').trim();
+  var prefix = (lm && lm.role==='agent') ? 'You: ' : '';
+  if (t.length > 46) t = t.slice(0,46).trim()+'\u2026';
+  return prefix + t;
+}
+function _msgRelTime(ts){
+  if(!ts) return '';
+  var d = new Date(ts), now = new Date();
+  if (d.toDateString()===now.toDateString()) return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  var diffDays = Math.floor((now - d)/86400000);
+  if (diffDays<=1) return 'Yesterday';
+  if (diffDays<7) return d.toLocaleDateString('en-US',{weekday:'short'});
+  return d.toLocaleDateString('en-US',{month:'numeric',day:'numeric'});
+}
 
 function watchAllAgentChats() {
   agentUnreadListeners.forEach(function(fn){ try{fn();}catch(e){} });
   agentUnreadListeners = [];
   agentUnreadCounts = {};
+  agentLastMsg = {};
   if (!myBuyers || !myBuyers.length) return;
 
   var agentEntry = DEFAULT_AGENTS.find(function(a){
@@ -10762,6 +10786,9 @@ function watchAllAgentChats() {
     var chatRef = fb.ref(fb.rtdb, 'chats/'+roomId+'/messages');
     var listener = fb.onChildAdded(chatRef, function(snapshot) {
       var msg = snapshot.val(); if (!msg) return;
+      var _lm = agentLastMsg[b.uid];
+      if (!_lm || (msg.ts||0) >= (_lm.ts||0)) agentLastMsg[b.uid] = { text: msg.text||'', ts: msg.ts||0, role: msg.role||'' };
+      _scheduleMsgRender();
       if (msg.role === 'buyer' && msg.ts > lastSeen) {
         agentUnreadCounts[b.uid] = (agentUnreadCounts[b.uid]||0) + 1;
         updateAgentUnreadBadge();
@@ -10986,39 +11013,53 @@ var _msgListener = null;
 function renderMessagesPage() {
   var container = document.getElementById('msg-list-items');
   if (!container) return;
-  var buyers = (myBuyers||[]).filter(function(b){ return !b.pending; });
-  if (!buyers.length) {
-    container.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">No clients yet</div>';
+  var roster = (myBuyers||[]).filter(function(b){ return !b.pending; });
+  var si = document.getElementById('msg-search');
+  var q = si ? (si.value||'').toLowerCase().trim() : '';
+
+  var list;
+  if (q) {
+    list = roster.filter(function(b){
+      var hay = (((b.firstName||'')+' '+(b.lastName||'')).trim()+' '+(b.email||'')).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  } else {
+    list = roster.filter(function(b){ return agentLastMsg[b.uid]; });
+  }
+
+  list.sort(function(a,b){
+    var la = (agentLastMsg[a.uid]||{}).ts||0, lb = (agentLastMsg[b.uid]||{}).ts||0;
+    if (lb !== la) return lb - la;
+    return (((a.firstName||'')+(a.lastName||'')).localeCompare((b.firstName||'')+(b.lastName||'')));
+  });
+
+  if (!list.length) {
+    container.innerHTML = q
+      ? '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">No matches</div>'
+      : '<div style="padding:24px 18px;text-align:center;font-size:13px;color:var(--text3);">No conversations yet.<br>Search above to start one.</div>';
     return;
   }
-  buyers.sort(function(a,b){
-    var ua = (agentUnreadCounts||{})[a.uid]||0, ub = (agentUnreadCounts||{})[b.uid]||0;
-    if (ub !== ua) return ub - ua;
-    return ((a.firstName||'')+(a.lastName||'')).localeCompare((b.firstName||'')+(b.lastName||''));
-  });
-  container.innerHTML = buyers.map(function(b) {
+
+  container.innerHTML = list.map(function(b) {
     var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
     var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
     var unread = (agentUnreadCounts||{})[b.uid]||0;
-    var stepName = (TIMELINE_STEPS[(b.currentStep||1)-1]||{}).name||'';
     var isActive = _msgCurrentBuyer && _msgCurrentBuyer.uid === b.uid;
-    return '<button onclick="openMsgThread(\''+b.uid+'\')" data-uid="'+b.uid+'" data-name="'+name.toLowerCase()+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+    var lm = agentLastMsg[b.uid];
+    var sub = lm ? _msgPreview(lm) : 'Start a conversation';
+    var timeStr = lm ? _msgRelTime(lm.ts) : '';
+    return '<button onclick="openMsgThread(\''+b.uid+'\')" data-uid="'+b.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
       + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--surface2)')+';color:'+(unread?'#fff':'var(--text2)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
       + '<div style="flex:1;min-width:0;">'
-      + '<div style="font-size:13.5px;font-weight:'+(unread?'600':'400')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'
-      + '<div style="font-size:11.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(stepName)+'</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
+      + '<div style="font-size:11.5px;color:'+(unread?'var(--text)':'var(--text3)')+';font-weight:'+(unread?'500':'400')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>'
       + '</div>'
-      + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;">'+unread+'</span>' : '')
+      + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;flex-shrink:0;">'+unread+'</span>' : '')
       + '</button>';
   }).join('');
 }
 function filterMsgList(q) {
-  q = (q||'').toLowerCase().trim();
-  var items = document.querySelectorAll('#msg-list-items button[data-uid]');
-  items.forEach(function(btn){
-    var name = (btn.getAttribute('data-name')||'').toLowerCase();
-    btn.style.display = (!q || name.includes(q)) ? '' : 'none';
-  });
+  renderMessagesPage();
 }
 window.filterMsgList = filterMsgList;
 
