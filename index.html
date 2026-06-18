@@ -22269,7 +22269,15 @@ window.editDealAddress = editDealAddress;
 function markOfferAccepted(dealId){
   var deal=_deals.find(function(d){ return d.id===dealId; }); if(!deal) return;
   deal.offerStatus='accepted';
-  fb.updateDoc(_dealDoc(dealId),{offerStatus:'accepted'}).then(function(){ filterDeals(_activeFilter); });
+  var isSeller = deal.dealType==='seller';
+  var ucStep = isSeller ? 9 : 5;
+  // Record the accepted flag, then advance the deal into Under Contract. setDealStep
+  // switches to the Contract tab (so the deal visibly MOVES rather than vanishing) and
+  // opens the contract-dates modal, which fills the timeline and sends the client the UC email.
+  fb.updateDoc(_dealDoc(dealId),{offerStatus:'accepted'}).catch(function(){});
+  if (typeof showDealToast==='function') showDealToast('\u2705 Offer accepted \u2014 moving to Under Contract', null, null);
+  if (typeof setDealStep==='function') { setDealStep(dealId, ucStep); }
+  else { filterDeals(_activeFilter); }
 }
 function markOfferRejected(dealId){
   var deal=_deals.find(function(d){ return d.id===dealId; }); if(!deal) return;
