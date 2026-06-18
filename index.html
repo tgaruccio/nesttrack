@@ -2987,6 +2987,10 @@ textarea{resize:vertical;min-height:68px;}
         <option value="contact">Contact Only</option>
       </select>
     </div>
+    <div><label class="flabel">Segment / Source <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+      <input type="text" id="inv-segment" list="inv-segment-options" placeholder="Type a new segment or pick an existing one"/>
+      <datalist id="inv-segment-options"></datalist>
+    </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
     <div id="invite-result" style="display:none;"></div>
@@ -12098,6 +12102,15 @@ async function openBuyerDetail(uid, scrollTo) {
           ${b.notesUpdatedAt?`<span style="font-size:10px;color:var(--text3);">Updated ${new Date(b.notesUpdatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`:''}
         </div>
       </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px;">Segment / Source <span style="font-weight:400;">— group this contact (e.g. Open House, Sphere, FSBO)</span></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <input type="text" id="bd-segment-in" list="bd-segment-options" value="${(b.segment||'').replace(/"/g,'&quot;')}" placeholder="Type a new segment or pick existing" style="flex:1;min-width:160px;box-sizing:border-box;font-size:13px;"/>
+          <datalist id="bd-segment-options">${_agentSegments().map(function(s){return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>';}).join('')}</datalist>
+          <button class="btn btn-sm btn-g" onclick="saveContactSegment('${uid}')">Save</button>
+          <div id="bd-segment-status" style="display:none;font-size:11.5px;color:var(--green-dk);font-weight:500;"></div>
+        </div>
+      </div>
       <div id="sp-contact-row-${uid}" style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${spContactRowHtml(b)}</div>
     </div>
     ${renderClientDealsSection(uid)}
@@ -12605,6 +12618,31 @@ async function saveAgentNotes(uid) {
   } catch(e) { alert('Failed to save: ' + e.message); }
 }
 window.saveAgentNotes = saveAgentNotes;
+
+function _agentSegments(){
+  var set={};
+  (allBuyers||[]).forEach(function(b){
+    var mine=(b.agentId===userProfile.agentId||b.coAgentId===userProfile.agentId||(isOwner()&&_adminShowAll));
+    if(mine&&b.segment) set[b.segment]=1;
+  });
+  return Object.keys(set).sort();
+}
+window._agentSegments=_agentSegments;
+
+async function saveContactSegment(uid){
+  var inp=document.getElementById('bd-segment-in');
+  var status=document.getElementById('bd-segment-status');
+  if(!inp) return;
+  var seg=inp.value.trim();
+  try{
+    await fb.updateDoc(fb.doc(fb.db,'users',uid),{ segment: seg });
+    var buyer=(allBuyers||[]).find(function(b){ return b.uid===uid; });
+    if(buyer) buyer.segment=seg;
+    if(status){ status.textContent=seg?'\u2713 Saved':'\u2713 Cleared'; status.style.display='block'; setTimeout(function(){ status.style.display='none'; },2500); }
+    if(typeof renderBuyers==='function') renderBuyers();
+  }catch(e){ alert('Failed to save: '+e.message); }
+}
+window.saveContactSegment=saveContactSegment;
 
 
 // INVITE
@@ -23419,9 +23457,11 @@ window.saveMortLAField = saveMortLAField;
 
 // ─── ADD CONTACT (no email sent) ───
 function openAddContactModal() {
-  ['inv-first','inv-last','inv-email','inv-phone','inv-address'].forEach(function(id){
+  ['inv-first','inv-last','inv-email','inv-phone','inv-address','inv-segment'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.value = '';
   });
+  var _invSegDl = document.getElementById('inv-segment-options');
+  if (_invSegDl) _invSegDl.innerHTML = _agentSegments().map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>'; }).join('');
   var crmSel = document.getElementById('inv-crm-status');
   if (crmSel) crmSel.value = 'pipeline';
   // Default journey type — mortgage for lender-only logins
@@ -23491,6 +23531,7 @@ async function createContact() {
     role: isContactOnly ? 'contact' : (isSeller && !isBuyer ? 'seller' : 'buyer'),
     journeyType: journeyType,
     crmStatus: crmStatus,
+    segment: ((document.getElementById('inv-segment')||{}).value||'').trim(),
     currentStep: 0, currentSellerStep: 0,
     portalAccess: false,
     isContact: true,
