@@ -2432,6 +2432,13 @@ textarea{resize:vertical;min-height:68px;}
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
   </div>
   <div class="dstats" id="agent-stats"></div>
+  <div id="mass-action-bar" style="display:none;align-items:center;gap:10px;background:var(--green-lt);border:1px solid var(--green-md);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;flex-wrap:wrap;">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;"><input type="checkbox" id="mass-select-all" onchange="toggleSelectAllContacts(this.checked)" style="width:15px;height:15px;cursor:pointer;"/> Select all shown</label>
+    <span id="mass-sel-count" style="font-size:12px;color:var(--text2);"></span>
+    <div style="flex:1;"></div>
+    <button class="btn btn-sm" id="mass-clear-btn" onclick="clearContactSelection()" style="display:none;">Clear</button>
+    <button class="btn btn-sm" id="mass-delete-btn" onclick="massDeleteContacts()" style="display:none;background:#C0392B;color:#fff;border-color:#C0392B;">&#128465; Delete selected</button>
+  </div>
   <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div><!-- /agent-buyers-panel -->
 
@@ -10352,6 +10359,12 @@ async function renderBuyers() {
     myBuyers = myBuyers.filter(function(b){ return (b.segment||'') === window._segmentFilter; });
   }
 
+  // Mass-select: track shown uids, prune selection to only what's visible (filtered-only)
+  window._shownContactUids = myBuyers.map(function(b){ return b.uid; });
+  Object.keys(window._selectedContacts||{}).forEach(function(uid){
+    if (window._shownContactUids.indexOf(uid) < 0) delete window._selectedContacts[uid];
+  });
+
   const total = myBuyers.length;
   const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
   const closed = myBuyers.filter(b => (b.currentStep||1) === 11).length;
@@ -10406,6 +10419,7 @@ async function renderBuyers() {
       stepInfo = tags.length ? tags.join('<div style="height:3px;"></div>') : '<span style="font-size:11px;color:var(--text3);">No journey set</span>';
     }
     return `<div class="buyer-row" onclick="openBuyerDetail('${b.uid}')">
+      <input type="checkbox" class="contact-cb" onclick="event.stopPropagation();toggleContactSelect('${b.uid}',this.checked)" ${window._selectedContacts&&window._selectedContacts[b.uid]?'checked':''} title="Select" style="flex-shrink:0;width:16px;height:16px;cursor:pointer;align-self:center;" />
       <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
@@ -10424,6 +10438,7 @@ async function renderBuyers() {
       </div>
     </div>`;
   }).join('') : '<div style="text-align:center;color:var(--text3);font-size:13px;padding:30px;">No buyers found. Use "+ Invite Buyer" to add one or share a signup link.</div>';
+  updateMassActionBar();
 }
 window.renderBuyers = renderBuyers;
 
@@ -12643,6 +12658,71 @@ async function saveContactSegment(uid){
   }catch(e){ alert('Failed to save: '+e.message); }
 }
 window.saveContactSegment=saveContactSegment;
+
+// ─── MASS SELECT + DELETE ───
+window._selectedContacts = {};
+window._shownContactUids = [];
+
+function toggleContactSelect(uid, checked){
+  if(checked) window._selectedContacts[uid]=true; else delete window._selectedContacts[uid];
+  updateMassActionBar();
+}
+window.toggleContactSelect = toggleContactSelect;
+
+function toggleSelectAllContacts(checked){
+  (window._shownContactUids||[]).forEach(function(uid){
+    if(checked) window._selectedContacts[uid]=true; else delete window._selectedContacts[uid];
+  });
+  renderBuyers();
+}
+window.toggleSelectAllContacts = toggleSelectAllContacts;
+
+function clearContactSelection(){
+  window._selectedContacts = {};
+  renderBuyers();
+}
+window.clearContactSelection = clearContactSelection;
+
+function updateMassActionBar(){
+  var shown = window._shownContactUids||[];
+  var uids = Object.keys(window._selectedContacts||{});
+  var bar = document.getElementById('mass-action-bar');
+  if(bar) bar.style.display = shown.length ? 'flex' : 'none';
+  var cnt = document.getElementById('mass-sel-count');
+  if(cnt) cnt.textContent = uids.length ? (uids.length+' selected') : '';
+  var sa = document.getElementById('mass-select-all');
+  if(sa) sa.checked = shown.length>0 && uids.length>=shown.length;
+  var del = document.getElementById('mass-delete-btn');
+  if(del) del.style.display = uids.length ? 'inline-flex' : 'none';
+  var clr = document.getElementById('mass-clear-btn');
+  if(clr) clr.style.display = uids.length ? 'inline-flex' : 'none';
+}
+window.updateMassActionBar = updateMassActionBar;
+
+async function massDeleteContacts(){
+  var uids = Object.keys(window._selectedContacts||{});
+  if(!uids.length) return;
+  if(!confirm('Permanently delete '+uids.length+' contact'+(uids.length!==1?'s':'')+'?\n\nThis removes their profile and any saved homes/tours. It cannot be undone.')) return;
+  var del = document.getElementById('mass-delete-btn');
+  if(del){ del.disabled=true; del.textContent='Deleting\u2026'; }
+  var ok=0, fail=0;
+  for(var i=0;i<uids.length;i++){
+    var uid=uids[i];
+    var b=(allBuyers||[]).find(function(x){return x.uid===uid;});
+    if(b && typeof canAccessBuyer==='function' && !canAccessBuyer(b)){ fail++; continue; }
+    try{
+      if(typeof deleteKnownBuyerSubcollections==='function') await deleteKnownBuyerSubcollections(uid);
+      await fb.deleteDoc(fb.doc(fb.db,'users',uid));
+      ok++;
+    }catch(e){ fail++; }
+  }
+  window._selectedContacts = {};
+  if(typeof loadBuyersForAgent==='function') await loadBuyersForAgent();
+  renderBuyers();
+  if(del){ del.disabled=false; del.textContent='\ud83d\uddd1 Delete selected'; }
+  alert('Deleted '+ok+' contact'+(ok!==1?'s':'')+(fail?' \u00b7 '+fail+' skipped/failed':'')+'.');
+}
+window.massDeleteContacts = massDeleteContacts;
 
 
 // INVITE
