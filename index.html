@@ -6942,7 +6942,7 @@ function go(page, el) {
   if (page === 'docs-explainer') { _populateDocExplainer(); }
   if (page === 'messages') { renderMessagesPage(); }
   if (page === 'newsletter') {
-    _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
+    _nlContainerId = 'nl-blocks'; _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
     // Load fresh complete buyer list directly — don't use myBuyers which is filtered
     var savedMyBuyers = myBuyers;
     loadBuyersForAgent().then(function(){
@@ -11202,6 +11202,7 @@ window.renderMessagesPage = renderMessagesPage;
 
 // ─── NEWSLETTER ───
 var _nlBlocks = [];
+var _nlContainerId = 'nl-blocks';
 var _nlBlockId = 0;
 
 function updateNlCount() {
@@ -11273,7 +11274,7 @@ function removeNlBlock(id) {
 window.removeNlBlock = removeNlBlock;
 
 function renderNlBlocks() {
-  var container = document.getElementById('nl-blocks');
+  var container = document.getElementById(_nlContainerId||'nl-blocks');
   if (!container) return;
   if (!_nlBlocks.length) {
     container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">Add blocks above to build your email</div>';
@@ -23909,6 +23910,7 @@ function _spStepCard(s,i){
   if(s.channel==='vm'){ _rdy=!!(s.audioName&&s.audioName.trim()); _rdyLabel=_rdy?'✓ Recording selected':'⚠ No recording — tap Edit to pick one'; }
   else if(s.channel==='texttap'){ _rdy=!!(s.smsBody&&s.smsBody.trim()); _rdyLabel=_rdy?'✓ Text written':'⚠ No message — tap Edit to write it'; }
   else if(s.channel==='letter'){ _rdy=!!((s.letterTemplateId&&String(s.letterTemplateId).trim())||(s.letterBody&&s.letterBody.trim())); _rdyLabel=_rdy?'✓ Letter ready':'⚠ No template or text — tap Edit'; }
+  else if(s.channel==='email'){ _rdy=!!((s.emailSubject&&s.emailSubject.trim())||(s.emailBody&&s.emailBody.trim())||(s.emailHtml&&s.emailHtml.trim())); _rdyLabel=_rdy?'✓ Email ready':'⚠ No email content — tap Edit'; }
   else { _rdy=!!(s.webhookUrl&&s.webhookUrl.trim()); _rdyLabel=_rdy?'✓ Zap connected':'⚠ No webhook URL — won\'t fire'; }
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
@@ -23953,6 +23955,7 @@ window.spInsertStep = spInsertStep;
 
 function spEditStep(i){
   var s=_currentPlan.steps[i]; if(!s) return;
+  if(s.channel==='email'){ spEmailDesignOpen(i); return; }
   var ov=document.createElement('div');
   ov.id='sp-edit-overlay';
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:700;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -24031,6 +24034,64 @@ function spEditStep(i){
   document.body.appendChild(ov);
 }
 window.spEditStep = spEditStep;
+
+// Rich email designer for smart-plan email steps — reuses the newsletter block builder.
+function spEmailDesignOpen(i){
+  var s=_currentPlan.steps[i]; if(!s) return;
+  var seed=[];
+  if(Array.isArray(s.emailBlocks)&&s.emailBlocks.length) seed=JSON.parse(JSON.stringify(s.emailBlocks));
+  else if(s.emailBody&&s.emailBody.trim()) seed=[{id:1,type:'text',value:s.emailBody}];
+  _nlBlocks=seed;
+  _nlBlockId=seed.reduce(function(m,b){return Math.max(m,b.id||0);},0);
+  _nlContainerId='sp-nl-blocks';
+  var ov=document.createElement('div');
+  ov.id='sp-email-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:760;display:flex;flex-direction:column;';
+  ov.innerHTML=
+    '<div style="padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
+      +'<button onclick="spEmailDesignClose()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
+      +'<div style="flex:1;font-size:15px;font-weight:600;">\uD83D\uDCE7 Design email</div>'
+      +'<button class="btn btn-g btn-sm" onclick="spEmailDesignSave('+i+')">Done</button>'
+    +'</div>'
+    +'<div style="flex:1;overflow-y:auto;padding:14px 16px;-webkit-overflow-scrolling:touch;">'
+      +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Subject</label>'
+      +'<input type="text" id="sp-email-subject" placeholder="Quick question, {first}" value="'+partnerEsc(s.emailSubject||'')+'" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;margin:4px 0 14px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+        +'<button class="btn btn-sm" onclick="addNlBlock(\'text\')">+ Text</button>'
+        +'<button class="btn btn-sm" onclick="addNlBlock(\'image\')">+ Image</button>'
+        +'<button class="btn btn-sm" onclick="addNlBlock(\'video\')">+ Video</button>'
+        +'<button class="btn btn-sm" onclick="addNlBlock(\'button\')">+ Button</button>'
+        +'<button class="btn btn-sm" onclick="addNlBlock(\'pdf\')">+ PDF</button>'
+        +'<button class="btn btn-sm" onclick="addNlBlock(\'divider\')">+ Divider</button>'
+      +'</div>'
+      +'<div id="sp-nl-blocks" style="display:flex;flex-direction:column;gap:10px;"></div>'
+      +'<div style="margin-top:16px;"><label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-email-note" placeholder="What this email is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/></div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">Use {first} or {last} anywhere to auto-fill the contact\u2019s name. A signature can be added later in your profile.</div>'
+    +'</div>';
+  document.body.appendChild(ov);
+  renderNlBlocks();
+}
+window.spEmailDesignOpen = spEmailDesignOpen;
+
+function spEmailDesignClose(){
+  _nlContainerId='nl-blocks';
+  var ov=document.getElementById('sp-email-overlay'); if(ov) ov.remove();
+}
+window.spEmailDesignClose = spEmailDesignClose;
+
+function spEmailDesignSave(i){
+  var s=_currentPlan.steps[i]; if(!s){ spEmailDesignClose(); return; }
+  if(typeof saveNlBlockValues==='function') saveNlBlockValues();
+  s.emailSubject=(document.getElementById('sp-email-subject')||{}).value||'';
+  s.content=(document.getElementById('sp-email-note')||{}).value||'';
+  s.emailBlocks=JSON.parse(JSON.stringify(_nlBlocks||[]));
+  s.emailHtml=(typeof buildNlBodyHtml==='function')?buildNlBodyHtml(false):'';
+  s.emailBody=(_nlBlocks||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.value||'';}).join('\n\n');
+  spEmailDesignClose();
+  spRenderCanvas();
+}
+window.spEmailDesignSave = spEmailDesignSave;
 
 function spSaveStep(i){
   var s=_currentPlan.steps[i]; if(!s){ document.getElementById('sp-edit-overlay').remove(); return; }
@@ -24158,6 +24219,7 @@ async function spSavePlan(){
   _currentPlan.updatedAt=Date.now();
   if(_currentPlan._isNew){ _currentPlan.createdAt=Date.now(); _currentPlan.createdBy=_spAgentId(); }
   var save={ name:_currentPlan.name, audience:_currentPlan.audience, steps:_currentPlan.steps||[],
+             senderFrom:(typeof agentFromField==='function'?agentFromField():''), senderReplyTo:(typeof agentReplyTo==='function'?(agentReplyTo()||''):''),
              updatedAt:_currentPlan.updatedAt, createdAt:_currentPlan.createdAt||Date.now(), createdBy:_currentPlan.createdBy||_spAgentId() };
   try {
     await fb.setDoc(_spDoc(_currentPlan.id), save);
