@@ -23691,6 +23691,7 @@ var _smartPlans = [];          // loaded plan templates
 var _currentPlan = null;       // plan being edited in the builder
 
 var SP_CHANNELS = {
+  email:   { label:'Email',    icon:'\uD83D\uDCE7', color:'#1D9E75', bg:'#E6F7F0', desc:'Automated email \u2014 sent for you' },
   vm:      { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
   letter:  { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
   texttap: { label:'Text (you send)', icon:'📲', color:'#0369A1', bg:'#E0F2FE', desc:'Push reminder — you tap to send from your own phone' },
@@ -23999,6 +24000,16 @@ function spEditStep(i){
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
         +'<input type="text" id="sp-step-content" placeholder="What this letter is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
         +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">Goes to the contact\'s mailing address on file.</div>';
+    } else if(s.channel==='email'){
+      inner=hdr
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">Sends an automated email to the contact through your NestTrack email. Replies come back to your inbox.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Subject</label>'
+        +'<input type="text" id="sp-step-subject" placeholder="Quick question, {first}" value="'+partnerEsc(s.emailSubject||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Message</label>'
+        +'<textarea id="sp-step-email" rows="7" placeholder="Hi {first},&#10;&#10;Write your email here\u2026" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;margin:4px 0 8px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+partnerEsc(s.emailBody||'')+'</textarea>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Use {first} or {last} to auto-fill the contact\'s name.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="What this email is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
     } else {
       inner=hdr
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">This step pings your Zap, which does the actual sending.</div>'
@@ -24040,6 +24051,10 @@ function spSaveStep(i){
     if(letterTplEl) s.letterTemplateId=letterTplEl.value.trim();
     var smsEl=document.getElementById('sp-step-sms');
     if(smsEl) s.smsBody=smsEl.value;
+    var subjEl=document.getElementById('sp-step-subject');
+    if(subjEl) s.emailSubject=subjEl.value;
+    var emailEl=document.getElementById('sp-step-email');
+    if(emailEl) s.emailBody=emailEl.value;
   }
   document.getElementById('sp-edit-overlay').remove();
   spRenderCanvas();
