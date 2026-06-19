@@ -4088,6 +4088,24 @@ async function signUp() {
       if (existingContact && existingContact[f] !== undefined) newProfile[f] = existingContact[f];
     });
 
+    // ── Agent / Team-Leader invite: this person is an AGENT, not a buyer ──
+    if (agentInviteData) {
+      newProfile.role = 'agent';
+      var _aid = agentInviteData.agentId, _trole = agentInviteData.teamRole, _tid = agentInviteData.teamId;
+      if (!_aid) {
+        // Older invites didn't store the agent id — resolve it from team_agents by email
+        try {
+          var _taSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'team_agents'), fb.where('email','==',email.toLowerCase())));
+          _taSnap.forEach(function(d){ if(!_aid){ var x=d.data(); _aid = x.id || d.id; _trole = _trole || x.teamRole; _tid = _tid || x.teamId; } });
+        } catch(e){ console.log('team_agents resolve:', e && e.message); }
+      }
+      newProfile.agentId = _aid || newProfile.agentId;
+      newProfile.teamRole = _trole || 'member';
+      newProfile.teamId = _tid || newProfile.agentId;
+      newProfile.journeyType = null;
+      newProfile.currentStep = 0;
+    }
+
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), newProfile);
 
     // Mark invite as used
@@ -11237,7 +11255,7 @@ async function _createAgentInvite(opts){
   var code='AGT'+Math.random().toString(36).substr(2,8).toUpperCase();
   var link=_inviteLink('agent-invite', code, email, name);
   var first=name.split(' ')[0];
-  try{ await fb.setDoc(fb.doc(fb.db,'agentInvites',code), { name:name, email:email.toLowerCase(), code:code, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false, onboardingAssigned:false, mentorAgentId:null, teamRole:teamRole, teamId:teamId }); }catch(e){}
+  try{ await fb.setDoc(fb.doc(fb.db,'agentInvites',code), { name:name, email:email.toLowerCase(), code:code, agentId:id, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false, onboardingAssigned:false, mentorAgentId:null, teamRole:teamRole, teamId:teamId }); }catch(e){}
   populateAgentDropdown();
   if(typeof renderTeam==='function'){ try{ renderTeam(); }catch(e){} }
   if(typeof renderOwnerAdmin==='function'){ var _ap=document.getElementById('agent-admin-panel'); if(_ap&&_ap.style.display!=='none') renderOwnerAdmin(); }
