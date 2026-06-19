@@ -24365,7 +24365,7 @@ var LP_TEMPLATES = {
       subhead:'Get a free, no-obligation estimate of your home\u2019s current market value \u2014 prepared by a local expert who actually knows your neighborhood.',
       ctaText:'Get My Home Value',
       source:'Home Valuation',
-      stats:'450+ homes sold | West Side specialist | 8+ years local',
+      stats:'450+ homes sold, West Side specialist, 8+ years local',
       pitch:'This isn\u2019t an automated guess. It\u2019s a <b>real valuation</b> from a local agent who\u2019s actually sold homes on streets like yours \u2014 not a robot pulling a number off the internet.',
       accent:'#2A6EF4',
       thanksMsg:'Thanks \u2014 your request is in. I\u2019ll pull together your home\u2019s value and reach out shortly.'
@@ -24391,7 +24391,7 @@ var LP_TEMPLATES = {
       subhead:'New listings the moment they hit \u2014 plus coming-soon and off-market homes most buyers never see. Tell me what you\u2019re after and I\u2019ll get you in first.',
       ctaText:'Send My Matches',
       source:'Buyer Lead',
-      stats:'450+ homes sold | West Side specialist | 8+ years local',
+      stats:'450+ homes sold, West Side specialist, 8+ years local',
       accent:'#2A6EF4',
       thanksMsg:'Thanks! I\u2019ll line up homes that match and reach out shortly.'
     }
@@ -24497,9 +24497,13 @@ async function lpEditTemplate(t){
         +'<div id="steps-rows"></div>'
         +'<button type="button" class="btn btn-sm" id="steps-add" onclick="lpAddStep()">+ Add step</button>'
       ):'')
-    +_lpField('Credibility stats (separate with | )','lp-stats',cfg.stats)
-    +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold | West Side specialist | 4.9 \u2605</div>'
-    +_lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
+    +(t!=='cashoffer'?(
+        _lpField('Credibility stats (separate with commas)','lp-stats',cfg.stats)
+        +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold, West Side specialist, 4.9 \u2605</div>'
+      ):'')
+    +(t==='valuation'?(
+        _lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
+      ):'')
     +_lpField('Eyebrow (small label above headline)','lp-eyebrow',cfg.eyebrow)
     +_lpField('Button text','lp-cta',cfg.ctaText)
     +_lpField('Your phone (shown on the page)','lp-phone',aPhone)
