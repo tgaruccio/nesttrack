@@ -2715,6 +2715,13 @@ textarea{resize:vertical;min-height:68px;}
       <div style="margin-top:14px;">
         <label class="flabel" style="color:var(--text2);font-weight:600;">Email Signature <span style="font-weight:400;color:var(--text3);">(added to the bottom of every email you send)</span></label>
         <textarea id="ap-signature" placeholder="Your name, title, brokerage, phone, license #…" style="height:90px;resize:vertical;"></textarea>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+          <img id="ap-sig-photo-preview" src="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:none;"/>
+          <label class="btn btn-sm" style="cursor:pointer;white-space:nowrap;">&#128247; Add signature photo<input type="file" accept="image/*" onchange="uploadSignaturePhoto(event)" style="display:none;"/></label>
+          <button type="button" class="btn btn-sm" id="ap-sig-photo-remove" onclick="removeSignaturePhoto()" style="display:none;color:#E24B4A;">Remove</button>
+        </div>
+        <input type="hidden" id="ap-sig-photo"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;">A headshot or logo &mdash; shows next to your signature in emails.</div>
       </div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -5345,6 +5352,9 @@ function renderAgentProfileEditor() {
       if(li && d.licenseNumber) li.value=d.licenseNumber;
       var sg=document.getElementById('ap-signature');
       if(sg && d.emailSignature) sg.value=d.emailSignature;
+      var sgp=document.getElementById('ap-sig-photo');
+      if(sgp) sgp.value=d.emailSignaturePhoto||'';
+      if(typeof updateSigPhotoPreview==='function') updateSigPhotoPreview();
       var dg=document.getElementById('ap-digest');
       if(dg) dg.checked = !d.tcDigestOff;
     }
@@ -5395,6 +5405,42 @@ async function handleAgentPhotoUpload(event) {
 }
 window.handleAgentPhotoUpload = handleAgentPhotoUpload;
 
+function updateSigPhotoPreview(){
+  var url=(document.getElementById('ap-sig-photo')||{}).value||'';
+  var img=document.getElementById('ap-sig-photo-preview');
+  var rm=document.getElementById('ap-sig-photo-remove');
+  if(img){ if(url){ img.src=url; img.style.display='block'; } else { img.src=''; img.style.display='none'; } }
+  if(rm) rm.style.display=url?'inline-block':'none';
+}
+window.updateSigPhotoPreview = updateSigPhotoPreview;
+
+function removeSignaturePhoto(){
+  var h=document.getElementById('ap-sig-photo'); if(h) h.value='';
+  updateSigPhotoPreview();
+  var status=document.getElementById('ap-status');
+  if(status){ status.style.display='block'; status.style.color='var(--text3)'; status.textContent='Photo removed. Click Save Profile to apply.'; }
+}
+window.removeSignaturePhoto = removeSignaturePhoto;
+
+async function uploadSignaturePhoto(event){
+  var file = event.target.files && event.target.files[0];
+  if(!file) return;
+  var status=document.getElementById('ap-status');
+  if(status){ status.style.display='block'; status.style.color='var(--text3)'; status.textContent='Uploading signature photo...'; }
+  try{
+    var dataUrl = await resizeImageToDataUrl(file, 240, 0.85);
+    var blob = await (await fetch(dataUrl)).blob();
+    var path = 'signature_photos/'+currentUser.uid+'/'+Date.now()+'.jpg';
+    var sRef = fb.storageRef(fb.storage, path);
+    var snapshot = await fb.uploadBytes(sRef, blob);
+    var url = await fb.getDownloadURL(snapshot.ref);
+    var h=document.getElementById('ap-sig-photo'); if(h) h.value=url;
+    updateSigPhotoPreview();
+    if(status){ status.style.color='var(--green-dk)'; status.textContent='Signature photo ready. Click Save Profile to publish it.'; }
+  }catch(e){ if(status){ status.style.color='var(--red-dk)'; status.textContent='Photo upload failed: '+e.message; } }
+}
+window.uploadSignaturePhoto = uploadSignaturePhoto;
+
 function resizeImageToDataUrl(file, maxSize, quality) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -5433,6 +5479,7 @@ async function saveAgentProfile() {
     emailTagline: document.getElementById('ap-tagline') ? document.getElementById('ap-tagline').value.trim() : '',
     licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
     emailSignature: document.getElementById('ap-signature') ? document.getElementById('ap-signature').value : '',
+    emailSignaturePhoto: document.getElementById('ap-sig-photo') ? document.getElementById('ap-sig-photo').value : '',
     tcDigestOff: document.getElementById('ap-digest') ? !document.getElementById('ap-digest').checked : false,
     updatedAt: fb.serverTimestamp()
   };
@@ -7762,9 +7809,20 @@ function agentReplyTo() {
 }
 function agentSignatureHtml() {
   var sig = (userProfile&&userProfile.emailSignature) || '';
-  if (!sig || !sig.trim()) return '';
+  var photo = (userProfile&&userProfile.emailSignaturePhoto) || '';
+  if ((!sig || !sig.trim()) && !photo) return '';
   var esc = sig.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-  return '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;color:#555;line-height:1.55;">' + esc + '</div>';
+  var textCell = '<div style="font-size:13px;color:#555;line-height:1.55;">' + esc + '</div>';
+  var inner;
+  if (photo) {
+    inner = '<table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;"><tr>'
+      + '<td style="vertical-align:middle;padding-right:14px;"><img src="'+photo+'" width="60" height="60" style="width:60px;height:60px;border-radius:8px;object-fit:cover;display:block;" alt=""/></td>'
+      + '<td style="vertical-align:middle;">' + textCell + '</td>'
+      + '</tr></table>';
+  } else {
+    inner = textCell;
+  }
+  return '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;">' + inner + '</div>';
 }
 window.agentSignatureHtml = agentSignatureHtml;
 // Standing rule: a client with two emails always gets sent to both.
