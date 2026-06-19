@@ -24401,7 +24401,8 @@ function lpShowTemplateList(){
           +'<span style="color:var(--text3);font-size:18px;">\u203A</span>'
         +'</button>';
       }).join('')
-    + '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;">More templates coming \u2014 valuation first.</div>';
+    + '<button onclick="lpListingsHome()" style="width:100%;text-align:left;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:16px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:14px;"><span style="font-size:30px;">\uD83C\uDFE1</span><div style="flex:1;"><div style="font-size:15px;font-weight:600;color:#1D4ED8;">Listing Showcase</div><div style="font-size:12px;color:#1D4ED8;opacity:0.8;">Per-property page \u2014 photos, 3D tour, tour requests</div></div><span style="color:#1D4ED8;font-size:18px;">\u203A</span></button>'
+    + '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;">More templates coming.</div>';
 }
 window.lpShowTemplateList = lpShowTemplateList;
 
@@ -24512,6 +24513,173 @@ function lpCopyUrl(url){
   else { prompt('Copy this link:',url); }
 }
 window.lpCopyUrl = lpCopyUrl;
+
+// ════ LISTING SHOWCASE PAGES (per-property) ════
+var _lpPhotos = [];
+
+async function lpListingsHome(){
+  var b=document.getElementById('lp-body'); if(!b) return;
+  var agentId=_lpAgentId();
+  b.scrollTop=0;
+  b.innerHTML='<button class="btn btn-sm" onclick="lpShowTemplateList()" style="margin-bottom:14px;">\u2190 Templates</button>'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83C\uDFE1 Listing Showcase Pages</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">A stunning page per listing \u2014 photos, 3D tour, details, and a tour-request form.</div>'
+    +'<button class="btn btn-g" style="width:100%;margin-bottom:16px;" onclick="lpEditListing(null)">+ New Listing Page</button>'
+    +'<div id="lp-listings"><div style="text-align:center;color:var(--text3);font-size:12px;padding:14px;">Loading\u2026</div></div>';
+  try{
+    var qs=await fb.getDocs(fb.query(fb.collection(fb.db,'listing_pages'),fb.where('agentId','==',agentId)));
+    var items=[]; qs.forEach(function(d){ items.push(Object.assign({id:d.id},d.data())); });
+    items.sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
+    var c=document.getElementById('lp-listings');
+    if(!items.length){ c.innerHTML='<div style="text-align:center;color:var(--text3);font-size:13px;padding:20px;">No listing pages yet. Create your first one above.</div>'; return; }
+    c.innerHTML=items.map(function(it){
+      var thumb=(Array.isArray(it.photos)&&it.photos[0])?it.photos[0]:'';
+      return '<button onclick="lpEditListing(\''+it.id+'\')" style="width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:12px;">'
+        +(thumb?'<img src="'+thumb+'" style="width:54px;height:54px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>':'<div style="width:54px;height:54px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">\uD83C\uDFE1</div>')
+        +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(it.address||'Untitled listing')+'</div><div style="font-size:12px;color:var(--text3);">'+(it.price?('$'+Number(it.price).toLocaleString()):'')+(it.status?(' \u00b7 '+partnerEsc(it.status)):'')+'</div></div>'
+        +'<span style="color:var(--text3);font-size:18px;">\u203A</span>'
+      +'</button>';
+    }).join('');
+  }catch(e){ var el=document.getElementById('lp-listings'); if(el) el.innerHTML='<div style="color:#E24B4A;font-size:12px;padding:10px;">Load failed: '+e.message+'</div>'; }
+}
+window.lpListingsHome=lpListingsHome;
+
+async function lpEditListing(id){
+  var b=document.getElementById('lp-body'); if(!b) return;
+  var agentId=_lpAgentId();
+  if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
+  var _segSet={}; (allBuyers||myBuyers||[]).forEach(function(x){ if(x&&x.segment) _segSet[x.segment]=1; });
+  var _segList=Object.keys(_segSet).sort();
+  var _statusList=[['pipeline','Pipeline'],['nurture','Nurture'],['active','Active'],['cold','Cold'],['contact','Contact Only']];
+  var cfg={ status:'Just Listed', accent:'#2A6EF4', leadStatus:'pipeline' };
+  if(id){ try{ var snap=await fb.getDoc(fb.doc(fb.db,'listing_pages',id)); if(snap.exists()) cfg=Object.assign(cfg,snap.data()); }catch(e){} }
+  _lpPhotos = Array.isArray(cfg.photos)?cfg.photos.slice():[];
+  var lid = id || (agentId+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  b.scrollTop=0;
+  b.innerHTML=
+    '<button class="btn btn-sm" onclick="lpListingsHome()" style="margin-bottom:14px;">\u2190 My Listings</button>'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:14px;">\uD83C\uDFE1 '+(id?'Edit':'New')+' Listing Page</div>'
+    +'<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin:4px 0 6px;">Photos <span style="font-weight:400;">(first photo = hero image; tap \u2605 to make hero)</span></label>'
+    +'<div id="lp-photo-strip" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;-webkit-overflow-scrolling:touch;"></div>'
+    +'<label class="btn btn-sm" style="cursor:pointer;display:inline-block;">\uD83D\uDCF7 Add photos<input type="file" accept="image/*" multiple onchange="lpUploadListingPhotos(event,\''+lid+'\')" style="display:none;"/></label>'
+    +'<div id="lp-photo-status" style="font-size:11px;color:var(--text3);margin-top:6px;"></div>'
+    +_lpField('Address','lpl-address',cfg.address)
+    +_lpField('Price (numbers only, e.g. 459000)','lpl-price',cfg.price)
+    +_lpField('Status badge (e.g. Just Listed, For Sale, Pending)','lpl-liststatus',cfg.status||'Just Listed')
+    +_lpField('Beds','lpl-beds',cfg.beds)
+    +_lpField('Baths','lpl-baths',cfg.baths)
+    +_lpField('Square feet (e.g. 2450)','lpl-sqft',cfg.sqft)
+    +_lpField('Lot size (e.g. 0.34 acres)','lpl-lot',cfg.lotSize)
+    +_lpField('Year built','lpl-year',cfg.yearBuilt)
+    +_lpField('Property type (e.g. Single Family)','lpl-type',cfg.propType)
+    +_lpField('Headline (e.g. Stunning Westlake Colonial)','lpl-deschead',cfg.descHead)
+    +_lpField('Description','lpl-desc',cfg.description,true)
+    +_lpField('Features (separate with | )','lpl-features',cfg.features)
+    +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. Updated kitchen | 3-car garage | Finished basement</div>'
+    +_lpField('3D tour / Matterport embed URL (optional)','lpl-tour',cfg.tourUrl)
+    +_lpField('Your phone (shown on the page)','lpl-phone',cfg.agentPhone||(userProfile&&userProfile.phone)||'')
+    +'<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin:12px 0 5px;">Accent color</label>'
+    +'<input type="color" id="lpl-accent" value="'+(cfg.accent||'#2A6EF4')+'" style="width:54px;height:38px;border:1px solid var(--border);border-radius:8px;padding:2px;cursor:pointer;"/>'
+    +'<div style="background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:14px;margin-top:18px;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1D4ED8;margin-bottom:10px;">\u2699\uFE0F When a lead comes in</div>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:0 0 5px;">Category</label>'
+      +'<select id="lpl-leadstatus" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +_statusList.map(function(s){ return '<option value="'+s[0]+'"'+((cfg.leadStatus||'pipeline')===s[0]?' selected':'')+'>'+s[1]+'</option>'; }).join('')
+      +'</select>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:11px 0 5px;">Segment / tag</label>'
+      +'<input id="lpl-seg" list="lpl-seg-options" value="'+partnerEsc(cfg.leadSegment||'')+'" placeholder="e.g. Listing Leads" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;"/>'
+      +'<datalist id="lpl-seg-options">'+_segList.map(function(s){ return '<option value="'+partnerEsc(s)+'"></option>'; }).join('')+'</datalist>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:11px 0 5px;">Auto-enroll in smart plan</label>'
+      +'<select id="lpl-plan" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +'<option value="">\u2014 None \u2014</option>'
+        +_smartPlans.map(function(p){ return '<option value="'+p.id+'"'+(cfg.smartPlanId===p.id?' selected':'')+'>'+partnerEsc(p.name||'Untitled')+'</option>'; }).join('')
+      +'</select>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:18px;">'
+      +'<button class="btn btn-g" style="flex:1;" onclick="lpSaveListing(\''+lid+'\')">Save &amp; Get Link</button>'
+      +'<a class="btn" href="https://app.garucciogroup.com/listing.html?id='+lid+'" target="_blank" style="flex:1;text-align:center;text-decoration:none;">Preview</a>'
+    +'</div>'
+    +'<div id="lpl-share" style="display:none;margin-top:18px;padding:14px;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);"></div>';
+  lpRenderPhotoStrip();
+  setTimeout(function(){ try{ if(typeof setupPlacesAC==='function') setupPlacesAC('lpl-address'); }catch(e){} },60);
+}
+window.lpEditListing=lpEditListing;
+
+async function lpUploadListingPhotos(ev, lid){
+  var files=ev.target.files; if(!files||!files.length) return;
+  var st=document.getElementById('lp-photo-status');
+  for(var i=0;i<files.length;i++){
+    var f=files[i];
+    if(st){ st.style.color='var(--text3)'; st.textContent='Uploading '+(i+1)+' of '+files.length+'\u2026'; }
+    try{
+      var dataUrl=await resizeImageToDataUrl(f, 1600, 0.82);
+      var blob=await (await fetch(dataUrl)).blob();
+      var path='listing_photos/'+currentUser.uid+'/'+lid+'/'+Date.now()+'_'+i+'.jpg';
+      var sRef=fb.storageRef(fb.storage, path);
+      var snap=await fb.uploadBytes(sRef, blob);
+      var url=await fb.getDownloadURL(snap.ref);
+      _lpPhotos.push(url);
+      lpRenderPhotoStrip();
+    }catch(e){ if(st){ st.style.color='#E24B4A'; st.textContent='Upload failed: '+e.message; } }
+  }
+  if(st){ st.style.color='var(--text3)'; st.textContent=_lpPhotos.length+' photo'+(_lpPhotos.length!==1?'s':'')+' \u2014 first one is the hero.'; }
+  ev.target.value='';
+}
+window.lpUploadListingPhotos=lpUploadListingPhotos;
+
+function lpRenderPhotoStrip(){
+  var c=document.getElementById('lp-photo-strip'); if(!c) return;
+  if(!_lpPhotos.length){ c.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px;">No photos yet \u2014 the first one you add becomes the hero.</div>'; return; }
+  c.innerHTML=_lpPhotos.map(function(u,i){
+    return '<div style="position:relative;width:78px;height:78px;flex-shrink:0;">'
+      +'<img src="'+u+'" style="width:78px;height:78px;object-fit:cover;border-radius:8px;border:'+(i===0?'2px solid var(--accent)':'1px solid var(--border)')+';"/>'
+      +(i===0?'<div style="position:absolute;top:2px;left:2px;background:var(--accent);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;">HERO</div>':'<button onclick="lpPhotoHero('+i+')" title="Make hero" style="position:absolute;top:2px;left:2px;background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 5px;">\u2605</button>')
+      +'<button onclick="lpPhotoRemove('+i+')" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:13px;line-height:1;cursor:pointer;padding:0;">\u00d7</button>'
+    +'</div>';
+  }).join('');
+}
+window.lpRenderPhotoStrip=lpRenderPhotoStrip;
+function lpPhotoRemove(i){ _lpPhotos.splice(i,1); lpRenderPhotoStrip(); }
+window.lpPhotoRemove=lpPhotoRemove;
+function lpPhotoHero(i){ var p=_lpPhotos.splice(i,1)[0]; _lpPhotos.unshift(p); lpRenderPhotoStrip(); }
+window.lpPhotoHero=lpPhotoHero;
+
+async function lpSaveListing(lid){
+  var v=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var _planId=(document.getElementById('lpl-plan')||{}).value||'';
+  var _planObj=(_smartPlans||[]).find(function(p){return p.id===_planId;});
+  var docData={
+    agentId:_lpAgentId(),
+    address:v('lpl-address'), price:v('lpl-price'), status:v('lpl-liststatus')||'Just Listed',
+    beds:v('lpl-beds'), baths:v('lpl-baths'), sqft:v('lpl-sqft'), lotSize:v('lpl-lot'), yearBuilt:v('lpl-year'), propType:v('lpl-type'),
+    descHead:v('lpl-deschead'), description:v('lpl-desc'), features:v('lpl-features'),
+    tourUrl:v('lpl-tour'), photos:_lpPhotos.slice(),
+    accent:(document.getElementById('lpl-accent')||{}).value||'#2A6EF4',
+    leadStatus:(document.getElementById('lpl-leadstatus')||{}).value||'pipeline',
+    leadSegment:v('lpl-seg'), smartPlanId:_planId, smartPlanName:_planObj?(_planObj.name||'Plan'):'',
+    agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
+    agentEmail:(userProfile&&userProfile.email)||'',
+    brokerage:(userProfile&&userProfile.brokerage)||'',
+    agentPhoto:(userProfile&&(userProfile.emailSignaturePhoto||userProfile.photoUrl))||'',
+    agentPhone:v('lpl-phone'),
+    updatedAt:Date.now()
+  };
+  if(!docData.address && !_lpPhotos.length){ alert('Add at least an address or a photo first.'); return; }
+  try{
+    await fb.setDoc(fb.doc(fb.db,'listing_pages',lid), docData);
+    var url='https://app.garucciogroup.com/listing.html?id='+lid;
+    var share=document.getElementById('lpl-share');
+    share.style.display='block';
+    share.innerHTML='<div style="font-size:12px;font-weight:700;color:#1D4ED8;margin-bottom:6px;">\u2705 Saved! Your listing page link:</div>'
+      +'<div style="font-size:12px;word-break:break-all;background:#fff;border:1px solid #B9D2FF;border-radius:8px;padding:9px;margin-bottom:8px;">'+url+'</div>'
+      +'<div style="display:flex;gap:8px;">'
+        +'<button class="btn btn-sm" onclick="lpCopyUrl(\''+url+'\')">\uD83D\uDCCB Copy link</button>'
+        +'<a class="btn btn-sm" href="'+url+'" target="_blank" style="text-decoration:none;">Open</a>'
+      +'</div>';
+    if(typeof showDealToast==='function') showDealToast('Listing page saved!',null,null);
+  }catch(e){ alert('Save failed: '+e.message); }
+}
+window.lpSaveListing=lpSaveListing;
 
 async function spDeletePlan(id){
   if(!confirm('Delete this smart plan? Contacts already enrolled will stop receiving it.')) return;
