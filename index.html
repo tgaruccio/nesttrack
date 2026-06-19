@@ -5445,7 +5445,7 @@ window.setSigMode = setSigMode;
 function updateSigHtmlPreview(){
   var raw=(document.getElementById('ap-sig-html')||{}).value||'';
   var prev=document.getElementById('ap-sig-html-preview');
-  if(prev) prev.innerHTML = raw.trim() ? raw : '<span style="color:var(--text3);font-size:12px;">Your signature preview will appear here.</span>';
+  if(prev) prev.innerHTML = raw.trim() ? (typeof _sigTokens==='function'?_sigTokens(raw):raw) : '<span style="color:var(--text3);font-size:12px;">Your signature preview will appear here.</span>';
 }
 window.updateSigHtmlPreview = updateSigHtmlPreview;
 
@@ -7844,12 +7844,18 @@ function agentFromField() {
 function agentReplyTo() {
   return (userProfile&&userProfile.email) || null;
 }
+function _sigTokens(raw){
+  return String(raw||'')
+    .replace(/\{photo\}/gi, (userProfile&&userProfile.emailSignaturePhoto)||'')
+    .replace(/\{name\}/gi, (((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim())
+    .replace(/\{email\}/gi, (userProfile&&userProfile.email)||'');
+}
 function agentSignatureHtml() {
   var mode = (userProfile&&userProfile.emailSignatureMode) || 'simple';
   if (mode === 'html') {
     var raw = (userProfile&&userProfile.emailSignatureHtmlRaw) || '';
     if (!raw || !raw.trim()) return '';
-    return '<div style="margin-top:24px;">' + raw + '</div>';
+    return '<div style="margin-top:24px;">' + _sigTokens(raw) + '</div>';
   }
   var sig = (userProfile&&userProfile.emailSignature) || '';
   var photo = (userProfile&&userProfile.emailSignaturePhoto) || '';
