@@ -410,6 +410,10 @@ textarea{resize:vertical;min-height:68px;}
 </style>
 </head>
 <body>
+<div id="manage-as-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:100000;background:#7C3AED;color:#fff;padding:8px 14px;font-size:13px;font-weight:600;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+  <span id="manage-as-text">&#128081; Managing account</span>
+  <button onclick="exitManageAs()" style="background:rgba(255,255,255,0.22);color:#fff;border:1px solid rgba(255,255,255,0.55);border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Exit &#10005;</button>
+</div>
 
 <!-- LOGIN SCREEN -->
 <div class="login-screen" id="login-screen">
@@ -1276,6 +1280,10 @@ textarea{resize:vertical;min-height:68px;}
     <button id="dash-team-chat-btn" onclick="go('agent',document.querySelector('[data-pg=agent]'));setTimeout(function(){switchAgentTab('teamstats');},200)" style="position:absolute;top:-4px;right:52px;background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;display:none;flex-direction:column;align-items:center;gap:1px;position:absolute;" title="Team Chat">
       <span style="font-size:20px;position:relative;">💬<span id="dash-team-chat-badge" style="display:none;position:absolute;top:-4px;right:-6px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;min-width:14px;text-align:center;line-height:14px;"></span></span>
       <span style="font-size:9px;font-weight:600;letter-spacing:0.04em;color:var(--text3);">Team Chat</span>
+    </button>
+    <button id="dash-admin-btn" onclick="go('agent',document.querySelector('[data-pg=agent]'));setTimeout(function(){switchAgentTab('admin');},200)" style="position:absolute;top:-4px;right:104px;background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;display:none;flex-direction:column;align-items:center;gap:1px;" title="Owner Admin">
+      <span style="font-size:20px;">&#128081;</span>
+      <span style="font-size:9px;font-weight:600;letter-spacing:0.04em;color:var(--text3);">Admin</span>
     </button>
 
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
@@ -2623,6 +2631,9 @@ textarea{resize:vertical;min-height:68px;}
     <div id="team-onboarding-container"></div>
 
   </div>
+
+  <!-- OWNER ADMIN PANEL -->
+  <div id="agent-admin-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;"></div>
 
   <!-- MY FINANCES PANEL -->
   <div id="agent-finances-panel" style="display:none;flex-direction:column;gap:12px;align-items:stretch;width:100%;">
@@ -4243,6 +4254,7 @@ async function loadUserProfile() {
       if (userProfile.teamRole) _laPatch.teamRole = userProfile.teamRole;
       if (userProfile.teamId) _laPatch.teamId = userProfile.teamId;
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
+      applyManageAsOverride();
     } else {
       // No profile yet - might be the first agent. Create as agent if email matches team
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
@@ -10474,12 +10486,18 @@ let allBuyers = [];
 let myBuyers = [];
 
 function isOwner() {
+  if (window._manageAsId) return false; // impersonating an agent → behave as them, not owner
   const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
   if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
   return !!(userProfile && userProfile.teamRole === 'owner');
 }
 
 function isTeamLeader() {
+  if (window._manageAsId) {
+    var _ma = (DEFAULT_AGENTS||[]).find(function(a){ return a.id === window._manageAsId; });
+    var _r = _ma ? agentTeamRole(_ma) : 'member';
+    return _r === 'leader' || _r === 'owner';
+  }
   const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
   if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
   if (userProfile?.teamRole === 'leader' || userProfile?.teamRole === 'owner') return true;
@@ -11051,11 +11069,118 @@ async function _backfillThreads(){
 window._backfillThreads=_backfillThreads;
 
 
+// ─── OWNER ADMIN (platform backend: members, usage, invites, billing) ───
+var _ownerUsage = {};
+function _ownerRoleRank(a){ var r=(typeof agentTeamRole==='function')?agentTeamRole(a):'member'; return r==='owner'?0:(r==='leader'?1:2); }
+function _ownerRoleBadge(role){
+  var map={owner:['Owner','#7C3AED','#F3E8FF'],leader:['Team Leader','#1D4ED8','#DBEAFE'],member:['Member','#475569','#F1F5F9']};
+  var m=map[role]||map.member;
+  return '<span style="font-size:10px;font-weight:700;color:'+m[1]+';background:'+m[2]+';padding:2px 8px;border-radius:20px;">'+m[0]+'</span>';
+}
+function _ownerAgo(ms){ var d=Math.floor((Date.now()-ms)/86400000); if(d<=0)return 'today'; if(d===1)return '1d ago'; if(d<30)return d+'d ago'; var mo=Math.floor(d/30); return mo+'mo ago'; }
+function renderOwnerAdmin(){
+  var panel=document.getElementById('agent-admin-panel'); if(!panel) return;
+  if(typeof isOwner!=='function' || !isOwner()){ panel.innerHTML='<div class="card" style="text-align:center;color:var(--text3);padding:30px;">Owner access only.</div>'; return; }
+  var agents=(DEFAULT_AGENTS||[]).slice().sort(function(a,b){ return _ownerRoleRank(a)-_ownerRoleRank(b) || String(a.name||'').localeCompare(String(b.name||'')); });
+  var loaded=Object.keys(_ownerUsage).length>0;
+  var rows=agents.map(function(a){
+    var role=(typeof agentTeamRole==='function')?agentTeamRole(a):'member';
+    var u=_ownerUsage[a.id];
+    var usageHtml = u
+      ? '<span style="font-size:11px;color:var(--text3);">'+u.clients+' client'+(u.clients===1?'':'s')+(u.last?(' \u00b7 active '+u.last):'')+'</span>'
+      : (loaded?'<span style="font-size:11px;color:var(--text3);">no activity</span>':'<span style="font-size:11px;color:var(--text3);">\u2014</span>');
+    var canManage = (a.id !== (userProfile&&userProfile.agentId)) && role!=='owner';
+    return '<div class="card" style="display:flex;align-items:center;gap:11px;padding:12px 14px;">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:var(--green-lt);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">'+partnerEsc(String(a.name||'?').charAt(0).toUpperCase())+'</div>'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:600;font-size:14px;">'+partnerEsc(a.name||a.id)+'</span>'+_ownerRoleBadge(role)+'</div>'
+        +'<div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(a.email||'')+(a.phone?(' \u00b7 '+partnerEsc(a.phone)):'')+'</div>'
+        +'<div style="margin-top:3px;">'+usageHtml+'</div>'
+      +'</div>'
+      +(canManage?'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:11px;font-weight:700;padding:7px 11px;flex-shrink:0;white-space:nowrap;" onclick="enterManageAs(\''+a.id+'\')">Manage as</button>':'')
+    +'</div>';
+  }).join('');
+  panel.innerHTML =
+    '<div class="card" style="padding:16px;">'
+      +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div>'
+      +'<div style="font-size:12.5px;color:var(--text3);">Everyone on the platform, invites, and billing \u2014 owner only.</div>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px;">'
+      +'<button class="btn" style="flex:1;" onclick="openTeamModal()">\u2795 Invite / add member</button>'
+      +'<button class="btn" id="owner-usage-btn" style="flex:1;background:var(--surface2);color:var(--text2);" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
+    +'</div>'
+    +'<div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;">Members ('+agents.length+')</div>'
+    +rows
+    +'<div class="card" style="padding:16px;margin-top:8px;">'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:4px;">\uD83D\uDCB3 Billing</div>'
+      +'<div style="font-size:12.5px;color:var(--text3);line-height:1.5;">Subscription &amp; seat management lands here. Stripe is the next milestone \u2014 set your per-seat price, see who\u2019s active, and manage payment from this panel.</div>'
+    +'</div>';
+}
+async function ownerLoadUsage(){
+  var btn=document.getElementById('owner-usage-btn'); if(btn){ btn.disabled=true; btn.textContent='Loading\u2026'; }
+  var agents=(DEFAULT_AGENTS||[]);
+  for(var i=0;i<agents.length;i++){
+    var a=agents[i];
+    try{
+      var snap=await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',a.id)));
+      var clients=0,last=null;
+      snap.forEach(function(d){ var x=d.data(); if(x.isContact){ clients++; var t=x.lastActive; if(t&&t.toMillis){ var ms=t.toMillis(); if(!last||ms>last)last=ms; } } });
+      _ownerUsage[a.id]={ clients:clients, last:last?_ownerAgo(last):'' };
+    }catch(e){ _ownerUsage[a.id]={ clients:0, last:'' }; }
+  }
+  renderOwnerAdmin();
+}
+window.renderOwnerAdmin=renderOwnerAdmin; window.ownerLoadUsage=ownerLoadUsage;
+
+// ── Owner "Manage as" impersonation (safe reload-based) ──
+function enterManageAs(id){
+  if(typeof isOwner!=='function' || !isOwner()){ alert('Owner only.'); return; }
+  var ag=(DEFAULT_AGENTS||[]).find(function(a){return a.id===id;});
+  if(!ag){ alert('Member not found.'); return; }
+  if(id===(userProfile&&userProfile.agentId)){ alert('That\u2019s already your own account.'); return; }
+  if(!confirm('Manage '+(ag.name||id)+'\u2019s account?\n\nYou\u2019ll act as them \u2014 setting up their profile, landing pages, plans, etc. \u2014 until you tap Exit.')) return;
+  try{ fb.setDoc(fb.doc(fb.db,'admin_audit',currentUser.uid+'_'+Date.now()), { action:'enter', ownerUid:currentUser.uid, ownerEmail:(currentUser.email||''), targetAgentId:id, targetName:(ag.name||''), at:fb.serverTimestamp() }); }catch(e){}
+  try{ localStorage.setItem('nt_manage_as', id); }catch(e){}
+  location.reload();
+}
+function exitManageAs(){
+  var id=window._manageAsId||'';
+  try{ if(currentUser) fb.setDoc(fb.doc(fb.db,'admin_audit',currentUser.uid+'_'+Date.now()), { action:'exit', ownerUid:currentUser.uid, targetAgentId:id, at:fb.serverTimestamp() }); }catch(e){}
+  try{ localStorage.removeItem('nt_manage_as'); }catch(e){}
+  location.reload();
+}
+function applyManageAsOverride(){
+  var target=null; try{ target=localStorage.getItem('nt_manage_as'); }catch(e){}
+  if(!target) return;
+  if(typeof isOwner!=='function' || !isOwner()){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; } // only the real owner can impersonate
+  var ag=(DEFAULT_AGENTS||[]).find(function(a){return a.id===target;});
+  if(!ag || ag.id===(userProfile&&userProfile.agentId)){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; }
+  window._manageAsId = ag.id;
+  var nm=String(ag.name||'').trim().split(/\s+/);
+  userProfile = Object.assign({}, userProfile, {
+    agentId: ag.id, teamRole: agentTeamRole(ag), teamId: agentTeamId(ag), role:'agent',
+    email: ag.email||userProfile.email, firstName: nm[0]||ag.name||'Agent', lastName: nm.slice(1).join(' '),
+    _impersonated:true
+  });
+  isAgent = true;
+  assignedAgent = ag;
+  showManageBanner(ag);
+}
+function showManageBanner(ag){
+  var b=document.getElementById('manage-as-banner'); if(!b) return;
+  var t=document.getElementById('manage-as-text');
+  if(t) t.innerHTML='\uD83D\uDC51 Managing <u>'+partnerEsc(ag.name||ag.id)+'</u>\u2019s account';
+  b.style.display='flex';
+  try{ document.body.style.paddingTop='40px'; }catch(e){}
+}
+window.enterManageAs=enterManageAs; window.exitManageAs=exitManageAs; window.applyManageAsOverride=applyManageAsOverride;
+
 function switchAgentTab(tab) {
-  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances');
-  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel'),fp=document.getElementById('agent-finances-panel');
-  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb,ftb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
-  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp,fp].forEach(function(p){ if(p) p.style.display='none'; });
+  var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances'),adb=document.getElementById('agent-tab-admin');
+  var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel'),fp=document.getElementById('agent-finances-panel'),adp=document.getElementById('agent-admin-panel');
+  if(adb) adb.style.display=(typeof isOwner==='function'&&isOwner())?'':'none';
+  [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb,ftb,adb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
+  [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp,fp,adp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
     if (cb) { cb.style.background='var(--green)'; cb.style.color='#fff'; }
     if (ci) ci.style.display='flex';
@@ -11136,6 +11261,10 @@ function switchAgentTab(tab) {
     if (ftb) { ftb.style.background='var(--green)'; ftb.style.color='#fff'; }
     if (fp) fp.style.display='flex';
     loadFinances();
+  } else if (tab==='admin') {
+    if (adb) { adb.style.background='var(--green)'; adb.style.color='#fff'; }
+    if (adp) adp.style.display='flex';
+    renderOwnerAdmin();
   } else {
     if (bb) { bb.style.background='var(--green)'; bb.style.color='#fff'; }
     if (bp) bp.style.display='flex';
@@ -11884,6 +12013,7 @@ async function renderAgentDashboard() {
   var el;
   el = document.getElementById('ad-greeting'); if (el) el.textContent = greeting + ', ' + firstName + '!';
   el = document.getElementById('ad-avatar'); if (el) el.textContent = initials.toUpperCase();
+  var _adminBtn = document.getElementById('dash-admin-btn'); if (_adminBtn) _adminBtn.style.display = (typeof isOwner==='function' && isOwner() && !window._manageAsId) ? 'flex' : 'none';
   var today = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
   el = document.getElementById('ad-sub'); if (el) el.textContent = today;
 
