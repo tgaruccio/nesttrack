@@ -10788,11 +10788,11 @@ function _injectReplyTodo(uid, name){
 function watchThreadsInbox(){
   _loadThreadReads();
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email && a.email.toLowerCase()===((userProfile&&userProfile.email)||'').toLowerCase(); });
-  var myAgentId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'';
+  var myAgentId = agentEntry ? agentEntry.id : ((userProfile&&userProfile.agentId)||(userProfile&&userProfile.lenderId)||'');
   if (!myAgentId) { if (typeof watchAllAgentChats==='function') watchAllAgentChats(); return; }
   try{
     if (_threadsUnsub) { try{_threadsUnsub();}catch(e){} _threadsUnsub=null; }
-    var qy = fb.query(fb.collection(fb.db,'threads'), fb.where('agentId','==',myAgentId), fb.orderBy('lastTs','desc'), fb.limit(60));
+    var qy = fb.query(fb.collection(fb.db,'threads'), fb.where('memberIds','array-contains',myAgentId), fb.orderBy('lastTs','desc'), fb.limit(60));
     _threadsUnsub = fb.onSnapshot(qy, function(snap){
       _threads = []; agentUnreadCounts = {}; agentLastMsg = {};
       snap.forEach(function(d){
@@ -10900,13 +10900,14 @@ function _bumpThread(clientUid, text, role, ts){
   if(!clientUid) return;
   var b = (((typeof myBuyers!=='undefined'&&myBuyers)||[]).find(function(x){return x.uid===clientUid;}))
        || (((typeof allBuyers!=='undefined'&&allBuyers)||[]).find(function(x){return x.uid===clientUid;}));
-  var clientName, agentId, teamId;
-  if (b){ clientName=((b.firstName||'')+' '+(b.lastName||'')).trim(); agentId=b.agentId||''; teamId=b.teamId||''; }
-  else { clientName=(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(); agentId=(userProfile&&userProfile.agentId)||''; teamId=(userProfile&&userProfile.teamId)||''; }
+  var clientName, agentId, teamId, coAgentId, lenderId;
+  if (b){ clientName=((b.firstName||'')+' '+(b.lastName||'')).trim(); agentId=b.agentId||''; teamId=b.teamId||''; coAgentId=b.coAgentId||''; lenderId=b.lenderId||''; }
+  else { clientName=(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(); agentId=(userProfile&&userProfile.agentId)||''; teamId=(userProfile&&userProfile.teamId)||''; coAgentId=(userProfile&&userProfile.coAgentId)||''; lenderId=(userProfile&&userProfile.lenderId)||''; }
+  var memberIds=[]; [agentId,coAgentId,lenderId].forEach(function(id){ if(id && memberIds.indexOf(id)===-1) memberIds.push(id); });
   try{
     fb.setDoc(fb.doc(fb.db,'threads','chat_'+clientUid), {
       roomId:'chat_'+clientUid, clientUid:clientUid, clientName:clientName||'',
-      agentId:agentId||'', teamId:teamId||'',
+      agentId:agentId||'', teamId:teamId||'', memberIds:memberIds,
       lastText:String(text||'').replace(/\s+/g,' ').slice(0,140), lastTs:(ts||Date.now()), lastRole:role||''
     }, {merge:true});
   }catch(e){ console.log('bumpThread:', e.message); }
