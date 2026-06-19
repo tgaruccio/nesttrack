@@ -24370,10 +24370,23 @@ var LP_TEMPLATES = {
       accent:'#2A6EF4',
       thanksMsg:'Thanks \u2014 your request is in. I\u2019ll pull together your home\u2019s value and reach out shortly.'
     }
+  },
+  cashoffer: {
+    name:'Cash Offer vs. Listing', icon:'\uD83D\uDCB0', tag:'Seller decision tool', file:'cashoffer.html',
+    defaults:{
+      eyebrow:'Sell Smart in Cleveland',
+      headline:'Cash Offer or List It? Let\u2019s find your best move.',
+      subhead:'Two very different ways to sell \u2014 one gets you speed and certainty, the other gets you top dollar. Here\u2019s the honest tradeoff on each.',
+      ctaText:'Send My Request',
+      source:'',
+      accent:'#2A6EF4',
+      thanksMsg:'Thanks! I\u2019ll reach out shortly with your options and next steps.'
+    }
   }
 };
 function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)||'tom')); }
 function _lpBaseUrl(){ return 'https://app.garucciogroup.com/lp.html'; }
+function _lpFileUrl(t){ return 'https://app.garucciogroup.com/'+((LP_TEMPLATES[t]&&LP_TEMPLATES[t].file)||'lp.html'); }
 
 function openLandingPages(){
   var ov=document.createElement('div');
@@ -24463,7 +24476,7 @@ async function lpEditTemplate(t){
     +'<input type="color" id="lp-accent" value="'+(cfg.accent||'#2A6EF4')+'" style="width:54px;height:38px;border:1px solid var(--border);border-radius:8px;padding:2px;cursor:pointer;"/>'
     +'<div style="display:flex;gap:8px;margin-top:18px;">'
       +'<button class="btn btn-g" style="flex:1;" onclick="lpSaveTemplate(\''+t+'\')">Save &amp; Get Link</button>'
-      +'<a class="btn" href="'+_lpBaseUrl()+'?a='+agentId+'&t='+t+'" target="_blank" style="flex:1;text-align:center;text-decoration:none;">Preview</a>'
+      +'<a class="btn" href="'+_lpFileUrl(t)+'?a='+agentId+'&t='+t+'" target="_blank" style="flex:1;text-align:center;text-decoration:none;">Preview</a>'
     +'</div>'
     +'<div id="lp-share" style="display:none;margin-top:18px;padding:14px;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);"></div>';
 }
@@ -24494,7 +24507,7 @@ async function lpSaveTemplate(t){
   };
   try{
     await fb.setDoc(fb.doc(fb.db,'landing_pages',agentId+'_'+t), docData);
-    var url=_lpBaseUrl()+'?a='+agentId+'&t='+t;
+    var url=_lpFileUrl(t)+'?a='+agentId+'&t='+t;
     var share=document.getElementById('lp-share');
     share.style.display='block';
     share.innerHTML='<div style="font-size:12px;font-weight:700;color:#1D4ED8;margin-bottom:6px;">\u2705 Saved! Your shareable link:</div>'
