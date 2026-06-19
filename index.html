@@ -24482,8 +24482,14 @@ async function lpEditTemplate(t){
     +(t==='buyer'?(
         _lpField('Areas / cities buyers can pick (separate with | )','lp-areas',cfg.areas||'Westlake | Bay Village | Avon Lake | Rocky River | Avon | Lakewood | Open to anywhere West Side')
         +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">Each becomes a tappable chip. Use your own market\u2019s cities.</div>'
-        +_lpField('\u201CWhy buy with me\u201D points \u2014 one per line: Title | description','lp-vprops',cfg.valueProps||'New listings, first | Get matched the moment homes hit the market.\nOff-market & coming-soon | Access to homes that never make it to Zillow.\nA true local expert | I know these neighborhoods street by street.\nFinancing handled in-house | I\u2019m also a licensed loan originator \u2014 one team.',true)
-        +_lpField('\u201CHow it works\u201D steps \u2014 one per line: Title | description','lp-steps',cfg.buyerSteps||'Get pre-approved | Know your budget and monthly payment before you shop \u2014 sellers expect it, and it makes your offer real.\nMap out your must-haves | Areas, price, layout, dealbreakers. We get clear on what you actually want so we don\u2019t waste time.\nTour homes | New listings come straight to you. We tour the ones you love, on your schedule.\nMake a smart offer | We talk price, terms, and contingencies \u2014 written so you feel comfortable and competitive.\nNegotiate & inspect | Counters, inspections, and an advocate protecting you at every step.\nClose & get the keys | Final financing, signing, and the best part \u2014 the keys are yours.',true)
+        +'<div style="font-size:13px;font-weight:700;color:var(--text2);margin:18px 0 4px;">Why buy with me</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Each one shows as a card on the page (up to 6).</div>'
+        +'<div id="vprops-rows"></div>'
+        +'<button type="button" class="btn btn-sm" id="vprops-add" onclick="lpAddVProp()" style="margin-bottom:4px;">+ Add point</button>'
+        +'<div style="font-size:13px;font-weight:700;color:var(--text2);margin:18px 0 4px;">How it works \u2014 steps</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">The numbered step-by-step on the page (up to 8).</div>'
+        +'<div id="steps-rows"></div>'
+        +'<button type="button" class="btn btn-sm" id="steps-add" onclick="lpAddStep()">+ Add step</button>'
       ):'')
     +_lpField('Credibility stats (separate with | )','lp-stats',cfg.stats)
     +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold | West Side specialist | 4.9 \u2605</div>'
@@ -24500,6 +24506,11 @@ async function lpEditTemplate(t){
       +'<a class="btn" href="'+_lpFileUrl(t)+'?a='+agentId+'&t='+t+'" target="_blank" style="flex:1;text-align:center;text-decoration:none;">Preview</a>'
     +'</div>'
     +'<div id="lp-share" style="display:none;margin-top:18px;padding:14px;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);"></div>';
+  if(t==='buyer'){
+    _lpVProps = cfg.valueProps ? _lpParseRows(cfg.valueProps) : [['New listings, first','Get matched the moment homes hit the market \u2014 before the weekend rush.'],['Off-market & coming-soon','Access to homes that never make it to Zillow, through my local network.'],['A true local expert','I know these neighborhoods street by street \u2014 schools, values, and what\u2019s actually worth it.'],['Financing handled in-house','I\u2019m also a licensed loan originator \u2014 pre-approval and strategy, one team.']];
+    _lpSteps = cfg.buyerSteps ? _lpParseRows(cfg.buyerSteps) : [['Get pre-approved','Know your budget and monthly payment before you shop \u2014 sellers expect it, and it makes your offer real.'],['Map out your must-haves','Areas, price, layout, dealbreakers. We get clear on what you actually want so we don\u2019t waste time.'],['Tour homes','New listings come straight to you. We tour the ones you love, on your schedule.'],['Make a smart offer','We talk price, terms, and contingencies \u2014 written so you feel comfortable and competitive.'],['Negotiate & inspect','Counters, inspections, and an advocate protecting you at every step.'],['Close & get the keys','Final financing, signing, and the best part \u2014 the keys are yours.']];
+    renderVPropRows(); renderStepRows();
+  }
 }
 window.lpEditTemplate = lpEditTemplate;
 
@@ -24516,7 +24527,7 @@ async function lpSaveTemplate(t){
     smartPlanName:_planObj?(_planObj.name||'Plan'):'',
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
     stats:v('lp-stats'), pitch:v('lp-pitch'), videoUrl:v('lp-video'),
-    areas:v('lp-areas'), valueProps:v('lp-vprops'), buyerSteps:v('lp-steps'),
+    areas:v('lp-areas'), valueProps:_lpCompileRows('vprops-rows'), buyerSteps:_lpCompileRows('steps-rows'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
@@ -24542,6 +24553,31 @@ async function lpSaveTemplate(t){
   }catch(e){ alert('Save failed: '+e.message); }
 }
 window.lpSaveTemplate = lpSaveTemplate;
+
+// ── Structured row editor (value props / steps) ──
+var _lpVProps=[], _lpSteps=[];
+function _lpParseRows(s){ return String(s||'').split(/\n/).map(function(l){return l.trim();}).filter(Boolean).map(function(l){ var p=l.split('|'); return [(p[0]||'').trim(),(p.slice(1).join('|')||'').trim()]; }); }
+function _lpSyncRows(cid){ var c=document.getElementById(cid); var arr=[]; if(c){ Array.prototype.forEach.call(c.querySelectorAll('.lp-row'),function(r){ var t=r.querySelector('.lp-rt'),d=r.querySelector('.lp-rd'); arr.push([(t&&t.value)||'',(d&&d.value)||'']); }); } return arr; }
+function _lpCompileRows(cid){ return _lpSyncRows(cid).map(function(it){ var t=(it[0]||'').trim(),d=(it[1]||'').trim(); return (t||d)?(t+' | '+d):''; }).filter(Boolean).join('\n'); }
+function _lpRenderRows(cid,arr,removeFn,label){
+  var c=document.getElementById(cid); if(!c) return;
+  c.innerHTML=arr.map(function(it,i){
+    return '<div class="lp-row" style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--surface);">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-size:11px;font-weight:700;color:var(--text3);">'+label+' '+(i+1)+'</span>'
+      +'<button type="button" onclick="'+removeFn+'('+i+')" style="background:none;border:none;color:#E24B4A;font-size:12px;font-weight:600;cursor:pointer;padding:0;">Remove</button></div>'
+      +'<input class="lp-rt" value="'+partnerEsc(it[0]||'')+'" placeholder="Title (e.g. New listings first)" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 9px;border:1px solid var(--border);border-radius:8px;font-family:inherit;margin-bottom:6px;"/>'
+      +'<input class="lp-rd" value="'+partnerEsc(it[1]||'')+'" placeholder="One-line description" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 9px;border:1px solid var(--border);border-radius:8px;font-family:inherit;"/>'
+    +'</div>';
+  }).join('');
+}
+function renderVPropRows(){ _lpRenderRows('vprops-rows',_lpVProps,'lpRemoveVProp','Point'); var a=document.getElementById('vprops-add'); if(a) a.style.display=_lpVProps.length>=6?'none':'inline-block'; }
+function renderStepRows(){ _lpRenderRows('steps-rows',_lpSteps,'lpRemoveStep','Step'); var a=document.getElementById('steps-add'); if(a) a.style.display=_lpSteps.length>=8?'none':'inline-block'; }
+function lpAddVProp(){ _lpVProps=_lpSyncRows('vprops-rows'); if(_lpVProps.length<6) _lpVProps.push(['','']); renderVPropRows(); }
+function lpRemoveVProp(i){ _lpVProps=_lpSyncRows('vprops-rows'); _lpVProps.splice(i,1); renderVPropRows(); }
+function lpAddStep(){ _lpSteps=_lpSyncRows('steps-rows'); if(_lpSteps.length<8) _lpSteps.push(['','']); renderStepRows(); }
+function lpRemoveStep(i){ _lpSteps=_lpSyncRows('steps-rows'); _lpSteps.splice(i,1); renderStepRows(); }
+window.renderVPropRows=renderVPropRows; window.renderStepRows=renderStepRows;
+window.lpAddVProp=lpAddVProp; window.lpRemoveVProp=lpRemoveVProp; window.lpAddStep=lpAddStep; window.lpRemoveStep=lpRemoveStep;
 
 function lpCopyUrl(url){
   if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){ if(typeof showDealToast==='function') showDealToast('Link copied!',null,null); }).catch(function(){ prompt('Copy this link:',url); }); }
