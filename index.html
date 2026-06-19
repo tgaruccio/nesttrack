@@ -11095,44 +11095,97 @@ function _ownerRoleBadge(role){
   return '<span style="font-size:10px;font-weight:700;color:'+m[1]+';background:'+m[2]+';padding:2px 8px;border-radius:20px;">'+m[0]+'</span>';
 }
 function _ownerAgo(ms){ var d=Math.floor((Date.now()-ms)/86400000); if(d<=0)return 'today'; if(d===1)return '1d ago'; if(d<30)return d+'d ago'; var mo=Math.floor(d/30); return mo+'mo ago'; }
+function _adminRowHtml(a, nested){
+  var role=(typeof agentTeamRole==='function')?agentTeamRole(a):'member';
+  var u=_ownerUsage[a.id];
+  var usageHtml = u ? (u.clients+' client'+(u.clients===1?'':'s')+(u.last?(' \u00b7 '+u.last):'')) : '';
+  var isSelf = a.id===((userProfile&&userProfile.agentId)||'tom');
+  var canManage = !isSelf && role!=='owner';
+  var search=partnerEsc(String((a.name||'')+' '+(a.email||'')).toLowerCase());
+  return '<div class="admin-node" data-search="'+search+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:'+(nested?'var(--surface)':'var(--surface2)')+';border-radius:8px;'+(nested?'border:1px solid var(--border);':'')+'">'
+    +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-lt);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">'+partnerEsc(String(a.name||'?').charAt(0).toUpperCase())+'</div>'
+    +'<div style="flex:1;min-width:0;">'
+      +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;"><span style="font-weight:600;font-size:13px;">'+partnerEsc(a.name||a.id)+'</span>'+_ownerRoleBadge(role)+(isSelf?'<span style="font-size:10px;color:var(--text3);">You</span>':'')+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(a.email||'')+(usageHtml?(' \u00b7 '+usageHtml):'')+'</div>'
+    +'</div>'
+    +(canManage?'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:10.5px;font-weight:700;padding:6px 9px;flex-shrink:0;" onclick="enterManageAs(\''+a.id+'\')">Manage as</button>':'')
+    +(!isSelf?'<button class="btn btn-sm" style="color:var(--red-dk);font-size:10.5px;padding:6px 8px;flex-shrink:0;" onclick="removeAgent(\''+a.id+'\')">Remove</button>':'')
+  +'</div>';
+}
 function renderOwnerAdmin(){
   var panel=document.getElementById('agent-admin-panel'); if(!panel) return;
   if(typeof isOwner!=='function' || !isOwner()){ panel.innerHTML='<div class="card" style="text-align:center;color:var(--text3);padding:30px;">Owner access only.</div>'; return; }
-  var agents=(DEFAULT_AGENTS||[]).slice().sort(function(a,b){ return _ownerRoleRank(a)-_ownerRoleRank(b) || String(a.name||'').localeCompare(String(b.name||'')); });
+  var agents=(DEFAULT_AGENTS||[]);
+  var myId=(userProfile&&userProfile.agentId)||'tom';
   var loaded=Object.keys(_ownerUsage).length>0;
-  var rows=agents.map(function(a){
-    var role=(typeof agentTeamRole==='function')?agentTeamRole(a):'member';
-    var u=_ownerUsage[a.id];
-    var usageHtml = u
-      ? '<span style="font-size:11px;color:var(--text3);">'+u.clients+' client'+(u.clients===1?'':'s')+(u.last?(' \u00b7 active '+u.last):'')+'</span>'
-      : (loaded?'<span style="font-size:11px;color:var(--text3);">no activity</span>':'<span style="font-size:11px;color:var(--text3);">\u2014</span>');
-    var canManage = (a.id !== (userProfile&&userProfile.agentId)) && role!=='owner';
-    return '<div class="card" style="display:flex;align-items:center;gap:11px;padding:12px 14px;">'
-      +'<div style="width:38px;height:38px;border-radius:50%;background:var(--green-lt);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">'+partnerEsc(String(a.name||'?').charAt(0).toUpperCase())+'</div>'
-      +'<div style="flex:1;min-width:0;">'
-        +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;"><span style="font-weight:600;font-size:14px;">'+partnerEsc(a.name||a.id)+'</span>'+_ownerRoleBadge(role)+'</div>'
-        +'<div style="font-size:12px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(a.email||'')+(a.phone?(' \u00b7 '+partnerEsc(a.phone)):'')+'</div>'
-        +'<div style="margin-top:3px;">'+usageHtml+'</div>'
-      +'</div>'
-      +(canManage?'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:11px;font-weight:700;padding:7px 11px;flex-shrink:0;white-space:nowrap;" onclick="enterManageAs(\''+a.id+'\')">Manage as</button>':'')
-    +'</div>';
-  }).join('');
-  panel.innerHTML =
-    '<div class="card" style="padding:16px;">'
-      +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div>'
-      +'<div style="font-size:12.5px;color:var(--text3);">Everyone on the platform, invites, and billing \u2014 owner only.</div>'
+  var self=agents.find(function(a){return a.id===myId;});
+  var myMembers=agents.filter(function(a){return agentTeamRole(a)==='member' && agentTeamId(a)===myId;});
+  var leaders=agents.filter(function(a){return agentTeamRole(a)==='leader' && a.id!==myId;});
+
+  var yourTeam='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:6px 0 6px;">Your Team</div>'
+    +'<div style="display:flex;flex-direction:column;gap:6px;">'
+    +(self?_adminRowHtml(self,false):'')
+    +myMembers.map(function(a){return _adminRowHtml(a,true);}).join('')
     +'</div>'
+    +'<button class="btn btn-sm" style="margin:8px 0 4px;font-size:11px;" onclick="adminAddMemberTo(\''+myId+'\')">\u2795 Add member to your team</button>';
+
+  var leadersHtml='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:16px 0 6px;border-top:1px solid var(--border);padding-top:14px;">Team Leaders ('+leaders.length+')</div>';
+  if(!leaders.length){ leadersHtml+='<div style="font-size:12px;color:var(--text3);padding:4px 2px;">No team leaders yet. Use \u201CInvite Team Leader\u201D above.</div>'; }
+  else {
+    leadersHtml+=leaders.map(function(L){
+      var lMembers=agents.filter(function(a){return agentTeamRole(a)==='member' && agentTeamId(a)===L.id;});
+      var lfirst=partnerEsc(String(L.name||'').split(' ')[0]||'team');
+      return '<div class="admin-grp" style="margin-bottom:8px;">'
+        +'<div class="admin-node" data-search="'+partnerEsc(String((L.name||'')+' '+(L.email||'')).toLowerCase())+'" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:10px 12px;border-radius:8px;">'
+          +'<span id="adlarr-'+L.id+'" onclick="adminToggleLeader(\''+L.id+'\')" style="cursor:pointer;font-size:11px;color:var(--text3);width:12px;flex-shrink:0;">\u25B8</span>'
+          +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="adminToggleLeader(\''+L.id+'\')"><span style="font-weight:600;font-size:13px;">'+partnerEsc(L.name||L.id)+'</span> '+_ownerRoleBadge('leader')+' <span style="font-size:11px;color:var(--text3);">'+lMembers.length+' member'+(lMembers.length===1?'':'s')+'</span></div>'
+          +'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:10.5px;font-weight:700;padding:6px 9px;flex-shrink:0;" onclick="enterManageAs(\''+L.id+'\')">Manage as</button>'
+          +'<button class="btn btn-sm" style="color:var(--red-dk);font-size:10.5px;padding:6px 8px;flex-shrink:0;" onclick="removeAgent(\''+L.id+'\')">Remove</button>'
+        +'</div>'
+        +'<div class="admin-members" id="admem-'+L.id+'" style="display:none;padding-left:16px;margin-top:6px;flex-direction:column;gap:6px;">'
+          +(lMembers.length?lMembers.map(function(a){return _adminRowHtml(a,true);}).join(''):'<div style="font-size:11px;color:var(--text3);padding:4px;">No members yet.</div>')
+          +'<button class="btn btn-sm" style="font-size:11px;align-self:flex-start;" onclick="adminAddMemberTo(\''+L.id+'\')">\u2795 Add member to '+lfirst+'\u2019s team</button>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+
+  panel.innerHTML=
+    '<div class="card" style="padding:16px;"><div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div><div style="font-size:12.5px;color:var(--text3);">Your whole platform \u2014 leaders, their teams, and billing.</div></div>'
     +'<div style="display:flex;gap:8px;">'
-      +'<button class="btn" style="flex:1;" onclick="openTeamModal()">\u2795 Invite / add member</button>'
+      +'<button class="btn" style="flex:1;" onclick="adminInviteLeader()">\u2795 Invite Team Leader</button>'
       +'<button class="btn" id="owner-usage-btn" style="flex:1;background:var(--surface2);color:var(--text2);" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
     +'</div>'
-    +'<div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;">Members ('+agents.length+')</div>'
-    +rows
-    +'<div class="card" style="padding:16px;margin-top:8px;">'
-      +'<div style="font-size:14px;font-weight:700;margin-bottom:4px;">\uD83D\uDCB3 Billing</div>'
-      +'<div style="font-size:12.5px;color:var(--text3);line-height:1.5;">Subscription &amp; seat management lands here. Stripe is the next milestone \u2014 set your per-seat price, see who\u2019s active, and manage payment from this panel.</div>'
-    +'</div>';
+    +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;margin-top:4px;"/>'
+    +'<div id="admin-tree">'+yourTeam+leadersHtml+'</div>'
+    +'<div class="card" style="padding:16px;margin-top:8px;"><div style="font-size:14px;font-weight:700;margin-bottom:4px;">\uD83D\uDCB3 Billing</div><div style="font-size:12.5px;color:var(--text3);line-height:1.5;">Per-seat billing by team lands here \u2014 you\u2019ll bill each leader/brokerage for their seats (leader + members). Stripe is the next milestone.</div></div>';
+
+  if(window._adminQ){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
 }
+function adminToggleLeader(id){ var el=document.getElementById('admem-'+id); var ar=document.getElementById('adlarr-'+id); if(!el)return; var open=el.style.display==='none'||!el.style.display; el.style.display=open?'flex':'none'; if(ar)ar.textContent=open?'\u25BE':'\u25B8'; }
+function adminFilter(q){
+  window._adminQ=q; q=(q||'').trim().toLowerCase();
+  var tree=document.getElementById('admin-tree'); if(!tree) return;
+  tree.querySelectorAll('.admin-node').forEach(function(n){ var s=n.getAttribute('data-search')||''; n.style.display=(!q||s.indexOf(q)>=0)?'':'none'; });
+  tree.querySelectorAll('.admin-grp').forEach(function(grp){
+    var anyVisible=false; grp.querySelectorAll('.admin-node').forEach(function(n){ if(n.style.display!=='none')anyVisible=true; });
+    var mem=grp.querySelector('.admin-members'); var arr=grp.querySelector('[id^=adlarr-]');
+    if(!q){ grp.style.display=''; if(mem)mem.style.display='none'; if(arr)arr.textContent='\u25B8'; }
+    else { grp.style.display=anyVisible?'':'none'; if(mem)mem.style.display=anyVisible?'flex':'none'; if(arr)arr.textContent=anyVisible?'\u25BE':'\u25B8'; }
+  });
+}
+function adminInviteLeader(){
+  window._adminAddTargetTeam=null;
+  openTeamModal();
+  setTimeout(function(){ var r=document.getElementById('ta-teamrole'); var lo=document.getElementById('ta-teamrole-leader'); if(lo){lo.hidden=false;lo.disabled=false;} if(r){r.value='leader';} }, 180);
+}
+function adminAddMemberTo(teamId){
+  window._adminAddTargetTeam=teamId;
+  openTeamModal();
+  setTimeout(function(){ var r=document.getElementById('ta-teamrole'); if(r){r.value='member';} }, 180);
+}
+window._adminRowHtml=_adminRowHtml; window.adminToggleLeader=adminToggleLeader; window.adminFilter=adminFilter;
+window.adminInviteLeader=adminInviteLeader; window.adminAddMemberTo=adminAddMemberTo;
 async function ownerLoadUsage(){
   var btn=document.getElementById('owner-usage-btn'); if(btn){ btn.disabled=true; btn.textContent='Loading\u2026'; }
   var agents=(DEFAULT_AGENTS||[]);
@@ -14187,7 +14240,8 @@ async function addAgentAndInvite() {
   var teamRole = (document.getElementById('ta-teamrole') && document.getElementById('ta-teamrole').value) || 'member';
   // Guardrail: only the owner can create Team Leaders. Anyone else can only add members to their own team.
   if (teamRole === 'leader' && !isOwner()) teamRole = 'member';
-  var teamId = (teamRole === 'leader') ? id : ((userProfile && userProfile.agentId) || 'tom');
+  var teamId = (teamRole === 'leader') ? id : ((window._adminAddTargetTeam && isOwner()) ? window._adminAddTargetTeam : ((userProfile && userProfile.agentId) || 'tom'));
+  window._adminAddTargetTeam = null;
   const agentData = { id, name, role: 'REALTOR®', phone, email, teamRole: teamRole, teamId: teamId, addedAt: new Date().toISOString() };
 
   // Check duplicate
@@ -14210,6 +14264,7 @@ async function addAgentAndInvite() {
   document.getElementById('ta-email').value = '';
   renderTeam();
   populateAgentDropdown();
+  if (typeof renderOwnerAdmin==='function') { var _ap=document.getElementById('agent-admin-panel'); if(_ap && _ap.style.display!=='none') renderOwnerAdmin(); }
 
   // Build + show invite email preview
   var code = 'AGT' + Math.random().toString(36).substr(2,8).toUpperCase();
