@@ -24382,6 +24382,19 @@ var LP_TEMPLATES = {
       accent:'#2A6EF4',
       thanksMsg:'Thanks! I\u2019ll reach out shortly with your options and next steps.'
     }
+  },
+  buyer: {
+    name:'Buyer / New Listings', icon:'\uD83D\uDD11', tag:'Capture move-up buyers', file:'buyer.html',
+    defaults:{
+      eyebrow:'West Side Move-Up Homes',
+      headline:'Get Cleveland\u2019s Best Homes Before Everyone Else.',
+      subhead:'New listings the moment they hit \u2014 plus coming-soon and off-market homes most buyers never see. Tell me what you\u2019re after and I\u2019ll get you in first.',
+      ctaText:'Send My Matches',
+      source:'Buyer Lead',
+      stats:'450+ homes sold | West Side specialist | 8+ years local',
+      accent:'#2A6EF4',
+      thanksMsg:'Thanks! I\u2019ll line up homes that match and reach out shortly.'
+    }
   }
 };
 function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)||'tom')); }
@@ -24464,6 +24477,8 @@ async function lpEditTemplate(t){
     +'</div>'
     +_lpField('Headline','lp-headline',cfg.headline)
     +_lpField('Subheadline','lp-subhead',cfg.subhead,true)
+    +_lpField('Intro video URL \u2014 optional (YouTube, Vimeo, or .mp4)','lp-video',cfg.videoUrl)
+    +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">A 30-sec \u201Chi, I\u2019m Tom\u201D video lifts conversion \u2014 it plays right on the page.</div>'
     +_lpField('Credibility stats (separate with | )','lp-stats',cfg.stats)
     +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold | West Side specialist | 4.9 \u2605</div>'
     +_lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
@@ -24494,7 +24509,7 @@ async function lpSaveTemplate(t){
     smartPlanId:_planId,
     smartPlanName:_planObj?(_planObj.name||'Plan'):'',
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
-    stats:v('lp-stats'), pitch:v('lp-pitch'),
+    stats:v('lp-stats'), pitch:v('lp-pitch'), videoUrl:v('lp-video'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
