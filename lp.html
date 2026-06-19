@@ -204,7 +204,7 @@
 
     var btn=document.getElementById('submit-btn');
     btn.disabled=true; btn.textContent='Sending\u2026';
-    var payload={ firstName:first, lastName:last, email:email, phone:phone, address:address, agentId:AGENT, source:(CFG.source || 'Home Valuation'), notes:'Home valuation request via landing page for: '+address };
+    var payload={ firstName:first, lastName:last, email:email, phone:phone, address:address, agentId:AGENT, source:(CFG.source || 'Home Valuation'), notes:'Home valuation request via landing page for: '+address, leadStatus:(CFG.leadStatus||'pipeline'), leadSegment:(CFG.leadSegment||''), smartPlanId:(CFG.smartPlanId||''), smartPlanName:(CFG.smartPlanName||'') };
     fetch(WORKER_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'inbound-lead'}, body:JSON.stringify(payload) })
       .then(function(r){ return r.json().catch(function(){return {};}); })
       .then(function(){
@@ -217,6 +217,55 @@
         showErr('err2','Something went wrong. Please try again, or call me directly.');
       });
   }
+
+  // ── Address autocomplete (new Places API, same method as the app) ──
+  var GP_KEY = FB_KEY;
+  var _acTok=null;
+  function _acToken(){ try{ if(!_acTok && window.google && google.maps && google.maps.places) _acTok=new google.maps.places.AutocompleteSessionToken(); }catch(e){} return _acTok; }
+  function setupAddrAC(input){
+    if(!input || input.dataset.acReady) return;
+    if(!(window.google && google.maps && google.maps.places && google.maps.places.AutocompleteSuggestion)) return;
+    input.dataset.acReady='1'; input.setAttribute('autocomplete','off');
+    var dd=null,curPreds=[],active=-1,debounce=null,reqSeq=0;
+    function closeDD(){ if(dd){dd.remove();dd=null;} curPreds=[];active=-1; }
+    function position(){ if(!dd)return; var r=input.getBoundingClientRect(); dd.style.left=(r.left+window.scrollX)+'px'; dd.style.top=(r.bottom+window.scrollY+2)+'px'; dd.style.width=r.width+'px'; }
+    function highlight(){ if(!dd)return; Array.prototype.forEach.call(dd.children,function(it,i){ it.style.background=(i===active)?'#F3F4F6':'#fff'; }); }
+    function render(preds){ closeDD(); if(!preds.length)return; curPreds=preds; dd=document.createElement('div');
+      dd.style.cssText='position:absolute;z-index:99999;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);max-height:240px;overflow:auto;font-size:15px;color:#0F1B33;';
+      preds.forEach(function(p,i){ var row=document.createElement('div'); row.textContent=p.text;
+        row.style.cssText='padding:11px 13px;cursor:pointer;'+(i<preds.length-1?'border-bottom:1px solid #f2f2f2;':'');
+        row.addEventListener('pointerdown',function(ev){ ev.preventDefault(); choose(p); });
+        row.addEventListener('mouseenter',function(){ active=i; highlight(); });
+        dd.appendChild(row); });
+      document.body.appendChild(dd); position();
+    }
+    async function choose(p){ try{ var pl=p.prediction.toPlace(); await pl.fetchFields({fields:['formattedAddress']}); input.value=pl.formattedAddress||p.text; }catch(e){ input.value=p.text; } _acTok=null; closeDD(); }
+    async function query(v){ if(!v||v.trim().length<3){ closeDD(); return; } var mine=++reqSeq;
+      try{ var req={input:v}; var t=_acToken(); if(t)req.sessionToken=t;
+        var resp=await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
+        if(mine!==reqSeq)return;
+        var preds=(resp.suggestions||[]).filter(function(s){return s.placePrediction;}).map(function(s){ var tt=s.placePrediction.text; return {text:(tt&&tt.text)?tt.text:(tt?tt.toString():''),prediction:s.placePrediction}; });
+        render(preds);
+      }catch(e){ closeDD(); }
+    }
+    input.addEventListener('input',function(){ var v=input.value; clearTimeout(debounce); debounce=setTimeout(function(){ query(v); },250); });
+    input.addEventListener('keydown',function(e){ if(!dd)return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); active=Math.min(active+1,curPreds.length-1); highlight(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); active=Math.max(active-1,0); highlight(); }
+      else if(e.key==='Enter'){ if(active>=0&&curPreds[active]){ e.preventDefault(); choose(curPreds[active]); } }
+      else if(e.key==='Escape'){ closeDD(); } });
+    input.addEventListener('blur',function(){ setTimeout(closeDD,150); });
+    window.addEventListener('scroll',position,true);
+  }
+  function loadPlaces(){
+    if(window.google && google.maps && google.maps.places){ setupAddrAC(document.getElementById('f-address')); return; }
+    var s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+encodeURIComponent(GP_KEY)+'&libraries=places&loading=async&v=weekly';
+    s.async=true;
+    s.onload=function(){ setTimeout(function(){ setupAddrAC(document.getElementById('f-address')); },300); };
+    document.head.appendChild(s);
+  }
+  loadPlaces();
 
   loadConfig();
 </script>
