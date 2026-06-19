@@ -24421,12 +24421,33 @@ async function lpEditTemplate(t){
     if(snap.exists()){ cfg=Object.assign(cfg, snap.data()); }
   }catch(e){}
   var aPhone=cfg.agentPhone||(userProfile&&userProfile.phone)||'';
+  if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
+  var _segSet={}; (allBuyers||myBuyers||[]).forEach(function(x){ if(x&&x.segment) _segSet[x.segment]=1; });
+  var _segList=Object.keys(_segSet).sort();
+  var _statusList=[['pipeline','Pipeline'],['nurture','Nurture'],['active','Active'],['cold','Cold'],['contact','Contact Only']];
   var b=document.getElementById('lp-body'); if(!b) return;
   b.scrollTop=0;
   b.innerHTML=
     '<button class="btn btn-sm" onclick="lpShowTemplateList()" style="margin-bottom:14px;">\u2190 Templates</button>'
     +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">'+tpl.icon+' '+tpl.name+'</div>'
     +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Your name, photo, email &amp; brokerage are pulled from your profile automatically.</div>'
+    +'<div style="background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:14px;margin-bottom:20px;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1D4ED8;margin-bottom:2px;">\u2699\uFE0F When a lead comes in</div>'
+      +'<div style="font-size:11px;color:#1D4ED8;opacity:0.85;margin-bottom:10px;">Where leads from this page land \u2014 and what happens next.</div>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:8px 0 5px;">Category</label>'
+      +'<select id="lp-leadstatus" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +_statusList.map(function(s){ return '<option value="'+s[0]+'"'+((cfg.leadStatus||'pipeline')===s[0]?' selected':'')+'>'+s[1]+'</option>'; }).join('')
+      +'</select>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:11px 0 5px;">Segment / tag</label>'
+      +'<input id="lp-leadseg" list="lp-seg-options" value="'+partnerEsc(cfg.leadSegment||'')+'" placeholder="e.g. Home Value Leads (type a new one or pick existing)" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;"/>'
+      +'<datalist id="lp-seg-options">'+_segList.map(function(s){ return '<option value="'+partnerEsc(s)+'"></option>'; }).join('')+'</datalist>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:11px 0 5px;">Auto-enroll in smart plan</label>'
+      +'<select id="lp-leadplan" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +'<option value="">\u2014 None \u2014</option>'
+        +_smartPlans.map(function(p){ return '<option value="'+p.id+'"'+(cfg.smartPlanId===p.id?' selected':'')+'>'+partnerEsc(p.name||'Untitled')+'</option>'; }).join('')
+      +'</select>'
+      +'<div style="font-size:11px;color:#1D4ED8;opacity:0.8;margin-top:6px;">Enrolled leads start getting this plan\u2019s emails/texts automatically.</div>'
+    +'</div>'
     +_lpField('Headline','lp-headline',cfg.headline)
     +_lpField('Subheadline','lp-subhead',cfg.subhead,true)
     +_lpField('Credibility stats (separate with | )','lp-stats',cfg.stats)
@@ -24450,8 +24471,14 @@ window.lpEditTemplate = lpEditTemplate;
 async function lpSaveTemplate(t){
   var agentId=_lpAgentId();
   var v=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var _planId=(document.getElementById('lp-leadplan')||{}).value||'';
+  var _planObj=(_smartPlans||[]).find(function(p){return p.id===_planId;});
   var docData={
     template:t,
+    leadStatus:(document.getElementById('lp-leadstatus')||{}).value||'pipeline',
+    leadSegment:v('lp-leadseg'),
+    smartPlanId:_planId,
+    smartPlanName:_planObj?(_planObj.name||'Plan'):'',
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
     stats:v('lp-stats'), pitch:v('lp-pitch'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
