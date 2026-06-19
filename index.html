@@ -4254,7 +4254,7 @@ async function loadUserProfile() {
       if (userProfile.teamRole) _laPatch.teamRole = userProfile.teamRole;
       if (userProfile.teamId) _laPatch.teamId = userProfile.teamId;
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
-      applyManageAsOverride();
+      await applyManageAsOverride();
     } else {
       // No profile yet - might be the first agent. Create as agent if email matches team
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
@@ -5367,7 +5367,7 @@ function renderAgentProfileEditor() {
   set('ap-zillow', a.zillowReviewUrl);
   set('ap-bio', a.bio);
   // Load from Firestore profile (has showingTimeUrl)
-  fb.getDoc(fb.doc(fb.db,'users',currentUser.uid)).then(function(snap){
+  fb.getDoc(fb.doc(fb.db,'users',_profileUid())).then(function(snap){
     if(snap.exists()){
       var d = snap.data();
       var el=document.getElementById('ap-showingtime');
@@ -5538,8 +5538,12 @@ async function saveAgentProfile() {
     updatedAt: fb.serverTimestamp()
   };
   const status = document.getElementById('ap-status');
+  if (window._manageAsId && !window._manageAsUid) {
+    if (status) { status.textContent = 'This agent hasn\u2019t set up their account yet \u2014 they need to log in once before their profile can be edited.'; status.style.color = 'var(--red-dk)'; status.style.display = 'block'; }
+    return;
+  }
   try {
-    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), data);
+    await fb.updateDoc(fb.doc(fb.db, 'users', _profileUid()), data);
     userProfile = { ...userProfile, ...data };
     await loadAssignedAgentProfile();
     updateAgentRefs();
@@ -11149,23 +11153,39 @@ function exitManageAs(){
   try{ localStorage.removeItem('nt_manage_as'); }catch(e){}
   location.reload();
 }
-function applyManageAsOverride(){
+async function applyManageAsOverride(){
   var target=null; try{ target=localStorage.getItem('nt_manage_as'); }catch(e){}
   if(!target) return;
   if(typeof isOwner!=='function' || !isOwner()){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; } // only the real owner can impersonate
   var ag=(DEFAULT_AGENTS||[]).find(function(a){return a.id===target;});
   if(!ag || ag.id===(userProfile&&userProfile.agentId)){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; }
+  // Resolve the target agent's OWN profile/login doc (keyed by their uid) so we edit THEIR data, not the owner's.
+  var td=null, tdId=null;
+  try{
+    var snap=await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',ag.id)));
+    snap.forEach(function(d){ var x=d.data(); if(!tdId && x.role==='agent'){ tdId=d.id; td=x; } });
+  }catch(e){}
   window._manageAsId = ag.id;
+  window._manageAsUid = tdId; // null if the agent hasn't logged in / onboarded yet
   var nm=String(ag.name||'').trim().split(/\s+/);
-  userProfile = Object.assign({}, userProfile, {
+  var base = td ? Object.assign({}, td) : {};
+  userProfile = Object.assign(base, {
     agentId: ag.id, teamRole: agentTeamRole(ag), teamId: agentTeamId(ag), role:'agent',
-    email: ag.email||userProfile.email, firstName: nm[0]||ag.name||'Agent', lastName: nm.slice(1).join(' '),
+    email: ag.email||(td&&td.email)||userProfile.email,
+    firstName: (td&&td.firstName)||nm[0]||ag.name||'Agent',
+    lastName: (td&&td.lastName)||nm.slice(1).join(' '),
     _impersonated:true
   });
   isAgent = true;
-  assignedAgent = ag;
+  assignedAgent = Object.assign({}, ag, td?{
+    photoUrl: td.photoUrl||ag.photoUrl, photo: td.photoUrl||ag.photo,
+    calendly: td.calendly||ag.calendly, googleReviewUrl: td.googleReviewUrl||ag.googleReviewUrl,
+    zillowReviewUrl: td.zillowReviewUrl||ag.zillowReviewUrl, bio: td.bio||ag.bio
+  }:{});
   showManageBanner(ag);
 }
+function _profileUid(){ return window._manageAsUid || (currentUser&&currentUser.uid); }
+window._profileUid=_profileUid;
 function showManageBanner(ag){
   var b=document.getElementById('manage-as-banner'); if(!b) return;
   var t=document.getElementById('manage-as-text');
