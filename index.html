@@ -24479,6 +24479,12 @@ async function lpEditTemplate(t){
     +_lpField('Subheadline','lp-subhead',cfg.subhead,true)
     +_lpField('Intro video URL \u2014 optional (YouTube, Vimeo, or .mp4)','lp-video',cfg.videoUrl)
     +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">A 30-sec \u201Chi, I\u2019m Tom\u201D video lifts conversion \u2014 it plays right on the page.</div>'
+    +(t==='buyer'?(
+        _lpField('Areas / cities buyers can pick (separate with | )','lp-areas',cfg.areas||'Westlake | Bay Village | Avon Lake | Rocky River | Avon | Lakewood | Open to anywhere West Side')
+        +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">Each becomes a tappable chip. Use your own market\u2019s cities.</div>'
+        +_lpField('\u201CWhy buy with me\u201D points \u2014 one per line: Title | description','lp-vprops',cfg.valueProps||'New listings, first | Get matched the moment homes hit the market.\nOff-market & coming-soon | Access to homes that never make it to Zillow.\nA true local expert | I know these neighborhoods street by street.\nFinancing handled in-house | I\u2019m also a licensed loan originator \u2014 one team.',true)
+        +_lpField('\u201CHow it works\u201D steps \u2014 one per line: Title | description (leave blank for the default)','lp-steps',cfg.buyerSteps||'',true)
+      ):'')
     +_lpField('Credibility stats (separate with | )','lp-stats',cfg.stats)
     +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold | West Side specialist | 4.9 \u2605</div>'
     +_lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
@@ -24510,6 +24516,7 @@ async function lpSaveTemplate(t){
     smartPlanName:_planObj?(_planObj.name||'Plan'):'',
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
     stats:v('lp-stats'), pitch:v('lp-pitch'), videoUrl:v('lp-video'),
+    areas:v('lp-areas'), valueProps:v('lp-vprops'), buyerSteps:v('lp-steps'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
