@@ -11199,6 +11199,7 @@ function switchAgentTab(tab) {
   var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances'),adb=document.getElementById('agent-tab-admin');
   var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel'),fp=document.getElementById('agent-finances-panel'),adp=document.getElementById('agent-admin-panel');
   if(adb) adb.style.display=(typeof isOwner==='function'&&isOwner())?'':'none';
+  if(ftb) ftb.style.display=window._manageAsId?'none':'';
   [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb,ftb,adb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
   [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp,fp,adp].forEach(function(p){ if(p) p.style.display='none'; });
   if (tab === 'chat') {
@@ -12400,7 +12401,7 @@ window.sendPreApprovalEmail = sendPreApprovalEmail;
 async function todoLoad() {
   if (!currentUser) return;
   try {
-    var snap = await fb.getDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid));
+    var snap = await fb.getDoc(fb.doc(fb.db, 'agent_todos', _profileUid()));
     _todos = snap.exists() ? (snap.data().items || []) : [];
     todoRender();
     todoScheduleReminderCheck();
@@ -12502,7 +12503,7 @@ window.syncTCReminders = syncTCReminders;
 async function todoSave() {
   if (!currentUser) return;
   try {
-    await fb.setDoc(fb.doc(fb.db, 'agent_todos', currentUser.uid), { items: _todos, updatedAt: Date.now() });
+    await fb.setDoc(fb.doc(fb.db, 'agent_todos', _profileUid()), { items: _todos, updatedAt: Date.now() });
     todoUpdateBadge();
   } catch(e) { console.log('todoSave:', e.message); }
 }
@@ -17964,7 +17965,7 @@ async function fetchShowingTimeEvents() {
   var agentId = (userProfile && userProfile.agentId) || 'tom';
   var stUrl = null;
   try {
-    var aSnap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+    var aSnap = await fb.getDoc(fb.doc(fb.db,'users',_profileUid()));
     if (aSnap.exists()) stUrl = aSnap.data().showingTimeUrl;
     if (!stUrl) {
       var a2Snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId));
@@ -18020,7 +18021,7 @@ async function renderShowingInbox() {
   if (!events.length && !manualShowings.length) {
     var stUrl2 = null;
     try {
-      var aSnap2 = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+      var aSnap2 = await fb.getDoc(fb.doc(fb.db,'users',_profileUid()));
       if (aSnap2.exists()) stUrl2 = aSnap2.data().showingTimeUrl;
     } catch(e) {}
     if (!stUrl2) {
@@ -18891,7 +18892,7 @@ async function debugShowingTime() {
   var out = ['=== ShowingTime Debug ==='];
   out.push('PROXY_URL: ' + PROXY_URL);
   try {
-    var aSnap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+    var aSnap = await fb.getDoc(fb.doc(fb.db,'users',_profileUid()));
     var stUrl = aSnap.exists() ? aSnap.data().showingTimeUrl : null;
     out.push('URL in Firestore: ' + (stUrl||'NOT SET'));
     if (!stUrl) { alert(out.join('\n')); return; }
@@ -19078,7 +19079,7 @@ async function renderListingUpdates() {
   container.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:40px 20px;">Loading...</div>';
   try {
     var snap = await fb.getDocs(fb.query(
-      fb.collection(fb.db,'users',currentUser.uid,'sellerReports'),
+      fb.collection(fb.db,'users',_profileUid(),'sellerReports'),
       fb.orderBy('sentAt','desc')
     ));
     if (snap.empty) {
@@ -19112,7 +19113,7 @@ async function renderListingUpdates() {
 window.renderListingUpdates = renderListingUpdates;
 
 async function luOpenReport(reportId) {
-  var snap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid,'sellerReports',reportId));
+  var snap = await fb.getDoc(fb.doc(fb.db,'users',_profileUid(),'sellerReports',reportId));
   if (!snap.exists()) return;
   var r = snap.data();
   if (!r.emailHtml) { alert('Full report not available for this entry.'); return; }
@@ -19335,7 +19336,7 @@ var _DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sund
 async function scheduleLoad() {
   if (!currentUser) return;
   try {
-    var snap = await fb.getDoc(fb.doc(fb.db,'agent_schedule',currentUser.uid));
+    var snap = await fb.getDoc(fb.doc(fb.db,'agent_schedule',_profileUid()));
     _scheduleBlocks = snap.exists() ? (snap.data().blocks || []) : [];
     scheduleRender();
   } catch(e) { console.log('scheduleLoad:', e.message); }
@@ -19412,7 +19413,7 @@ async function scheduleSave() {
         task: row.querySelector('.sb-task').value.trim()
       };
     }).filter(function(b){ return b.task && b.day && b.startTime; });
-    await fb.setDoc(fb.doc(fb.db,'agent_schedule',currentUser.uid), { blocks: _scheduleBlocks, updatedAt: Date.now() });
+    await fb.setDoc(fb.doc(fb.db,'agent_schedule',_profileUid()), { blocks: _scheduleBlocks, updatedAt: Date.now() });
     var status = document.getElementById('ap-status');
     if (status) { status.textContent = '📅 Schedule saved!'; status.style.color='var(--green-dk)'; status.style.display='block'; setTimeout(function(){ status.style.display='none'; }, 2000); }
   } catch(e) { alert('Save failed: '+e.message); }
@@ -19478,7 +19479,7 @@ async function injectScheduleBlocks() {
   if (!currentUser) return;
   if (!_scheduleBlocks.length) {
     try {
-      var snap = await fb.getDoc(fb.doc(fb.db,'agent_schedule',currentUser.uid));
+      var snap = await fb.getDoc(fb.doc(fb.db,'agent_schedule',_profileUid()));
       _scheduleBlocks = snap.exists() ? (snap.data().blocks || []) : [];
     } catch(e) { return; }
   }
@@ -19597,7 +19598,7 @@ async function obLoad() {
     var stepsSnap = await fb.getDoc(_obStepsRef());
     _obSteps = stepsSnap.exists() ? (stepsSnap.data().steps || _obDefaultSteps()) : _obDefaultSteps();
     // Load this agent's progress
-    var progSnap = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',currentUser.uid));
+    var progSnap = await fb.getDoc(fb.doc(fb.db,'agent_onboarding',_profileUid()));
     _obProgress = progSnap.exists() ? (progSnap.data().completed || {}) : {};
     // Show nav button if assigned
     obCheckAssigned();
@@ -20209,7 +20210,7 @@ window.obCheckAssigned = obCheckAssigned;
 async function obSaveProgress() {
   if (!currentUser) return;
   try {
-    await fb.setDoc(fb.doc(fb.db,'agent_onboarding',currentUser.uid), {
+    await fb.setDoc(fb.doc(fb.db,'agent_onboarding',_profileUid()), {
       completed: _obProgress,
       updatedAt: fb.serverTimestamp(),
       agentId: userProfile.agentId || 'tom'
@@ -23856,7 +23857,7 @@ var _textTasks = [];
 async function loadTextTasks(){
   if(!currentUser) return;
   try {
-    var snap = await fb.getDocs(fb.collection(fb.db,'users',currentUser.uid,'textTasks'));
+    var snap = await fb.getDocs(fb.collection(fb.db,'users',_profileUid(),'textTasks'));
     _textTasks = [];
     snap.forEach(function(d){ var t=d.data(); if(!t.done){ t.id=d.id; _textTasks.push(t); } });
     _textTasks.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
@@ -23893,7 +23894,7 @@ function ttSend(id){
 window.ttSend = ttSend;
 
 async function ttDone(id){
-  try { await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'textTasks',id),{done:true}); } catch(e){ console.log('ttDone:',e.message); }
+  try { await fb.updateDoc(fb.doc(fb.db,'users',_profileUid(),'textTasks',id),{done:true}); } catch(e){ console.log('ttDone:',e.message); }
   _textTasks=_textTasks.filter(function(x){return x.id!==id;});
   renderTextTasks();
 }
@@ -23994,7 +23995,7 @@ var _connectCreds = { slyEmail:'', slyCallerId:'', hasSlyPass:false, hasThanksio
 async function renderConnectTiles(){
   var el=document.getElementById('sp-connect-tiles'); if(!el) return;
   try {
-    var snap=await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+    var snap=await fb.getDoc(fb.doc(fb.db,'users',_profileUid()));
     var d=snap.exists()?snap.data():{};
     _connectCreds={ slyEmail:d.slyEmail||'', slyCallerId:d.slyCallerId||'', hasSlyPass:!!d.slyPass, hasThanksio:!!d.thanksioKey };
   } catch(e){ console.log('connect creds err:', e.message); }
@@ -24064,7 +24065,7 @@ async function saveConnect(provider){
   }
   if(status) status.innerHTML='<span style="color:var(--text3);">Saving…</span>';
   try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), patch);
+    await fb.updateDoc(fb.doc(fb.db,'users',_profileUid()), patch);
     closeConnectModal();
     if(typeof spToast==='function') spToast('✓ '+(provider==='sly'?'Slybroadcast':'thanks.io')+' connected');
     renderConnectTiles();
