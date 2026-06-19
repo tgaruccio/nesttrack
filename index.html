@@ -11174,16 +11174,89 @@ function adminFilter(q){
     else { grp.style.display=anyVisible?'':'none'; if(mem)mem.style.display=anyVisible?'flex':'none'; if(arr)arr.textContent=anyVisible?'\u25BE':'\u25B8'; }
   });
 }
+function _adminCloseModal(){ var m=document.getElementById('admin-form-modal'); if(m) m.remove(); }
+function _adminField(label,id,ac){
+  return '<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">'+label+'</label>'
+    +'<input id="'+id+'" autocomplete="'+ac+'" style="width:100%;box-sizing:border-box;font-size:14px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 12px;"/>';
+}
+function _adminModal(title, bodyHtml){
+  _adminCloseModal();
+  var ov=document.createElement('div'); ov.id='admin-form-modal';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100001;display:flex;align-items:center;justify-content:center;padding:18px;';
+  ov.innerHTML='<div style="background:var(--surface);border-radius:16px;padding:20px;width:100%;max-width:420px;max-height:90vh;overflow:auto;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;"><div style="font-size:16px;font-weight:700;">'+title+'</div><button onclick="_adminCloseModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text3);">\u00D7</button></div>'
+    +bodyHtml+'</div>';
+  ov.addEventListener('click',function(e){ if(e.target===ov) _adminCloseModal(); });
+  document.body.appendChild(ov);
+}
 function adminInviteLeader(){
-  window._adminAddTargetTeam=null;
-  openTeamModal();
-  setTimeout(function(){ var r=document.getElementById('ta-teamrole'); var lo=document.getElementById('ta-teamrole-leader'); if(lo){lo.hidden=false;lo.disabled=false;} if(r){r.value='leader';} }, 180);
+  _adminModal('\uD83D\uDC51 Invite Team Leader',
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">They get their own team, add their own members, and run their own onboarding. You just get them started \u2014 nothing here is tied to your team.</div>'
+    +_adminField('Name','afm-name','name')
+    +_adminField('Email','afm-email','email')
+    +_adminField('Phone (optional)','afm-phone','tel')
+    +'<button class="btn" style="width:100%;margin-top:6px;" onclick="adminSubmitInvite(\'leader\')">Send Leader Invite \u2192</button>'
+  );
 }
 function adminAddMemberTo(teamId){
-  window._adminAddTargetTeam=teamId;
-  openTeamModal();
-  setTimeout(function(){ var r=document.getElementById('ta-teamrole'); if(r){r.value='member';} }, 180);
+  var leaders=(DEFAULT_AGENTS||[]).filter(function(a){return agentTeamRole(a)==='leader';});
+  var myId=(userProfile&&userProfile.agentId)||'tom';
+  var opts='<option value="'+myId+'">Your team</option>'+leaders.map(function(L){return '<option value="'+L.id+'">'+partnerEsc(L.name||L.id)+'\u2019s team</option>';}).join('');
+  _adminModal('\u2795 Add Member',
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">Adds a member straight to a team. Normally leaders add their own \u2014 this is your owner override.</div>'
+    +'<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Add to which team</label>'
+    +'<select id="afm-team" style="width:100%;box-sizing:border-box;font-size:14px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 12px;">'+opts+'</select>'
+    +_adminField('Name','afm-name','name')
+    +_adminField('Email','afm-email','email')
+    +_adminField('Phone (optional)','afm-phone','tel')
+    +'<button class="btn" style="width:100%;margin-top:6px;" onclick="adminSubmitInvite(\'member\')">Add &amp; Send Invite \u2192</button>'
+  );
+  if(teamId){ var t=document.getElementById('afm-team'); if(t) t.value=teamId; }
 }
+async function adminSubmitInvite(role){
+  var name=((document.getElementById('afm-name')||{}).value||'').trim();
+  var email=((document.getElementById('afm-email')||{}).value||'').trim();
+  var phone=((document.getElementById('afm-phone')||{}).value||'').trim();
+  var teamId=role==='member' ? ((document.getElementById('afm-team')||{}).value||'') : null;
+  var ok=await _createAgentInvite({name:name,email:email,phone:phone,role:role,teamId:teamId});
+  if(ok!==false) _adminCloseModal();
+}
+async function _createAgentInvite(opts){
+  var name=(opts.name||'').trim(), email=(opts.email||'').trim(), phone=(opts.phone||'').trim();
+  if(!name||!email){ alert('Name and email are required.'); return false; }
+  var id=name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12);
+  var teamRole = opts.role==='leader' ? 'leader' : 'member';
+  if(teamRole==='leader' && !isOwner()) teamRole='member';
+  var teamId = teamRole==='leader' ? id : (opts.teamId || ((userProfile&&userProfile.agentId)||'tom'));
+  var existing=DEFAULT_AGENTS.findIndex(function(a){return a.id===id || (a.email||'').toLowerCase()===email.toLowerCase();});
+  if(existing>=0){ alert('Someone with that name or email already exists.'); return false; }
+  var agentData={ id:id, name:name, role:'REALTOR\u00AE', phone:phone, email:email, teamRole:teamRole, teamId:teamId, addedAt:new Date().toISOString() };
+  DEFAULT_AGENTS.push(agentData);
+  try{ await fb.setDoc(fb.doc(fb.db,'team_agents',id), agentData); }
+  catch(e){ DEFAULT_AGENTS.pop(); alert('Failed to save: '+e.message); return false; }
+  var code='AGT'+Math.random().toString(36).substr(2,8).toUpperCase();
+  var link=_inviteLink('agent-invite', code, email, name);
+  var first=name.split(' ')[0];
+  try{ await fb.setDoc(fb.doc(fb.db,'agentInvites',code), { name:name, email:email.toLowerCase(), code:code, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false, onboardingAssigned:false, mentorAgentId:null, teamRole:teamRole, teamId:teamId }); }catch(e){}
+  populateAgentDropdown();
+  if(typeof renderTeam==='function'){ try{ renderTeam(); }catch(e){} }
+  if(typeof renderOwnerAdmin==='function'){ var _ap=document.getElementById('agent-admin-panel'); if(_ap&&_ap.style.display!=='none') renderOwnerAdmin(); }
+  var roleLine = teamRole==='leader' ? 'You\u2019ve been invited to lead a team on Nest Track \u2014 your all-in-one platform for clients, deals, and your own agents.' : 'You\u2019ve been invited to join Nest Track \u2014 your all-in-one platform for buyer & seller journeys, deals, messaging, and showings.';
+  var emailHtml='<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;"><div style="font-size:24px;font-weight:300;color:#fff;">Nest Track</div></div>'
+    +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">'+roleLine+'</p>'
+    +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Account \u2192</a></div>'
+    +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
+    +'</div></div>';
+  var subject=first+', your Nest Track account is ready';
+  showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue){
+    try{ var payload={to:email,subject:subject,html:finalHtml||emailHtml}; if(ccValue){var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0];} await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)}); alert(name+' added and invite sent to '+email+'!'); }catch(e){ alert('Added, but invite email failed: '+e.message); }
+  });
+  return true;
+}
+window._adminCloseModal=_adminCloseModal; window.adminSubmitInvite=adminSubmitInvite; window._createAgentInvite=_createAgentInvite;
 window._adminRowHtml=_adminRowHtml; window.adminToggleLeader=adminToggleLeader; window.adminFilter=adminFilter;
 window.adminInviteLeader=adminInviteLeader; window.adminAddMemberTo=adminAddMemberTo;
 async function ownerLoadUsage(){
