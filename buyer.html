@@ -105,10 +105,8 @@
     <div id="step1">
       <h2>What are you looking for?</h2>
       <p class="ch">Takes 20 seconds &mdash; no account, no pressure.</p>
-      <div class="qlabel">Areas you&rsquo;re considering</div>
-      <div class="opts" id="q-areas"></div>
-      <div class="qlabel">Price range</div>
-      <div class="opts" id="q-price"></div>
+      <div id="qg-areas"><div class="qlabel">Areas you&rsquo;re considering</div><div class="opts" id="q-areas"></div></div>
+      <div id="qg-price"><div class="qlabel">Price range</div><div class="opts" id="q-price"></div></div>
       <div class="qlabel">Bedrooms</div>
       <div class="opts" id="q-beds"></div>
       <div class="qlabel">Timeline</div>
@@ -191,15 +189,19 @@
   function chip(group,val,multi){ var key=group; return '<button data-g="'+group+'" data-v="'+esc(val)+'" onclick="pickOpt(\''+group+'\','+(multi?'true':'false')+',this)">'+esc(val)+'</button>'; }
   function parseLines(s){ return String(s||'').split(/\n/).map(function(l){return l.trim();}).filter(Boolean).map(function(l){ var p=l.split('|'); return [(p[0]||'').trim(),(p.slice(1).join('|')||'').trim()]; }); }
   function renderStatic(){
-    document.getElementById('q-price').innerHTML=PRICES.map(function(a){ return chip('price',a,false); }).join('');
     document.getElementById('q-beds').innerHTML=BEDS.map(function(a){ return chip('beds',a,false); }).join('');
     document.getElementById('q-time').innerHTML=TIMES.map(function(a){ return chip('time',a,false); }).join('');
   }
   function renderDynamic(c){
     c=c||{};
-    var areas=c.areas?String(c.areas).split('|').map(function(s){return s.trim();}).filter(Boolean):DEFAULT_AREAS;
+    var areas=c.areas?String(c.areas).split('|').map(function(s){return s.trim();}).filter(Boolean):[];
     SEL.areas=[];
-    document.getElementById('q-areas').innerHTML=areas.map(function(a){ return chip('areas',a,true); }).join('');
+    if(areas.length){ document.getElementById('q-areas').innerHTML=areas.map(function(a){ return chip('areas',a,true); }).join(''); document.getElementById('qg-areas').style.display='block'; }
+    else { document.getElementById('qg-areas').style.display='none'; }
+    var prices=c.prices?String(c.prices).split('|').map(function(s){return s.trim();}).filter(Boolean):[];
+    SEL.price='';
+    if(prices.length){ document.getElementById('q-price').innerHTML=prices.map(function(a){ return chip('price',a,false); }).join(''); document.getElementById('qg-price').style.display='block'; }
+    else { document.getElementById('qg-price').style.display='none'; }
     var vps=c.valueProps?parseLines(c.valueProps):DEFAULT_VPROPS;
     document.getElementById('vprops').innerHTML=vps.map(function(v,i){ return '<div class="get"><span class="ic">'+(VICONS[i%VICONS.length])+'</span><div class="gx"><b>'+esc(v[0])+'</b><span>'+esc(v[1])+'</span></div></div>'; }).join('');
     var steps=c.buyerSteps?parseLines(c.buyerSteps):DEFAULT_STEPS;
