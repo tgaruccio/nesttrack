@@ -24365,6 +24365,8 @@ var LP_TEMPLATES = {
       subhead:'Get a free, no-obligation estimate of your home\u2019s current market value \u2014 prepared by a local expert who actually knows your neighborhood.',
       ctaText:'Get My Home Value',
       source:'Home Valuation',
+      stats:'450+ homes sold | West Side specialist | 8+ years local',
+      pitch:'This isn\u2019t an automated guess. It\u2019s a <b>real valuation</b> from a local agent who\u2019s actually sold homes on streets like yours \u2014 not a robot pulling a number off the internet.',
       accent:'#2A6EF4',
       thanksMsg:'Thanks \u2014 your request is in. I\u2019ll pull together your home\u2019s value and reach out shortly.'
     }
@@ -24427,6 +24429,9 @@ async function lpEditTemplate(t){
     +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">Your name, photo, email &amp; brokerage are pulled from your profile automatically.</div>'
     +_lpField('Headline','lp-headline',cfg.headline)
     +_lpField('Subheadline','lp-subhead',cfg.subhead,true)
+    +_lpField('Credibility stats (separate with | )','lp-stats',cfg.stats)
+    +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold | West Side specialist | 4.9 \u2605</div>'
+    +_lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
     +_lpField('Eyebrow (small label above headline)','lp-eyebrow',cfg.eyebrow)
     +_lpField('Button text','lp-cta',cfg.ctaText)
     +_lpField('Your phone (shown on the page)','lp-phone',aPhone)
@@ -24448,6 +24453,7 @@ async function lpSaveTemplate(t){
   var docData={
     template:t,
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
+    stats:v('lp-stats'), pitch:v('lp-pitch'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
