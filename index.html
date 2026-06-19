@@ -24480,8 +24480,14 @@ async function lpEditTemplate(t){
     +_lpField('Intro video URL \u2014 optional (YouTube, Vimeo, or .mp4)','lp-video',cfg.videoUrl)
     +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">A 30-sec \u201Chi, I\u2019m Tom\u201D video lifts conversion \u2014 it plays right on the page.</div>'
     +(t==='buyer'?(
-        _lpField('Areas / cities buyers can pick (separate with | )','lp-areas',cfg.areas||'Westlake | Bay Village | Avon Lake | Rocky River | Avon | Lakewood | Open to anywhere West Side')
-        +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">Each becomes a tappable chip. Use your own market\u2019s cities.</div>'
+        '<div style="font-size:13px;font-weight:700;color:var(--text2);margin:6px 0 4px;">Areas / cities buyers can pick</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Each becomes a tappable chip. Add your market\u2019s cities (leave empty to hide this question).</div>'
+        +'<div id="areas-rows"></div>'
+        +'<button type="button" class="btn btn-sm" id="areas-add" onclick="lpAddArea()" style="margin-bottom:4px;">+ Add city</button>'
+        +'<div style="font-size:13px;font-weight:700;color:var(--text2);margin:18px 0 4px;">Price ranges buyers can pick</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Set ranges that fit your market, e.g. $300\u2013400K (leave empty to hide).</div>'
+        +'<div id="prices-rows"></div>'
+        +'<button type="button" class="btn btn-sm" id="prices-add" onclick="lpAddPrice()" style="margin-bottom:4px;">+ Add price range</button>'
         +'<div style="font-size:13px;font-weight:700;color:var(--text2);margin:18px 0 4px;">Why buy with me</div>'
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Each one shows as a card on the page (up to 6).</div>'
         +'<div id="vprops-rows"></div>'
@@ -24507,6 +24513,9 @@ async function lpEditTemplate(t){
     +'</div>'
     +'<div id="lp-share" style="display:none;margin-top:18px;padding:14px;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);"></div>';
   if(t==='buyer'){
+    _lpAreas = cfg.areas ? _lpParseList(cfg.areas) : [''];
+    _lpPrices = cfg.prices ? _lpParseList(cfg.prices) : [''];
+    renderAreaRows(); renderPriceRows();
     _lpVProps = cfg.valueProps ? _lpParseRows(cfg.valueProps) : [['New listings, first','Get matched the moment homes hit the market \u2014 before the weekend rush.'],['Off-market & coming-soon','Access to homes that never make it to Zillow, through my local network.'],['A true local expert','I know these neighborhoods street by street \u2014 schools, values, and what\u2019s actually worth it.'],['Financing handled in-house','I\u2019m also a licensed loan originator \u2014 pre-approval and strategy, one team.']];
     _lpSteps = cfg.buyerSteps ? _lpParseRows(cfg.buyerSteps) : [['Get pre-approved','Know your budget and monthly payment before you shop \u2014 sellers expect it, and it makes your offer real.'],['Map out your must-haves','Areas, price, layout, dealbreakers. We get clear on what you actually want so we don\u2019t waste time.'],['Tour homes','New listings come straight to you. We tour the ones you love, on your schedule.'],['Make a smart offer','We talk price, terms, and contingencies \u2014 written so you feel comfortable and competitive.'],['Negotiate & inspect','Counters, inspections, and an advocate protecting you at every step.'],['Close & get the keys','Final financing, signing, and the best part \u2014 the keys are yours.']];
     renderVPropRows(); renderStepRows();
@@ -24527,7 +24536,7 @@ async function lpSaveTemplate(t){
     smartPlanName:_planObj?(_planObj.name||'Plan'):'',
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
     stats:v('lp-stats'), pitch:v('lp-pitch'), videoUrl:v('lp-video'),
-    areas:v('lp-areas'), valueProps:_lpCompileRows('vprops-rows'), buyerSteps:_lpCompileRows('steps-rows'),
+    areas:_lpCompileList('areas-rows'), prices:_lpCompileList('prices-rows'), valueProps:_lpCompileRows('vprops-rows'), buyerSteps:_lpCompileRows('steps-rows'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
@@ -24578,6 +24587,29 @@ function lpAddStep(){ _lpSteps=_lpSyncRows('steps-rows'); if(_lpSteps.length<8) 
 function lpRemoveStep(i){ _lpSteps=_lpSyncRows('steps-rows'); _lpSteps.splice(i,1); renderStepRows(); }
 window.renderVPropRows=renderVPropRows; window.renderStepRows=renderStepRows;
 window.lpAddVProp=lpAddVProp; window.lpRemoveVProp=lpRemoveVProp; window.lpAddStep=lpAddStep; window.lpRemoveStep=lpRemoveStep;
+
+// ── Single-field list editor (cities / price ranges) ──
+var _lpAreas=[], _lpPrices=[];
+function _lpParseList(s){ return String(s||'').split('|').map(function(x){return x.trim();}).filter(Boolean); }
+function _lpSyncList(cid){ var c=document.getElementById(cid); var arr=[]; if(c){ Array.prototype.forEach.call(c.querySelectorAll('.lp-litem'),function(inp){ arr.push(inp.value); }); } return arr; }
+function _lpCompileList(cid){ return _lpSyncList(cid).map(function(x){return (x||'').trim();}).filter(Boolean).join(' | '); }
+function _lpRenderList(cid,arr,removeFn,ph){
+  var c=document.getElementById(cid); if(!c) return;
+  c.innerHTML=arr.map(function(it,i){
+    return '<div class="lp-lrow" style="display:flex;gap:6px;margin-bottom:6px;">'
+      +'<input class="lp-litem" value="'+partnerEsc(it||'')+'" placeholder="'+ph+'" style="flex:1;box-sizing:border-box;font-size:13px;padding:8px 9px;border:1px solid var(--border);border-radius:8px;font-family:inherit;"/>'
+      +'<button type="button" onclick="'+removeFn+'('+i+')" style="background:none;border:1px solid var(--border);border-radius:8px;color:#E24B4A;font-size:14px;cursor:pointer;width:34px;flex-shrink:0;">\u00d7</button>'
+    +'</div>';
+  }).join('');
+}
+function renderAreaRows(){ _lpRenderList('areas-rows',_lpAreas,'lpRemoveArea','City (e.g. Westlake)'); }
+function renderPriceRows(){ _lpRenderList('prices-rows',_lpPrices,'lpRemovePrice','Range (e.g. $400\u2013500K)'); }
+function lpAddArea(){ _lpAreas=_lpSyncList('areas-rows'); if(_lpAreas.length<12) _lpAreas.push(''); renderAreaRows(); }
+function lpRemoveArea(i){ _lpAreas=_lpSyncList('areas-rows'); _lpAreas.splice(i,1); if(!_lpAreas.length) _lpAreas=['']; renderAreaRows(); }
+function lpAddPrice(){ _lpPrices=_lpSyncList('prices-rows'); if(_lpPrices.length<10) _lpPrices.push(''); renderPriceRows(); }
+function lpRemovePrice(i){ _lpPrices=_lpSyncList('prices-rows'); _lpPrices.splice(i,1); if(!_lpPrices.length) _lpPrices=['']; renderPriceRows(); }
+window.renderAreaRows=renderAreaRows; window.renderPriceRows=renderPriceRows;
+window.lpAddArea=lpAddArea; window.lpRemoveArea=lpRemoveArea; window.lpAddPrice=lpAddPrice; window.lpRemovePrice=lpRemovePrice;
 
 function lpCopyUrl(url){
   if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){ if(typeof showDealToast==='function') showDealToast('Link copied!',null,null); }).catch(function(){ prompt('Copy this link:',url); }); }
