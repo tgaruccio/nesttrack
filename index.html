@@ -5634,12 +5634,17 @@ async function loadTeamStats() {
   renderTeamStats();
 }
 var _lbSettings = {}; // leaderboard flags per agent
+var _lbVisibleToMembers = true; // team-level: do members see the leaderboard tab (leader can opt out)
 
 async function loadLeaderboardSettings() {
   try {
     var snap = await fb.getDoc(_tsSettingsRef());
-    _lbSettings = snap.exists() ? (snap.data().leaderboard || {}) : {};
-  } catch(e){ _lbSettings = {}; }
+    if (snap.exists()) {
+      var sd = snap.data();
+      _lbSettings = sd.leaderboard || {};
+      _lbVisibleToMembers = sd.leaderboardVisibleToMembers !== false; // default ON
+    } else { _lbSettings = {}; _lbVisibleToMembers = true; }
+  } catch(e){ _lbSettings = {}; _lbVisibleToMembers = true; }
 }
 
 async function toggleLeaderboard(agentId, checked) {
@@ -5649,6 +5654,14 @@ async function toggleLeaderboard(agentId, checked) {
   } catch(e){}
 }
 window.toggleLeaderboard = toggleLeaderboard;
+
+async function toggleLbVisibility(checked) {
+  _lbVisibleToMembers = checked;
+  try {
+    await fb.setDoc(_tsSettingsRef(), {leaderboardVisibleToMembers: checked}, {merge: true});
+  } catch(e){}
+}
+window.toggleLbVisibility = toggleLbVisibility;
 
 window.loadTeamStats = loadTeamStats;
 
@@ -10763,8 +10776,8 @@ async function renderBuyers() {
       ttsTab.style.display = '';
     } else {
       loadLeaderboardSettings().then(function(){
-        var onLB = _lbSettings[userProfile.agentId] === true;
-        ttsTab.style.display = onLB ? '' : 'none';
+        var onTeam = !!(userProfile && (userProfile.teamId || userProfile.agentId));
+        ttsTab.style.display = (onTeam && _lbVisibleToMembers) ? '' : 'none';
       });
     }
   }
@@ -11272,9 +11285,9 @@ function switchAgentTab(tab) {
     renderTeamOnboarding();
     teamChatInit();
     loadTeamStats().then(function(){
-      // Hide tab if agent not on leaderboard and not TL
+      // Hide tab only if the team leader has turned off member visibility
       var ttsb2 = document.getElementById('agent-tab-teamstats');
-      if (ttsb2 && !isTeamLeader() && _lbSettings[userProfile.agentId] !== true) {
+      if (ttsb2 && !isTeamLeader() && _lbVisibleToMembers === false) {
         ttsb2.style.display = 'none';
       }
     });
@@ -14028,6 +14041,15 @@ function renderTeam() {
     var self = agents.find(function(a){ return a.id === myId; });
     var myMembers = agents.filter(function(a){ return agentTeamRole(a)==='member' && agentTeamId(a)===myId; });
     var html = '';
+
+    // ── Leaderboard visibility (team leader controls whether members see it) ──
+    if (typeof isTeamLeader==='function' && isTeamLeader()) {
+      var lbVis = !(snap.exists() && snap.data().leaderboardVisibleToMembers === false);
+      html += '<label style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:14px;font-size:12.5px;">'
+        +'<input type="checkbox" '+(lbVis?'checked':'')+' onchange="toggleLbVisibility(this.checked)" style="cursor:pointer;flex-shrink:0;"/>'
+        +'<span>\uD83C\uDFC6 Show the team leaderboard to all my team members</span>'
+        +'</label>';
+    }
 
     // ── MY TEAM (expanded) ──
     html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:2px 0 6px;">My Team</div>';
