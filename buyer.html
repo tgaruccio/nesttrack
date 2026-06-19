@@ -38,6 +38,8 @@
   .opts button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
   label{display:block;font-size:12px;font-weight:700;margin:13px 0 5px;}
   input{width:100%;font-size:16px;padding:14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;outline:none;background:#fbfcfe;}
+  textarea{width:100%;box-sizing:border-box;font-size:16px;padding:14px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;outline:none;background:#fbfcfe;resize:vertical;}
+  textarea:focus{border-color:var(--accent);background:#fff;}
   input:focus{border-color:var(--accent);background:#fff;}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .btn{width:100%;margin-top:20px;background:var(--accent);color:#fff;border:none;border-radius:14px;padding:16px;font-size:16.5px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 20px rgba(42,110,244,0.27);}
@@ -94,13 +96,18 @@
 <div id="form-view">
   <div class="hero"><div class="wrap">
     <div class="achip"><img id="a-photo" src="" alt="" style="display:none;"/><div><div class="n" id="a-name">Your Agent</div><div class="b" id="a-brok"></div></div></div>
-    <span class="eyebrow" id="eyebrow">West Side Move-Up Homes</span>
-    <h1 id="headline">Get Cleveland&rsquo;s Best Homes Before Everyone Else.</h1>
+    <span class="eyebrow" id="eyebrow">New Listings & Move-Up Homes</span>
+    <h1 id="headline">See the Right Homes Before Everyone Else.</h1>
     <p class="sub" id="subhead">New listings the moment they hit &mdash; plus coming-soon and off-market homes most buyers never see. Tell me what you&rsquo;re after and I&rsquo;ll get you in first.</p>
     <div class="stats" id="stats"></div>
   </div></div>
 
   <div class="cardwrap"><div class="card">
+    <div class="bseg" id="pathseg" style="margin-bottom:18px;">
+      <button id="pp-list" class="on" onclick="setPath('list')">&#127969; Get me listings</button>
+      <button id="pp-consult" onclick="setPath('consult')">&#128197; Set up a consult</button>
+    </div>
+    <div id="path-list">
     <div class="steps"><div class="dot on" id="dot1"></div><div class="dot" id="dot2"></div></div>
     <div id="step1">
       <h2>What are you looking for?</h2>
@@ -125,6 +132,21 @@
       <button class="back" onclick="goStep1()">&larr; Back</button>
       <div class="fine">&#128274; Private &amp; secure. Never sold or shared.</div>
     </div>
+    </div>
+    <div id="path-consult" style="display:none;">
+      <h2>Let&rsquo;s map your strategy</h2>
+      <p class="ch">Buying, selling, or both &mdash; we&rsquo;ll find the smartest path for your exact situation. No pressure, just a real conversation.</p>
+      <div class="row2"><div><label>First name</label><input id="c-first" autocomplete="given-name"/></div><div><label>Last name</label><input id="c-last" autocomplete="family-name"/></div></div>
+      <label>Email</label><input id="c-email" type="email" autocomplete="email"/>
+      <label>Phone</label><input id="c-phone" type="tel" autocomplete="tel"/>
+      <label>What&rsquo;s your situation? <span style="font-weight:400;color:var(--muted);font-size:13px;">(optional)</span></label>
+      <textarea id="c-note" rows="3" placeholder="e.g. Renting now, hoping to buy in spring \u2014 or need to sell before I can buy."></textarea>
+      <label>Best time to reach you <span style="font-weight:400;color:var(--muted);font-size:13px;">(optional)</span></label>
+      <input id="c-when" placeholder="Evenings, weekends\u2026"/>
+      <div class="err" id="errc"></div>
+      <button class="btn" id="consult-btn" onclick="submitConsult()">Request My Consult &rarr;</button>
+      <div class="fine">&#128274; Private &amp; secure. Never sold or shared.</div>
+    </div>
   </div></div>
 
   <section><div class="wrap reveal">
@@ -139,6 +161,11 @@
     <p style="font-size:15px;color:var(--muted);margin-bottom:18px;">Your path looks a little different depending on where you&rsquo;re starting. Pick one &mdash; I&rsquo;ll walk you through it.</p>
     <div class="bseg"><button id="bs-buy" class="on" onclick="setScenario('buy')">&#128273; Just Buying</button><button id="bs-both" onclick="setScenario('both')">&#128260; Buying &amp; Selling</button></div>
     <div id="scenario-panel"></div>
+    <div style="text-align:center;margin-top:24px;padding-top:22px;border-top:1px solid var(--line);">
+      <p style="font-size:15px;color:var(--ink);font-weight:800;margin-bottom:4px;">Not sure which path is yours?</p>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:14px;">Let&rsquo;s figure out your exact strategy together &mdash; one quick conversation, zero pressure.</p>
+      <button class="btn" style="max-width:340px;margin:0 auto;" onclick="goConsult()">Map My Strategy With Me &rarr;</button>
+    </div>
   </div></section>
 
   <section class="video-sec" id="video-sec" style="background:#f7f9fc;"><div class="wrap reveal">
@@ -163,7 +190,7 @@
   var SEL={areas:[],price:'',beds:'',time:''};
   var _STEPS=[], SCN='buy', SUB='up';
 
-  var DEFAULT_AREAS=['Westlake','Bay Village','Avon Lake','Rocky River','Avon','Lakewood','Open to anywhere West Side'];
+  var DEFAULT_AREAS=[];
   var DEFAULT_VPROPS=[['New listings, first','Get matched the moment homes hit the market \u2014 before the weekend rush.'],['Off-market & coming-soon','Access to homes that never make it to Zillow, through my local network.'],['A true local expert','I know these neighborhoods street by street \u2014 schools, values, and what\u2019s actually worth it.'],['Financing handled in-house','I\u2019m also a licensed loan originator \u2014 pre-approval and strategy, one team.']];
   var DEFAULT_STEPS=[['Get pre-approved','Know your budget and monthly payment before you shop \u2014 sellers expect it, and it makes your offer real.'],['Map out your must-haves','Areas, price, layout, dealbreakers. We get clear on what you actually want so we don\u2019t waste time.'],['Tour homes','New listings come straight to you. We tour the ones you love, on your schedule.'],['Make a smart offer','We talk price, terms, and contingencies \u2014 written so you feel comfortable and competitive.'],['Negotiate & inspect','Counters, inspections, and an advocate protecting you at every step.'],['Close & get the keys','Final financing, signing, and the best part \u2014 the keys are yours.']];
   var VICONS=['\u2728','\uD83D\uDD11','\uD83C\uDFE1','\uD83D\uDCA1','\u2705','\uD83D\uDCC8'];
@@ -290,7 +317,8 @@
     var crit=[]; if(SEL.areas.length)crit.push('Areas: '+SEL.areas.join(', ')); if(SEL.price)crit.push('Price: '+SEL.price); if(SEL.beds)crit.push('Beds: '+SEL.beds); if(SEL.time)crit.push('Timeline: '+SEL.time);
     var payload={ firstName:first,lastName:last,email:email,phone:phone,address:'',agentId:AGENT,
       source:(CFG.source||'Buyer Lead'),
-      notes:'Buyer match request \u2014 '+(crit.length?crit.join(' | '):'no criteria specified'),
+      intent:'listings',
+      notes:'\uD83C\uDFE0 LISTINGS REQUEST \u2014 '+(crit.length?crit.join(' | '):'no criteria specified'),
       leadStatus:(CFG.leadStatus||'pipeline'),leadSegment:(CFG.leadSegment||''),smartPlanId:(CFG.smartPlanId||''),smartPlanName:(CFG.smartPlanName||'') };
     fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'inbound-lead'},body:JSON.stringify(payload)})
       .then(function(r){ return r.json().catch(function(){return{};}); })
@@ -298,6 +326,47 @@
       .catch(function(){ btn.disabled=false; btn.innerHTML='Send My Matches \u2192'; cErr('err2','Something went wrong. Please try again or call me directly.'); });
   }
   window.submitLead=submitLead;
+
+  function setPath(p){
+    var isList=(p==='list');
+    document.getElementById('path-list').style.display=isList?'block':'none';
+    document.getElementById('path-consult').style.display=isList?'none':'block';
+    document.getElementById('pp-list').classList.toggle('on',isList);
+    document.getElementById('pp-consult').classList.toggle('on',!isList);
+  }
+  window.setPath=setPath;
+
+  function _scnLabel(){
+    if(typeof SCN!=='undefined'&&SCN==='both'){ return (typeof SUB!=='undefined'&&SUB==='down')?'Buying & selling (downsizing)':'Buying & selling (moving up)'; }
+    return 'Just buying';
+  }
+  function goConsult(){
+    setPath('consult');
+    var n=document.getElementById('c-note');
+    if(n && !n.value){ n.value='Situation: '+_scnLabel()+'. '; }
+    var seg=document.getElementById('pathseg'); if(seg) seg.scrollIntoView({behavior:'smooth',block:'start'});
+    setTimeout(function(){ try{ document.getElementById('c-first').focus(); }catch(e){} },400);
+  }
+  window.goConsult=goConsult;
+
+  function submitConsult(){
+    var first=val('c-first'),last=val('c-last'),email=val('c-email'),phone=val('c-phone'),note=val('c-note'),when=val('c-when');
+    document.getElementById('errc').style.display='none';
+    if(!first){ cErr('errc','Please enter your first name.'); return; }
+    if(!email&&!phone){ cErr('errc','Please add an email or phone so I can reach you.'); return; }
+    var btn=document.getElementById('consult-btn'); btn.disabled=true; btn.textContent='Sending\u2026';
+    var parts=[]; if(note)parts.push(note); if(when)parts.push('Best time: '+when);
+    var payload={ firstName:first,lastName:last,email:email,phone:phone,address:'',agentId:AGENT,
+      source:(CFG.consultSource||CFG.source||'Buyer Consult'),
+      intent:'consult',
+      notes:'\uD83D\uDCC5 CONSULT REQUEST'+(parts.length?' \u2014 '+parts.join(' | '):''),
+      leadStatus:(CFG.leadStatus||'pipeline'),leadSegment:(CFG.leadSegment||''),smartPlanId:(CFG.smartPlanId||''),smartPlanName:(CFG.smartPlanName||'') };
+    fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'inbound-lead'},body:JSON.stringify(payload)})
+      .then(function(r){ return r.json().catch(function(){return{};}); })
+      .then(function(){ document.getElementById('thanks-msg').textContent=(CFG.consultThanks||'Got it \u2014 I\u2019ll reach out shortly to set up your consult.'); document.getElementById('form-view').style.display='none'; document.getElementById('thanks-view').style.display='block'; window.scrollTo(0,0); })
+      .catch(function(){ btn.disabled=false; btn.innerHTML='Request My Consult \u2192'; cErr('errc','Something went wrong. Please try again or call me directly.'); });
+  }
+  window.submitConsult=submitConsult;
 
   function initReveal(){ var o=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); o.unobserve(e.target); } }); },{threshold:0.12}); document.querySelectorAll('.reveal').forEach(function(el){ o.observe(el); }); }
 
