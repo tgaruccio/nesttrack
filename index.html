@@ -2714,14 +2714,27 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div style="margin-top:14px;">
         <label class="flabel" style="color:var(--text2);font-weight:600;">Email Signature <span style="font-weight:400;color:var(--text3);">(added to the bottom of every email you send)</span></label>
-        <textarea id="ap-signature" placeholder="Your name, title, brokerage, phone, license #…" style="height:90px;resize:vertical;"></textarea>
-        <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
-          <img id="ap-sig-photo-preview" src="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:none;"/>
-          <label class="btn btn-sm" style="cursor:pointer;white-space:nowrap;">&#128247; Add signature photo<input type="file" accept="image/*" onchange="uploadSignaturePhoto(event)" style="display:none;"/></label>
-          <button type="button" class="btn btn-sm" id="ap-sig-photo-remove" onclick="removeSignaturePhoto()" style="display:none;color:#E24B4A;">Remove</button>
+        <div style="display:flex;gap:8px;margin:6px 0 12px;">
+          <button type="button" id="ap-sig-mode-simple" class="btn btn-sm" onclick="setSigMode('simple')">Simple</button>
+          <button type="button" id="ap-sig-mode-html" class="btn btn-sm" onclick="setSigMode('html')">Paste HTML</button>
         </div>
-        <input type="hidden" id="ap-sig-photo"/>
-        <div style="font-size:11px;color:var(--text3);margin-top:6px;">A headshot or logo &mdash; shows next to your signature in emails.</div>
+        <input type="hidden" id="ap-sig-mode" value="simple"/>
+        <div id="ap-sig-simple-wrap">
+          <textarea id="ap-signature" placeholder="Your name, title, brokerage, phone, license #…" style="height:90px;resize:vertical;"></textarea>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:10px;">
+            <img id="ap-sig-photo-preview" src="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--surface2);border:1px solid var(--border);display:none;"/>
+            <label class="btn btn-sm" style="cursor:pointer;white-space:nowrap;">&#128247; Add signature photo<input type="file" accept="image/*" onchange="uploadSignaturePhoto(event)" style="display:none;"/></label>
+            <button type="button" class="btn btn-sm" id="ap-sig-photo-remove" onclick="removeSignaturePhoto()" style="display:none;color:#E24B4A;">Remove</button>
+          </div>
+          <input type="hidden" id="ap-sig-photo"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px;">A headshot or logo &mdash; shows next to your signature in emails.</div>
+        </div>
+        <div id="ap-sig-html-wrap" style="display:none;">
+          <textarea id="ap-sig-html" placeholder="Paste the HTML from HiHello (or any signature generator)…" oninput="updateSigHtmlPreview()" style="height:120px;resize:vertical;font-family:ui-monospace,Menlo,monospace;font-size:12px;"></textarea>
+          <div style="font-size:11px;color:var(--text3);margin:6px 0 0;">Paste the HTML your signature tool gives you (e.g. HiHello &rarr; Email Signature &rarr; copy HTML). It&rsquo;s used exactly as-is on every email.</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text3);margin-top:12px;">Preview</div>
+          <div id="ap-sig-html-preview" style="border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:4px;background:#fff;min-height:40px;"></div>
+        </div>
       </div>
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
@@ -5355,6 +5368,9 @@ function renderAgentProfileEditor() {
       var sgp=document.getElementById('ap-sig-photo');
       if(sgp) sgp.value=d.emailSignaturePhoto||'';
       if(typeof updateSigPhotoPreview==='function') updateSigPhotoPreview();
+      var shtml=document.getElementById('ap-sig-html');
+      if(shtml) shtml.value=d.emailSignatureHtmlRaw||'';
+      if(typeof setSigMode==='function') setSigMode(d.emailSignatureMode||'simple');
       var dg=document.getElementById('ap-digest');
       if(dg) dg.checked = !d.tcDigestOff;
     }
@@ -5413,6 +5429,25 @@ function updateSigPhotoPreview(){
   if(rm) rm.style.display=url?'inline-block':'none';
 }
 window.updateSigPhotoPreview = updateSigPhotoPreview;
+
+function setSigMode(mode){
+  mode = (mode==='html')?'html':'simple';
+  var h=document.getElementById('ap-sig-mode'); if(h) h.value=mode;
+  var sw=document.getElementById('ap-sig-simple-wrap'); if(sw) sw.style.display=(mode==='simple')?'block':'none';
+  var hw=document.getElementById('ap-sig-html-wrap'); if(hw) hw.style.display=(mode==='html')?'block':'none';
+  var bs=document.getElementById('ap-sig-mode-simple'), bh=document.getElementById('ap-sig-mode-html');
+  if(bs) bs.classList.toggle('btn-g', mode==='simple');
+  if(bh) bh.classList.toggle('btn-g', mode==='html');
+  if(mode==='html') updateSigHtmlPreview();
+}
+window.setSigMode = setSigMode;
+
+function updateSigHtmlPreview(){
+  var raw=(document.getElementById('ap-sig-html')||{}).value||'';
+  var prev=document.getElementById('ap-sig-html-preview');
+  if(prev) prev.innerHTML = raw.trim() ? raw : '<span style="color:var(--text3);font-size:12px;">Your signature preview will appear here.</span>';
+}
+window.updateSigHtmlPreview = updateSigHtmlPreview;
 
 function removeSignaturePhoto(){
   var h=document.getElementById('ap-sig-photo'); if(h) h.value='';
@@ -5480,6 +5515,8 @@ async function saveAgentProfile() {
     licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
     emailSignature: document.getElementById('ap-signature') ? document.getElementById('ap-signature').value : '',
     emailSignaturePhoto: document.getElementById('ap-sig-photo') ? document.getElementById('ap-sig-photo').value : '',
+    emailSignatureMode: document.getElementById('ap-sig-mode') ? (document.getElementById('ap-sig-mode').value||'simple') : 'simple',
+    emailSignatureHtmlRaw: document.getElementById('ap-sig-html') ? document.getElementById('ap-sig-html').value : '',
     tcDigestOff: document.getElementById('ap-digest') ? !document.getElementById('ap-digest').checked : false,
     updatedAt: fb.serverTimestamp()
   };
@@ -7808,6 +7845,12 @@ function agentReplyTo() {
   return (userProfile&&userProfile.email) || null;
 }
 function agentSignatureHtml() {
+  var mode = (userProfile&&userProfile.emailSignatureMode) || 'simple';
+  if (mode === 'html') {
+    var raw = (userProfile&&userProfile.emailSignatureHtmlRaw) || '';
+    if (!raw || !raw.trim()) return '';
+    return '<div style="margin-top:24px;">' + raw + '</div>';
+  }
   var sig = (userProfile&&userProfile.emailSignature) || '';
   var photo = (userProfile&&userProfile.emailSignaturePhoto) || '';
   if ((!sig || !sig.trim()) && !photo) return '';
