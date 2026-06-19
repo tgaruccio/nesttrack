@@ -55,6 +55,23 @@
   .get .ic{width:38px;height:38px;border-radius:11px;background:rgba(42,110,244,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
   .get .gx b{display:block;font-size:15px;font-weight:700;margin-bottom:2px;}
   .get .gx span{font-size:13.5px;color:var(--muted);}
+  .bstep{display:flex;gap:13px;margin-bottom:16px;}
+  .bnum{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .bstep .gx b{display:block;font-size:15px;font-weight:700;margin-bottom:2px;}
+  .bstep .gx span{font-size:13.5px;color:var(--muted);}
+  .bseg{display:flex;background:#eef2f9;padding:6px;border-radius:14px;margin-bottom:18px;}
+  .bseg button{flex:1;background:none;border:none;padding:13px 8px;font-size:14px;font-weight:800;color:var(--muted);border-radius:10px;cursor:pointer;font-family:inherit;transition:all .2s;}
+  .bseg button.on{background:#fff;color:var(--ink);box-shadow:0 3px 10px rgba(15,27,51,0.1);}
+  .spanel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(15,27,51,0.05);}
+  .spanel .p-tag{font-size:15px;color:#2b3445;margin-bottom:18px;line-height:1.6;}
+  .spanel .blk{margin-bottom:18px;} .spanel .blk:last-child{margin-bottom:0;}
+  .spanel h3{font-size:12px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+  .spanel p{font-size:14.5px;color:#2b3445;line-height:1.65;}
+  .note{background:#f7f9fc;border-radius:12px;padding:14px 16px;font-size:14px;}
+  .note b{color:var(--accent);}
+  .subseg{display:flex;gap:8px;margin-bottom:16px;}
+  .subseg button{flex:1;background:#f7f9fc;border:1.5px solid var(--line);border-radius:10px;padding:10px;font-size:13.5px;font-weight:700;color:var(--muted);cursor:pointer;font-family:inherit;}
+  .subseg button.on{background:var(--accent);border-color:var(--accent);color:#fff;}
 
   .video-sec{display:none;}
   .vframe{position:relative;padding-top:56.25%;border-radius:16px;overflow:hidden;background:#0e1830;box-shadow:0 18px 50px rgba(15,27,51,0.16);}
@@ -114,11 +131,16 @@
 
   <section><div class="wrap reveal">
     <div class="kicker">Why buy with me</div>
-    <h2 class="sec">An edge most buyers don&rsquo;t have</h2>
-    <div class="get"><span class="ic">&#9889;</span><div class="gx"><b>New listings, first</b><span>Get matched the moment homes hit the market &mdash; before the weekend rush.</span></div></div>
-    <div class="get"><span class="ic">&#128273;</span><div class="gx"><b>Off-market &amp; coming-soon</b><span>Access to homes that never make it to Zillow, through my local network.</span></div></div>
-    <div class="get"><span class="ic">&#127968;</span><div class="gx"><b>A true West Side expert</b><span>I know these suburbs street by street &mdash; schools, values, what&rsquo;s worth it.</span></div></div>
-    <div class="get"><span class="ic">&#128176;</span><div class="gx"><b>Financing handled in-house</b><span>I&rsquo;m also a licensed loan originator &mdash; pre-approval and strategy, one team.</span></div></div>
+    <h2 class="sec" id="vprops-head">An edge most buyers don&rsquo;t have</h2>
+    <div id="vprops"></div>
+  </div></section>
+
+  <section style="background:#f7f9fc;"><div class="wrap reveal">
+    <div class="kicker">Your situation</div>
+    <h2 class="sec">Which describes you?</h2>
+    <p style="font-size:15px;color:var(--muted);margin-bottom:18px;">Your path looks a little different depending on where you&rsquo;re starting. Pick one &mdash; I&rsquo;ll walk you through it.</p>
+    <div class="bseg"><button id="bs-buy" class="on" onclick="setScenario('buy')">&#128273; Just Buying</button><button id="bs-both" onclick="setScenario('both')">&#128260; Buying &amp; Selling</button></div>
+    <div id="scenario-panel"></div>
   </div></section>
 
   <section class="video-sec" id="video-sec" style="background:#f7f9fc;"><div class="wrap reveal">
@@ -141,8 +163,12 @@
   var TEMPLATE=(params.get('t')||'buyer').toLowerCase().replace(/[^a-z0-9]/g,'');
   var CFG={};
   var SEL={areas:[],price:'',beds:'',time:''};
+  var _STEPS=[], SCN='buy', SUB='up';
 
-  var AREAS=['Westlake','Bay Village','Avon Lake','Rocky River','Avon','Lakewood','Open to anywhere West Side'];
+  var DEFAULT_AREAS=['Westlake','Bay Village','Avon Lake','Rocky River','Avon','Lakewood','Open to anywhere West Side'];
+  var DEFAULT_VPROPS=[['New listings, first','Get matched the moment homes hit the market \u2014 before the weekend rush.'],['Off-market & coming-soon','Access to homes that never make it to Zillow, through my local network.'],['A true local expert','I know these neighborhoods street by street \u2014 schools, values, and what\u2019s actually worth it.'],['Financing handled in-house','I\u2019m also a licensed loan originator \u2014 pre-approval and strategy, one team.']];
+  var DEFAULT_STEPS=[['Get pre-approved','Know your budget and monthly payment before you shop \u2014 sellers expect it, and it makes your offer real.'],['Map out your must-haves','Areas, price, layout, dealbreakers. We get clear on what you actually want so we don\u2019t waste time.'],['Tour homes','New listings come straight to you. We tour the ones you love, on your schedule.'],['Make a smart offer','We talk price, terms, and contingencies \u2014 written so you feel comfortable and competitive.'],['Negotiate & inspect','Counters, inspections, and an advocate protecting you at every step.'],['Close & get the keys','Final financing, signing, and the best part \u2014 the keys are yours.']];
+  var VICONS=['\u2728','\uD83D\uDD11','\uD83C\uDFE1','\uD83D\uDCA1','\u2705','\uD83D\uDCC8'];
   var PRICES=['$400\u2013500K','$500\u2013600K','$600\u2013700K','$700\u2013800K','$800K+','Not sure yet'];
   var BEDS=['2','3','4','5+'];
   var TIMES=['ASAP','1\u20133 months','3\u20136 months','Just browsing'];
@@ -163,12 +189,48 @@
   }
 
   function chip(group,val,multi){ var key=group; return '<button data-g="'+group+'" data-v="'+esc(val)+'" onclick="pickOpt(\''+group+'\','+(multi?'true':'false')+',this)">'+esc(val)+'</button>'; }
-  function renderOpts(){
-    document.getElementById('q-areas').innerHTML=AREAS.map(function(a){ return chip('areas',a,true); }).join('');
+  function parseLines(s){ return String(s||'').split(/\n/).map(function(l){return l.trim();}).filter(Boolean).map(function(l){ var p=l.split('|'); return [(p[0]||'').trim(),(p.slice(1).join('|')||'').trim()]; }); }
+  function renderStatic(){
     document.getElementById('q-price').innerHTML=PRICES.map(function(a){ return chip('price',a,false); }).join('');
     document.getElementById('q-beds').innerHTML=BEDS.map(function(a){ return chip('beds',a,false); }).join('');
     document.getElementById('q-time').innerHTML=TIMES.map(function(a){ return chip('time',a,false); }).join('');
   }
+  function renderDynamic(c){
+    c=c||{};
+    var areas=c.areas?String(c.areas).split('|').map(function(s){return s.trim();}).filter(Boolean):DEFAULT_AREAS;
+    SEL.areas=[];
+    document.getElementById('q-areas').innerHTML=areas.map(function(a){ return chip('areas',a,true); }).join('');
+    var vps=c.valueProps?parseLines(c.valueProps):DEFAULT_VPROPS;
+    document.getElementById('vprops').innerHTML=vps.map(function(v,i){ return '<div class="get"><span class="ic">'+(VICONS[i%VICONS.length])+'</span><div class="gx"><b>'+esc(v[0])+'</b><span>'+esc(v[1])+'</span></div></div>'; }).join('');
+    var steps=c.buyerSteps?parseLines(c.buyerSteps):DEFAULT_STEPS;
+    _STEPS=steps;
+    if(c.vpropsHead) setT('vprops-head',c.vpropsHead);
+    renderScenario();
+  }
+
+  function buyPanelHtml(){
+    var steps=_STEPS.map(function(s,i){ return '<div class="bstep"><div class="bnum">'+(i+1)+'</div><div class="gx"><b>'+esc(s[0])+'</b><span>'+esc(s[1])+'</span></div></div>'; }).join('');
+    return '<div class="spanel">'
+      +'<div class="p-tag">Whether it\u2019s your first home or your next, the path is the same \u2014 and the right agent makes it smooth.</div>'
+      +'<div class="blk"><h3>Your step-by-step</h3>'+steps+'</div>'
+      +'<div class="note"><b>What about cost?</b> A buyer\u2019s agent fee is often covered through the sale \u2014 I\u2019ll show you exactly how it works for your situation before you commit to anything.</div>'
+    +'</div>';
+  }
+  function bothPanelHtml(){
+    var sub = SUB==='down'
+      ? 'Right-size for this chapter \u2014 less maintenance, lower monthly costs, and often a nice chunk of equity freed up for what\u2019s next. The moves are the same: know what your current home nets, get clear on your next budget, and time the sale and purchase so the transition is seamless.'
+      : 'Your equity is your down payment \u2014 and most people can afford more than they think. The real question usually isn\u2019t whether you can afford to move up. It\u2019s whether you can afford to keep waiting while prices climb. Step one: find out what you\u2019d net from your current home. Step two: get pre-approved for your move-up budget. Then we line up the sale and the purchase together.';
+    return '<div class="spanel">'
+      +'<div class="p-tag">Owning a home you need to sell adds one big question: timing. I coordinate both sides so you\u2019re never stuck owning two homes \u2014 or none.</div>'
+      +'<div class="subseg"><button id="su-up" class="'+(SUB==='up'?'on':'')+'" onclick="setSub(\'up\')">\u2B06\uFE0F Moving up</button><button id="su-down" class="'+(SUB==='down'?'on':'')+'" onclick="setSub(\'down\')">\u2B07\uFE0F Downsizing</button></div>'
+      +'<div class="blk"><p>'+sub+'</p></div>'
+      +'<div class="blk"><h3>Sell first, or buy first?</h3><p>There are a few ways to handle the timing \u2014 a sale-contingent offer, lining up closings back-to-back, a short rent-back, or bridge financing. We\u2019ll pick the approach that fits your situation and how much risk you\u2019re comfortable with, so you\u2019re never carrying two mortgages or scrambling for somewhere to land.</p></div>'
+    +'</div>';
+  }
+  function renderScenario(){ var el=document.getElementById('scenario-panel'); if(!el) return; el.innerHTML = SCN==='buy'?buyPanelHtml():bothPanelHtml(); }
+  function setScenario(s){ SCN=s; var b=document.getElementById('bs-buy'),o=document.getElementById('bs-both'); if(b)b.classList.toggle('on',s==='buy'); if(o)o.classList.toggle('on',s==='both'); renderScenario(); }
+  function setSub(s){ SUB=s; renderScenario(); }
+  window.setScenario=setScenario; window.setSub=setSub;
   function pickOpt(group,multi,el){
     var v=el.getAttribute('data-v');
     if(multi){
@@ -196,6 +258,7 @@
   function applyConfig(c){
     CFG=c;
     if(c.accent) document.documentElement.style.setProperty('--accent',c.accent);
+    renderDynamic(c);
     setT('a-name',c.agentName); setT('a-brok',c.brokerage);
     if(c.agentPhoto){ var p=document.getElementById('a-photo'); p.src=c.agentPhoto; p.style.display='block'; }
     setT('eyebrow',c.eyebrow); setT('headline',c.headline); setT('subhead',c.subhead);
@@ -236,7 +299,7 @@
 
   function initReveal(){ var o=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); o.unobserve(e.target); } }); },{threshold:0.12}); document.querySelectorAll('.reveal').forEach(function(el){ o.observe(el); }); }
 
-  renderOpts(); initReveal(); load();
+  renderStatic(); renderDynamic({}); initReveal(); load();
 </script>
 </body>
 </html>
