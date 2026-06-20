@@ -4391,6 +4391,8 @@ function dtAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
 //  owner/leader -> themselves; member -> their leader (teamId). For Tom this is always 'tom'.
 function agentTeamRole(ag){ if(!ag) return 'member'; if(ag.teamRole) return ag.teamRole; if(ag.id==='tom') return 'owner'; if(ag.isAdmin) return 'leader'; return 'member'; }
 function agentTeamId(ag){ if(!ag) return 'tom'; if(ag.teamId) return ag.teamId; var r=agentTeamRole(ag); return (r==='owner'||r==='leader')? ag.id : 'tom'; }
+function _teamIdForAgent(aid){ if(!aid) return 'tom'; if(userProfile && userProfile.agentId===aid && userProfile.teamId) return userProfile.teamId; var a=(DEFAULT_AGENTS||[]).find(function(x){return x.id===aid;}); if(a) return agentTeamId(a); return aid; }
+window._teamIdForAgent=_teamIdForAgent;
 // One-time backfill: stamp teamRole/teamId/agentId onto every agent's users doc so security
 // rules can read them. Owner-only, idempotent, runs from the owner's session.
 async function backfillTeamFields(){
@@ -23229,6 +23231,7 @@ function _stampDealMembers(data, ownerId) {
   if (!m[ownerId]) m[ownerId] = 'lead';
   data.members = m;
   data.memberIds = Object.keys(m);
+  if (!data.teamId) data.teamId = _teamIdForAgent(ownerId);
   return data;
 }
 window._stampDealMembers = _stampDealMembers;
