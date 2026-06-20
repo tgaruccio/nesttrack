@@ -2619,7 +2619,7 @@ textarea{resize:vertical;min-height:68px;}
 
     <!-- LEADERBOARD -->
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-      <div style="font-size:18px;font-weight:700;">🏆 Team Leaderboard</div>
+      <div onclick="toggleLeaderboardView()" style="font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;">🏆 Team Leaderboard <span id="lb-chevron" style="font-size:13px;color:var(--text3);">&#9656;</span></div>
       <div style="display:flex;align-items:center;gap:8px;">
         <select id="teamstats-year" onchange="loadTeamStats()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
         <button class="btn btn-sm btn-g" id="teamstats-export-btn" onclick="exportTeamStatsCSV()" style="display:none;">⬇ CSV</button>
@@ -2628,7 +2628,7 @@ textarea{resize:vertical;min-height:68px;}
         <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()" style="display:none;">⚙️ Manage Team</button>
       </div>
     </div>
-    <div id="teamstats-leaderboard"></div>
+    <div id="teamstats-leaderboard" style="display:none;"></div>
 
     <!-- ONBOARDING TRACKER -->
     <div id="team-onboarding-container"></div>
@@ -5707,8 +5707,114 @@ async function loadTeamStats() {
     _teamStatsData = snap.exists() ? snap.data() : {};
   } catch(e){ _teamStatsData = {}; }
   await loadLeaderboardSettings();
+  await loadTeamActivity();
   renderTeamStats();
 }
+
+// Per-agent activity for the leaderboard tiles: buyer showings + labeled appointments,
+// scoped to the selected leaderboard year. All from data we already capture.
+var _teamActivityData = {};   // auto-tracked counts
+var _teamActivityManual = {}; // manual additions (current year, per agent)
+async function loadTeamActivity() {
+  _teamActivityData = {};
+  _teamActivityManual = {};
+  var year = _teamStatsYear;
+  var agentsList = (DEFAULT_AGENTS||[]).filter(function(a){
+    return a.id && a.name && (typeof agentTeamId!=='function' || agentTeamId(a) === _teamStatsTeamId());
+  });
+  await Promise.all(agentsList.map(async function(a){
+    var act = { showings:0, listingAppts:0, openHouses:0, consults:0, meetings:0, otherAppts:0, dealPipeline:0, dealListed:0, dealUC:0 };
+    try {
+      var shSnap = await fb.getDocs(fb.collection(fb.db,'agents',a.id,'showingAssignments'));
+      shSnap.forEach(function(d){
+        var r = d.data(); var y = null;
+        if (r.assignedAt && r.assignedAt.toDate) y = r.assignedAt.toDate().getFullYear();
+        else if (r.start) { var dd = new Date(r.start); if(!isNaN(dd.getTime())) y = dd.getFullYear(); }
+        if (y === null || y === year) act.showings++;
+      });
+    } catch(e){}
+    try {
+      var apSnap = await fb.getDocs(fb.collection(fb.db,'agents',a.id,'appointments'));
+      apSnap.forEach(function(d){
+        var r = d.data();
+        var y = r.date ? new Date(r.date).getFullYear() : null;
+        if (y !== null && y !== year) return;
+        var t = (r.type||'').toLowerCase();
+        if (t.indexOf('listing') >= 0) act.listingAppts++;
+        else if (t.indexOf('open house') >= 0) act.openHouses++;
+        else if (t.indexOf('consult') >= 0) act.consults++;
+        else if (t.indexOf('meeting') >= 0) act.meetings++;
+        else act.otherAppts++;
+      });
+    } catch(e){}
+    try {
+      var dlSnap = await fb.getDocs(fb.collection(fb.db,'agents',a.id,'deals'));
+      dlSnap.forEach(function(d){
+        var dd = d.data();
+        if (dd.closed) return;
+        var st = (typeof dealStatusFromStep === 'function') ? dealStatusFromStep(dd) : '';
+        if (st === 'Pipeline') act.dealPipeline++;
+        else if (st === 'Listed') act.dealListed++;
+        else if (st === 'Under Contract') act.dealUC++;
+      });
+    } catch(e){}
+    _teamActivityData[a.id] = act;
+    var man = { showings:0, listingAppts:0, openHouses:0, consults:0, meetings:0 };
+    try {
+      var adjSnap = await fb.getDoc(fb.doc(fb.db,'agents',a.id,'config','activityAdjust'));
+      if (adjSnap.exists()) { var ay = adjSnap.data()['y'+year]; if (ay) { ['showings','listingAppts','openHouses','consults','meetings'].forEach(function(k){ man[k] = parseInt(ay[k]) || 0; }); } }
+    } catch(e){}
+    _teamActivityManual[a.id] = man;
+  }));
+}
+window.loadTeamActivity = loadTeamActivity;
+
+function openActivityAdjust(agentId){
+  var act = _teamActivityData[agentId] || {};
+  var man = _teamActivityManual[agentId] || {};
+  var rows = [['showings','Buyer showings'],['listingAppts','Listing appts'],['openHouses','Open houses'],['consults','Buyer consults'],['meetings','Meetings']];
+  var body = rows.map(function(r){
+    var k=r[0], lbl=r[1];
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">'
+      +'<div><div style="font-size:13px;font-weight:500;">'+lbl+'</div><div style="font-size:11px;color:var(--text3);">Auto-tracked: '+(act[k]||0)+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:11px;color:var(--text3);">+ add</span><input type="number" min="0" id="aadj-'+k+'" value="'+(man[k]||0)+'" style="width:62px;text-align:center;font-size:14px;padding:5px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);" /></div>'
+      +'</div>';
+  }).join('');
+  var existing = document.getElementById('activity-adjust-modal'); if (existing) existing.remove();
+  var html = '<div class="mo" id="activity-adjust-modal" style="display:flex;"><div class="mbox" style="max-width:400px;"><div class="mhdr"><div class="mtitle">Adjust activity</div><button class="xbtn" onclick="closeM(\'activity-adjust-modal\')">&times;</button></div>'
+    +'<div style="padding:2px 0 12px;font-size:12px;color:var(--text2);line-height:1.5;">These add to what\u2019s auto-tracked from your showings and appointments \u2014 for activity you did but didn\u2019t log (like an open house that never made it into your calendar).</div>'
+    + body
+    +'<button class="btn btn-g" style="width:100%;margin-top:14px;" onclick="saveActivityAdjust(\''+agentId+'\')">Save</button>'
+    +'</div></div>';
+  var wrap = document.createElement('div'); wrap.innerHTML = html; document.body.appendChild(wrap.firstChild);
+}
+window.openActivityAdjust = openActivityAdjust;
+
+async function saveActivityAdjust(agentId){
+  var year = _teamStatsYear;
+  var data = {};
+  ['showings','listingAppts','openHouses','consults','meetings'].forEach(function(k){
+    data[k] = parseInt((document.getElementById('aadj-'+k)||{}).value) || 0;
+  });
+  try {
+    var patch = {}; patch['y'+year] = data;
+    await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','activityAdjust'), patch, { merge:true });
+    _teamActivityManual[agentId] = data;
+    closeM('activity-adjust-modal');
+    renderTeamStats();
+  } catch(e){ alert('Could not save adjustments: ' + (e && e.message)); }
+}
+window.saveActivityAdjust = saveActivityAdjust;
+
+function toggleLeaderboardView(){
+  var lb = document.getElementById('teamstats-leaderboard');
+  var ch = document.getElementById('lb-chevron');
+  if (!lb) return;
+  var open = lb.style.display !== 'none';
+  lb.style.display = open ? 'none' : 'block';
+  if (ch) ch.innerHTML = open ? '&#9656;' : '&#9662;';
+}
+window.toggleLeaderboardView = toggleLeaderboardView;
 var _lbSettings = {}; // leaderboard flags per agent
 var _lbVisibleToMembers = true; // team-level: do members see the leaderboard tab (leader can opt out)
 
@@ -5820,6 +5926,26 @@ function renderTeamStats() {
       +'<div style="font-size:20px;min-width:28px;text-align:center;">'+medal+'</div>'
       +'<div style="flex:1;">'
       +'<div style="font-size:14px;font-weight:600;">'+partnerEsc(agent.name)+(isMe?' <span style="font-size:11px;color:var(--green);font-weight:500;">(you)</span>':'')+'</div>'
+      +(function(){
+        var act = _teamActivityData[agent.id] || {};
+        var man = _teamActivityManual[agent.id] || {};
+        var T = function(k){ return (act[k]||0) + (man[k]||0); };
+        var bits = [];
+        if (T('showings')) bits.push('\uD83D\uDD11 '+T('showings')+' showings');
+        if (T('listingAppts')) bits.push('\uD83C\uDFE1 '+T('listingAppts')+' listing appts');
+        if (T('openHouses')) bits.push('\uD83C\uDFE0 '+T('openHouses')+' open houses');
+        if (T('consults')) bits.push('\uD83D\uDC65 '+T('consults')+' consults');
+        if (T('meetings')) bits.push('\uD83D\uDCCB '+T('meetings')+' meetings');
+        var actLine = bits.length ? '<div style="font-size:11px;color:var(--text3);margin-top:3px;line-height:1.5;">'+bits.join(' \u00b7 ')+'</div>' : '';
+        var dbits = [];
+        if (act.dealPipeline) dbits.push(act.dealPipeline+' pipeline');
+        if (act.dealListed) dbits.push(act.dealListed+' listed');
+        if (act.dealUC) dbits.push(act.dealUC+' under contract');
+        var dealLine = dbits.length ? '<div style="font-size:11px;color:var(--blue-dk);margin-top:2px;line-height:1.5;">\uD83D\uDCC2 '+dbits.join(' \u00b7 ')+'</div>' : '';
+        var canAdj = isMe || (typeof isOwner==='function' && isOwner());
+        var adjBtn = canAdj ? '<div style="margin-top:4px;"><span onclick="event.stopPropagation();openActivityAdjust(\''+agent.id+'\')" style="font-size:10.5px;color:var(--green-dk);cursor:pointer;">\u270F\uFE0F Adjust activity</span></div>' : '';
+        return actLine + dealLine + adjBtn;
+      })()
       +'</div>'
       +'<div style="display:flex;gap:16px;align-items:center;">'
       +'<div style="text-align:center;">'
