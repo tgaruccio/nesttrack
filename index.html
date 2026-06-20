@@ -3314,7 +3314,7 @@ textarea{resize:vertical;min-height:68px;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, collection, collectionGroup, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 import { getStorage, ref as storageRef, deleteObject, listAll, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
 
@@ -3336,7 +3336,7 @@ const rtdb = getDatabase(fbApp);
 const storage = getStorage(fbApp);
 
 // Expose for non-module code
-window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment, uploadBytes, getDownloadURL };
+window.fb = { auth, db, rtdb, storage, doc, setDoc, getDoc, getDocs, collection, collectionGroup, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, ref, push, onChildAdded, onValue, rtSet, rtServerTimestamp, createUserWithEmailAndPassword, signInWithEmailAndPassword, fbSignOut, onAuthStateChanged, sendPasswordResetEmail, storageRef, deleteObject, listAll, increment, uploadBytes, getDownloadURL };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -19306,6 +19306,10 @@ async function renderDealTracker() {
     try { await loadDeals(); } catch(e) { console.log('loadDeals err:',e.message); _dealsLoaded = true; }
     if (myVersion !== _dealRenderVersion) return;
   }
+  if (typeof _canSeeTeamDeals==='function' && _canSeeTeamDeals() && !_teamDealsLoaded) {
+    try { await loadTeamDeals(); } catch(e) { console.log('loadTeamDeals err:',e.message); }
+    if (myVersion !== _dealRenderVersion) return;
+  }
 
   _dedupeDeals();
 
@@ -19320,6 +19324,7 @@ async function renderDealTracker() {
     +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')">Listed</button>'
     +'<button class="btn btn-sm" id="dchip-contract" onclick="filterDeals(\'contract\')">Under Contract</button>'
     +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
+    +((typeof _showTeamTab==='function' && _showTeamTab()) ? '<button class="btn btn-sm" id="dchip-team" onclick="filterDeals(\'team\')">\uD83D\uDC65 Team</button>' : '')
     +'</div>';
   html += '<div style="margin:10px 0 8px;"><input id="deal-search" type="text" placeholder="Search by client or address..." oninput="_dealSearch=this.value;filterDeals(_activeFilter);" value="'+(_dealSearch||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
   html += '<div id="deal-cards-container"></div>';
@@ -23264,6 +23269,9 @@ function filterDeals(tab) {
   });
   var chip = document.getElementById('dchip-'+tab);
   if (chip) { chip.style.background='var(--green)'; chip.style.color='#fff'; chip.style.borderColor='var(--green)'; }
+  var _dsWrap = (document.getElementById('deal-search')||{}).parentElement;
+  if (_dsWrap) _dsWrap.style.display = (tab==='team') ? 'none' : '';
+  if (tab === 'team') { renderTeamDeals(); return; }
   var q = (_dealSearch||'').trim().toLowerCase();
   var filtered = _deals.filter(function(d){
     var status = dealStatusFromStep(d);
@@ -23281,6 +23289,134 @@ function filterDeals(tab) {
   if (container) container.innerHTML = renderDealCards(filtered);
 }
 window.filterDeals = filterDeals;
+
+// ═══════════════ TEAM DEALS (read-only oversight for leaders/owners) ═══════════════
+var _teamDeals = null;
+var _teamDealsLoaded = false;
+var _teamDealsIndexErr = false;
+var _teamDealSearch = '';
+var _teamStageFilter = 'all';
+var _teamGroupOpen = {};
+
+function _canSeeTeamDeals(){
+  return (typeof isOwner==='function' && isOwner()) || (typeof isTeamLeader==='function' && isTeamLeader());
+}
+function _teamMemberIds(){
+  var meId = (userProfile && userProfile.agentId) || 'tom';
+  var roster = (typeof _myTeamAgents==='function') ? _myTeamAgents() : [];
+  return roster.filter(function(a){ return a.id !== meId; }).map(function(a){ return a.id; });
+}
+function _hasTeamMembers(){ return _teamMemberIds().length > 0; }
+function _teamAgentName(id){
+  var a = (DEFAULT_AGENTS||[]).find(function(x){ return x.id===id; });
+  return a ? a.name : id;
+}
+// Tab shows for a leader/owner who has members. Content inside handles empty / index-setup / loaded.
+function _showTeamTab(){
+  return _canSeeTeamDeals() && _hasTeamMembers();
+}
+
+async function loadTeamDeals(){
+  _teamDealsLoaded = true;
+  _teamDeals = [];
+  _teamDealsIndexErr = false;
+  if (!_canSeeTeamDeals() || !_hasTeamMembers()) return;
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var meId = (userProfile && userProfile.agentId) || 'tom';
+  try {
+    var snap = await fb.getDocs(fb.query(fb.collectionGroup(fb.db,'deals'), fb.where('teamId','==',myTeam)));
+    snap.forEach(function(d){
+      var data = Object.assign({id:d.id}, d.data());
+      if (data.agentId === meId) return; // my own deals live in my normal tabs, not here
+      if (!data.dealType && data.type) data.dealType = data.type;
+      if (data.dealType === 'both') data.dealType = 'buyer';
+      if (!data.dealType) data.dealType = 'buyer';
+      if (!data.status) data.status = 'Listed';
+      try { data._ownerId = d.ref.parent.parent.id; } catch(_) { data._ownerId = data.agentId || ''; }
+      _teamDeals.push(data);
+    });
+    _teamDeals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
+  } catch(e) {
+    console.log('loadTeamDeals err:', e.message);
+    if (/index/i.test(e.message||'')) {
+      _teamDealsIndexErr = true;
+      window._teamDealsIndexLink = (String(e.message).match(/https?:\/\/\S+/)||[''])[0];
+    }
+  }
+}
+
+function _teamDealCard(d){
+  var st = dealStatusFromStep(d);
+  var isSeller = d.dealType==='seller';
+  var hasAddr = d.address && d.address.trim();
+  var title = hasAddr ? d.address : (isSeller ? 'Preparing to List' : 'House Hunting');
+  var badgeBg = st==='Closed' ? '#6B7280' : st==='Under Contract' ? '#1D9E75' : st==='Listed' ? '#D97706' : '#2A6EF4';
+  var dateBit = d.closingDate ? ('Closing '+d.closingDate) : (d.contractDate ? ('Contract '+d.contractDate) : '');
+  return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--surface);">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+    +'<div style="font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(title)+'</div>'
+    +'<span style="font-size:10px;font-weight:600;color:#fff;background:'+badgeBg+';border-radius:6px;padding:2px 7px;flex-shrink:0;">'+st+'</span>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--text3);margin-top:3px;">'+partnerEsc(d.clientName||'Unlinked')+' \u00b7 '+(isSeller?'Seller':'Buyer')+(dateBit?(' \u00b7 '+dateBit):'')+'</div>'
+    +'</div>';
+}
+
+function renderTeamDeals(){
+  var container = document.getElementById('deal-cards-container');
+  if (!container) return;
+  if (_teamDealsIndexErr) {
+    var link = window._teamDealsIndexLink || '';
+    container.innerHTML = '<div class="notice" style="text-align:left;">'
+      +'<div style="font-size:14px;font-weight:600;margin-bottom:6px;">One-time setup needed</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Team deals need a database index. It is a single click and only happens once.</div>'
+      +(link ? '<a href="'+link+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--green);font-weight:600;">Create the index \u2192</a><div style="font-size:11px;color:var(--text3);margin-top:6px;">After it finishes building (about a minute), reopen this tab.</div>' : '<div style="font-size:11px;color:var(--text3);">Open the browser console to find the index link.</div>')
+      +'</div>';
+    return;
+  }
+  var q = (_teamDealSearch||'').trim().toLowerCase();
+  var deals = (_teamDeals||[]).filter(function(d){
+    var st = dealStatusFromStep(d);
+    var stageOk = _teamStageFilter==='all' ? true
+      : _teamStageFilter==='pipeline' ? st==='Pipeline'
+      : _teamStageFilter==='active'   ? st==='Listed'
+      : _teamStageFilter==='contract' ? st==='Under Contract'
+      : _teamStageFilter==='closed'   ? st==='Closed' : true;
+    if (!stageOk) return false;
+    if (!q) return true;
+    var hay = ((d.clientName||'')+' '+(d.address||'')+' '+_teamAgentName(d._ownerId||d.agentId)).toLowerCase();
+    return hay.indexOf(q) !== -1;
+  });
+  var stages = [['all','All'],['pipeline','Pipeline'],['active','Listed'],['contract','Under Contract'],['closed','Closed']];
+  var html = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'
+    + stages.map(function(s){
+        var on = _teamStageFilter===s[0];
+        return '<button class="btn btn-sm" onclick="_teamStageFilter=\''+s[0]+'\';renderTeamDeals();" style="'+(on?'background:var(--green);color:#fff;border-color:var(--green);':'')+'font-size:11px;">'+s[1]+'</button>';
+      }).join('')
+    + '</div>';
+  html += '<div style="margin:0 0 10px;"><input type="text" placeholder="Search client, address, or agent..." value="'+(_teamDealSearch||'').replace(/"/g,'&quot;')+'" oninput="_teamDealSearch=this.value;renderTeamDeals();" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
+  if (!deals.length) {
+    html += '<div class="notice" style="text-align:center;"><div style="font-size:13px;color:var(--text3);">'+((q||_teamStageFilter!=='all')?'No team deals match.':'No team deals yet \u2014 they\u2019ll appear here as your agents work deals.')+'</div></div>';
+    container.innerHTML = html;
+    return;
+  }
+  var groups = {};
+  deals.forEach(function(d){ var k=d._ownerId||d.agentId||'?'; (groups[k]=groups[k]||[]).push(d); });
+  Object.keys(groups).sort(function(a,b){ return _teamAgentName(a).localeCompare(_teamAgentName(b)); }).forEach(function(aid){
+    var list = groups[aid];
+    var open = !!_teamGroupOpen[aid];
+    html += '<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;">';
+    html += '<div onclick="_teamGroupOpen[\''+aid+'\']=!_teamGroupOpen[\''+aid+'\'];renderTeamDeals();" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--surface2);cursor:pointer;">'
+      +'<div style="font-size:13px;font-weight:600;">'+partnerEsc(_teamAgentName(aid))+'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:11px;color:var(--text3);">'+list.length+' deal'+(list.length===1?'':'s')+'</span>'
+      +'<span style="font-size:13px;color:var(--text3);">'+(open?'\u25be':'\u25b8')+'</span></div>'
+      +'</div>';
+    if (open) { html += '<div style="padding:10px 12px;">' + list.map(_teamDealCard).join('') + '</div>'; }
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+window.loadTeamDeals = loadTeamDeals;
+window.renderTeamDeals = renderTeamDeals;
 
 // ── New deal modal ──
 function openNewDealModal() {
