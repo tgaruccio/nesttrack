@@ -4106,6 +4106,16 @@ async function signUp() {
       newProfile.currentStep = 0;
     }
 
+    if (window._agentInviteCode) {
+      alert('SIGNUP DEBUG\ninvite code: ' + window._agentInviteCode
+        + '\ninvite doc found: ' + (agentInviteData ? 'YES' : 'NO')
+        + '\ninvite.teamRole: ' + (agentInviteData && agentInviteData.teamRole)
+        + '\ninvite.agentId: ' + (agentInviteData && agentInviteData.agentId)
+        + '\n→ final role: ' + newProfile.role
+        + '\n→ final teamRole: ' + newProfile.teamRole
+        + '\n→ final teamId: ' + newProfile.teamId);
+    }
+
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), newProfile);
 
     // Mark invite as used
