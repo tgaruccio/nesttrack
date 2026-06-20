@@ -5775,14 +5775,15 @@ function openActivityAdjust(agentId){
   var rows = [['showings','Buyer showings'],['listingAppts','Listing appts'],['openHouses','Open houses'],['consults','Buyer consults'],['meetings','Meetings']];
   var body = rows.map(function(r){
     var k=r[0], lbl=r[1];
+    var auto = act[k]||0; var total = auto + (man[k]||0); if (total < 0) total = 0;
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">'
-      +'<div><div style="font-size:13px;font-weight:500;">'+lbl+'</div><div style="font-size:11px;color:var(--text3);">Auto-tracked: '+(act[k]||0)+'</div></div>'
-      +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:11px;color:var(--text3);">+ add</span><input type="number" min="0" id="aadj-'+k+'" value="'+(man[k]||0)+'" style="width:62px;text-align:center;font-size:14px;padding:5px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);" /></div>'
+      +'<div><div style="font-size:13px;font-weight:500;">'+lbl+'</div><div style="font-size:11px;color:var(--text3);">Auto-tracked: '+auto+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:6px;"><span style="font-size:11px;color:var(--text3);">total</span><input type="number" min="0" id="aadj-'+k+'" value="'+total+'" style="width:62px;text-align:center;font-size:14px;padding:5px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);" /></div>'
       +'</div>';
   }).join('');
   var existing = document.getElementById('activity-adjust-modal'); if (existing) existing.remove();
   var html = '<div class="mo" id="activity-adjust-modal" style="display:flex;"><div class="mbox" style="max-width:400px;max-height:88vh;overflow-y:auto;"><div class="mhdr"><div class="mtitle">Adjust activity</div><button class="xbtn" onclick="closeM(\'activity-adjust-modal\')">&times;</button></div>'
-    +'<div style="padding:2px 0 12px;font-size:12px;color:var(--text2);line-height:1.5;">These add to what\u2019s auto-tracked from your showings and appointments \u2014 for activity you did but didn\u2019t log (like an open house that never made it into your calendar).</div>'
+    +'<div style="padding:2px 0 12px;font-size:12px;color:var(--text2);line-height:1.5;">Each box is your total for the year. The number auto-tracked from your showings and appointments is shown below it \u2014 bump the total up to include activity you did but didn\u2019t log (like an open house that never made it into your calendar). New appointments you log still count automatically on top of the auto number.</div>'
     + body
     +'<button class="btn btn-g" style="width:100%;margin-top:14px;" onclick="saveActivityAdjust(\''+agentId+'\')">Save</button>'
     +'</div></div>';
@@ -5792,9 +5793,12 @@ window.openActivityAdjust = openActivityAdjust;
 
 async function saveActivityAdjust(agentId){
   var year = _teamStatsYear;
+  var auto = _teamActivityData[agentId] || {};
   var data = {};
   ['showings','listingAppts','openHouses','consults','meetings'].forEach(function(k){
-    data[k] = parseInt((document.getElementById('aadj-'+k)||{}).value) || 0;
+    var entered = parseInt((document.getElementById('aadj-'+k)||{}).value);
+    if (isNaN(entered)) entered = (auto[k]||0);
+    data[k] = entered - (auto[k]||0); // store the gap above auto, so new auto-tracked items still add on top
   });
   try {
     var patch = {}; patch['y'+year] = data;
@@ -5929,7 +5933,7 @@ function renderTeamStats() {
       +(function(){
         var act = _teamActivityData[agent.id] || {};
         var man = _teamActivityManual[agent.id] || {};
-        var T = function(k){ return (act[k]||0) + (man[k]||0); };
+        var T = function(k){ var v = (act[k]||0) + (man[k]||0); return v < 0 ? 0 : v; };
         var bits = [];
         if (T('showings')) bits.push('\uD83D\uDD11 '+T('showings')+' showings');
         if (T('listingAppts')) bits.push('\uD83C\uDFE1 '+T('listingAppts')+' listing appts');
@@ -18853,6 +18857,7 @@ async function renderApptList() {
     var pastAppts = appts.filter(function(a){ return new Date(a.date).getTime() < clearBefore; });
     for (var pi = 0; pi < pastAppts.length; pi++) {
       var pa = pastAppts[pi];
+      if (pa.loggedPast) continue; // already logged once; keep the doc so the count holds
       // Log to client activity if linked to a client
       if (pa.clientUid) {
         try {
@@ -18864,8 +18869,8 @@ async function renderApptList() {
           });
         } catch(le){}
       }
-      // Delete from appointments collection
-      try { await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'appointments',pa.id)); } catch(de){}
+      // Keep the doc (mark it logged) instead of deleting, so it still counts toward activity totals
+      try { await fb.setDoc(fb.doc(fb.db,'agents',agentId,'appointments',pa.id), { loggedPast: true }, { merge:true }); } catch(ue){}
     }
 
     var todayStart = new Date(); todayStart.setHours(0,0,0,0);
