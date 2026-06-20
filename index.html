@@ -2622,6 +2622,7 @@ textarea{resize:vertical;min-height:68px;}
         <select id="teamstats-year" onchange="loadTeamStats()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>
         <button class="btn btn-sm btn-g" id="teamstats-export-btn" onclick="exportTeamStatsCSV()" style="display:none;">⬇ CSV</button>
         <button class="btn btn-sm btn-g" id="teamstats-send-btn" onclick="openTeamSendPanel()" style="display:none;">📣 Send to Team</button>
+        <button class="btn btn-sm" id="lead-dist-btn" onclick="openLeadDistModal()" style="display:none;">&#9889; Lead Routing</button>
         <button class="btn btn-sm" id="manage-team-btn" onclick="openTeamModal()" style="display:none;">⚙️ Manage Team</button>
       </div>
     </div>
@@ -3125,6 +3126,17 @@ textarea{resize:vertical;min-height:68px;}
     <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:10px;">🎓 Onboarding Progress</div>
       <div id="team-ob-progress" style="font-size:12px;color:var(--text3);font-style:italic;">Loading...</div>
+    </div>
+  </div>
+</div>
+<div class="mo" id="lead-dist-modal" style="display:none;">
+  <div class="mbox" style="max-width:520px;">
+    <div class="mhdr"><div class="mtitle">&#9889; Lead Routing</div><button class="xbtn" onclick="closeM('lead-dist-modal')">&#10005;</button></div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:4px;">Control how incoming team leads are shared with your agents.</div>
+    <div id="lead-dist-body"></div>
+    <div style="border-top:0.5px solid var(--border);padding-top:14px;margin-top:14px;display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn-sm" onclick="closeM('lead-dist-modal')">Cancel</button>
+      <button class="btn btn-sm btn-g" id="ld-save-btn" onclick="saveLeadDist()">Save</button>
     </div>
   </div>
 </div>
@@ -19609,6 +19621,8 @@ async function checkMentorStatus() {
   var manageBtn = document.getElementById('manage-team-btn');
   // Only owner/team leaders manage a team. Members never see it.
   if (manageBtn) manageBtn.style.display = isTeamLeader() ? 'inline-flex' : 'none';
+  var ldBtn = document.getElementById('lead-dist-btn');
+  if (ldBtn) ldBtn.style.display = (isTeamLeader() && (typeof _hasTeamMembers==='function' && _hasTeamMembers())) ? 'inline-flex' : 'none';
 }
 async function _checkMentorStatus_legacy() {
   if (!isAgent || !currentUser) return;
@@ -23417,6 +23431,90 @@ function renderTeamDeals(){
 }
 window.loadTeamDeals = loadTeamDeals;
 window.renderTeamDeals = renderTeamDeals;
+
+// ═══════════════ LEAD ROUTING (team-leader auto-distribution settings) ═══════════════
+function _leadDistTeamId(){ return (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'; }
+var _leadDistCfg = null;
+async function openLeadDistModal(){
+  if (!isTeamLeader()) return;
+  var modal = document.getElementById('lead-dist-modal');
+  if (!modal) return;
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db,'agent_config','leadDist_'+_leadDistTeamId()));
+    _leadDistCfg = (snap && snap.exists()) ? snap.data() : { enabled:false, mode:'blast', rotation:[] };
+  } catch(e) { _leadDistCfg = { enabled:false, mode:'blast', rotation:[] }; }
+  if (!Array.isArray(_leadDistCfg.rotation)) _leadDistCfg.rotation = [];
+  renderLeadDistModal();
+  modal.style.display = 'flex';
+}
+function renderLeadDistModal(){
+  var body = document.getElementById('lead-dist-body');
+  if (!body) return;
+  var cfg = _leadDistCfg || { enabled:false, mode:'blast', rotation:[] };
+  var roster = (typeof _myTeamAgents==='function') ? _myTeamAgents() : [];
+  var rotation = Array.isArray(cfg.rotation) ? cfg.rotation : [];
+  var html = '';
+  html += '<label style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
+    +'<span><span style="font-size:14px;font-weight:600;">Auto-distribute incoming leads</span>'
+    +'<span style="display:block;font-size:12px;color:var(--text3);margin-top:2px;">When on, leads from your connected sources go to the team automatically. When off, nothing auto-sends \u2014 you push leads to the team manually.</span></span>'
+    +'<input type="checkbox" '+(cfg.enabled?'checked':'')+' onchange="_leadDistCfg.enabled=this.checked;renderLeadDistModal();" style="transform:scale(1.3);margin-left:12px;flex-shrink:0;">'
+    +'</label>';
+  if (cfg.enabled) {
+    html += '<div style="padding:14px 0;border-bottom:1px solid var(--border);">'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:10px;">How should leads go out?</div>'
+      +'<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer;"><input type="radio" name="ld-mode" '+(cfg.mode!=='roundrobin'?'checked':'')+' onchange="_leadDistCfg.mode=\'blast\';" style="margin-top:2px;"><span style="font-size:13px;"><b>Blast</b> \u2014 push to everyone at once, first to claim wins</span></label>'
+      +'<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;"><input type="radio" name="ld-mode" '+(cfg.mode==='roundrobin'?'checked':'')+' onchange="_leadDistCfg.mode=\'roundrobin\';" style="margin-top:2px;"><span style="font-size:13px;"><b>Round-robin</b> \u2014 one agent at a time, 1 minute each, in turn</span></label>'
+      +'</div>';
+    html += '<div style="padding:14px 0;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">Who\u2019s in the rotation?</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Only checked agents receive leads. Leave yourself out if you don\u2019t take team leads.</div>';
+    if (!roster.length) {
+      html += '<div style="font-size:12px;color:var(--text3);">No team members yet.</div>';
+    } else {
+      roster.forEach(function(a){
+        var on = rotation.indexOf(a.id) !== -1;
+        html += '<label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
+          +'<span style="font-size:13px;">'+partnerEsc(a.name||a.id)+'</span>'
+          +'<input type="checkbox" '+(on?'checked':'')+' onchange="_toggleRotation(\''+a.id+'\',this.checked)" style="transform:scale(1.2);">'
+          +'</label>';
+      });
+    }
+    html += '</div>';
+  }
+  body.innerHTML = html;
+}
+function _toggleRotation(aid, on){
+  if (!_leadDistCfg) return;
+  var r = Array.isArray(_leadDistCfg.rotation) ? _leadDistCfg.rotation.slice() : [];
+  var i = r.indexOf(aid);
+  if (on && i === -1) r.push(aid);
+  if (!on && i !== -1) r.splice(i,1);
+  _leadDistCfg.rotation = r;
+}
+async function saveLeadDist(){
+  if (!isTeamLeader() || !_leadDistCfg) return;
+  if (_leadDistCfg.enabled && (!Array.isArray(_leadDistCfg.rotation) || !_leadDistCfg.rotation.length)) {
+    alert('Pick at least one agent for the rotation, or turn auto-distribute off.');
+    return;
+  }
+  var btn = document.getElementById('ld-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  var payload = {
+    enabled: !!_leadDistCfg.enabled,
+    mode: (_leadDistCfg.mode === 'roundrobin') ? 'roundrobin' : 'blast',
+    rotation: Array.isArray(_leadDistCfg.rotation) ? _leadDistCfg.rotation : [],
+    teamId: _leadDistTeamId(),
+    updatedAt: fb.serverTimestamp()
+  };
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agent_config','leadDist_'+_leadDistTeamId()), payload, {merge:true});
+    closeM('lead-dist-modal');
+  } catch(e) { alert('Could not save: ' + (e && e.message)); }
+  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+}
+window.openLeadDistModal = openLeadDistModal;
+window.renderLeadDistModal = renderLeadDistModal;
+window._toggleRotation = _toggleRotation;
+window.saveLeadDist = saveLeadDist;
 
 // ── New deal modal ──
 function openNewDealModal() {
