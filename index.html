@@ -21085,11 +21085,10 @@ async function teamChatSendPhoto(event) {
 window.teamChatSendPhoto = teamChatSendPhoto;
 
 async function teamChatPush(body) {
-  var hasAnySettings = Object.keys(_lbSettings).length > 0;
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
-    if (a.id === userProfile.agentId) return false;
-    if (!hasAnySettings) return false;
-    return _lbSettings[a.id] !== false;
+    if (a.id === userProfile.agentId) return false;            // skip self
+    return agentTeamId(a) === myTeam;                          // same team only (not leaderboard-gated)
   });
   for (var i = 0; i < agents.length; i++) {
     try {
@@ -21097,7 +21096,7 @@ async function teamChatPush(body) {
       agentSnap.forEach(async function(doc) {
         if (doc.data().teamChatMuted) return;
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
-          body: JSON.stringify({ uid: doc.id, title: '💬 Team Chat', body: body, url: 'https://app.garucciogroup.com' })
+          body: JSON.stringify({ uid: doc.id, title: '\uD83D\uDCAC Team Chat', body: body, url: 'https://app.garucciogroup.com' })
         });
       });
     } catch(e){}
