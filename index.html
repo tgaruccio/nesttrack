@@ -8508,7 +8508,7 @@ async function showUnderContractEmailPreview(uid, dates, type) {
   showEmailPreview(buyer.email, subject, fullHtml, async function(finalHtml, ccValue) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:buyer.email,subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),signature:agentSignatureHtml(),cc:ccValue||undefined})});
+        body:JSON.stringify({to:buyer.email,subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),signature:agentSignatureHtml(),cc:_ccArray(ccValue,[buyer.email2],buyer.email)})});
       showDealToast('Under Contract email sent!', null, null);
       logEmailActivity(uid, subject, 'under_contract');
     } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
@@ -9587,7 +9587,7 @@ async function sendReferrals() {
     showEmailPreview(toEmail, payload.subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         payload.html = finalHtml || payload.html;
-        if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; if(_cc[1])payload.cc2=_cc[1]; }
+        payload.cc = _ccArray(ccValue, [ae], toEmail); if(!payload.cc.length) delete payload.cc;
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)});
         var status = document.getElementById('ref-status'); if(status){status.textContent='✓ Sent!';status.style.color='var(--green-dk)';status.style.display='block';}
       } catch(e) { var status = document.getElementById('ref-status'); if(status){status.textContent='Failed.';status.style.color='#E24B4A';status.style.display='block';} }
@@ -11344,7 +11344,7 @@ async function _createAgentInvite(opts){
     +'</div></div>';
   var subject=first+', your Nest Track account is ready';
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue){
-    try{ var payload={to:email,subject:subject,html:finalHtml||emailHtml}; if(ccValue){var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0];} await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)}); alert(name+' added and invite sent to '+email+'!'); }catch(e){ alert('Added, but invite email failed: '+e.message); }
+    try{ var payload={to:email,subject:subject,html:finalHtml||emailHtml}; var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc; await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)}); alert(name+' added and invite sent to '+email+'!'); }catch(e){ alert('Added, but invite email failed: '+e.message); }
   });
   return true;
 }
@@ -13467,7 +13467,7 @@ async function setCoAgent(uid) {
     showEmailPreview(coAgentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         var payload = { to: coAgentObj.email, subject: subject, html: finalHtml || emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
-        if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; if(_cc[1])payload.cc2=_cc[1]; }
+        var _cc=_ccArray(ccValue,[],coAgentObj.email); if(_cc.length)payload.cc=_cc;
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
         // Push to co-agent
         sendPushToAgentByShortId(newCoId, '👥 New Co-Agent Assignment', clientName + ' has been added to your pipeline on Nest Track.');
@@ -14211,7 +14211,7 @@ async function addLenderAndInvite() {
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue) {
     try {
       var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
-      if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; }
+      var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       alert(name + ' added and lender invite sent to ' + email + '!');
     } catch(e) { alert('Lender added but invite email failed: ' + e.message); }
@@ -14443,7 +14443,7 @@ async function addAgentAndInvite() {
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue) {
     try {
       var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
-      if (ccValue) { var _cc=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_cc[0])payload.cc=_cc[0]; }
+      var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       alert(name + ' added and invite sent to ' + email + '!');
     } catch(e) { alert('Agent added but invite email failed: ' + e.message); }
@@ -18479,12 +18479,14 @@ async function saveAppt() {
   var clientFirst = buyer ? (buyer.firstName||'there') : 'there';
   var clientName = buyer ? (((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email) : 'Client';
   var clientEmail = buyer ? buyer.email : '';
+  var clientEmail2 = buyer ? (buyer.email2||'') : '';
 
   // Build the appt record
   var apptRecord = {
     clientUid:   clientUid,
     clientName:  clientName,
     clientEmail: clientEmail,
+    clientEmail2: clientEmail2,
     type:        apptType,
     date:        dt.toISOString(),
     dateStr:     dateStr,
@@ -18531,6 +18533,7 @@ async function saveAppt() {
     closeApptModal();
     showEmailPreview(apptRecord.clientEmail || apptRecord.clientName, apptRecord._emailSubject, emailHtml, async function(finalHtml, ccValue) {
       if (finalHtml) apptRecord._emailHtml = finalHtml;
+      apptRecord._ccValue = ccValue || '';
       await sendApptEmail(true);
     });
   } else {
@@ -18558,6 +18561,14 @@ async function sendApptEmail(doSend) {
 }
 window.sendApptEmail = sendApptEmail;
 
+function _ccArray(ccValue, extras, toEmail){
+  var list=[];
+  (extras||[]).forEach(function(e){ if(e) list.push(e); });
+  if(ccValue){ String(ccValue).split(',').forEach(function(e){ e=e.trim(); if(e) list.push(e); }); }
+  var seen={}, to=String(toEmail||'').toLowerCase();
+  return list.filter(function(e){ var k=String(e).toLowerCase(); if(!k||k===to||seen[k]) return false; seen[k]=1; return true; });
+}
+window._ccArray=_ccArray;
 async function _commitAppt(appt, sendEmail) {
   var agentId = appt.agentId || userProfile.agentId || 'tom';
 
@@ -18629,7 +18640,13 @@ async function _commitAppt(appt, sendEmail) {
   if (sendEmail && appt.clientEmail) {
     try {
       var payload = { to: appt.clientEmail, subject: appt._emailSubject, html: appt._emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
-      if (appt.agentEmail) payload.cc = appt.agentEmail;
+      var ccList = [];
+      if (appt.agentEmail) ccList.push(appt.agentEmail);
+      if (appt.clientEmail2) ccList.push(appt.clientEmail2);
+      if (appt._ccValue) appt._ccValue.split(',').forEach(function(e){ e=e.trim(); if(e) ccList.push(e); });
+      var _seen={}, _to=String(appt.clientEmail||'').toLowerCase();
+      ccList = ccList.filter(function(e){ var k=String(e).toLowerCase(); if(!k||k===_to||_seen[k]) return false; _seen[k]=1; return true; });
+      if (ccList.length) payload.cc = ccList;
       await fetch(PROXY_URL, {
         method:'POST',
         headers:{'Content-Type':'application/json','X-Action':'email'},
@@ -19097,7 +19114,7 @@ async function saveManualShowing() {
       if (agentEmail) payload.cc = agentEmail;
       showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
         payload.html = finalHtml || payload.html;
-        if (ccValue) { var _ccX=ccValue.split(',').map(function(e){return e.trim();}).filter(Boolean); if(_ccX[0])payload.cc=_ccX[0]; if(_ccX[1])payload.cc2=_ccX[1]; }
+        payload.cc=_ccArray(ccValue,[agentEmail],buyer.email); if(!payload.cc.length)delete payload.cc;
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       });
     }
