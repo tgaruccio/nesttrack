@@ -2729,15 +2729,24 @@ textarea{resize:vertical;min-height:68px;}
 
       <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
         <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">🔗 Connect a Lead Source <span style="font-weight:400;color:var(--text3);">(bring leads IN)</span></label>
-        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Your personal lead link. Paste it into Zapier (or anything that can send a webhook) and new leads drop straight into NestTrack — assigned to you, or sent to your team pool if team routing is on. <strong>Keep it private</strong> — it's tied to your account.</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Your personal lead email. Set it as the lead-notification address in Zillow, Clever, Realtor.com, etc. — or auto-forward your leads to it — and they drop into NestTrack automatically, assigned to you (or your team pool if routing is on). <strong>Keep it private</strong> — it's tied to your account.</div>
         <div id="lead-link-wrap" style="display:none;">
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Your lead email</div>
           <div style="display:flex;gap:8px;align-items:center;">
-            <input type="text" id="lead-link-url" readonly onclick="this.select()" style="flex:1;font-size:12px;font-family:monospace;background:var(--surface);"/>
-            <button type="button" class="btn btn-sm btn-g" onclick="copyLeadLink()" id="lead-link-copy">Copy</button>
+            <input type="text" id="lead-email-addr" readonly onclick="this.select()" style="flex:1;font-size:12px;font-family:monospace;background:var(--surface);"/>
+            <button type="button" class="btn btn-sm btn-g" onclick="copyLeadField('lead-email-addr','lead-email-copy')" id="lead-email-copy">Copy</button>
           </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5;">In Zapier, set <strong>URL</strong> to the link above, <strong>Payload Type</strong> to Json, then add Data rows (left box = field name, right box = the value): <code>name</code>, <code>email</code>, <code>phone</code>, <code>message</code>. No headers, no IDs.</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5;">Paste this into your lead source's notification/forwarding settings. New leads get read automatically — name, phone, email, and address pulled out for you.</div>
+          <details style="margin-top:10px;">
+            <summary style="font-size:11px;color:var(--text3);cursor:pointer;">Prefer a webhook URL? (for tools that POST leads)</summary>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+              <input type="text" id="lead-link-url" readonly onclick="this.select()" style="flex:1;font-size:12px;font-family:monospace;background:var(--surface);"/>
+              <button type="button" class="btn btn-sm" onclick="copyLeadField('lead-link-url','lead-link-copy')" id="lead-link-copy">Copy</button>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5;">POST a JSON body with <code>name</code>, <code>email</code>, <code>phone</code>, <code>message</code>. No headers, no IDs.</div>
+          </details>
         </div>
-        <button type="button" id="lead-link-btn" class="btn btn-sm" onclick="revealLeadLink()">Show my lead link</button>
+        <button type="button" id="lead-link-btn" class="btn btn-sm" onclick="revealLeadLink()">Show my lead address</button>
       </div>
 
       <div style="margin-top:14px;">
@@ -23644,7 +23653,8 @@ window._watchClaimableLeads = _watchClaimableLeads;
 window.renderClaimBanner = renderClaimBanner;
 window.claimLead = claimLead;
 
-// ── Connect a Lead Source: per-agent personal lead URL (/lead/{token}) ──
+// ── Connect a Lead Source: per-agent personal lead email + URL (/lead/{token}) ──
+const LEAD_EMAIL_DOMAIN = 'flenaxenue.resend.app';
 async function _ensureLeadToken(){
   if (userProfile && userProfile.leadToken) return userProfile.leadToken;
   var tok = 'lt_' + Math.random().toString(36).substring(2,8) + Math.random().toString(36).substring(2,8);
@@ -23663,26 +23673,28 @@ async function revealLeadLink(){
   var btn = document.getElementById('lead-link-btn');
   if (btn){ btn.disabled = true; btn.textContent = 'Generating\u2026'; }
   var tok = await _ensureLeadToken();
-  if (!tok){ if(btn){btn.disabled=false;btn.textContent='Show my lead link';} alert('Could not generate your lead link. Please try again.'); return; }
+  if (!tok){ if(btn){btn.disabled=false;btn.textContent='Show my lead address';} alert('Could not generate your lead address. Please try again.'); return; }
+  var emailEl = document.getElementById('lead-email-addr');
+  if (emailEl) emailEl.value = tok + '@' + LEAD_EMAIL_DOMAIN;
   var urlEl = document.getElementById('lead-link-url');
   if (urlEl) urlEl.value = PROXY_URL + '/lead/' + tok;
   var wrap = document.getElementById('lead-link-wrap');
   if (wrap) wrap.style.display = 'block';
   if (btn) btn.style.display = 'none';
 }
-function copyLeadLink(){
-  var urlEl = document.getElementById('lead-link-url');
-  if (!urlEl) return;
-  urlEl.select();
-  var done = function(){ var c=document.getElementById('lead-link-copy'); if(c){var t=c.textContent;c.textContent='Copied!';setTimeout(function(){c.textContent=t;},1500);} };
+function copyLeadField(inputId, btnId){
+  var el = document.getElementById(inputId);
+  if (!el) return;
+  el.select();
+  var done = function(){ var c=document.getElementById(btnId); if(c){var t=c.textContent;c.textContent='Copied!';setTimeout(function(){c.textContent=t;},1500);} };
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(urlEl.value).then(done, function(){ try{document.execCommand('copy');}catch(_){} done(); }); }
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.value).then(done, function(){ try{document.execCommand('copy');}catch(_){} done(); }); }
     else { document.execCommand('copy'); done(); }
   } catch(e) { try{document.execCommand('copy');done();}catch(_){} }
 }
 window._ensureLeadToken = _ensureLeadToken;
 window.revealLeadLink = revealLeadLink;
-window.copyLeadLink = copyLeadLink;
+window.copyLeadField = copyLeadField;
 
 // ── New deal modal ──
 function openNewDealModal() {
