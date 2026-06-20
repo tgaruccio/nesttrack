@@ -4280,6 +4280,7 @@ async function loadUserProfile() {
       if (userProfile.teamRole) _laPatch.teamRole = userProfile.teamRole;
       if (userProfile.teamId) _laPatch.teamId = userProfile.teamId;
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
+      _registerAgentPush();
       await applyManageAsOverride();
     } else {
       // No profile yet - might be the first agent. Create as agent if email matches team
@@ -16301,6 +16302,25 @@ async function sendPushToUser(uid, title, body) {
 }
 window.sendPushToUser = sendPushToUser;
 
+// Write this agent's uid into the publicly-readable push_subscriptions map so
+// teammates can resolve it for team-chat push (they can't read each other's users docs).
+async function _registerAgentPush() {
+  try {
+    if (!currentUser || !isAgent || !userProfile || !userProfile.agentId) return;
+    var muted = false;
+    try { muted = (localStorage.getItem('team_chat_muted')==='true') || (userProfile.teamChatMuted===true); } catch(e){}
+    await fb.setDoc(fb.doc(fb.db,'push_subscriptions','agent_'+userProfile.agentId), {
+      uid: currentUser.uid,
+      agentId: userProfile.agentId,
+      name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim(),
+      teamId: (userProfile.teamId || userProfile.agentId || 'tom'),
+      teamChatMuted: !!muted,
+      updatedAt: fb.serverTimestamp()
+    }, {merge:true});
+  } catch(e){ console.log('registerAgentPush:', e && e.message); }
+}
+window._registerAgentPush = _registerAgentPush;
+
 // Send push to agent by short ID
 async function sendPushToAgentByShortId(agentShortId, title, body) {
   if (!agentShortId) return;
@@ -21088,24 +21108,26 @@ async function teamChatPush(body) {
   var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (a.id === userProfile.agentId) return false;            // skip self
-    return agentTeamId(a) === myTeam;                          // same team only (not leaderboard-gated)
+    return agentTeamId(a) === myTeam;                          // same team only
   });
   for (var i = 0; i < agents.length; i++) {
     try {
-      var agentSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',agents[i].id), fb.where('role','==','agent')));
-      agentSnap.forEach(async function(doc) {
-        if (doc.data().teamChatMuted) return;
-        await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
-          body: JSON.stringify({ uid: doc.id, title: '\uD83D\uDCAC Team Chat', body: body, url: 'https://app.garucciogroup.com' })
-        });
-      });
+      // push_subscriptions is publicly readable, so teammates CAN resolve each other's uid here
+      var snap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions','agent_'+agents[i].id));
+      if (!snap.exists()) continue;
+      var d = snap.data();
+      if (!d.uid || d.teamChatMuted) continue;
+      sendPushToUser(d.uid, '\uD83D\uDCAC Team Chat', body);
     } catch(e){}
   }
 }
 
 function teamChatToggleMute(muted) {
   localStorage.setItem('team_chat_muted', muted ? 'true' : 'false');
-  if (currentUser) fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {teamChatMuted: muted}).catch(function(){});
+  if (currentUser) {
+    fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {teamChatMuted: muted}).catch(function(){});
+    if (userProfile && userProfile.agentId) fb.setDoc(fb.doc(fb.db,'push_subscriptions','agent_'+userProfile.agentId), {teamChatMuted: muted}, {merge:true}).catch(function(){});
+  }
 }
 async function teamChatClear() {
   if (!confirm('Clear all team chat messages? This cannot be undone.')) return;
