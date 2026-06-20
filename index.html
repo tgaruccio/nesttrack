@@ -2595,8 +2595,8 @@ textarea{resize:vertical;min-height:68px;}
     <!-- TEAM CHAT -->
     <div id="team-chat-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
       <div class="chat-hdr">
-        <div style="flex:1;">
-          <div style="font-weight:500;font-size:14px;">💬 Team Chat</div>
+        <div style="flex:1;cursor:pointer;" onclick="teamChatToggleCollapse()">
+          <div style="font-weight:500;font-size:14px;">💬 Team Chat <span id="team-chat-chevron" style="font-size:11px;color:var(--text3);">&#9662;</span></div>
           <div id="team-chat-members" style="font-size:11px;color:var(--text3);margin-top:1px;"></div>
         </div>
         <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);cursor:pointer;font-weight:400;">
@@ -2605,7 +2605,7 @@ textarea{resize:vertical;min-height:68px;}
         <button id="team-chat-clear-btn" onclick="teamChatClear()" style="display:none;background:none;border:none;font-size:11px;color:var(--text3);cursor:pointer;padding:4px 6px;white-space:nowrap;">🗑 Clear</button>
       </div>
       <div class="chat-messages" id="team-chat-messages" style="height:340px;"></div>
-      <div class="chat-input">
+      <div class="chat-input" id="team-chat-input-row">
         <label style="cursor:pointer;color:var(--text3);font-size:20px;padding:4px 0;flex-shrink:0;">
           📷<input type="file" id="team-chat-photo-input" accept="image/*" style="display:none;" onchange="teamChatSendPhoto(event)"/>
         </label>
@@ -4260,6 +4260,31 @@ async function syncHardcodedAgentsToFirestore() {
     } catch(e) { console.log('syncAgent', a.id, e.message); }
   }
 }
+
+async function _ensureRosterForUser(){
+  // The first loadTeamAgents() ran before userProfile existed, so it defaulted to team 'tom'.
+  // Re-run it now that the profile (and its teamId) is known, so the agent's real team loads.
+  try { await loadTeamAgents(); } catch(e){}
+  if (!userProfile || !userProfile.agentId) return;
+  var meId = userProfile.agentId;
+  var meRec = (DEFAULT_AGENTS||[]).find(function(a){ return a.id === meId; });
+  if (meRec) {
+    // Backfill identity from the authoritative roster record if it wasn't set at login.
+    if (!userProfile.teamRole && typeof agentTeamRole==='function') userProfile.teamRole = agentTeamRole(meRec);
+    if (!userProfile.teamId && typeof agentTeamId==='function') userProfile.teamId = agentTeamId(meRec);
+  } else {
+    // Solo agent whose own record never loaded — inject it so the roster always shows at least them.
+    DEFAULT_AGENTS.push({
+      id: meId,
+      name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || userProfile.email || meId,
+      role: (userProfile.teamRole==='leader'||userProfile.teamRole==='owner') ? 'Team Leader' : 'REALTOR\u00AE',
+      email: userProfile.email || '',
+      teamRole: userProfile.teamRole || 'member',
+      teamId: userProfile.teamId || meId
+    });
+  }
+}
+window._ensureRosterForUser = _ensureRosterForUser;
 
 async function loadUserProfile() {
   // Load any dynamically added agents first
@@ -7051,7 +7076,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); }
   await loadAgentPartners(userProfile.agentId||'tom');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
@@ -21208,11 +21233,28 @@ var teamChatListener = null;
 // every other team uses a room namespaced by team id. Members share their leader's room.
 function teamChatRoom(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return t==='tom' ? 'team_chat' : ('team_chat_'+t); }
 
+function teamChatApplyCollapsed(collapsed){
+  var msgs = document.getElementById('team-chat-messages');
+  var row = document.getElementById('team-chat-input-row');
+  var chev = document.getElementById('team-chat-chevron');
+  if (msgs) msgs.style.display = collapsed ? 'none' : '';
+  if (row) row.style.display = collapsed ? 'none' : '';
+  if (chev) chev.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+}
+function teamChatToggleCollapse(){
+  var collapsed = localStorage.getItem('nt_teamchat_collapsed') === '1';
+  collapsed = !collapsed;
+  try { localStorage.setItem('nt_teamchat_collapsed', collapsed ? '1' : '0'); } catch(e){}
+  teamChatApplyCollapsed(collapsed);
+}
+window.teamChatToggleCollapse = teamChatToggleCollapse;
+
 function teamChatInit() {
   if (teamChatListener) return;
 
   // Mute state
   var muted = localStorage.getItem('team_chat_muted') === 'true';
+  try { teamChatApplyCollapsed(localStorage.getItem('nt_teamchat_collapsed') === '1'); } catch(e){}
   var muteChk = document.getElementById('team-chat-mute-chk');
   if (muteChk) muteChk.checked = muted;
 
