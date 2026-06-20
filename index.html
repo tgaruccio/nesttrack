@@ -6257,12 +6257,16 @@ var _financeConfig = { incomeLines: [], expenseLines: [] };
 var _financeYear = new Date().getFullYear();
 var _finExpanded = {};
 var _finAddCtx = null;
+var _finLedger = null;
+var _finPfx = '';
+var _finPlatform = false;
+function _finLedgerId(){ return _finLedger || (currentUser&&currentUser.uid); }
 var FINANCE_INCOME_SEED = ['Mortgage Income','Rev Share','Title Share','Referral Fee'];
 var FINANCE_EXPENSE_SEED = ['Marketing','Transportation','Memberships & Dues','Software & Tools','Office & Supplies'];
 
-function _finCol(){ return fb.collection(fb.db,'finances',currentUser.uid,'entries'); }
-function _finDoc(id){ return fb.doc(fb.db,'finances',currentUser.uid,'entries',id); }
-function _finConfigDoc(){ return fb.doc(fb.db,'finances',currentUser.uid,'meta','config'); }
+function _finCol(){ return fb.collection(fb.db,'finances',_finLedgerId(),'entries'); }
+function _finDoc(id){ return fb.doc(fb.db,'finances',_finLedgerId(),'entries',id); }
+function _finConfigDoc(){ return fb.doc(fb.db,'finances',_finLedgerId(),'meta','config'); }
 function _finFmt(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function _finDateShort(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch(e){ return d||''; } }
 function _finLeader(){ return (typeof isTeamLeader==='function' && isTeamLeader()); }
@@ -6316,13 +6320,13 @@ async function _finSaveConfig(){
 }
 
 function initFinanceYearSelect(){
-  var sel=document.getElementById('finance-year'); if(!sel) return;
+  var sel=document.getElementById(_finPfx+'finance-year'); if(!sel) return;
   var years={}; years[new Date().getFullYear()]=1; years[_financeYear]=1;
   _financeEntries.forEach(function(e){ var y=parseInt((e.date||'').slice(0,4)); if(y) years[y]=1; });
   var list=Object.keys(years).map(Number).sort(function(a,b){return b-a;});
   sel.innerHTML=list.map(function(y){return '<option value="'+y+'"'+(y===_financeYear?' selected':'')+'>'+y+'</option>';}).join('');
 }
-function onFinanceYearChange(){ var sel=document.getElementById('finance-year'); if(sel) _financeYear=parseInt(sel.value)||_financeYear; renderFinances(); }
+function onFinanceYearChange(){ var sel=document.getElementById(_finPfx+'finance-year'); if(sel) _financeYear=parseInt(sel.value)||_financeYear; renderFinances(); }
 window.onFinanceYearChange=onFinanceYearChange;
 
 function _finYearEntries(){ var yr=String(_financeYear); return _financeEntries.filter(function(e){ return (e.date||'').slice(0,4)===yr; }); }
@@ -6373,26 +6377,29 @@ function _finLineRow(section, ref, key, label, isExpense){
 }
 
 function renderFinances(){
-  if(!document.getElementById('finance-body')) return;
+  if(!document.getElementById(_finPfx+'finance-body')) return;
   initFinanceYearSelect();
   var received=_finReceivedAgents();
-  var recvTotal=received.reduce(function(s,a){return s+_finLineTotal('received',a.id);},0);
+  var recvTotal=_finPlatform?0:received.reduce(function(s,a){return s+_finLineTotal('received',a.id);},0);
   var incLines=_financeConfig.incomeLines||[];
   var expLines=_financeConfig.expenseLines||[];
   var otherIncTotal=incLines.reduce(function(s,l){return s+_finLineTotal('income',l);},0);
   var expTotal=expLines.reduce(function(s,l){return s+_finLineTotal('expense',l);},0);
   var totalInc=recvTotal+otherIncTotal;
   var net=totalInc-expTotal;
-  document.getElementById('finance-summary').innerHTML=
+  document.getElementById(_finPfx+'finance-summary').innerHTML=
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">'
     +'<div style="background:#F0FDF4;border:1px solid var(--green-md);border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Income</div><div style="font-size:17px;font-weight:800;color:var(--green-dk);">'+_finFmt(totalInc)+'</div></div>'
     +'<div style="background:#FEF2F2;border:1px solid #F7C1C1;border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Expenses</div><div style="font-size:17px;font-weight:800;color:#C0392B;">'+_finFmt(expTotal)+'</div></div>'
     +'<div style="background:'+(net>=0?'#EFF6FF':'#FEF2F2')+';border:1px solid var(--border);border-radius:var(--r);padding:14px 8px;text-align:center;"><div style="font-size:11px;color:var(--text3);font-weight:600;">Net</div><div style="font-size:17px;font-weight:800;color:'+(net>=0?'#1D4ED8':'#C0392B')+';">'+_finFmt(net)+'</div></div>'
     +'</div>';
   var h='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:4px 16px 14px;margin-top:12px;">';
-  h+=_finSectionHeader('Income Received');
-  received.forEach(function(a){ h+=_finLineRow('received', a.id, a.id, a.name, false); });
-  h+=_finSectionHeader('Other Income');
+  if(!_finPlatform){
+    h+=_finSectionHeader('Income Received');
+    received.forEach(function(a){ h+=_finLineRow('received', a.id, a.id, a.name, false); });
+  }
+  if(_finPlatform){ h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-bottom:1px solid var(--border);"><div><div style="font-weight:600;font-size:13px;">Billing income</div><div style="font-size:11px;color:var(--text3);">Auto-fills from Stripe (coming soon)</div></div><div style="font-weight:700;color:var(--green-dk);">'+_finFmt(0)+'</div></div>'; }
+  h+=_finSectionHeader(_finPlatform?'Other Income':'Other Income');
   incLines.forEach(function(l,i){ h+=_finLineRow('income', String(i), l, l, false); });
   h+='<button onclick="addFinLine(\'income\')" style="margin-top:10px;font-size:12px;color:var(--green-dk);background:var(--green-lt);border:none;border-radius:10px;padding:5px 12px;cursor:pointer;">+ Add income source</button>';
   h+=_finSectionHeader('Expenses');
@@ -6400,7 +6407,7 @@ function renderFinances(){
   h+='<button onclick="addFinLine(\'expense\')" style="margin-top:10px;font-size:12px;color:#C0392B;background:#fef2f2;border:none;border-radius:10px;padding:5px 12px;cursor:pointer;">+ Add expense category</button>';
   h+='<div style="background:'+(net>=0?'var(--green-lt)':'#FEF2F2')+';border-radius:8px;padding:12px 14px;margin-top:18px;display:flex;justify-content:space-between;align-items:center;"><div style="font-size:15px;font-weight:700;color:'+(net>=0?'var(--green-dk)':'#C0392B')+';">Profit</div><div style="font-size:15px;font-weight:700;color:'+(net>=0?'var(--green-dk)':'#C0392B')+';">'+_finFmt(net)+'</div></div>';
   h+='</div>';
-  document.getElementById('finance-body').innerHTML=h;
+  document.getElementById(_finPfx+'finance-body').innerHTML=h;
 }
 window.renderFinances=renderFinances;
 
@@ -6504,7 +6511,7 @@ function exportFinancesCSV(){
   (_financeConfig.incomeLines||[]).forEach(function(l){ var t=_finLineTotal('income',l); if(t) rows.push(['Other Income',l,'','',t,'+']); });
   (_financeConfig.expenseLines||[]).forEach(function(l){ var t=_finLineTotal('expense',l); if(t) rows.push(['Expenses',l,'','',t,'-']); });
   rows.push([]);
-  var recvTotal=received.reduce(function(s,a){return s+_finLineTotal('received',a.id);},0);
+  var recvTotal=_finPlatform?0:received.reduce(function(s,a){return s+_finLineTotal('received',a.id);},0);
   var otherInc=(_financeConfig.incomeLines||[]).reduce(function(s,l){return s+_finLineTotal('income',l);},0);
   var expTotal=(_financeConfig.expenseLines||[]).reduce(function(s,l){return s+_finLineTotal('expense',l);},0);
   var ti=recvTotal+otherInc;
@@ -11213,22 +11220,20 @@ function renderOwnerAdmin(){
   +'</div>';
 
   var financeTab='<div id="admintab-finance" style="display:'+(tab==='finance'?'block':'none')+';padding-top:14px;">'
-    +'<div class="card" style="padding:16px;">'
-      +'<div style="font-size:14px;font-weight:700;margin-bottom:2px;">\uD83D\uDCCA Profit &amp; Loss</div>'
-      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Auto-fills from billing once Stripe is live \u2014 add expenses to see your real net.</div>'
-      +'<div style="display:flex;flex-direction:column;gap:8px;">'
-        +_plRow('Income','Subscriptions \u00b7 seat billing',0,'var(--green)')
-        +_plRow('Expenses','Infrastructure \u00b7 tools \u00b7 fees',0,'var(--red-dk)')
-        +'<div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;background:var(--green-lt);border-radius:10px;margin-top:4px;"><span style="font-weight:700;font-size:14px;">Net Profit</span><span style="font-weight:800;font-size:18px;color:var(--green);">$0</span></div>'
-      +'</div>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:12px;text-align:center;">Income &amp; expense tracking activates with billing.</div>'
+    +'<div style="font-size:12px;color:var(--text3);line-height:1.5;margin-bottom:10px;">Platform P&amp;L \u2014 your business finances, separate from your personal agent sheet. Billing income auto-fills once Stripe is live; add outside income and expense categories anytime.</div>'
+    +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">'
+      +'<label style="font-size:12px;color:var(--text3);font-weight:600;">Year:</label>'
+      +'<select id="admin-finance-year" onchange="adminOnFinanceYearChange()" style="font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);"></select>'
     +'</div>'
+    +'<div id="admin-finance-summary"></div>'
+    +'<div id="admin-finance-body"></div>'
   +'</div>';
 
   panel.innerHTML=
     '<div class="card" style="padding:18px;background:linear-gradient(135deg,var(--green-lt),var(--surface));"><div style="font-size:18px;font-weight:800;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div><div style="font-size:12.5px;color:var(--text3);">Your whole platform \u2014 people, seats, and finances.</div></div>'
     +statStrip+tabs+peopleTab+billingTab+financeTab;
 
+  if(tab==='finance'){ adminLoadFinance(); }
   if(window._adminQ && tab==='people'){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
 }
 function _adminStat(val,label){
@@ -11244,7 +11249,9 @@ function _plRow(label,sub,amount,color){
     +'<div style="font-weight:700;font-size:16px;color:'+color+';">$'+Number(amount||0).toLocaleString()+'</div></div>';
 }
 function adminTab(name){ window._adminTab=name; renderOwnerAdmin(); }
-window.adminTab=adminTab; window._adminStat=_adminStat;
+function adminLoadFinance(){ _finLedger='platform__'+((currentUser&&currentUser.uid)||'tom'); _finPfx='admin-'; _finPlatform=true; loadFinances(); }
+function adminOnFinanceYearChange(){ var sel=document.getElementById('admin-finance-year'); if(sel)_financeYear=parseInt(sel.value)||_financeYear; _finLedger='platform__'+((currentUser&&currentUser.uid)||'tom'); _finPfx='admin-'; _finPlatform=true; renderFinances(); }
+window.adminTab=adminTab; window._adminStat=_adminStat; window.adminLoadFinance=adminLoadFinance; window.adminOnFinanceYearChange=adminOnFinanceYearChange;
 function adminToggleLeader(id){ var el=document.getElementById('admem-'+id); var ar=document.getElementById('adlarr-'+id); if(!el)return; var open=el.style.display==='none'||!el.style.display; el.style.display=open?'flex':'none'; if(ar)ar.textContent=open?'\u25BE':'\u25B8'; }
 function adminFilter(q){
   window._adminQ=q; q=(q||'').trim().toLowerCase();
@@ -11503,6 +11510,7 @@ function switchAgentTab(tab) {
   } else if (tab==='finances') {
     if (ftb) { ftb.style.background='var(--green)'; ftb.style.color='#fff'; }
     if (fp) fp.style.display='flex';
+    _finLedger=null; _finPfx=''; _finPlatform=false;
     loadFinances();
   } else if (tab==='admin') {
     if (adb) { adb.style.background='var(--green)'; adb.style.color='#fff'; }
