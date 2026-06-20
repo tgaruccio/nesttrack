@@ -2422,6 +2422,7 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 
   <div id="agent-buyers-panel" style="display:flex;flex-direction:column;gap:12px;">
+    <div id="claim-leads-banner" style="display:none;"></div>
   <div class="notice">View all your clients, their activity, and where they are in the process.</div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
     <button class="btn btn-g btn-sm" onclick="openAddContactModal()">+ Add Contact</button>
@@ -4302,6 +4303,7 @@ async function loadUserProfile() {
       if (userProfile.teamId) _laPatch.teamId = userProfile.teamId;
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
       _registerAgentPush();
+      try { _watchClaimableLeads(); } catch(e){}
       await applyManageAsOverride();
     } else {
       // No profile yet - might be the first agent. Create as agent if email matches team
@@ -23525,6 +23527,90 @@ window.openLeadDistModal = openLeadDistModal;
 window.renderLeadDistModal = renderLeadDistModal;
 window._toggleRotation = _toggleRotation;
 window.saveLeadDist = saveLeadDist;
+
+// ═══════════════ CLAIM FLOW (agents see + claim distributed team leads) ═══════════════
+var _claimableLeads = [];
+var _claimUnsub = null;
+function _watchClaimableLeads(){
+  try {
+    if (!isAgent || !currentUser || !userProfile || !userProfile.agentId) return;
+    if (_claimUnsub) { try { _claimUnsub(); } catch(e){} _claimUnsub = null; }
+    var myTeam = (userProfile.teamId || userProfile.agentId) || 'tom';
+    var myId = userProfile.agentId;
+    var qy = fb.query(fb.collection(fb.db,'team_leads'), fb.where('teamId','==',myTeam));
+    _claimUnsub = fb.onSnapshot(qy, function(snap){
+      var arr = [];
+      snap.forEach(function(d){
+        var x = Object.assign({id:d.id}, d.data());
+        if (x.status !== 'open') return;
+        var mine = (x.mode === 'roundrobin') ? (x.currentAgentId === myId) : ((x.rotation||[]).indexOf(myId) !== -1);
+        if (mine) arr.push(x);
+      });
+      _claimableLeads = arr;
+      renderClaimBanner();
+    }, function(err){ console.log('claimable watch:', err && err.message); });
+  } catch(e) { console.log('_watchClaimableLeads:', e && e.message); }
+}
+function renderClaimBanner(){
+  var el = document.getElementById('claim-leads-banner');
+  if (!el) return;
+  var leads = _claimableLeads || [];
+  if (!leads.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  var html = '';
+  leads.forEach(function(l){
+    var name = ((l.firstName||'')+' '+(l.lastName||'')).trim() || l.email || l.phone || 'New Lead';
+    var sub = [l.phone, l.email, l.source].filter(Boolean).join(' \u00b7 ');
+    var rrNote = (l.mode === 'roundrobin') ? '<span style="font-size:10px;color:#fff;background:rgba(255,255,255,0.25);border-radius:4px;padding:1px 6px;margin-left:6px;">Your turn</span>' : '';
+    html += '<div style="background:#1D9E75;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+      +'<div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:#fff;">\uD83D\uDD14 New lead to claim'+rrNote+'</div>'
+      +'<div style="font-size:14px;font-weight:600;color:#fff;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(name)+'</div>'
+      +(sub?'<div style="font-size:11px;color:rgba(255,255,255,0.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(sub)+'</div>':'')
+      +'</div>'
+      +'<button onclick="claimLead(\''+l.id+'\')" style="flex-shrink:0;background:#fff;color:#0F6E56;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;">Claim</button>'
+      +'</div>';
+  });
+  el.innerHTML = html;
+}
+async function claimLead(leadId){
+  var lead = (_claimableLeads||[]).find(function(l){ return l.id === leadId; });
+  if (!lead) return;
+  var myId = userProfile.agentId;
+  var myTeam = (userProfile.teamId || userProfile.agentId) || 'tom';
+  // 1) Atomic claim — the security rule rejects this if status is no longer 'open' (someone beat us).
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'team_leads',leadId), {
+      status:'claimed', claimedBy:myId, claimedByUid:currentUser.uid, claimedAt:Date.now()
+    });
+  } catch(e) {
+    alert('That lead was just claimed by someone else.');
+    return;
+  }
+  // 2) Create the client — assigned to me, co-agent = my team leader, on the hot 3-day follow-up.
+  var _d = new Date();
+  var today = _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+  var nextDue = (typeof _fuComputeNextDue==='function') ? _fuComputeNextDue(today,'hot',null) : today;
+  var contactId = 'lead_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
+  var clientDoc = {
+    firstName:lead.firstName||'', lastName:lead.lastName||'', email:lead.email||'', phone:lead.phone||'',
+    agentId:myId, coAgentId:myTeam, lenderId:'none',
+    role:'buyer', journeyType:'buyer', crmStatus:'pipeline',
+    segment:lead.source||'Team Lead', source:lead.source||'Team Lead', notes:lead.notes||'',
+    mailingAddress:lead.address||'',
+    currentStep:0, currentSellerStep:0, portalAccess:false, isContact:true,
+    followUp:true, followUpCadence:'hot', followUpLastTouch:today, followUpNextDue:nextDue,
+    claimedFromLead:leadId,
+    createdAt: fb.serverTimestamp(), lastActive: fb.serverTimestamp()
+  };
+  try {
+    await fb.setDoc(fb.doc(fb.db,'users',contactId), clientDoc);
+  } catch(e) { alert('Lead claimed, but could not create the client record: ' + (e && e.message)); return; }
+  alert((lead.firstName||'Lead') + ' is yours \u2014 added to your pipeline and your hot 3-day follow-up.');
+  try { await loadBuyersForAgent(); renderBuyers(); } catch(e){}
+}
+window._watchClaimableLeads = _watchClaimableLeads;
+window.renderClaimBanner = renderClaimBanner;
+window.claimLead = claimLead;
 
 // ── New deal modal ──
 function openNewDealModal() {
