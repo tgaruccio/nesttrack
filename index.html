@@ -11332,7 +11332,7 @@ async function applyManageAsOverride(){
     snap.forEach(function(d){ var x=d.data(); if(!tdId && x.role==='agent'){ tdId=d.id; td=x; } });
   }catch(e){}
   window._manageAsId = ag.id;
-  window._manageAsUid = tdId; // null if the agent hasn't logged in / onboarded yet
+  window._manageAsUid = tdId || ('noacct_' + ag.id); // never fall back to the owner's uid; dead id = empty personal data
   var nm=String(ag.name||'').trim().split(/\s+/);
   var base = td ? Object.assign({}, td) : {};
   userProfile = Object.assign(base, {
@@ -11348,14 +11348,14 @@ async function applyManageAsOverride(){
     calendly: td.calendly||ag.calendly, googleReviewUrl: td.googleReviewUrl||ag.googleReviewUrl,
     zillowReviewUrl: td.zillowReviewUrl||ag.zillowReviewUrl, bio: td.bio||ag.bio
   }:{});
-  showManageBanner(ag);
+  showManageBanner(ag, !!td);
 }
 function _profileUid(){ return window._manageAsUid || (currentUser&&currentUser.uid); }
 window._profileUid=_profileUid;
-function showManageBanner(ag){
+function showManageBanner(ag, hasAccount){
   var b=document.getElementById('manage-as-banner'); if(!b) return;
   var t=document.getElementById('manage-as-text');
-  if(t) t.innerHTML='\uD83D\uDC51 Managing <u>'+partnerEsc(ag.name||ag.id)+'</u>\u2019s account';
+  if(t) t.innerHTML='\uD83D\uDC51 Managing <u>'+partnerEsc(ag.name||ag.id)+'</u>\u2019s account' + ((hasAccount===false)?' <span style="opacity:.85;font-weight:400;">\u00b7 not set up yet (no personal data)</span>':'');
   b.style.display='flex';
   try{ document.body.style.paddingTop='40px'; }catch(e){}
 }
