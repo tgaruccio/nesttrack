@@ -2727,6 +2727,19 @@ textarea{resize:vertical;min-height:68px;}
         </div>
       </div>
 
+      <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+        <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">🔗 Connect a Lead Source <span style="font-weight:400;color:var(--text3);">(bring leads IN)</span></label>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Your personal lead link. Paste it into Zapier (or anything that can send a webhook) and new leads drop straight into NestTrack — assigned to you, or sent to your team pool if team routing is on. <strong>Keep it private</strong> — it's tied to your account.</div>
+        <div id="lead-link-wrap" style="display:none;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" id="lead-link-url" readonly onclick="this.select()" style="flex:1;font-size:12px;font-family:monospace;background:var(--surface);"/>
+            <button type="button" class="btn btn-sm btn-g" onclick="copyLeadLink()" id="lead-link-copy">Copy</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:8px;line-height:1.5;">In Zapier, set <strong>URL</strong> to the link above, <strong>Payload Type</strong> to Json, then add Data rows (left box = field name, right box = the value): <code>name</code>, <code>email</code>, <code>phone</code>, <code>message</code>. No headers, no IDs.</div>
+        </div>
+        <button type="button" id="lead-link-btn" class="btn btn-sm" onclick="revealLeadLink()">Show my lead link</button>
+      </div>
+
       <div style="margin-top:14px;">
         <label class="flabel" style="color:var(--text2);font-weight:600;">Short Bio</label>
         <textarea id="ap-bio" placeholder="Write a short client-facing bio..." style="height:100px;resize:vertical;"></textarea>
@@ -23610,13 +23623,66 @@ async function claimLead(leadId){
   try {
     await fb.setDoc(fb.doc(fb.db,'users',contactId), clientDoc);
   } catch(e) { alert('Lead claimed, but could not create the client record: ' + (e && e.message)); return; }
-  try { await loadBuyersForAgent(); renderBuyers(); } catch(e){}
-  // Jump straight into the new lead so the agent can act fast (tap the number to call).
-  try { await openBuyerDetail(contactId); } catch(e){}
+  // Put the new client straight into memory so the card opens instantly WITH its notes — no load race.
+  try {
+    var _mem = Object.assign({uid:contactId}, clientDoc);
+    _mem.createdAt = Date.now(); _mem.lastActive = Date.now();
+    allBuyers = (allBuyers||[]).filter(function(x){ return x.uid !== contactId; });
+    allBuyers.push(_mem);
+  } catch(e){}
+  try { renderBuyers(); } catch(e){}
+  // Open the lead's card right away (agent can tap the number to call).
+  try {
+    await openBuyerDetail(contactId);
+  } catch(e) {
+    alert('Lead is yours and in your clients \u2014 but the card couldn\u2019t auto-open ('+(e&&e.message)+'). Open it from your client list.');
+  }
+  // Refresh the full list from the server in the background.
+  try { loadBuyersForAgent(); } catch(e){}
 }
 window._watchClaimableLeads = _watchClaimableLeads;
 window.renderClaimBanner = renderClaimBanner;
 window.claimLead = claimLead;
+
+// ── Connect a Lead Source: per-agent personal lead URL (/lead/{token}) ──
+async function _ensureLeadToken(){
+  if (userProfile && userProfile.leadToken) return userProfile.leadToken;
+  var tok = 'lt_' + Math.random().toString(36).substring(2,8) + Math.random().toString(36).substring(2,8);
+  var aId = (userProfile && userProfile.agentId) || 'tom';
+  var tId = (userProfile && (userProfile.teamId || userProfile.agentId)) || aId;
+  try {
+    await fb.setDoc(fb.doc(fb.db,'lead_tokens',tok), {
+      agentId: aId, teamId: tId, name: ((userProfile&&userProfile.name)||''), createdAt: fb.serverTimestamp()
+    });
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), { leadToken: tok });
+    if (userProfile) userProfile.leadToken = tok;
+  } catch(e) { console.warn('lead token error', e); return ''; }
+  return tok;
+}
+async function revealLeadLink(){
+  var btn = document.getElementById('lead-link-btn');
+  if (btn){ btn.disabled = true; btn.textContent = 'Generating\u2026'; }
+  var tok = await _ensureLeadToken();
+  if (!tok){ if(btn){btn.disabled=false;btn.textContent='Show my lead link';} alert('Could not generate your lead link. Please try again.'); return; }
+  var urlEl = document.getElementById('lead-link-url');
+  if (urlEl) urlEl.value = PROXY_URL + '/lead/' + tok;
+  var wrap = document.getElementById('lead-link-wrap');
+  if (wrap) wrap.style.display = 'block';
+  if (btn) btn.style.display = 'none';
+}
+function copyLeadLink(){
+  var urlEl = document.getElementById('lead-link-url');
+  if (!urlEl) return;
+  urlEl.select();
+  var done = function(){ var c=document.getElementById('lead-link-copy'); if(c){var t=c.textContent;c.textContent='Copied!';setTimeout(function(){c.textContent=t;},1500);} };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(urlEl.value).then(done, function(){ try{document.execCommand('copy');}catch(_){} done(); }); }
+    else { document.execCommand('copy'); done(); }
+  } catch(e) { try{document.execCommand('copy');done();}catch(_){} }
+}
+window._ensureLeadToken = _ensureLeadToken;
+window.revealLeadLink = revealLeadLink;
+window.copyLeadLink = copyLeadLink;
 
 // ── New deal modal ──
 function openNewDealModal() {
