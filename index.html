@@ -5777,6 +5777,7 @@ async function loadTeamActivity() {
       dlSnap.forEach(function(d){
         var dd = d.data();
         if (dd.closed) return;
+        if (dd.agentId && dd.agentId !== a.id) return; // skip misfiled deals not actually owned by this agent
         var st = (typeof dealStatusFromStep === 'function') ? dealStatusFromStep(dd) : '';
         if (st === 'Pipeline') act.dealPipeline++;
         else if (st === 'Listed') act.dealListed++;
