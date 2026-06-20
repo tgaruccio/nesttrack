@@ -3056,6 +3056,15 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
+    <div id="lead-send-block" style="display:none;border-top:0.5px solid var(--border);padding-top:12px;margin-top:8px;">
+      <label class="flabel">Lead Routing</label>
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;"><input type="radio" name="lead-route" id="lr-keep" value="keep" checked onchange="invRouteChange()"><span style="font-size:13px;">Keep / assign normally</span></label>
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;"><input type="radio" name="lead-route" id="lr-team" value="team" onchange="invRouteChange()"><span style="font-size:13px;">Send to team to claim</span></label>
+      <div id="lr-mode-row" style="display:none;padding:6px 0 0 26px;">
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;"><input type="radio" name="lr-mode" id="lr-mode-blast" value="blast" checked><span style="font-size:13px;"><b>Blast</b> &#8212; everyone at once</span></label>
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;"><input type="radio" name="lr-mode" id="lr-mode-rr" value="roundrobin"><span style="font-size:13px;"><b>Round-robin</b> &#8212; one at a time</span></label>
+      </div>
+    </div>
     <div id="invite-result" style="display:none;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
       <button class="btn" onclick="closeM('invite-modal')">Cancel</button>
@@ -23461,25 +23470,26 @@ function renderLeadDistModal(){
     +'</label>';
   if (cfg.enabled) {
     html += '<div style="padding:14px 0;border-bottom:1px solid var(--border);">'
-      +'<div style="font-size:13px;font-weight:600;margin-bottom:10px;">How should leads go out?</div>'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:10px;">How should auto leads go out?</div>'
       +'<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer;"><input type="radio" name="ld-mode" '+(cfg.mode!=='roundrobin'?'checked':'')+' onchange="_leadDistCfg.mode=\'blast\';" style="margin-top:2px;"><span style="font-size:13px;"><b>Blast</b> \u2014 push to everyone at once, first to claim wins</span></label>'
       +'<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;"><input type="radio" name="ld-mode" '+(cfg.mode==='roundrobin'?'checked':'')+' onchange="_leadDistCfg.mode=\'roundrobin\';" style="margin-top:2px;"><span style="font-size:13px;"><b>Round-robin</b> \u2014 one agent at a time, 1 minute each, in turn</span></label>'
       +'</div>';
-    html += '<div style="padding:14px 0;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">Who\u2019s in the rotation?</div>'
-      +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Only checked agents receive leads. Leave yourself out if you don\u2019t take team leads.</div>';
-    if (!roster.length) {
-      html += '<div style="font-size:12px;color:var(--text3);">No team members yet.</div>';
-    } else {
-      roster.forEach(function(a){
-        var on = rotation.indexOf(a.id) !== -1;
-        html += '<label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
-          +'<span style="font-size:13px;">'+partnerEsc(a.name||a.id)+'</span>'
-          +'<input type="checkbox" '+(on?'checked':'')+' onchange="_toggleRotation(\''+a.id+'\',this.checked)" style="transform:scale(1.2);">'
-          +'</label>';
-      });
-    }
-    html += '</div>';
   }
+  // Rotation is ALWAYS shown — it defines who receives leads whether auto is on OR you push manually.
+  html += '<div style="padding:14px 0;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">Who\u2019s on the team to receive leads?</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">These agents get leads \u2014 whether you push one manually or auto-distribute is on. Leave yourself out if you don\u2019t take team leads.</div>';
+  if (!roster.length) {
+    html += '<div style="font-size:12px;color:var(--text3);">No team members yet.</div>';
+  } else {
+    roster.forEach(function(a){
+      var on = rotation.indexOf(a.id) !== -1;
+      html += '<label style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
+        +'<span style="font-size:13px;">'+partnerEsc(a.name||a.id)+'</span>'
+        +'<input type="checkbox" '+(on?'checked':'')+' onchange="_toggleRotation(\''+a.id+'\',this.checked)" style="transform:scale(1.2);">'
+        +'</label>';
+    });
+  }
+  html += '</div>';
   body.innerHTML = html;
 }
 function _toggleRotation(aid, on){
@@ -25646,6 +25656,12 @@ async function saveMortLAField(uid, field, value) {
 window.saveMortLAField = saveMortLAField;
 
 // ─── ADD CONTACT (no email sent) ───
+function invRouteChange(){
+  var team = !!((document.getElementById('lr-team')||{}).checked);
+  var row = document.getElementById('lr-mode-row');
+  if (row) row.style.display = team ? 'block' : 'none';
+}
+window.invRouteChange = invRouteChange;
 function openAddContactModal() {
   ['inv-first','inv-last','inv-email','inv-phone','inv-address','inv-segment'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.value = '';
@@ -25658,6 +25674,15 @@ function openAddContactModal() {
   var journeySel = document.getElementById('inv-journey');
   if (journeySel) journeySel.value = (isLender && !isAgent) ? 'mortgage' : 'buyer';
   var inviteAgents = isTeamLeader() ? _myTeamAgents() : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
+  // Lead routing block: only for a leader/owner who has team members
+  var _lsb = document.getElementById('lead-send-block');
+  if (_lsb) {
+    var _showRoute = isTeamLeader() && (typeof _hasTeamMembers==='function' && _hasTeamMembers());
+    _lsb.style.display = _showRoute ? 'block' : 'none';
+    var _lrk = document.getElementById('lr-keep'); if (_lrk) _lrk.checked = true;
+    var _lrm = document.getElementById('lr-mode-row'); if (_lrm) _lrm.style.display = 'none';
+    var _lrb = document.getElementById('lr-mode-blast'); if (_lrb) _lrb.checked = true;
+  }
   document.getElementById('inv-agent').innerHTML = inviteAgents.map(function(a){
     return '<option value="'+a.id+'"'+(a.id===userProfile.agentId?' selected':'')+'>'+a.name+'</option>';
   }).join('');
@@ -25706,6 +25731,36 @@ async function createContact() {
   if (isContactOnly && crmStatus === 'pipeline') crmStatus = 'contact';
   var resultEl = document.getElementById('invite-result');
   if (!first) { alert('First name is required.'); return; }
+
+  // ── SEND TO TEAM: hand the lead to the distribution engine instead of creating a client. ──
+  // The agent who CLAIMS it becomes the owner and the client doc is created then.
+  var _routeTeam = !!((document.getElementById('lr-team')||{}).checked) && isTeamLeader();
+  if (_routeTeam) {
+    var _mode = ((document.getElementById('lr-mode-rr')||{}).checked) ? 'roundrobin' : 'blast';
+    var _src = ((document.getElementById('inv-segment')||{}).value||'').trim() || 'Manual';
+    try {
+      var _r = await fetch(PROXY_URL, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Action':'distribute-lead'},
+        body: JSON.stringify({
+          firstName:first, lastName:last, email:email, phone:phone, address:address,
+          source:_src, notes:'',
+          teamId:(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom',
+          mode:_mode
+        })
+      });
+      var _j = await _r.json().catch(function(){ return {}; });
+      if (_r.ok && _j.ok) {
+        closeM('invite-modal');
+        alert('Lead sent to the team (' + (_mode==='roundrobin'?'round-robin':'blast') + '). First to claim wins.');
+      } else if ((_j.error||'').indexOf('rotation') !== -1) {
+        alert('No rotation set yet. Open Team \u2192 \u26A1 Lead Routing and pick which agents receive leads, then try again.');
+      } else {
+        alert('Could not send to team: ' + (_j.error || _j.reason || 'unknown error'));
+      }
+    } catch(e) { alert('Could not send to team: ' + (e && e.message)); }
+    return;
+  }
 
   // Generate a unique contact ID
   var contactId = 'contact_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
