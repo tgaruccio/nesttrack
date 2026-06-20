@@ -6260,13 +6260,15 @@ var _finAddCtx = null;
 var _finLedger = null;
 var _finPfx = '';
 var _finPlatform = false;
-function _finLedgerId(){ return _finLedger || (currentUser&&currentUser.uid); }
+function _finLedgerId(){ return (currentUser&&currentUser.uid); }
+function _finEntColName(){ return _finPlatform ? 'platformEntries' : 'entries'; }
+function _finCfgName(){ return _finPlatform ? 'platformConfig' : 'config'; }
 var FINANCE_INCOME_SEED = ['Mortgage Income','Rev Share','Title Share','Referral Fee'];
 var FINANCE_EXPENSE_SEED = ['Marketing','Transportation','Memberships & Dues','Software & Tools','Office & Supplies'];
 
-function _finCol(){ return fb.collection(fb.db,'finances',_finLedgerId(),'entries'); }
-function _finDoc(id){ return fb.doc(fb.db,'finances',_finLedgerId(),'entries',id); }
-function _finConfigDoc(){ return fb.doc(fb.db,'finances',_finLedgerId(),'meta','config'); }
+function _finCol(){ return fb.collection(fb.db,'finances',_finLedgerId(),_finEntColName()); }
+function _finDoc(id){ return fb.doc(fb.db,'finances',_finLedgerId(),_finEntColName(),id); }
+function _finConfigDoc(){ return fb.doc(fb.db,'finances',_finLedgerId(),'meta',_finCfgName()); }
 function _finFmt(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function _finDateShort(d){ try{ return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); }catch(e){ return d||''; } }
 function _finLeader(){ return (typeof isTeamLeader==='function' && isTeamLeader()); }
