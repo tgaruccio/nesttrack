@@ -5876,12 +5876,23 @@ window.toggleLbVisibility = toggleLbVisibility;
 
 window.loadTeamStats = loadTeamStats;
 
+// Write ONLY one agent's slice of the year doc (merge), so a member writing their own
+// numbers can never clobber teammates' data — and the security rule can permit it.
+async function _tsWriteSlice(year, agentId){
+  var p = {}; p[agentId] = _teamStatsData[agentId] || {};
+  await fb.setDoc(_tsYearRef(year), p, { merge:true });
+}
+// Write only the team _totals slice (leader/owner only).
+async function _tsWriteTotals(year){
+  await fb.setDoc(_tsYearRef(year), { _totals: _teamStatsData._totals || {} }, { merge:true });
+}
+
 async function saveTeamStatCell(agentId, field, value) {
   if (!_teamStatsData[agentId]) _teamStatsData[agentId] = {};
   var num = parseFloat(value.replace(/[^0-9.-]/g,'')) || 0;
   _teamStatsData[agentId][field] = num;
   try {
-    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
+    await _tsWriteSlice(_teamStatsYear, agentId);
   } catch(e){ console.log('saveTeamStatCell err:',e.message); }
   renderTeamStatsFinancials();
 }
@@ -5892,7 +5903,7 @@ async function saveTeamFinancials(field, value) {
   var num = parseFloat(value.replace(/[^0-9.-]/g,'')) || 0;
   _teamStatsData._totals[field] = num;
   try {
-    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
+    await _tsWriteTotals(_teamStatsYear);
   } catch(e){}
   renderTeamStatsFinancials();
 }
@@ -6292,7 +6303,7 @@ async function addSale(agentId) {
   _teamStatsData[agentId].volume = _teamStatsData[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
   _teamStatsData[agentId].units = _teamStatsData[agentId].sales.length;
   try {
-    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
+    await _tsWriteSlice(_teamStatsYear, agentId);
   } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddSalePanel(agentId, agentObj ? agentObj.name : agentId);
@@ -6375,7 +6386,7 @@ async function saveTeamAdjustment(field, value) {
   var num = parseFloat(String(value).replace(/[^0-9.-]/g,'')) || 0;
   _teamStatsData._totals.adjustments[field] = num;
   try {
-    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
+    await _tsWriteTotals(_teamStatsYear);
   } catch(e){}
   renderTeamStatsFinancials();
 }
@@ -6392,7 +6403,7 @@ async function addFinancialEntry(field) {
   if (!_teamStatsData._totals[field+'Log']) _teamStatsData._totals[field+'Log'] = [];
   _teamStatsData._totals[field+'Log'].push({amount:amount,date:Date.now()});
   _teamStatsData._totals[field] = _teamStatsData._totals[field+'Log'].reduce(function(s,e){ return s+(e.amount||0); },0);
-  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
+  try { await _tsWriteTotals(_teamStatsYear); } catch(e){}
   var labels = {mortgageIncome:'Mortgage Income',revShare:'Rev Share',expenses:'Team Expenses'};
   openAddFinancialPanel(field, labels[field]||field);
   renderTeamStatsFinancials();
@@ -6403,7 +6414,7 @@ async function deleteFinancialEntry(field, idx) {
   if (!_teamStatsData._totals||!_teamStatsData._totals[field+'Log']) return;
   _teamStatsData._totals[field+'Log'].splice(idx,1);
   _teamStatsData._totals[field] = _teamStatsData._totals[field+'Log'].reduce(function(s,e){ return s+(e.amount||0); },0);
-  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
+  try { await _tsWriteTotals(_teamStatsYear); } catch(e){}
   var labels = {mortgageIncome:'Mortgage Income',revShare:'Rev Share',expenses:'Team Expenses'};
   openAddFinancialPanel(field, labels[field]||field);
   renderTeamStatsFinancials();
@@ -6423,7 +6434,7 @@ async function addNetPay(agentId) {
   if (!_teamStatsData[agentId].netPayLog) _teamStatsData[agentId].netPayLog = [];
   _teamStatsData[agentId].netPayLog.push({amount:amount, address:address, date:Date.now()});
   _teamStatsData[agentId].netPay = _teamStatsData[agentId].netPayLog.reduce(function(s,p){ return s+(p.amount||0); },0);
-  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
+  try { await _tsWriteSlice(_teamStatsYear, agentId); } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddNetPayPanel(agentId, agentObj?agentObj.name:agentId);
   renderTeamStatsFinancials();
@@ -6434,7 +6445,7 @@ async function deleteNetPay(agentId, idx) {
   if (!_teamStatsData[agentId]||!_teamStatsData[agentId].netPayLog) return;
   _teamStatsData[agentId].netPayLog.splice(idx,1);
   _teamStatsData[agentId].netPay = _teamStatsData[agentId].netPayLog.reduce(function(s,p){ return s+(p.amount||0); },0);
-  try { await fb.setDoc(_tsYearRef(_teamStatsYear),_teamStatsData); } catch(e){}
+  try { await _tsWriteSlice(_teamStatsYear, agentId); } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddNetPayPanel(agentId, agentObj?agentObj.name:agentId);
   renderTeamStatsFinancials();
@@ -6449,7 +6460,7 @@ async function deleteSale(agentId, idx) {
   _teamStatsData[agentId].volume = _teamStatsData[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
   _teamStatsData[agentId].units = _teamStatsData[agentId].sales.length;
   try {
-    await fb.setDoc(_tsYearRef(_teamStatsYear), _teamStatsData);
+    await _tsWriteSlice(_teamStatsYear, agentId);
   } catch(e){}
   var agentObj = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentId; });
   openAddSalePanel(agentId, agentObj ? agentObj.name : agentId);
@@ -22647,8 +22658,7 @@ window.updateDealField = updateDealField;
 // ── Closed deal → leaderboard (one-time, flag-guarded, leader/owner-managed board) ──
 function offerDealToLeaderboard(deal){
   if (!deal || deal.lbExported) return;
-  var role = (userProfile && userProfile.teamRole) || '';
-  if (role !== 'leader' && role !== 'owner') return; // the board is a single leader-managed doc today
+  if (!userProfile || !userProfile.agentId) return; // any team agent can populate their own board slice now
   var existing = document.getElementById('deal-lb-modal'); if (existing) existing.remove();
   var html = '<div class="mo" id="deal-lb-modal" style="display:flex;"><div class="mbox" style="max-width:400px;">'
     +'<div class="mhdr"><div class="mtitle">\uD83C\uDF89 Deal closed</div><button class="xbtn" onclick="closeM(\'deal-lb-modal\')">&times;</button></div>'
@@ -22695,7 +22705,7 @@ async function confirmDealToLeaderboard(dealId){
   data[agentId].sales.push({ amount: amount, address: address, date: saleDate, fromDeal: dealId });
   data[agentId].volume = data[agentId].sales.reduce(function(s,x){ return s+(x.amount||0); }, 0);
   data[agentId].units = data[agentId].sales.length;
-  try { await fb.setDoc(ref, data); }
+  try { var _slice = {}; _slice[agentId] = data[agentId]; await fb.setDoc(ref, _slice, { merge:true }); }
   catch(e){ alert('Could not add to leaderboard: ' + (e && e.message)); return; }
   deal.lbExported = true;
   try { await fb.updateDoc(_dealDoc(dealId), { lbExported: true }); } catch(e){}
