@@ -3021,6 +3021,7 @@ textarea{resize:vertical;min-height:68px;}
     <div><label class="flabel">Email <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="email" id="inv-email" placeholder="sarah@email.com"/></div>
     <div><label class="flabel">Phone <span style="font-weight:400;color:var(--text3);">(optional)</span></label><input type="tel" id="inv-phone" placeholder="440-555-1234"/></div>
     <div><label class="flabel">Mailing Address <span style="font-weight:400;color:var(--text3);">(optional — current home address)</span></label><input type="text" id="inv-address" placeholder="123 Main St, Avon Lake OH"/></div>
+    <div><label class="flabel">Notes <span style="font-weight:400;color:var(--text3);">(what's this lead about — budget, area, timeline, source detail)</span></label><textarea id="inv-notes" rows="3" placeholder="e.g. Saw Zillow listing on Lake Rd, pre-approved ~$500K, wants to see this weekend" style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.5;resize:vertical;font-family:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);"></textarea></div>
     <div>
       <label class="flabel">Contact Type</label>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">
@@ -13184,7 +13185,7 @@ async function openBuyerDetail(uid, scrollTo) {
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
           <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
-          <div style="font-size:12px;color:var(--text2);">${b.email ? '<a href="mailto:'+b.email+'" style="color:var(--text2);text-decoration:none;">'+b.email+'</a>' : ''}${b.phone?' · '+b.phone:''}</div>
+          <div style="font-size:12px;color:var(--text2);">${b.email ? '<a href="mailto:'+b.email+'" style="color:var(--text2);text-decoration:none;">'+b.email+'</a>' : ''}${b.phone?' · <a href="tel:'+b.phone.replace(/[^0-9+]/g,'')+'" style="color:var(--text2);text-decoration:none;font-weight:600;">'+b.phone+'</a>':''}</div>
           ${b.email2 ? '<div style="font-size:12px;color:var(--text2);margin-top:1px;">+ <a href="mailto:'+b.email2+'" style="color:var(--text2);text-decoration:none;">'+b.email2+'</a></div>' : ''}
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
             <span style="font-size:12px;color:var(--text2);">📍</span>
@@ -23599,6 +23600,7 @@ async function claimLead(leadId){
     agentId:myId, coAgentId:myTeam, lenderId:'none',
     role:'buyer', journeyType:'buyer', crmStatus:'pipeline',
     segment:lead.source||'Team Lead', source:lead.source||'Team Lead', notes:lead.notes||'',
+    agentNotes:lead.notes||'', notesUpdatedAt:(lead.notes?Date.now():null),
     mailingAddress:lead.address||'',
     currentStep:0, currentSellerStep:0, portalAccess:false, isContact:true,
     followUp:true, followUpCadence:'hot', followUpLastTouch:today, followUpNextDue:nextDue,
@@ -23608,8 +23610,9 @@ async function claimLead(leadId){
   try {
     await fb.setDoc(fb.doc(fb.db,'users',contactId), clientDoc);
   } catch(e) { alert('Lead claimed, but could not create the client record: ' + (e && e.message)); return; }
-  alert((lead.firstName||'Lead') + ' is yours \u2014 added to your pipeline and your hot 3-day follow-up.');
   try { await loadBuyersForAgent(); renderBuyers(); } catch(e){}
+  // Jump straight into the new lead so the agent can act fast (tap the number to call).
+  try { await openBuyerDetail(contactId); } catch(e){}
 }
 window._watchClaimableLeads = _watchClaimableLeads;
 window.renderClaimBanner = renderClaimBanner;
@@ -25752,7 +25755,7 @@ function invRouteChange(){
 }
 window.invRouteChange = invRouteChange;
 function openAddContactModal() {
-  ['inv-first','inv-last','inv-email','inv-phone','inv-address','inv-segment'].forEach(function(id){
+  ['inv-first','inv-last','inv-email','inv-phone','inv-address','inv-segment','inv-notes'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.value = '';
   });
   var _invSegDl = document.getElementById('inv-segment-options');
@@ -25813,6 +25816,7 @@ async function createContact() {
   var email = document.getElementById('inv-email').value.trim();
   var phone = (document.getElementById('inv-phone')||{}).value || '';
   var address = (document.getElementById('inv-address')||{}).value || '';
+  var notes = ((document.getElementById('inv-notes')||{}).value || '').trim();
   var mailingAddress = address;
   var agentId = document.getElementById('inv-agent').value;
   var lenderId = document.getElementById('inv-lender').value || 'none';
@@ -25833,7 +25837,7 @@ async function createContact() {
         headers:{'Content-Type':'application/json','X-Action':'distribute-lead'},
         body: JSON.stringify({
           firstName:first, lastName:last, email:email, phone:phone, address:address,
-          source:_src, notes:'',
+          source:_src, notes:notes,
           teamId:(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom',
           mode:_mode
         })
@@ -25866,6 +25870,8 @@ async function createContact() {
     journeyType: journeyType,
     crmStatus: crmStatus,
     segment: ((document.getElementById('inv-segment')||{}).value||'').trim(),
+    agentNotes: notes || null,
+    notesUpdatedAt: notes ? Date.now() : null,
     currentStep: 0, currentSellerStep: 0,
     portalAccess: false,
     isContact: true,
