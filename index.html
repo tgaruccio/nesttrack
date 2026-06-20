@@ -11133,7 +11133,8 @@ function _adminRowHtml(a, nested){
     +'<div style="width:32px;height:32px;border-radius:50%;background:var(--green-lt);color:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0;">'+partnerEsc(String(a.name||'?').charAt(0).toUpperCase())+'</div>'
     +'<div style="flex:1;min-width:0;">'
       +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;"><span style="font-weight:600;font-size:13px;">'+partnerEsc(a.name||a.id)+'</span>'+_ownerRoleBadge(role)+(isSelf?'<span style="font-size:10px;color:var(--text3);">You</span>':'')+'</div>'
-      +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(a.email||'')+(usageHtml?(' \u00b7 '+usageHtml):'')+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(a.email?'<a href="mailto:'+partnerEsc(a.email)+'" style="color:var(--text3);text-decoration:none;">'+partnerEsc(a.email)+'</a>':'')+(a.phone?(' \u00b7 <a href="tel:'+partnerEsc(a.phone)+'" style="color:var(--text3);text-decoration:none;">'+partnerEsc(a.phone)+'</a>'):'')+'</div>'
+      +(usageHtml?'<div style="font-size:10.5px;color:var(--text3);margin-top:1px;">'+usageHtml+'</div>':'')
     +'</div>'
     +(canManage?'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:10.5px;font-weight:700;padding:6px 9px;flex-shrink:0;" onclick="enterManageAs(\''+a.id+'\')">Manage as</button>':'')
     +(!isSelf?'<button class="btn btn-sm" style="color:var(--red-dk);font-size:10.5px;padding:6px 8px;flex-shrink:0;" onclick="removeAgent(\''+a.id+'\')">Remove</button>':'')
@@ -11148,12 +11149,21 @@ function renderOwnerAdmin(){
   var self=agents.find(function(a){return a.id===myId;});
   var myMembers=agents.filter(function(a){return agentTeamRole(a)==='member' && agentTeamId(a)===myId;});
   var leaders=agents.filter(function(a){return agentTeamRole(a)==='leader' && a.id!==myId;});
+  var tab=window._adminTab||'people';
+
+  var totalAgents=agents.length;
+  var teamCount=leaders.length+1;
+  var WEEK=7*24*60*60*1000, now=Date.now(), activeWeek=0;
+  if(loaded){ agents.forEach(function(a){ var u=_ownerUsage[a.id]; if(u&&u.lastMs&&(now-u.lastMs)<WEEK) activeWeek++; }); }
+  var statStrip='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">'
+    +_adminStat(totalAgents,'Agents')+_adminStat(teamCount,teamCount===1?'Team':'Teams')
+    +_adminStat(loaded?activeWeek:'\u2014','Active 7d')+_adminStat(totalAgents,'Seats')+'</div>';
+
+  function tb(id,label){ var on=tab===id; return '<button onclick="adminTab(\''+id+'\')" style="flex:1;padding:10px 6px;font-size:12.5px;font-weight:'+(on?'700':'500')+';background:'+(on?'var(--surface)':'transparent')+';color:'+(on?'var(--text)':'var(--text3)')+';border:none;border-bottom:2px solid '+(on?'var(--green)':'transparent')+';cursor:pointer;">'+label+'</button>'; }
+  var tabs='<div style="display:flex;background:var(--surface2);border-radius:10px;overflow:hidden;margin-top:4px;">'+tb('people','People')+tb('billing','Billing')+tb('compliance','Compliance')+'</div>';
 
   var yourTeam='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:6px 0 6px;">Your Team</div>'
-    +'<div style="display:flex;flex-direction:column;gap:6px;">'
-    +(self?_adminRowHtml(self,false):'')
-    +myMembers.map(function(a){return _adminRowHtml(a,true);}).join('')
-    +'</div>'
+    +'<div style="display:flex;flex-direction:column;gap:6px;">'+(self?_adminRowHtml(self,false):'')+myMembers.map(function(a){return _adminRowHtml(a,true);}).join('')+'</div>'
     +'<button class="btn btn-sm" style="margin:8px 0 4px;font-size:11px;" onclick="adminAddMemberTo(\''+myId+'\')">\u2795 Add member to your team</button>';
 
   var leadersHtml='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:16px 0 6px;border-top:1px solid var(--border);padding-top:14px;">Team Leaders ('+leaders.length+')</div>';
@@ -11162,10 +11172,14 @@ function renderOwnerAdmin(){
     leadersHtml+=leaders.map(function(L){
       var lMembers=agents.filter(function(a){return agentTeamRole(a)==='member' && agentTeamId(a)===L.id;});
       var lfirst=partnerEsc(String(L.name||'').split(' ')[0]||'team');
+      var lcontact=partnerEsc(L.email||'')+(L.phone?(' \u00b7 '+partnerEsc(L.phone)):'');
       return '<div class="admin-grp" style="margin-bottom:8px;">'
         +'<div class="admin-node" data-search="'+partnerEsc(String((L.name||'')+' '+(L.email||'')).toLowerCase())+'" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:10px 12px;border-radius:8px;">'
           +'<span id="adlarr-'+L.id+'" onclick="adminToggleLeader(\''+L.id+'\')" style="cursor:pointer;font-size:11px;color:var(--text3);width:12px;flex-shrink:0;">\u25B8</span>'
-          +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="adminToggleLeader(\''+L.id+'\')"><span style="font-weight:600;font-size:13px;">'+partnerEsc(L.name||L.id)+'</span> '+_ownerRoleBadge('leader')+' <span style="font-size:11px;color:var(--text3);">'+lMembers.length+' member'+(lMembers.length===1?'':'s')+'</span></div>'
+          +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="adminToggleLeader(\''+L.id+'\')">'
+            +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;"><span style="font-weight:600;font-size:13px;">'+partnerEsc(L.name||L.id)+'</span> '+_ownerRoleBadge('leader')+' <span style="font-size:11px;color:var(--text3);">'+lMembers.length+' member'+(lMembers.length===1?'':'s')+'</span></div>'
+            +(lcontact?'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+lcontact+'</div>':'')
+          +'</div>'
           +'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:10.5px;font-weight:700;padding:6px 9px;flex-shrink:0;" onclick="enterManageAs(\''+L.id+'\')">Manage as</button>'
           +'<button class="btn btn-sm" style="color:var(--red-dk);font-size:10.5px;padding:6px 8px;flex-shrink:0;" onclick="removeAgent(\''+L.id+'\')">Remove</button>'
         +'</div>'
@@ -11177,18 +11191,48 @@ function renderOwnerAdmin(){
     }).join('');
   }
 
-  panel.innerHTML=
-    '<div class="card" style="padding:16px;"><div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div><div style="font-size:12.5px;color:var(--text3);">Your whole platform \u2014 leaders, their teams, and billing.</div></div>'
-    +'<div style="display:flex;gap:8px;">'
+  var peopleTab='<div id="admintab-people" style="display:'+(tab==='people'?'block':'none')+';">'
+    +'<div style="display:flex;gap:8px;margin-top:12px;">'
       +'<button class="btn" style="flex:1;" onclick="adminInviteLeader()">\u2795 Invite Team Leader</button>'
       +'<button class="btn" id="owner-usage-btn" style="flex:1;background:var(--surface2);color:var(--text2);" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
     +'</div>'
-    +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;margin-top:4px;"/>'
+    +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;margin-top:8px;"/>'
     +'<div id="admin-tree">'+yourTeam+leadersHtml+'</div>'
-    +'<div class="card" style="padding:16px;margin-top:8px;"><div style="font-size:14px;font-weight:700;margin-bottom:4px;">\uD83D\uDCB3 Billing</div><div style="font-size:12.5px;color:var(--text3);line-height:1.5;">Per-seat billing by team lands here \u2014 you\u2019ll bill each leader/brokerage for their seats (leader + members). Stripe is the next milestone.</div></div>';
+  +'</div>';
 
-  if(window._adminQ){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
+  var billingTab='<div id="admintab-billing" style="display:'+(tab==='billing'?'block':'none')+';padding-top:14px;">'
+    +'<div class="card" style="padding:16px;">'
+      +'<div style="font-size:14px;font-weight:700;margin-bottom:4px;">\uD83D\uDCB3 Seats &amp; Billing</div>'
+      +'<div style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:12px;">Per-seat billing by team \u2014 each leader/brokerage is billed for their seats (leader + members). Stripe is the next milestone.</div>'
+      +'<div style="display:flex;flex-direction:column;gap:6px;">'
+        +'<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:8px 10px;background:var(--surface2);border-radius:8px;"><span>Your team</span><span style="font-weight:700;">'+(myMembers.length+1)+' seat'+((myMembers.length+1)===1?'':'s')+'</span></div>'
+        +leaders.map(function(L){ var n=agents.filter(function(a){return agentTeamRole(a)==='member'&&agentTeamId(a)===L.id;}).length+1; return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:8px 10px;background:var(--surface2);border-radius:8px;"><span>'+partnerEsc(L.name||L.id)+'\u2019s team</span><span style="font-weight:700;">'+n+' seat'+(n===1?'':'s')+'</span></div>'; }).join('')
+        +'<div style="display:flex;justify-content:space-between;font-size:13px;padding:10px;border-top:1px solid var(--border);margin-top:4px;"><span style="font-weight:700;">Total seats</span><span style="font-weight:700;color:var(--green);">'+totalAgents+'</span></div>'
+      +'</div>'
+    +'</div>'
+  +'</div>';
+
+  var complianceTab='<div id="admintab-compliance" style="display:'+(tab==='compliance'?'block':'none')+';padding-top:14px;">'
+    +'<div class="card" style="padding:20px;text-align:center;color:var(--text3);">'
+      +'<div style="font-size:30px;margin-bottom:8px;">\uD83D\uDEE1\uFE0F</div>'
+      +'<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:4px;">Compliance &amp; Brokerage Oversight</div>'
+      +'<div style="font-size:12.5px;line-height:1.5;">Document approval, compliance review, and brokerage-level oversight land here once the brokerage tier is added.</div>'
+    +'</div>'
+  +'</div>';
+
+  panel.innerHTML=
+    '<div class="card" style="padding:16px;"><div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div><div style="font-size:12.5px;color:var(--text3);">Your whole platform \u2014 people, seats, and oversight.</div></div>'
+    +statStrip+tabs+peopleTab+billingTab+complianceTab;
+
+  if(window._adminQ && tab==='people'){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
 }
+function _adminStat(val,label){
+  return '<div style="flex:1;min-width:70px;background:var(--surface2);border-radius:10px;padding:12px 8px;text-align:center;">'
+    +'<div style="font-size:22px;font-weight:800;color:var(--green);line-height:1;">'+val+'</div>'
+    +'<div style="font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-top:4px;">'+label+'</div></div>';
+}
+function adminTab(name){ window._adminTab=name; renderOwnerAdmin(); }
+window.adminTab=adminTab; window._adminStat=_adminStat;
 function adminToggleLeader(id){ var el=document.getElementById('admem-'+id); var ar=document.getElementById('adlarr-'+id); if(!el)return; var open=el.style.display==='none'||!el.style.display; el.style.display=open?'flex':'none'; if(ar)ar.textContent=open?'\u25BE':'\u25B8'; }
 function adminFilter(q){
   window._adminQ=q; q=(q||'').trim().toLowerCase();
@@ -11295,8 +11339,8 @@ async function ownerLoadUsage(){
       var snap=await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('agentId','==',a.id)));
       var clients=0,last=null;
       snap.forEach(function(d){ var x=d.data(); if(x.isContact){ clients++; var t=x.lastActive; if(t&&t.toMillis){ var ms=t.toMillis(); if(!last||ms>last)last=ms; } } });
-      _ownerUsage[a.id]={ clients:clients, last:last?_ownerAgo(last):'' };
-    }catch(e){ _ownerUsage[a.id]={ clients:0, last:'' }; }
+      _ownerUsage[a.id]={ clients:clients, last:last?_ownerAgo(last):'', lastMs:last||0 };
+    }catch(e){ _ownerUsage[a.id]={ clients:0, last:'', lastMs:0 }; }
   }
   renderOwnerAdmin();
 }
