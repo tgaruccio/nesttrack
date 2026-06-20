@@ -5465,8 +5465,8 @@ function renderAgentProfileEditor() {
 
   const box = document.getElementById('agent-profile-editor');
   if (!box) return;
-  box.style.display = isAgent ? 'flex' : 'none';
-  if (!isAgent) return;
+  box.style.display = (isAgent || isLender) ? 'flex' : 'none';
+  if (!isAgent && !isLender) return;
   const a = currentAgent();
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
   set('ap-photo', a.photoUrl || a.photo);
@@ -5627,7 +5627,7 @@ function resizeImageToDataUrl(file, maxSize, quality) {
 }
 
 async function saveAgentProfile() {
-  if (!isAgent) return;
+  if (!isAgent && !isLender) return;
   const data = {
     role: 'agent',
     agentId: userProfile.agentId || currentAgent().id || 'tom',
@@ -5657,6 +5657,22 @@ async function saveAgentProfile() {
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', _profileUid()), data);
     userProfile = { ...userProfile, ...data };
+    // Lender: mirror apply link / contact onto the shared lender record so the agents on this
+    // lender's deals resolve client-facing mortgage branding to THIS lender (not a hardcoded default).
+    if (isLender && userProfile.lenderId) {
+      var _lname = (((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()) || userProfile.name || '';
+      var _lrec = { teamId: userProfile.teamId || userProfile.lenderId };
+      if (data.preApprovalLink) _lrec.applyLink = data.preApprovalLink;
+      if (userProfile.email) _lrec.email = userProfile.email;
+      if (_lname) _lrec.name = _lname;
+      if (userProfile.phone) _lrec.phone = userProfile.phone;
+      try { await fb.setDoc(fb.doc(fb.db,'team_lenders', userProfile.lenderId), _lrec, { merge:true }); } catch(le){}
+      if (typeof DEFAULT_LENDERS!=='undefined') {
+        var _li = DEFAULT_LENDERS.findIndex(function(l){ return l.id===userProfile.lenderId; });
+        if (_li>=0) DEFAULT_LENDERS[_li] = Object.assign({}, DEFAULT_LENDERS[_li], _lrec);
+        else DEFAULT_LENDERS.push(Object.assign({id:userProfile.lenderId}, _lrec));
+      }
+    }
     await loadAssignedAgentProfile();
     updateAgentRefs();
     renderYourAgent(); renderYourLender(); renderYourTitleCo();
@@ -8146,12 +8162,27 @@ function agentReplyTo() {
   return (userProfile&&userProfile.email) || null;
 }
 // ── White-label resolvers: resolve branding for the active/assigned agent, never hardcoded to Tom. ──
+// The team's default lender. Tom's original team keeps Tom in-house; other teams resolve to their own
+// rostered lender (a single rostered lender becomes the default) or none.
+function _teamDefaultLender(){
+  var team = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  if (team === 'tom') return 'tom';
+  var teamLs = (typeof DEFAULT_LENDERS!=='undefined' ? DEFAULT_LENDERS : []).filter(function(l){ return l.teamId === team; });
+  if (teamLs.length === 1) return teamLs[0].id;
+  return '';
+}
+window._teamDefaultLender = _teamDefaultLender;
 function agentPreApproval(rec){
-  var l = (rec && rec.preApprovalLink) || (userProfile && userProfile.preApprovalLink)
-        || (typeof currentAgent==='function' && currentAgent() && currentAgent().preApprovalLink) || '';
-  // Tom keeps his existing link with zero setup; every other agent uses their own (blank until they set it).
-  if (!l && userProfile && userProfile.agentId === 'tom') l = 'https://1660690.my1003app.com/2784866/register';
-  return l;
+  // The pre-approval link belongs to the LENDER. Resolve the active lender, then their apply link.
+  var lid = (userProfile && userProfile.lenderId) || _teamDefaultLender();
+  var link = '';
+  if (lid && lid !== 'none') {
+    var lender = (typeof DEFAULT_LENDERS!=='undefined' ? DEFAULT_LENDERS : []).find(function(l){ return l.id === lid; });
+    link = (lender && lender.applyLink) || '';
+  }
+  // Fallback: an agent who set their own link directly (no formal lender account).
+  if (!link) link = (rec && rec.preApprovalLink) || (userProfile && userProfile.preApprovalLink) || '';
+  return link;
 }
 window.agentPreApproval = agentPreApproval;
 function agentBrandPhone(rec){
