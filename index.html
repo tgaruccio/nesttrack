@@ -3917,6 +3917,7 @@ function _firebaseInit() {
   fb.onAuthStateChanged(fb.auth, async user => {
     if (user) {
       currentUser = user;
+      if (window._signupInProgress) return;
       await loadUserProfile();
       showApp();
     } else {
@@ -4012,6 +4013,7 @@ async function signUp() {
   if (!invite && !window._agentInviteCode) { err.textContent = 'Nest Track is invite-only. Ask your agent for an invite link to set up your account.'; err.style.display = 'block'; return; }
 
   try {
+    window._signupInProgress = true;
     const cred = await fb.createUserWithEmailAndPassword(fb.auth, email, pass);
     const selectedAgent = document.getElementById('su-agent').value || 'tom';
     let agentId = selectedAgent;
@@ -4106,16 +4108,6 @@ async function signUp() {
       newProfile.currentStep = 0;
     }
 
-    if (window._agentInviteCode) {
-      alert('SIGNUP DEBUG\ninvite code: ' + window._agentInviteCode
-        + '\ninvite doc found: ' + (agentInviteData ? 'YES' : 'NO')
-        + '\ninvite.teamRole: ' + (agentInviteData && agentInviteData.teamRole)
-        + '\ninvite.agentId: ' + (agentInviteData && agentInviteData.agentId)
-        + '\n→ final role: ' + newProfile.role
-        + '\n→ final teamRole: ' + newProfile.teamRole
-        + '\n→ final teamId: ' + newProfile.teamId);
-    }
-
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), newProfile);
 
     // Mark invite as used
@@ -4148,7 +4140,13 @@ async function signUp() {
       });
     } catch(x) { console.log('Pending cleanup:', x); }
 
+    // Doc is now written correctly (role/teamRole/teamId). Reload so it loads
+    // cleanly with no signup race — onAuthStateChanged will route to the right view.
+    window._signupInProgress = false;
+    location.reload();
+
   } catch (e) {
+    window._signupInProgress = false;
     err.textContent = e.code === 'auth/email-already-in-use'
       ? 'An account with this email already exists. Use the Sign In tab instead.'
       : (e.message || 'Sign-up failed');
