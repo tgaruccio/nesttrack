@@ -13322,19 +13322,10 @@ async function openBuyerDetail(uid, scrollTo) {
         ${bProps.length?`<div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Saved Properties (${bProps.length})</div><div style="display:flex;flex-direction:column;gap:6px;">${bProps.slice(0,5).map(p=>`<div style="background:var(--surface2);padding:9px 11px;border-radius:6px;font-size:12.5px;"><div style="display:flex;justify-content:space-between;gap:8px;"><strong>${p.address.split(',')[0]}</strong><span>${'\u2605'.repeat(p.rating||0)}${'\u2606'.repeat(5-(p.rating||0))}</span></div><div style="color:var(--text2);font-size:11.5px;">${p.price} &middot; ${(p.tags||[]).map(t=>tl(t)).join(', ')||'no tags'}</div></div>`).join('')}</div></div>`:''}
       </div>
     </details>
-    <details ${b.docFolderUrl?'open':''} style="border-bottom:1px solid var(--border);">
-      <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;">Documents<span style="font-size:10px;color:var(--text3);">${b.docFolderUrl?b.docFolderName||'Drive folder linked':'No folder yet'}</span></summary>
-      <div style="display:flex;flex-direction:column;gap:6px;padding:10px 0 14px;">
-        <input type="text" id="bd-docs" placeholder="Paste Google Drive folder URL..." value="${b.docFolderUrl||''}" style="font-size:13px;"/>
-        <input type="text" id="bd-docs-name" placeholder="Folder display name (optional)" value="${b.docFolderName||''}" style="font-size:13px;"/>
-        <button class="btn btn-sm btn-g" onclick="setBuyerDocs('${uid}')">Save Folder Link</button>
-      </div>
-    </details>
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:14px;">
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
       <button class="btn" onclick="todoAddForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">＋ Task</button>
       <button class="btn" onclick="openApptModalForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">📅 Appt</button>
-      <button class="btn" onclick="aiBuyerSummary('${uid}')">AI Summary</button>
       <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
     </div>
     <details style="margin-top:12px;">
@@ -13346,7 +13337,6 @@ async function openBuyerDetail(uid, scrollTo) {
         <div style="font-size:12px;color:var(--text3);font-style:italic;">Loading...</div>
       </div>
     </details>
-    <div id="bd-summary" style="display:none;"></div>
     </div>
 `;
   document.getElementById('buyer-modal').style.display = 'flex';
@@ -18645,6 +18635,9 @@ async function _commitAppt(appt, sendEmail) {
     alert('Failed to save appointment: '+e.message);
     return;
   }
+
+  // Log the appointment to the client's Communications history
+  try { if (appt.clientUid) logEmailActivity(appt.clientUid, appt.type + ' \u2014 ' + appt.dateStr + (appt.timeStr ? (' at ' + appt.timeStr) : ''), 'appointment'); } catch(e){}
 
   // 2. Add to To-Do list
   try {
