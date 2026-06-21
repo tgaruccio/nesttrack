@@ -4368,7 +4368,7 @@ async function loadUserProfile() {
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
       // Find assigned lender
-      var lenderId = userProfile.lenderId || 'tom';
+      var lenderId = userProfile.lenderId || _teamDefaultLender();
       assignedLender = DEFAULT_LENDERS.find(a => a.id === lenderId) || DEFAULT_LENDERS[0];
       // Update last active + persist team identity so security rules can read it
       var _laPatch = { lastActive: fb.serverTimestamp() };
@@ -4455,9 +4455,9 @@ async function loadAssignedAgentProfile() {
     ));
     qs.forEach(d => { assignedAgent = normalizeAgent({ ...assignedAgent, ...d.data(), uid: d.id }); });
     // Also load lender profile — find lender by lenderId or default to tom
-    var buyerLenderId = userProfile.lenderId || 'tom';
-    var lenderBase = DEFAULT_LENDERS.find(function(l){ return l.id === buyerLenderId; }) || DEFAULT_LENDERS[0];
-    assignedLender = Object.assign({}, lenderBase);
+    var buyerLenderId = userProfile.lenderId || _teamDefaultLender();
+    var lenderBase = buyerLenderId ? (DEFAULT_LENDERS.find(function(l){ return l.id === buyerLenderId; }) || null) : null;
+    assignedLender = lenderBase ? Object.assign({}, lenderBase) : null;
     try {
       var lqs = await fb.getDocs(fb.query(
         fb.collection(fb.db, 'users'),
@@ -5707,6 +5707,11 @@ async function saveAgentProfile() {
       if (userProfile.email) _lrec.email = userProfile.email;
       if (_lname) _lrec.name = _lname;
       if (userProfile.phone) _lrec.phone = userProfile.phone;
+      // Photo/bio/calendly live on the lender's user doc (which clients can't read), so mirror them
+      // onto the client-readable team_lenders record — this is what makes a standalone lender's card populate.
+      if (userProfile.photoUrl) _lrec.photoUrl = userProfile.photoUrl;
+      if (userProfile.bio) _lrec.bio = userProfile.bio;
+      if (userProfile.calendly) _lrec.calendly = userProfile.calendly;
       try { await fb.setDoc(fb.doc(fb.db,'team_lenders', userProfile.lenderId), _lrec, { merge:true }); } catch(le){}
       if (typeof DEFAULT_LENDERS!=='undefined') {
         var _li = DEFAULT_LENDERS.findIndex(function(l){ return l.id===userProfile.lenderId; });
@@ -7053,14 +7058,14 @@ function renderYourLender() {
   var card = document.getElementById('your-lender-card');
   var section = document.getElementById('your-lender-section');
   if (!card) return;
-  var lenderId = (userProfile && userProfile.lenderId) || 'tom';
-  if (lenderId === 'none') {
+  var lenderId = (userProfile && userProfile.lenderId) || _teamDefaultLender();
+  if (!lenderId || lenderId === 'none') {
     if (section) section.style.display = 'none';
     return;
   }
   if (section) section.style.display = 'block';
-  var l = assignedLender || DEFAULT_LENDERS[0];
-  if (!l) { card.innerHTML = '<div style="color:var(--text3);font-size:13px;">No lender assigned yet.</div>'; return; }
+  var l = (DEFAULT_LENDERS.find(function(x){return x.id===lenderId;}) || assignedLender || null);
+  if (!l) { if (section) section.style.display = 'none'; return; }
   var initials = (l.name||'TG').split(' ').map(function(x){return x[0]||'';}).join('').substring(0,2).toUpperCase();
   var photo = l.photoUrl
     ? '<img class="agent-photo" src="'+l.photoUrl+'" alt="'+l.name+'"/>'
@@ -11073,7 +11078,7 @@ async function loadBuyersForAgent() {
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'));
     } else if (isLender && !isAgent) {
       // Pure lender — see only their assigned clients
-      var lid = userProfile.lenderId || 'tom';
+      var lid = userProfile.lenderId || _teamDefaultLender();
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'), fb.where('lenderId', '==', lid));
     } else {
       // Normal mode: only clients explicitly assigned to this agent
@@ -11118,7 +11123,7 @@ async function loadBuyersForAgent() {
     // Also load clients where this user is assigned as lender/mortgage LO
     if (isLender && !(isOwner() && _adminShowAll)) {
       try {
-        var lenderId = userProfile.lenderId || 'tom';
+        var lenderId = userProfile.lenderId || _teamDefaultLender();
         var lQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('lenderId','==',lenderId));
         var lSnap = await fb.getDocs(lQ);
         lSnap.forEach(d => {
@@ -11133,7 +11138,7 @@ async function loadBuyersForAgent() {
       if (isOwner() && _adminShowAll) return true;
       return b.agentId === userProfile.agentId
         || b.coAgentId === userProfile.agentId
-        || (isLender && b.lenderId === (userProfile.lenderId || 'tom'));
+        || (isLender && b.lenderId === (userProfile.lenderId || _teamDefaultLender()));
     });
   } catch(e) { console.error('loadBuyers', e); }
 }
@@ -11545,7 +11550,7 @@ function renderOwnerAdmin(){
   var peopleTab='<div id="admintab-people" style="display:'+(tab==='people'?'block':'none')+';">'
     +'<div style="display:flex;gap:8px;margin-top:14px;">'
       +'<button class="apx-btn apx-btn-primary" style="flex:1;" onclick="adminInviteLeader()">\u2795 Team Leader</button>'
-      +'<button class="apx-btn apx-btn-blue" style="flex:1;" onclick="adminInviteOwnerLender()">\uD83C\uDFE6 Owner-Lender</button>'
+      +'<button class="apx-btn apx-btn-blue" style="flex:1;" onclick="adminInviteOwnerLender()">\uD83C\uDFE6 Add Lender</button>'
     +'</div>'
     +'<button class="apx-btn apx-btn-ghost" id="owner-usage-btn" style="width:100%;margin-top:8px;" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
     +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13.5px;padding:12px 14px;border:1.5px solid #e6e9ef;border-radius:12px;font-family:inherit;margin-top:10px;background:#fbfcfe;outline:none;"/>'
@@ -13627,7 +13632,7 @@ async function openBuyerDetail(uid, scrollTo) {
         <div style="border-top:1px solid var(--border);padding-top:12px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:5px;">Assigned Lender</div>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-lender" style="max-width:220px;font-size:13px;"><option value="none" ${(b.lenderId||'tom')==='none'?'selected':''}>-- No Lender --</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||'tom')?'selected':''}>${l.name}${l.role?' - '+l.role:''}</option>`).join('')}</select>
+            <select id="bd-lender" style="max-width:220px;font-size:13px;"><option value="none" ${(b.lenderId||_teamDefaultLender())==='none'?'selected':''}>-- No Lender --</option>${DEFAULT_LENDERS.map(l=>`<option value="${l.id}" ${l.id===(b.lenderId||_teamDefaultLender())?'selected':''}>${l.name}${l.role?' - '+l.role:''}</option>`).join('')}</select>
             <button class="btn btn-sm" onclick="setBuyerLender('${uid}')">Reassign</button>
           </div>
         </div>
@@ -14590,13 +14595,24 @@ window.addLenderAndInvite = addLenderAndInvite;
 
 // ── Admin: provision an OWNER-LENDER (heads their own team; agents join them) ──
 function adminInviteOwnerLender(){
-  _adminModal('\uD83C\uDFE6 Invite Owner-Lender',
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">They get their <b>own</b> team and become its owner \u2014 they invite their own agents, who then send them deals. The sponsored-lender model. Nothing here touches your team.</div>'
+  var leaders=(DEFAULT_AGENTS||[]).filter(function(a){return agentTeamRole(a)==='leader';});
+  var myId=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+  var opts='<option value="'+myId+'">Your team</option>'+leaders.map(function(L){return '<option value="'+L.id+'">'+partnerEsc(L.name||L.id)+'\u2019s team</option>';}).join('');
+  _adminModal('\uD83C\uDFE6 Add Lender',
+    '<label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;background:#EAF2FB;border:1px solid #B9D4EE;border-radius:12px;padding:10px 12px;cursor:pointer;">'
+      +'<input type="checkbox" id="aflm-owner" checked onchange="var r=document.getElementById(\'aflm-teamrow\'); if(r) r.style.display=this.checked?\'none\':\'block\';" style="width:18px;height:18px;margin-top:1px;cursor:pointer;"/>'
+      +'<div><div style="font-size:13px;font-weight:600;color:#185FA5;">Owns their own team (sponsors agents)</div>'
+      +'<div style="font-size:11px;color:#185FA5;opacity:0.85;">Uncheck to add them as a lender on an existing team instead.</div></div>'
+    +'</label>'
+    +'<div id="aflm-teamrow" style="display:none;">'
+      +'<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Add to which team</label>'
+      +'<select id="aflm-team" style="width:100%;box-sizing:border-box;font-size:14px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 12px;">'+opts+'</select>'
+    +'</div>'
     +_adminField('Name','aflm-name','name')
     +_adminField('Email','aflm-email','email')
     +_adminField('Phone (optional)','aflm-phone','tel')
     +_adminField('Apply / Pre-Approval Link (optional)','aflm-applylink','url')
-    +'<button class="apx-btn apx-btn-blue" style="width:100%;margin-top:6px;" onclick="adminSubmitOwnerLender()">Send Owner-Lender Invite \u2192</button>'
+    +'<button class="apx-btn apx-btn-blue" style="width:100%;margin-top:6px;" onclick="adminSubmitOwnerLender()">Send Lender Invite \u2192</button>'
   );
 }
 async function adminSubmitOwnerLender(){
@@ -14607,7 +14623,12 @@ async function adminSubmitOwnerLender(){
   if(!name||!email){ alert('Name and email are required.'); return; }
   var id='lndr_'+name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12)+'_'+Date.now().toString(36);
   if((DEFAULT_LENDERS||[]).find(function(l){ return l.email && l.email.toLowerCase()===email.toLowerCase(); })){ alert('A lender with that email already exists.'); return; }
-  var lenderData={ id:id, name:name, role:'Licensed Mortgage Professional', phone:phone, email:email, applyLink:applyLink, teamId:id, teamRole:'owner', addedAt:new Date().toISOString() };
+  // Owns own team (default) vs joins an existing team as that team's lender.
+  var _ownChk=document.getElementById('aflm-owner');
+  var owns = !_ownChk || _ownChk.checked;
+  var teamId = owns ? id : (((document.getElementById('aflm-team')||{}).value) || ((userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'));
+  var teamRole = owns ? 'owner' : 'member';
+  var lenderData={ id:id, name:name, role:'Licensed Mortgage Professional', phone:phone, email:email, applyLink:applyLink, teamId:teamId, teamRole:teamRole, addedAt:new Date().toISOString() };
   try { await fb.setDoc(fb.doc(fb.db,'team_lenders',id), lenderData); }
   catch(e){ alert('Failed to save lender: '+e.message); return; }
   if(typeof DEFAULT_LENDERS!=='undefined') DEFAULT_LENDERS.push(lenderData);
@@ -14616,7 +14637,7 @@ async function adminSubmitOwnerLender(){
   try {
     await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
       name:name, email:email.toLowerCase(), code:code, role:'lender', lenderId:id,
-      teamRole:'owner', teamId:id, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false
+      teamRole:teamRole, teamId:teamId, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false
     });
   } catch(e){ console.log('ownerLenderInvite store failed:', e.message); }
   var first=name.split(' ')[0];
@@ -14627,19 +14648,19 @@ async function adminSubmitOwnerLender(){
     +'</div>'
     +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
-    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to run your own team on Nest Track as a mortgage professional. Invite your agents, get wired into their deals as their lender, and track every client through closing.</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">'+(owns?'You\'ve been invited to run your own team on Nest Track as a mortgage professional. Invite your agents, get wired into their deals as their lender, and track every client through closing.':'You\'ve been invited to join Nest Track as a mortgage professional. Stay in sync with your agents on every deal and track each client through closing.')+'</p>'
     +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account and your team.</p>'
-    +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#185FA5;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Lender Team \u2192</a></div>'
+    +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#185FA5;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">'+(owns?'Set Up My Lender Team':'Set Up My Lender Account')+' \u2192</a></div>'
     +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
     +'</div></div>';
-  var subject = first + ', your Nest Track lender team is ready';
+  var subject = first + (owns?', your Nest Track lender team is ready':', your Nest Track lender account is ready');
   _adminCloseModal();
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue){
     try {
       var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
       var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
-      alert(name + ' invited as an owner-lender. Sign-up link sent to ' + email + '!');
+      alert(name + (owns?' invited as an owner-lender.':' invited as a team lender.') + ' Sign-up link sent to ' + email + '!');
     } catch(e){ alert('Lender added but invite email failed: ' + e.message); }
   });
   if(typeof renderOwnerAdmin==='function') renderOwnerAdmin();
@@ -26333,7 +26354,7 @@ function openAddContactModal() {
   var invLenderSel = document.getElementById('inv-lender');
   if (invLenderSel) {
     invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){
-      return '<option value="'+l.id+'"'+(l.id===(userProfile.lenderId||'tom')&&isLender?' selected':'')+'>'+l.name+(l.role?' — '+l.role:'')+'</option>';
+      return '<option value="'+l.id+'"'+(l.id===(userProfile.lenderId||_teamDefaultLender())&&isLender?' selected':'')+'>'+l.name+(l.role?' — '+l.role:'')+'</option>';
     }).join('');
   }
   document.getElementById('invite-result').style.display = 'none';
