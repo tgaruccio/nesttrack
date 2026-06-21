@@ -7211,6 +7211,10 @@ async function showApp() {
     }, 100);
     setTimeout(function(){
       if (typeof _loadBillTiers==='function') _loadBillTiers();
+      if (typeof isPlatformOwner==='function' && isPlatformOwner() && userProfile && !userProfile.platformOwner && currentUser && currentUser.uid){
+        userProfile.platformOwner = true;
+        try { fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { platformOwner: true }, {merge:true}); } catch(e){}
+      }
       if (typeof _ensureTrialStarted==='function') {
         Promise.resolve(_ensureTrialStarted()).then(function(){ if (typeof _applyBillingGate==='function') _applyBillingGate(); });
       } else if (typeof _applyBillingGate==='function') { _applyBillingGate(); }
