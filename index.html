@@ -3156,6 +3156,13 @@ textarea{resize:vertical;min-height:68px;}
         <div><label class="flabel">Email</label><input type="email" id="tl-email"/></div>
         <div><label class="flabel">Company <span style="font-weight:400;opacity:0.6;">(optional)</span></label><input type="text" id="tl-company" placeholder="Company name"/></div>
         <div><label class="flabel">Apply Link <span style="font-weight:400;opacity:0.6;">(optional — they can add later)</span></label><input type="text" id="tl-applylink" placeholder="https://..."/></div>
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-top:8px;background:#EAF2FB;border:1px solid #B9D4EE;border-radius:var(--r);padding:10px 12px;cursor:pointer;">
+          <input type="checkbox" id="tl-owner" style="width:18px;height:18px;cursor:pointer;margin-top:1px;"/>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#185FA5;">&#127974; Lender sponsors their own agent team</div>
+            <div style="font-size:11px;color:#185FA5;opacity:0.85;">They become the team owner and can invite agents who send them deals. Leave unchecked to add them as a lender on <em>your</em> team.</div>
+          </div>
+        </label>
         <div style="display:flex;gap:8px;margin-top:10px;">
           <button class="btn btn-sm" style="background:#185FA5;color:#fff;border-color:#185FA5;" onclick="addLenderAndInvite()">+ Add Lender & Send Invite</button>
         </div>
@@ -4143,8 +4150,17 @@ async function signUp() {
       if (existingContact && existingContact[f] !== undefined) newProfile[f] = existingContact[f];
     });
 
-    // ── Agent / Team-Leader invite: this person is an AGENT, not a buyer ──
+    // ── Agent / Team-Leader / Lender invite: this person is staff, not a buyer ──
     if (agentInviteData) {
+      if (agentInviteData.role === 'lender') {
+        newProfile.role = 'lender';
+        newProfile.lenderId = agentInviteData.lenderId || newProfile.lenderId;
+        newProfile.teamRole = agentInviteData.teamRole || 'member';
+        newProfile.teamId = agentInviteData.teamId || agentInviteData.lenderId || newProfile.teamId;
+        newProfile.agentId = null;
+        newProfile.journeyType = null;
+        newProfile.currentStep = 0;
+      } else {
       newProfile.role = 'agent';
       var _aid = agentInviteData.agentId, _trole = agentInviteData.teamRole, _tid = agentInviteData.teamId;
       if (!_aid) {
@@ -4159,6 +4175,7 @@ async function signUp() {
       newProfile.teamId = _tid || newProfile.agentId;
       newProfile.journeyType = null;
       newProfile.currentStep = 0;
+      }
     }
 
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), newProfile);
@@ -4347,6 +4364,7 @@ async function loadUserProfile() {
       // Check lender role (can overlap with agent)
       const lg = DEFAULT_LENDERS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
       if (lg) { isLender = true; userProfile.lenderId = lg.id; }
+      else if (userProfile.role === 'lender') { isLender = true; }
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
       // Find assigned lender
@@ -7085,7 +7103,7 @@ async function showApp() {
   const initials = ((userProfile.firstName||'')[0]||'') + ((userProfile.lastName||'')[0]||'');
   document.getElementById('user-avatar').textContent = initials.toUpperCase() || 'U';
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
-  document.getElementById('user-role').textContent = isAgent ? 'Agent' : 'Buyer';
+  document.getElementById('user-role').textContent = isAgent ? 'Agent' : (isLender ? 'Lender' : 'Buyer');
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   var _ndt=document.getElementById('nb-doctemplates');if(_ndt)_ndt.style.display=isTeamLeader()?'block':'none';
@@ -7145,6 +7163,17 @@ async function showApp() {
     if (agentBtn2) agentBtn2.style.display = '';
     var startLabel2 = document.getElementById('sidebar-start-label');
     if (startLabel2) startLabel2.style.display = 'none';
+    // Lender-owner: load their sponsored-agent roster, leaderboard and team chat so the
+    // management cockpit is populated. _ensureRosterForUser no-ops the tile-inject (lender has no agentId).
+    if (typeof isTeamLeader === 'function' && isTeamLeader()) {
+      _ensureRosterForUser().catch(function(){});
+      try { teamChatInit(); } catch(e){}
+      try { loadTeamStats(); } catch(e){}
+      // Reveal the management surfaces — the lender path skips renderAgentDashboard, which
+      // is what normally turns these on for an agent owner/leader.
+      ['agent-tab-teamstats','agent-tab-team'].forEach(function(idd){ var e=document.getElementById(idd); if(e) e.style.display=''; });
+      if (typeof isOwner === 'function' && isOwner()) { var _adb=document.getElementById('agent-tab-admin'); if(_adb) _adb.style.display=''; }
+    }
     setTimeout(function() {
       go('agent', document.querySelector('[data-pg=agent]'));
       setTimeout(renderBuyers, 300);
@@ -14435,7 +14464,11 @@ async function addLenderAndInvite() {
   var existing = DEFAULT_LENDERS.find(function(l){ return l.email && l.email.toLowerCase() === email.toLowerCase(); });
   if (existing) { alert('A lender with that email already exists.'); return; }
 
-  var lenderData = { id, name, role: 'Licensed Mortgage Professional', phone, email, company, applyLink, teamId: (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom', addedAt: new Date().toISOString() };
+  var lenderOwns = !!(document.getElementById('tl-owner') && document.getElementById('tl-owner').checked);
+  // Owner-lender heads their OWN team (agents join them); otherwise they're a lender on the inviter's team.
+  var lenderTeamId = lenderOwns ? id : ((userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom');
+  var lenderTeamRole = lenderOwns ? 'owner' : 'member';
+  var lenderData = { id, name, role: 'Licensed Mortgage Professional', phone, email, company, applyLink, teamId: lenderTeamId, teamRole: lenderTeamRole, addedAt: new Date().toISOString() };
   DEFAULT_LENDERS.push(lenderData);
   try {
     await fb.setDoc(fb.doc(fb.db, 'team_lenders', id), lenderData);
@@ -14449,6 +14482,7 @@ async function addLenderAndInvite() {
   ['tl-name','tl-phone','tl-email','tl-company','tl-applylink'].forEach(function(fid){
     var el = document.getElementById(fid); if(el) el.value = '';
   });
+  var _tlo = document.getElementById('tl-owner'); if(_tlo) _tlo.checked = false;
   renderTeamLenders();
 
   // Build lender invite email (blue themed)
@@ -14458,6 +14492,7 @@ async function addLenderAndInvite() {
   try {
     await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
       name, email: email.toLowerCase(), code, role: 'lender', lenderId: id,
+      teamRole: lenderTeamRole, teamId: lenderTeamId,
       invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false
     });
   } catch(e) { console.log('lenderInvite store failed:', e.message); }
@@ -14655,7 +14690,7 @@ async function addAgentAndInvite() {
   var teamRole = (document.getElementById('ta-teamrole') && document.getElementById('ta-teamrole').value) || 'member';
   // Guardrail: only the owner can create Team Leaders. Anyone else can only add members to their own team.
   if (teamRole === 'leader' && !isOwner()) teamRole = 'member';
-  var teamId = (teamRole === 'leader') ? id : ((window._adminAddTargetTeam && isOwner()) ? window._adminAddTargetTeam : ((userProfile && userProfile.agentId) || 'tom'));
+  var teamId = (teamRole === 'leader') ? id : ((window._adminAddTargetTeam && isOwner()) ? window._adminAddTargetTeam : ((userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'));
   window._adminAddTargetTeam = null;
   const agentData = { id, name, role: 'REALTOR®', phone, email, teamRole: teamRole, teamId: teamId, addedAt: new Date().toISOString() };
 
@@ -19879,7 +19914,7 @@ async function scheduleLoad() {
   } catch(e) { console.log('scheduleLoad:', e.message); }
 }
 async function checkMentorStatus() {
-  if (!isAgent || !currentUser) return;
+  if ((!isAgent && !isLender) || !currentUser) return;
   var manageBtn = document.getElementById('manage-team-btn');
   // Only owner/team leaders manage a team. Members never see it.
   if (manageBtn) manageBtn.style.display = isTeamLeader() ? 'inline-flex' : 'none';
