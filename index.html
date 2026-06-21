@@ -3107,6 +3107,7 @@ textarea{resize:vertical;min-height:68px;}
 <div class="mo" id="team-modal" style="display:none;">
   <div class="mbox">
     <div class="mhdr"><div class="mtitle">Manage Team</div><button class="xbtn" onclick="closeM('team-modal')">✕</button></div>
+    <div id="team-billing-box" style="display:none;margin-bottom:14px;"></div>
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">Agents</div>
     <div id="team-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:14px 0 6px;">Lenders</div>
@@ -14720,6 +14721,7 @@ function _teamRowHtml(a, lbFlags, nested) {
     +'<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);cursor:pointer;">'
     +'<input type="checkbox" '+(onLB?'checked':'')+' onchange="toggleLeaderboard(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> 🏆 Leaderboard'
     +'</label>'
+    +(!isSelf && _tr==='member' ? '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);cursor:pointer;" title="Uncheck to comp this seat (not billed)"><input type="checkbox" '+(_isBillable(a)?'checked':'')+' onchange="toggleBillable(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> 💳 Billed</label>' : '')
     +(!isSelf ? '<button class="btn btn-sm" onclick="assignOnboarding(\''+a.id+'\',\''+a.name+'\')" style="font-size:11px;color:var(--green-dk);border-color:var(--green-md);">🎓 Onboarding</button>' : '')
     +(!isSelf ? '<button class="btn btn-sm" onclick="removeAgent(\''+a.id+'\')" style="color:var(--red-dk);">Remove</button>' : '<span style="font-size:10px;color:var(--text3);">You</span>')
     +'</div>'
@@ -14734,6 +14736,119 @@ function toggleLeaderTeam(id){
   if(ar) ar.textContent = open ? '▾' : '▸';
 }
 window.toggleLeaderTeam = toggleLeaderTeam;
+
+// ═══════════ BILLING (team-leader / owner-lender) ═══════════
+function _isBillable(a){ return a && a.billable !== false; }
+function _billOwnerTeamId(){ return (userProfile && (userProfile.agentId || userProfile.teamId || userProfile.lenderId)) || 'tom'; }
+function _teamBillableMemberCount(){
+  var myId = _billOwnerTeamId();
+  return (DEFAULT_AGENTS||[]).filter(function(a){
+    return (typeof agentTeamRole==='function' ? agentTeamRole(a) : '') === 'member'
+        && (typeof agentTeamId==='function' ? agentTeamId(a) : '') === myId
+        && _isBillable(a);
+  }).length;
+}
+function _billUrl(suffix){ return location.origin + location.pathname + (suffix||''); }
+function _billMoney(n){ return '$'+n.toFixed(2); }
+
+function renderTeamBilling(){
+  var box = document.getElementById('team-billing-box');
+  if (!box) return;
+  if (!(typeof isTeamLeader==='function' && isTeamLeader())) { box.style.display='none'; return; }
+  box.style.display = 'block';
+  var p = userProfile || {};
+  var status = p.subStatus || '', subId = p.stripeSubscriptionId || '';
+  var members = _teamBillableMemberCount();
+  var LEAD = 39.99, MEM = 25.99; // founding rate
+  var total = LEAD + members*MEM, seats = 1 + members;
+  var html = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">'
+    + '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">\uD83D\uDCB3 Billing</div>';
+  if (subId && status) {
+    var label = status==='trialing'?'Free trial':status==='active'?'Active':status==='past_due'?'Payment past due':status==='canceled'?'Canceled':status;
+    var color = (status==='active'||status==='trialing')?'var(--green-dk)':'#b45309';
+    var renew = p.subRenewsAt ? new Date(p.subRenewsAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+    html += '<div style="font-size:12.5px;color:var(--text2);line-height:1.7;">'
+      + 'Status: <strong style="color:'+color+';">'+label+'</strong><br>'
+      + 'Seats: <strong>'+(p.subSeats||seats)+'</strong> (1 lead + '+members+' member'+(members===1?'':'s')+')'
+      + (renew ? '<br>'+(status==='trialing'?'First charge':'Renews')+': <strong>'+renew+'</strong>' : '')
+      + '</div>'
+      + '<button class="btn" style="width:100%;margin-top:10px;" onclick="openBillingPortal()">Manage billing &amp; payment</button>'
+      + (status==='past_due'?'<div style="font-size:11.5px;color:#b45309;margin-top:6px;">Update your card to keep your access.</div>':'');
+  } else {
+    html += '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:10px;">'
+      + 'Your team: <strong>'+seats+' seat'+(seats===1?'':'s')+'</strong> (you + '+members+' member'+(members===1?'':'s')+')<br>'
+      + 'Founding rate: '+_billMoney(LEAD)+' lead + '+members+' \u00d7 '+_billMoney(MEM)+' = <strong>'+_billMoney(total)+'/mo</strong><br>'
+      + '<span style="color:var(--green-dk);font-weight:600;">30 days free</span> \u2014 first charge after the trial.'
+      + '</div>'
+      + '<button class="btn" style="width:100%;background:var(--green);color:#fff;" onclick="startSubscribe()">Start 30-day free trial</button>';
+  }
+  box.innerHTML = html + '</div>';
+  // Reconcile Stripe to the real seat count whenever the owner views billing (covers
+  // invites that were accepted elsewhere, removals, comps — no matter how the roster changed).
+  if (subId && (status==='active'||status==='trialing') && (1+members) !== (p.subSeats||0)) syncSeats();
+}
+window.renderTeamBilling = renderTeamBilling;
+
+async function startSubscribe(){
+  try {
+    var body = {
+      ownerUid: currentUser.uid,
+      teamId: (userProfile && (userProfile.teamId || userProfile.agentId)) || '',
+      email: (userProfile && userProfile.email) || (currentUser && currentUser.email) || '',
+      plan: 'founding',
+      memberQty: _teamBillableMemberCount(),
+      successUrl: _billUrl('?billing=success'),
+      cancelUrl: _billUrl('?billing=cancel')
+    };
+    if (userProfile && userProfile.stripeCustomerId) body.customerId = userProfile.stripeCustomerId;
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-checkout'}, body: JSON.stringify(body) });
+    var d = await r.json();
+    if (d.url) location.href = d.url;
+    else alert('Could not start checkout: ' + (d.error||'unknown error'));
+  } catch(e){ alert('Could not start checkout \u2014 check your connection and try again.'); }
+}
+window.startSubscribe = startSubscribe;
+
+async function openBillingPortal(){
+  try {
+    var custId = userProfile && userProfile.stripeCustomerId;
+    if (!custId) { alert('No billing account yet \u2014 start your subscription first.'); return; }
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-portal'}, body: JSON.stringify({ customerId: custId, returnUrl: _billUrl('?billing=return') }) });
+    var d = await r.json();
+    if (d.url) location.href = d.url;
+    else alert('Could not open billing portal: ' + (d.error||'unknown error'));
+  } catch(e){ alert('Could not open billing portal \u2014 try again.'); }
+}
+window.openBillingPortal = openBillingPortal;
+
+async function syncSeats(){
+  // Push current billable member count to Stripe. No-op until subscribed.
+  try {
+    var subId = userProfile && userProfile.stripeSubscriptionId;
+    if (!subId) return;
+    await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-update-seats'}, body: JSON.stringify({ subscriptionId: subId, memberQty: _teamBillableMemberCount() }) });
+  } catch(e){ console.log('syncSeats:', e && e.message); }
+}
+window.syncSeats = syncSeats;
+
+async function toggleBillable(agentId, billed){
+  try {
+    var a = (DEFAULT_AGENTS||[]).find(function(x){ return x.id===agentId; });
+    if (a) a.billable = !!billed;
+    await fb.setDoc(fb.doc(fb.db,'team_agents',agentId), { billable: !!billed }, {merge:true});
+    renderTeam(); renderTeamBilling(); syncSeats();
+  } catch(e){ console.log('toggleBillable:', e && e.message); alert('Could not update billing for that agent \u2014 try again.'); }
+}
+window.toggleBillable = toggleBillable;
+
+// Returning from Stripe Checkout / Portal.
+(function(){
+  try {
+    var q = new URLSearchParams(location.search);
+    if (q.get('billing')==='success') setTimeout(function(){ alert('\uD83C\uDF89 Subscription started \u2014 your 30-day free trial is active. Reopen Manage Team to see your billing status.'); }, 800);
+    if (q.get('billing')) history.replaceState(null,'',location.pathname);
+  } catch(e){}
+})();
 
 function renderTeam() {
   var myId = (userProfile && userProfile.agentId) || 'tom';
@@ -14949,6 +15064,7 @@ async function removeAgent(id) {
   renderTeam();
   try { await fb.deleteDoc(fb.doc(fb.db, 'team_agents', id)); } catch(e) { console.log('removeAgent:', e.message); }
   populateAgentDropdown();
+  if (typeof syncSeats==='function') syncSeats();
   alert(ag.name + ' removed from team.');
 }
 function openTeamModal() {
@@ -14957,6 +15073,7 @@ function openTeamModal() {
     // Full view for team leader
     renderTeam();
     renderTeamLenders();
+    if (typeof renderTeamBilling==='function') renderTeamBilling();
     var mentorSel = document.getElementById('ta-mentor');
     if (mentorSel) {
       var _myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
