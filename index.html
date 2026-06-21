@@ -16829,17 +16829,24 @@ window.sendPushToUser = sendPushToUser;
 // teammates can resolve it for team-chat push (they can't read each other's users docs).
 async function _registerAgentPush() {
   try {
-    if (!currentUser || !isAgent || !userProfile || !userProfile.agentId) return;
+    if (!currentUser || !userProfile) return;
     var muted = false;
     try { muted = (localStorage.getItem('team_chat_muted')==='true') || (userProfile.teamChatMuted===true); } catch(e){}
-    await fb.setDoc(fb.doc(fb.db,'push_subscriptions','agent_'+userProfile.agentId), {
-      uid: currentUser.uid,
-      agentId: userProfile.agentId,
-      name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim(),
-      teamId: (userProfile.teamId || userProfile.agentId || 'tom'),
-      teamChatMuted: !!muted,
-      updatedAt: fb.serverTimestamp()
-    }, {merge:true});
+    var _nm = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim();
+    var _tid = (userProfile.teamId || userProfile.agentId || userProfile.lenderId || 'tom');
+    if (isAgent && userProfile.agentId) {
+      await fb.setDoc(fb.doc(fb.db,'push_subscriptions','agent_'+userProfile.agentId), {
+        uid: currentUser.uid, agentId: userProfile.agentId, name: _nm,
+        teamId: _tid, teamChatMuted: !!muted, updatedAt: fb.serverTimestamp()
+      }, {merge:true});
+    }
+    // Lenders never had a push sub (the old guard required an agentId) — so they got NO push at all.
+    if (isLender && userProfile.lenderId) {
+      await fb.setDoc(fb.doc(fb.db,'push_subscriptions','lender_'+userProfile.lenderId), {
+        uid: currentUser.uid, lenderId: userProfile.lenderId, name: _nm,
+        teamId: _tid, teamChatMuted: !!muted, updatedAt: fb.serverTimestamp()
+      }, {merge:true});
+    }
   } catch(e){ console.log('registerAgentPush:', e && e.message); }
 }
 window._registerAgentPush = _registerAgentPush;
@@ -21688,6 +21695,17 @@ async function teamChatPush(body) {
       sendPushToUser(d.uid, '\uD83D\uDCAC Team Chat', body);
     } catch(e){}
   }
+  // Team lenders are part of the team (they often sponsor the platform) — notify them too.
+  var _lenders = (DEFAULT_LENDERS||[]).filter(function(l){ return l.teamId === myTeam && l.id !== (userProfile&&userProfile.lenderId); });
+  for (var k = 0; k < _lenders.length; k++) {
+    try {
+      var lsnap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions','lender_'+_lenders[k].id));
+      if (!lsnap.exists()) continue;
+      var ld = lsnap.data();
+      if (!ld.uid || ld.teamChatMuted) continue;
+      sendPushToUser(ld.uid, '\uD83D\uDCAC Team Chat', body);
+    } catch(e){}
+  }
 }
 
 function teamChatToggleMute(muted) {
@@ -21695,6 +21713,7 @@ function teamChatToggleMute(muted) {
   if (currentUser) {
     fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {teamChatMuted: muted}).catch(function(){});
     if (userProfile && userProfile.agentId) fb.setDoc(fb.doc(fb.db,'push_subscriptions','agent_'+userProfile.agentId), {teamChatMuted: muted}, {merge:true}).catch(function(){});
+    if (userProfile && userProfile.lenderId && isLender) fb.setDoc(fb.doc(fb.db,'push_subscriptions','lender_'+userProfile.lenderId), {teamChatMuted: muted}, {merge:true}).catch(function(){});
   }
 }
 async function teamChatClear() {
