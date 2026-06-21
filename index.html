@@ -7216,8 +7216,16 @@ async function showApp() {
         try { fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { platformOwner: true }, {merge:true}); } catch(e){}
       }
       if (typeof _ensureTrialStarted==='function') {
-        Promise.resolve(_ensureTrialStarted()).then(function(){ if (typeof _applyBillingGate==='function') _applyBillingGate(); });
-      } else if (typeof _applyBillingGate==='function') { _applyBillingGate(); }
+        Promise.resolve(_ensureTrialStarted()).then(function(){
+          if (typeof _applyBillingGate==='function') _applyBillingGate();
+          if (typeof _writeTeamBilling==='function') _writeTeamBilling();
+          if (typeof _applyMemberGate==='function') _applyMemberGate();
+        });
+      } else {
+        if (typeof _applyBillingGate==='function') _applyBillingGate();
+        if (typeof _writeTeamBilling==='function') _writeTeamBilling();
+        if (typeof _applyMemberGate==='function') _applyMemberGate();
+      }
     }, 900);
     setTimeout(oneSignalRegister, 4000);
   } else {
@@ -15149,12 +15157,58 @@ function _applyBillingGate(){
 }
 window._applyBillingGate = _applyBillingGate;
 
+// Owner mirrors their effective billing state to a team-readable doc so members inherit it.
+async function _writeTeamBilling(){
+  try{
+    if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return;
+    var teamId = _billOwnerTeamId(); if (!teamId) return;
+    var tier = _billTier();
+    var access = _ownerComped() ? 'ok'
+      : (tier==='lockout'||tier==='wall') ? 'blocked'
+      : (tier==='readonly') ? 'readonly' : 'ok';
+    await fb.setDoc(fb.doc(fb.db,'team_billing',teamId), { access: access, comped: !!_ownerComped(), updatedAt: Date.now() }, {merge:true});
+  }catch(e){ console.log('writeTeamBilling:', e&&e.message); }
+}
+window._writeTeamBilling = _writeTeamBilling;
+
+// Members inherit their team's billing state (they can't pay — so messaging points them to their leader).
+async function _applyMemberGate(){
+  try{
+    if (!userProfile || userProfile.teamRole !== 'member') return;
+    var teamId = userProfile.teamId; if (!teamId) return;
+    var access = 'ok';
+    try { var snap = await fb.getDoc(fb.doc(fb.db,'team_billing',teamId)); access = (snap.exists() && snap.data().access) || 'ok'; } catch(e){ access='ok'; }
+    var ex=document.getElementById('bill-gate-banner'); if(ex) ex.remove();
+    var lk=document.getElementById('bill-lock-overlay'); if(lk) lk.remove();
+    window._billReadOnly = false;
+    if (access === 'ok') return;
+    if (access === 'readonly') {
+      window._billReadOnly = true;
+      var bar=document.createElement('div'); bar.id='bill-gate-banner';
+      bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9000;background:#b45309;color:#fff;padding:9px 14px;font-size:12.5px;font-weight:600;text-align:center;font-family:inherit;';
+      bar.innerHTML='\u26A0\uFE0F Your team\u2019s account is read-only \u2014 please reach out to your team leader.';
+      document.body.appendChild(bar);
+      return;
+    }
+    var ov=document.createElement('div'); ov.id='bill-lock-overlay';
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(15,27,51,0.96);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
+    ov.innerHTML='<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:28px;text-align:center;">'
+      +'<div style="font-size:40px;margin-bottom:10px;">\uD83D\uDD12</div>'
+      +'<div style="font-size:19px;font-weight:800;color:#0F1B33;margin-bottom:8px;">Team access paused</div>'
+      +'<div style="font-size:13.5px;color:#5b6472;line-height:1.6;margin-bottom:20px;">Your team\u2019s subscription needs attention. Please reach out to your team leader to restore access \u2014 all your data is safe.</div>'
+      +'<button onclick="location.reload()" style="width:100%;background:#1D9E75;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">Refresh</button>'
+      +'</div>';
+    document.body.appendChild(ov);
+  }catch(e){ console.log('applyMemberGate:', e&&e.message); }
+}
+window._applyMemberGate = _applyMemberGate;
+
 // Returning from Stripe Checkout / Portal.
 (function(){
   try {
     var q = new URLSearchParams(location.search);
     if (q.get('billing')==='success') setTimeout(function(){ alert('\uD83C\uDF89 You\u2019re all set \u2014 your subscription is active. Your first charge lands when your free trial ends.'); }, 800);
-    if (q.get('billing')) { history.replaceState(null,'',location.pathname); setTimeout(function(){ if(typeof _applyBillingGate==='function') _applyBillingGate(); }, 1200); }
+    if (q.get('billing')) { history.replaceState(null,'',location.pathname); setTimeout(function(){ if(typeof _applyBillingGate==='function') _applyBillingGate(); if(typeof _writeTeamBilling==='function') _writeTeamBilling(); }, 1200); }
   } catch(e){}
 })();
 
