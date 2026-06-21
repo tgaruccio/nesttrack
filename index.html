@@ -3113,8 +3113,8 @@ textarea{resize:vertical;min-height:68px;}
     <div id="team-lender-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     <div style="border-top:0.5px solid var(--border);padding-top:14px;margin-top:14px;">
       <div style="display:flex;gap:0;background:var(--surface2);border-radius:var(--r-sm);overflow:hidden;margin-bottom:12px;">
-        <button id="team-role-agent" onclick="switchTeamRole('agent')" style="flex:1;padding:8px;font-size:12px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">+ Agent</button>
-        <button id="team-role-lender" onclick="switchTeamRole('lender')" style="flex:1;padding:8px;font-size:12px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;">+ Lender</button>
+        <button id="team-role-agent" onclick="switchTeamRole('agent')" style="flex:1;padding:8px;font-size:12px;font-weight:600;background:var(--green);color:#fff;border:none;cursor:pointer;">+ Add Agent</button>
+        <button id="team-role-lender" onclick="switchTeamRole('lender')" style="display:none;flex:1;padding:8px;font-size:12px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;">+ Lender</button>
       </div>
       <div id="team-agent-form">
         <div style="font-weight:500;font-size:13px;margin-bottom:8px;">Add New Agent</div>
@@ -7170,9 +7170,8 @@ async function showApp() {
       try { teamChatInit(); } catch(e){}
       try { loadTeamStats(); } catch(e){}
       // Reveal the management surfaces — the lender path skips renderAgentDashboard, which
-      // is what normally turns these on for an agent owner/leader.
+      // is what normally turns these on for an agent owner/leader. (Admin stays platform-owner only.)
       ['agent-tab-teamstats','agent-tab-team'].forEach(function(idd){ var e=document.getElementById(idd); if(e) e.style.display=''; });
-      if (typeof isOwner === 'function' && isOwner()) { var _adb=document.getElementById('agent-tab-admin'); if(_adb) _adb.style.display=''; }
     }
     setTimeout(function() {
       go('agent', document.querySelector('[data-pg=agent]'));
@@ -10853,6 +10852,15 @@ function isOwner() {
   if (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com') return true;
   return !!(userProfile && userProfile.teamRole === 'owner');
 }
+// Platform owner = whoever owns THIS NestTrack install (a tier above team-owner).
+// Only they see the admin panel / provision teams. A lender-owner runs a team but is NOT a platform owner.
+// For this deployment that's Tom; a white-labeled install would anchor this to its own account.
+function isPlatformOwner() {
+  if (window._manageAsId) return false;
+  const email = (currentUser?.email || userProfile?.email || '').toLowerCase();
+  return (userProfile?.agentId === 'tom' || email === 'tom@garucciogroup.com');
+}
+window.isPlatformOwner = isPlatformOwner;
 
 function isTeamLeader() {
   if (window._manageAsId) {
@@ -11130,7 +11138,7 @@ async function renderBuyers() {
   // Update admin toggle button visibility
   var adminToggleBtn = document.getElementById('admin-show-all-btn');
   if (adminToggleBtn) {
-    adminToggleBtn.style.display = isOwner() ? 'inline-flex' : 'none';
+    adminToggleBtn.style.display = isPlatformOwner() ? 'inline-flex' : 'none';
     adminToggleBtn.textContent = _adminShowAll ? '👥 All Clients (ON)' : '👤 My Clients Only';
     adminToggleBtn.style.background = _adminShowAll ? '#1D9E75' : '';
     adminToggleBtn.style.color = _adminShowAll ? '#fff' : '';
@@ -11462,7 +11470,7 @@ function _adminRowHtml(a, nested){
 }
 function renderOwnerAdmin(){
   var panel=document.getElementById('agent-admin-panel'); if(!panel) return;
-  if(typeof isOwner!=='function' || !isOwner()){ panel.innerHTML='<div class="card" style="text-align:center;color:var(--text3);padding:30px;">Owner access only.</div>'; return; }
+  if(typeof isPlatformOwner!=='function' || !isPlatformOwner()){ panel.innerHTML='<div class="card" style="text-align:center;color:var(--text3);padding:30px;">Platform owner access only.</div>'; return; }
   var agents=(DEFAULT_AGENTS||[]);
   var myId=(userProfile&&userProfile.agentId)||'tom';
   var loaded=Object.keys(_ownerUsage).length>0;
@@ -11475,12 +11483,12 @@ function renderOwnerAdmin(){
   var teamCount=leaders.length+1;
   var WEEK=7*24*60*60*1000, now=Date.now(), activeWeek=0;
   if(loaded){ agents.forEach(function(a){ var u=_ownerUsage[a.id]; if(u&&u.lastMs&&(now-u.lastMs)<WEEK) activeWeek++; }); }
-  var statStrip='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">'
+  var statStrip='<div class="apx-stats">'
     +_adminStat(totalAgents,'Agents')+_adminStat(teamCount,teamCount===1?'Team':'Teams')
     +_adminStat(loaded?activeWeek:'\u2014','Active 7d')+_adminStat(totalAgents,'Seats')+'</div>';
 
-  function tb(id,label){ var on=tab===id; return '<button onclick="adminTab(\''+id+'\')" style="flex:1;padding:10px 6px;font-size:12.5px;font-weight:'+(on?'700':'500')+';background:'+(on?'var(--surface)':'transparent')+';color:'+(on?'var(--text)':'var(--text3)')+';border:none;border-bottom:2px solid '+(on?'var(--green)':'transparent')+';cursor:pointer;">'+label+'</button>'; }
-  var tabs='<div style="display:flex;background:var(--surface2);border-radius:10px;overflow:hidden;margin-top:4px;">'+tb('people','People')+tb('billing','Billing')+tb('finance','Finance')+'</div>';
+  function tb(id,label){ var on=tab===id; return '<button onclick="adminTab(\''+id+'\')" class="apx-tab '+(on?'on':'off')+'">'+label+'</button>'; }
+  var tabs='<div class="apx-tabs">'+tb('people','People')+tb('billing','Billing')+tb('finance','Finance')+'</div>';
 
   var yourTeam='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:6px 0 6px;">Your Team</div>'
     +'<div style="display:flex;flex-direction:column;gap:6px;">'+(self?_adminRowHtml(self,false):'')+myMembers.map(function(a){return _adminRowHtml(a,true);}).join('')+'</div>'
@@ -11512,12 +11520,13 @@ function renderOwnerAdmin(){
   }
 
   var peopleTab='<div id="admintab-people" style="display:'+(tab==='people'?'block':'none')+';">'
-    +'<div style="display:flex;gap:8px;margin-top:12px;">'
-      +'<button class="btn" style="flex:1;" onclick="adminInviteLeader()">\u2795 Invite Team Leader</button>'
-      +'<button class="btn" id="owner-usage-btn" style="flex:1;background:var(--surface2);color:var(--text2);" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
+    +'<div style="display:flex;gap:8px;margin-top:14px;">'
+      +'<button class="apx-btn apx-btn-primary" style="flex:1;" onclick="adminInviteLeader()">\u2795 Team Leader</button>'
+      +'<button class="apx-btn apx-btn-blue" style="flex:1;" onclick="adminInviteOwnerLender()">\uD83C\uDFE6 Owner-Lender</button>'
     +'</div>'
-    +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;margin-top:8px;"/>'
-    +'<div id="admin-tree">'+yourTeam+leadersHtml+'</div>'
+    +'<button class="apx-btn apx-btn-ghost" id="owner-usage-btn" style="width:100%;margin-top:8px;" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
+    +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13.5px;padding:12px 14px;border:1.5px solid #e6e9ef;border-radius:12px;font-family:inherit;margin-top:10px;background:#fbfcfe;outline:none;"/>'
+    +'<div id="admin-tree" style="margin-top:12px;">'+yourTeam+leadersHtml+'</div>'
   +'</div>';
 
   var billingTab='<div id="admintab-billing" style="display:'+(tab==='billing'?'block':'none')+';padding-top:14px;">'
@@ -11543,18 +11552,48 @@ function renderOwnerAdmin(){
   +'</div>';
 
   panel.innerHTML=
-    '<div class="card" style="padding:18px;background:linear-gradient(135deg,var(--green-lt),var(--surface));"><div style="font-size:18px;font-weight:800;margin-bottom:2px;">\uD83D\uDC51 Owner Admin</div><div style="font-size:12.5px;color:var(--text3);">Your whole platform \u2014 people, seats, and finances.</div></div>'
+    _APX_CSS
+    +'<div class="apx-hero">'
+      +'<span class="apx-eyebrow">\uD83D\uDD11 Platform Control</span>'
+      +'<h1>Owner Admin</h1>'
+      +'<p>Your whole platform \u2014 people, teams, seats, and finances.</p>'
+    +'</div>'
     +statStrip+tabs+peopleTab+billingTab+financeTab;
 
   if(tab==='finance'){ adminLoadFinance(); }
   if(window._adminQ && tab==='people'){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
 }
+var _APX_CSS='<style>'
+  +'#agent-admin-panel{gap:0!important;}'
+  +'.apx-hero{background:linear-gradient(158deg,#1D9E75 0%,#0B5742 130%);color:#fff;border-radius:20px;padding:22px 22px 24px;position:relative;overflow:hidden;box-shadow:0 18px 44px rgba(15,27,51,0.16);}'
+  +'.apx-hero::after{content:"";position:absolute;right:-70px;top:-70px;width:240px;height:240px;border-radius:50%;background:rgba(255,255,255,0.07);}'
+  +'.apx-eyebrow{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:0.7px;text-transform:uppercase;background:rgba(255,255,255,0.18);padding:5px 12px;border-radius:30px;margin-bottom:12px;}'
+  +'.apx-hero h1{font-size:25px;line-height:1.1;margin:0 0 5px;font-weight:800;letter-spacing:-0.6px;}'
+  +'.apx-hero p{font-size:13.5px;opacity:0.92;margin:0;}'
+  +'.apx-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:14px;}'
+  +'.apx-stat{background:#fff;border:1px solid #eef0f4;border-radius:14px;padding:12px 8px;text-align:center;box-shadow:0 4px 14px rgba(15,27,51,0.05);}'
+  +'.apx-stat .ic{font-size:13px;margin-bottom:3px;}'
+  +'.apx-stat .v{font-size:21px;font-weight:800;color:#0F1B33;line-height:1;letter-spacing:-0.5px;}'
+  +'.apx-stat .l{font-size:9px;color:#8a93a3;text-transform:uppercase;letter-spacing:0.05em;margin-top:5px;}'
+  +'.apx-tabs{display:flex;gap:6px;background:#eef2f7;border-radius:13px;padding:5px;margin-top:14px;}'
+  +'.apx-tab{flex:1;padding:9px 6px;font-size:12.5px;font-weight:700;border:none;border-radius:9px;cursor:pointer;font-family:inherit;transition:all .15s;}'
+  +'.apx-tab.on{background:#fff;color:#0F1B33;box-shadow:0 2px 8px rgba(15,27,51,0.08);}'
+  +'.apx-tab.off{background:transparent;color:#7a8494;}'
+  +'.apx-card{background:#fff;border:1px solid #eef0f4;border-radius:16px;padding:18px;box-shadow:0 6px 20px rgba(15,27,51,0.05);margin-top:12px;}'
+  +'.apx-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#8a93a3;margin:2px 0 9px;}'
+  +'.apx-btn{border:none;border-radius:12px;padding:12px 14px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .08s;}'
+  +'.apx-btn:active{transform:scale(0.98);}'
+  +'.apx-btn-primary{background:#1D9E75;color:#fff;box-shadow:0 6px 16px rgba(29,158,117,0.26);}'
+  +'.apx-btn-blue{background:#185FA5;color:#fff;box-shadow:0 6px 16px rgba(24,95,165,0.24);}'
+  +'.apx-btn-ghost{background:#f2f5f9;color:#42506a;}'
+  +'.apx-node{display:flex;align-items:center;gap:10px;background:#f7f9fc;border:1px solid #eef0f4;border-radius:12px;padding:11px 13px;}'
+  +'</style>';
 function _adminStat(val,label){
   var ic={'Agents':'\uD83D\uDC65','Team':'\uD83C\uDFE2','Teams':'\uD83C\uDFE2','Active 7d':'\u26A1','Seats':'\uD83D\uDCBA'}[label]||'';
-  return '<div style="flex:1;min-width:72px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 8px;text-align:center;">'
-    +(ic?'<div style="font-size:13px;margin-bottom:2px;">'+ic+'</div>':'')
-    +'<div style="font-size:22px;font-weight:800;color:var(--text);line-height:1;">'+val+'</div>'
-    +'<div style="font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;">'+label+'</div></div>';
+  return '<div class="apx-stat">'
+    +(ic?'<div class="ic">'+ic+'</div>':'')
+    +'<div class="v">'+val+'</div>'
+    +'<div class="l">'+label+'</div></div>';
 }
 function _plRow(label,sub,amount,color){
   return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--surface2);border-radius:10px;">'
@@ -11740,7 +11779,7 @@ window.enterManageAs=enterManageAs; window.exitManageAs=exitManageAs; window.app
 function switchAgentTab(tab) {
   var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances'),adb=document.getElementById('agent-tab-admin');
   var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel'),fp=document.getElementById('agent-finances-panel'),adp=document.getElementById('agent-admin-panel');
-  if(adb) adb.style.display=(typeof isOwner==='function'&&isOwner())?'':'none';
+  if(adb) adb.style.display=(typeof isPlatformOwner==='function'&&isPlatformOwner())?'':'none';
   if(ftb) ftb.style.display=window._manageAsId?'none':'';
   [bb,cb,pb,ptb,otb,stb,dtb,rtb,ttb,ttsb,ftb,adb].forEach(function(b){ if(b){ b.style.background='var(--surface2)'; b.style.color='var(--text2)'; } });
   [bp,ci,pp,ptp,otp,stp,dtp,rtp,ttp,ttsp,fp,adp].forEach(function(p){ if(p) p.style.display='none'; });
@@ -12577,7 +12616,7 @@ async function renderAgentDashboard() {
   var el;
   el = document.getElementById('ad-greeting'); if (el) el.textContent = greeting + ', ' + firstName + '!';
   el = document.getElementById('ad-avatar'); if (el) el.textContent = initials.toUpperCase();
-  var _adminBtn = document.getElementById('dash-admin-btn'); if (_adminBtn) _adminBtn.style.display = (typeof isOwner==='function' && isOwner() && !window._manageAsId) ? 'flex' : 'none';
+  var _adminBtn = document.getElementById('dash-admin-btn'); if (_adminBtn) _adminBtn.style.display = (typeof isPlatformOwner==='function' && isPlatformOwner() && !window._manageAsId) ? 'flex' : 'none';
   var today = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
   el = document.getElementById('ad-sub'); if (el) el.textContent = today;
 
@@ -14525,6 +14564,64 @@ async function addLenderAndInvite() {
   });
 }
 window.addLenderAndInvite = addLenderAndInvite;
+
+// ── Admin: provision an OWNER-LENDER (heads their own team; agents join them) ──
+function adminInviteOwnerLender(){
+  _adminModal('\uD83C\uDFE6 Invite Owner-Lender',
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">They get their <b>own</b> team and become its owner \u2014 they invite their own agents, who then send them deals. The sponsored-lender model. Nothing here touches your team.</div>'
+    +_adminField('Name','aflm-name','name')
+    +_adminField('Email','aflm-email','email')
+    +_adminField('Phone (optional)','aflm-phone','tel')
+    +_adminField('Apply / Pre-Approval Link (optional)','aflm-applylink','url')
+    +'<button class="apx-btn apx-btn-blue" style="width:100%;margin-top:6px;" onclick="adminSubmitOwnerLender()">Send Owner-Lender Invite \u2192</button>'
+  );
+}
+async function adminSubmitOwnerLender(){
+  var name=((document.getElementById('aflm-name')||{}).value||'').trim();
+  var email=((document.getElementById('aflm-email')||{}).value||'').trim();
+  var phone=((document.getElementById('aflm-phone')||{}).value||'').trim();
+  var applyLink=((document.getElementById('aflm-applylink')||{}).value||'').trim();
+  if(!name||!email){ alert('Name and email are required.'); return; }
+  var id='lndr_'+name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12)+'_'+Date.now().toString(36);
+  if((DEFAULT_LENDERS||[]).find(function(l){ return l.email && l.email.toLowerCase()===email.toLowerCase(); })){ alert('A lender with that email already exists.'); return; }
+  var lenderData={ id:id, name:name, role:'Licensed Mortgage Professional', phone:phone, email:email, applyLink:applyLink, teamId:id, teamRole:'owner', addedAt:new Date().toISOString() };
+  try { await fb.setDoc(fb.doc(fb.db,'team_lenders',id), lenderData); }
+  catch(e){ alert('Failed to save lender: '+e.message); return; }
+  if(typeof DEFAULT_LENDERS!=='undefined') DEFAULT_LENDERS.push(lenderData);
+  var code='LND'+Math.random().toString(36).substr(2,8).toUpperCase();
+  var link=_inviteLink('agent-invite', code, email, name);
+  try {
+    await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
+      name:name, email:email.toLowerCase(), code:code, role:'lender', lenderId:id,
+      teamRole:'owner', teamId:id, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false
+    });
+  } catch(e){ console.log('ownerLenderInvite store failed:', e.message); }
+  var first=name.split(' ')[0];
+  var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+    +'<div style="background:#185FA5;padding:22px 26px;border-radius:10px 10px 0 0;">'
+    +'<div style="font-size:24px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Mortgage Professional Platform</div>'
+    +'</div>'
+    +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+    +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to run your own team on Nest Track as a mortgage professional. Invite your agents, get wired into their deals as their lender, and track every client through closing.</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account and your team.</p>'
+    +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#185FA5;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Lender Team \u2192</a></div>'
+    +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
+    +'</div></div>';
+  var subject = first + ', your Nest Track lender team is ready';
+  _adminCloseModal();
+  showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue){
+    try {
+      var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
+      var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
+      await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
+      alert(name + ' invited as an owner-lender. Sign-up link sent to ' + email + '!');
+    } catch(e){ alert('Lender added but invite email failed: ' + e.message); }
+  });
+  if(typeof renderOwnerAdmin==='function') renderOwnerAdmin();
+}
+window.adminInviteOwnerLender=adminInviteOwnerLender; window.adminSubmitOwnerLender=adminSubmitOwnerLender;
 
 window.saveOutsideLender = function(uid) { console.log('outside lender disabled'); };
 function _teamRowHtml(a, lbFlags, nested) {
