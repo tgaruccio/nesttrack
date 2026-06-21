@@ -4375,6 +4375,9 @@ async function loadUserProfile() {
       if (userProfile.agentId) _laPatch.agentId = userProfile.agentId;
       if (userProfile.teamRole) _laPatch.teamRole = userProfile.teamRole;
       if (userProfile.teamId) _laPatch.teamId = userProfile.teamId;
+      // Mark the install owner so security rules can grant platform god-mode to THEM only,
+      // not to every team-owner (a lender-owner is teamRole:'owner' but NOT a platform owner).
+      if (typeof isPlatformOwner === 'function' && isPlatformOwner()) { _laPatch.platformOwner = true; userProfile.platformOwner = true; }
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
       _registerAgentPush();
       try { _watchClaimableLeads(); } catch(e){}
@@ -4421,6 +4424,26 @@ async function loadAssignedAgentProfile() {
           email: userProfile.email || lenderBase.email || '',
         });
       }
+      return;
+    }
+    // Lender (staff, not a buyer): their profile is their OWN record — never a fallback agent.
+    // Without this a lender-only account would show the seeded first agent's photo/bio.
+    if (isLender) {
+      assignedAgent = normalizeAgent({
+        id: userProfile.agentId || userProfile.lenderId || (currentUser && currentUser.uid) || '',
+        name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || userProfile.email || '',
+        email: userProfile.email || '', phone: userProfile.phone || '',
+        photoUrl: userProfile.photoUrl || '', bio: userProfile.bio || '',
+        calendly: userProfile.calendly || '', googleReviewUrl: userProfile.googleReviewUrl || '', zillowReviewUrl: userProfile.zillowReviewUrl || ''
+      });
+      var _lb = (DEFAULT_LENDERS||[]).find(function(l){ return l.id === userProfile.lenderId; }) || {};
+      assignedLender = Object.assign({}, _lb, {
+        photoUrl: userProfile.photoUrl || _lb.photoUrl || '',
+        bio: userProfile.bio || _lb.bio || '',
+        applyLink: userProfile.preApprovalLink || _lb.applyLink || '',
+        phone: userProfile.phone || _lb.phone || '',
+        email: userProfile.email || _lb.email || ''
+      });
       return;
     }
     const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
@@ -23732,7 +23755,7 @@ window._stampDealMembers = _stampDealMembers;
 
 // Team: all deal reads/writes resolve to the team's shared path. Solo agents fall back to their own id.
 function _dealTeamId() {
-  var me = (userProfile && userProfile.agentId) || 'tom';
+  var me = (userProfile && (userProfile.agentId || userProfile.teamId)) || (currentUser && currentUser.uid) || 'tom';
   // Team leaders ALWAYS load their own team's deal path — never derive, even if they
   // happen to be a co-agent on some client. This is the safeguard against an empty feed.
   if (typeof isTeamLeader==='function' && isTeamLeader()) return me;
