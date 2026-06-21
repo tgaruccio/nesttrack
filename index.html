@@ -7210,6 +7210,7 @@ async function showApp() {
       setTimeout(renderBuyers, 300);
     }, 100);
     setTimeout(function(){
+      if (typeof _loadBillTiers==='function') _loadBillTiers();
       if (typeof _ensureTrialStarted==='function') {
         Promise.resolve(_ensureTrialStarted()).then(function(){ if (typeof _applyBillingGate==='function') _applyBillingGate(); });
       } else if (typeof _applyBillingGate==='function') { _applyBillingGate(); }
@@ -11507,14 +11508,15 @@ function _adminRowHtml(a, nested){
       +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(a.email?'<a href="mailto:'+partnerEsc(a.email)+'" style="color:var(--text3);text-decoration:none;">'+partnerEsc(a.email)+'</a>':'')+(a.phone?(' \u00b7 <a href="tel:'+partnerEsc(a.phone)+'" style="color:var(--text3);text-decoration:none;">'+partnerEsc(a.phone)+'</a>'):'')+'</div>'
       +(usageHtml?'<div style="font-size:10.5px;color:var(--text3);margin-top:1px;">'+usageHtml+'</div>':'')
     +'</div>'
-    +(role==='leader'?'<label style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--text3);cursor:pointer;flex-shrink:0;" title="Comp this team \u2014 free, no billing"><input type="checkbox" '+(a.comped?'checked':'')+' onchange="adminToggleComp(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> Free</label>':'')
+    +(role==='leader'?'<select onchange="adminSetTier(\''+a.id+'\',this.value)" title="Pricing tier" style="font-size:10.5px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);max-width:140px;flex-shrink:0;cursor:pointer;"><option value="">\u2014 tier \u2014</option>'+_tierOpts(a.billingTier||'')+'</select>':'')
     +(canManage?'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:10.5px;font-weight:700;padding:6px 9px;flex-shrink:0;" onclick="enterManageAs(\''+a.id+'\')">Manage as</button>':'')
     +(!isSelf?'<button class="btn btn-sm" style="color:var(--red-dk);font-size:10.5px;padding:6px 8px;flex-shrink:0;" onclick="removeAgent(\''+a.id+'\')">Remove</button>':'')
   +'</div>';
 }
-function renderOwnerAdmin(){
+async function renderOwnerAdmin(){
   var panel=document.getElementById('agent-admin-panel'); if(!panel) return;
   if(typeof isPlatformOwner!=='function' || !isPlatformOwner()){ panel.innerHTML='<div class="card" style="text-align:center;color:var(--text3);padding:30px;">Platform owner access only.</div>'; return; }
+  if(typeof _loadBillTiers==='function'){ try{ await _loadBillTiers(); }catch(e){} }
   var agents=(DEFAULT_AGENTS||[]);
   var myId=(userProfile&&userProfile.agentId)||'tom';
   var loaded=Object.keys(_ownerUsage).length>0;
@@ -11574,9 +11576,10 @@ function renderOwnerAdmin(){
   +'</div>';
 
   var billingTab='<div id="admintab-billing" style="display:'+(tab==='billing'?'block':'none')+';padding-top:14px;">'
+    +'<div id="admin-pricing-tiers" class="card" style="padding:16px;margin-bottom:12px;"><div style="font-size:12px;color:var(--text3);">Loading pricing\u2026</div></div>'
     +'<div class="card" style="padding:16px;">'
       +'<div style="font-size:14px;font-weight:700;margin-bottom:4px;">\uD83D\uDCB3 Seats &amp; Billing</div>'
-      +'<div style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:12px;">Per-seat billing by team \u2014 each leader/brokerage is billed for their seats (leader + members). Stripe is the next milestone.</div>'
+      +'<div style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:12px;">Per-seat billing by team \u2014 each leader is billed for their seats (leader + members) at their assigned tier.</div>'
       +'<div style="display:flex;flex-direction:column;gap:6px;">'
         +'<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:8px 10px;background:var(--surface2);border-radius:8px;"><span>Your team</span><span style="font-weight:700;">'+(myMembers.length+1)+' seat'+((myMembers.length+1)===1?'':'s')+'</span></div>'
         +leaders.map(function(L){ var n=agents.filter(function(a){return agentTeamRole(a)==='member'&&agentTeamId(a)===L.id;}).length+1; return '<div style="display:flex;justify-content:space-between;font-size:12.5px;padding:8px 10px;background:var(--surface2);border-radius:8px;"><span>'+partnerEsc(L.name||L.id)+'\u2019s team</span><span style="font-weight:700;">'+n+' seat'+(n===1?'':'s')+'</span></div>'; }).join('')
@@ -11605,6 +11608,8 @@ function renderOwnerAdmin(){
     +statStrip+tabs+peopleTab+billingTab+financeTab;
 
   if(tab==='finance'){ adminLoadFinance(); }
+  if(tab==='billing'){ if(typeof renderPricingTiers==='function') renderPricingTiers(); }
+  if(typeof _loadBillTiers==='function') _loadBillTiers();
   if(window._adminQ && tab==='people'){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
 }
 var _APX_CSS='<style>'
@@ -11675,13 +11680,17 @@ function _adminModal(title, bodyHtml){
   ov.addEventListener('click',function(e){ if(e.target===ov) _adminCloseModal(); });
   document.body.appendChild(ov);
 }
-function adminInviteLeader(){
+async function adminInviteLeader(){
+  await _loadBillTiers();
+  var noTiers = !(window._billTiers && window._billTiers.length);
   _adminModal('\uD83D\uDC51 Invite Team Leader',
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">They get their own team, add their own members, and run their own onboarding. You just get them started \u2014 nothing here is tied to your team.</div>'
     +_adminField('Name','afm-name','name')
     +_adminField('Email','afm-email','email')
     +_adminField('Phone (optional)','afm-phone','tel')
-    +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0 12px;cursor:pointer;line-height:1.4;"><input type="checkbox" id="afm-comp" style="cursor:pointer;flex-shrink:0;"/> <span>Comp this account (free) \u2014 they and their whole team get full access at no charge</span></label>'
+    +'<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Pricing tier</label>'
+    +'<select id="afm-tier" style="width:100%;box-sizing:border-box;font-size:13px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 '+(noTiers?'4px':'12px')+';background:var(--surface);">'+_tierOpts('')+'</select>'
+    +(noTiers?'<div style="font-size:11px;color:var(--red-dk);margin:0 0 12px;line-height:1.4;">No tiers yet \u2014 add them in Billing \u2192 Pricing Tiers first, then invite.</div>':'')
     +'<button class="btn" style="width:100%;margin-top:6px;" onclick="adminSubmitInvite(\'leader\')">Send Leader Invite \u2192</button>'
   );
 }
@@ -11705,8 +11714,10 @@ async function adminSubmitInvite(role){
   var email=((document.getElementById('afm-email')||{}).value||'').trim();
   var phone=((document.getElementById('afm-phone')||{}).value||'').trim();
   var teamId=role==='member' ? ((document.getElementById('afm-team')||{}).value||'') : null;
-  var comped=role==='leader' ? !!((document.getElementById('afm-comp')||{}).checked) : false;
-  var ok=await _createAgentInvite({name:name,email:email,phone:phone,role:role,teamId:teamId,comped:comped});
+  var tierKey=role==='leader' ? ((document.getElementById('afm-tier')||{}).value||'') : '';
+  var tier=tierKey ? _tierByKey(tierKey) : null;
+  var comped=!!(tier && tier.comp);
+  var ok=await _createAgentInvite({name:name,email:email,phone:phone,role:role,teamId:teamId,comped:comped,billingTier:tierKey});
   if(ok!==false) _adminCloseModal();
 }
 async function _createAgentInvite(opts){
@@ -11718,7 +11729,7 @@ async function _createAgentInvite(opts){
   var teamId = teamRole==='leader' ? id : (opts.teamId || ((userProfile&&userProfile.agentId)||'tom'));
   var existing=DEFAULT_AGENTS.findIndex(function(a){return a.id===id || (a.email||'').toLowerCase()===email.toLowerCase();});
   if(existing>=0){ alert('Someone with that name or email already exists.'); return false; }
-  var agentData={ id:id, name:name, role:'REALTOR\u00AE', phone:phone, email:email, teamRole:teamRole, teamId:teamId, comped:!!opts.comped, addedAt:new Date().toISOString() };
+  var agentData={ id:id, name:name, role:'REALTOR\u00AE', phone:phone, email:email, teamRole:teamRole, teamId:teamId, comped:!!opts.comped, billingTier:opts.billingTier||'', addedAt:new Date().toISOString() };
   DEFAULT_AGENTS.push(agentData);
   try{ await fb.setDoc(fb.doc(fb.db,'team_agents',id), agentData); }
   catch(e){ DEFAULT_AGENTS.pop(); alert('Failed to save: '+e.message); return false; }
@@ -11756,6 +11767,99 @@ async function adminToggleComp(id, comped){
   }catch(e){ alert('Could not update comp status: '+(e&&e.message||'')); }
 }
 window.adminToggleComp=adminToggleComp;
+
+async function adminSetTier(id, key){
+  try{
+    var tier = key ? _tierByKey(key) : null;
+    var a=(DEFAULT_AGENTS||[]).find(function(x){return x.id===id;});
+    if(a){ a.billingTier=key||''; a.comped=!!(tier&&tier.comp); }
+    await fb.setDoc(fb.doc(fb.db,'team_agents',id), { billingTier: key||'', comped: !!(tier&&tier.comp) }, {merge:true});
+    if(typeof renderOwnerAdmin==='function') renderOwnerAdmin();
+  }catch(e){ alert('Could not set tier: '+(e&&e.message||'')); }
+}
+window.adminSetTier=adminSetTier;
+
+async function renderPricingTiers(){
+  var box=document.getElementById('admin-pricing-tiers'); if(!box) return;
+  await _loadBillTiers(true);
+  var ts=window._billTiers||[];
+  var rows = ts.length ? ts.map(function(t){
+    var amt = t.comp ? '<span style="color:var(--green-dk);font-weight:700;">Free</span>'
+      : '$'+((t.leadAmount||0)/100).toFixed(2)+' lead \u00b7 $'+((t.memberAmount||0)/100).toFixed(2)+' member';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--surface2);border-radius:8px;">'
+      +'<div style="min-width:0;"><div style="font-weight:600;font-size:13px;">'+partnerEsc(t.label)+'</div><div style="font-size:11.5px;color:var(--text3);">'+amt+'</div></div>'
+      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+        +'<button class="btn btn-sm" onclick="pricingEditTier(\''+partnerEsc(t.key)+'\')">Edit</button>'
+        +'<button class="btn btn-sm" style="color:var(--red-dk);" onclick="pricingDeleteTier(\''+partnerEsc(t.key)+'\')">Delete</button>'
+      +'</div></div>';
+  }).join('') : '<div style="font-size:12px;color:var(--text3);padding:4px 2px;line-height:1.5;">No pricing tiers yet. Add your first \u2014 each tier pairs a lead/solo price and a member price from your Stripe account.</div>';
+  box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+    +'<div style="font-size:14px;font-weight:700;">\uD83C\uDFF7\uFE0F Pricing Tiers</div>'
+    +'<button class="btn btn-sm btn-g" onclick="pricingAddTier()">+ Add tier</button></div>'
+    +'<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">These power the tier dropdown when you invite a team leader. Amounts come live from Stripe \u2014 to change a price, create a new one in Stripe, then point the tier at it here.</div>'
+    +'<div style="display:flex;flex-direction:column;gap:8px;">'+rows+'</div>';
+}
+window.renderPricingTiers=renderPricingTiers;
+
+async function pricingAddTier(){ await pricingEditTier(null); }
+window.pricingAddTier=pricingAddTier;
+
+async function pricingEditTier(key){
+  await _loadStripePrices();
+  var t = key ? _tierByKey(key) : null;
+  var isComp = !!(t && t.comp);
+  _adminModal((key?'Edit':'Add')+' Pricing Tier',
+    '<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Tier name</label>'
+    +'<input id="pt-label" value="'+(t?partnerEsc(t.label):'')+'" placeholder="e.g. Friends &amp; Family" style="width:100%;box-sizing:border-box;font-size:14px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 12px;"/>'
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:0 0 12px;cursor:pointer;"><input type="checkbox" id="pt-comp" '+(isComp?'checked':'')+' onchange="var e=document.getElementById(\'pt-prices\');if(e)e.style.display=this.checked?\'none\':\'block\';"/> <span>Comp (free) \u2014 no charge, whole team free</span></label>'
+    +'<div id="pt-prices" style="display:'+(isComp?'none':'block')+';">'
+      +'<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Lead / Solo price</label>'
+      +'<select id="pt-lead" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 12px;background:var(--surface);">'+_priceOpts(t?t.leadPriceId:'')+'</select>'
+      +'<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Member price</label>'
+      +'<select id="pt-member" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 12px;background:var(--surface);">'+_priceOpts(t?t.memberPriceId:'')+'</select>'
+    +'</div>'
+    +'<button class="btn" style="width:100%;margin-top:4px;" onclick="pricingSaveTier('+(key?'\''+partnerEsc(key)+'\'':'null')+')">Save tier</button>'
+  );
+}
+window.pricingEditTier=pricingEditTier;
+
+function _slugKey(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,20) || ('tier'+Date.now()); }
+
+async function pricingSaveTier(editKey){
+  var label=((document.getElementById('pt-label')||{}).value||'').trim();
+  if(!label){ alert('Give the tier a name.'); return; }
+  var comp=!!((document.getElementById('pt-comp')||{}).checked);
+  var tier;
+  if(comp){
+    tier={ key: editKey||_slugKey(label), label:label, comp:true };
+  } else {
+    var leadSel=document.getElementById('pt-lead'), memSel=document.getElementById('pt-member');
+    var leadId=leadSel?leadSel.value:'', memId=memSel?memSel.value:'';
+    if(!leadId||!memId){ alert('Pick both a lead price and a member price (or check Comp).'); return; }
+    var leadAmt=parseInt(leadSel.options[leadSel.selectedIndex].getAttribute('data-amt'),10)||0;
+    var memAmt=parseInt(memSel.options[memSel.selectedIndex].getAttribute('data-amt'),10)||0;
+    tier={ key: editKey||_slugKey(label), label:label, leadPriceId:leadId, leadAmount:leadAmt, memberPriceId:memId, memberAmount:memAmt };
+  }
+  var arr=(window._billTiers||[]).slice();
+  var idx=arr.findIndex(function(x){ return x.key===tier.key; });
+  if(idx>=0) arr[idx]=tier; else arr.push(tier);
+  try{
+    await fb.setDoc(fb.doc(fb.db,'billing_config','tiers'), { tiers: arr, updatedAt: Date.now() }, {merge:true});
+    window._billTiers=arr; _adminCloseModal(); renderPricingTiers();
+  }catch(e){ alert('Could not save tier: '+(e&&e.message||'')+'\n\nIf this is a permissions error, the billing_config Firestore rule still needs to be added.'); }
+}
+window.pricingSaveTier=pricingSaveTier;
+
+async function pricingDeleteTier(key){
+  var t=_tierByKey(key); if(!t) return;
+  if(!confirm('Delete the "'+t.label+'" tier? Owners already on it keep their Stripe price \u2014 you just can\u2019t assign it to new invites.')) return;
+  var arr=(window._billTiers||[]).filter(function(x){ return x.key!==key; });
+  try{
+    await fb.setDoc(fb.doc(fb.db,'billing_config','tiers'), { tiers: arr, updatedAt: Date.now() }, {merge:true});
+    window._billTiers=arr; renderPricingTiers();
+  }catch(e){ alert('Could not delete tier: '+(e&&e.message||'')); }
+}
+window.pricingDeleteTier=pricingDeleteTier;
 async function ownerLoadUsage(){
   var btn=document.getElementById('owner-usage-btn'); if(btn){ btn.disabled=true; btn.textContent='Loading\u2026'; }
   var agents=(DEFAULT_AGENTS||[]);
@@ -14782,6 +14886,44 @@ function _isBillingOwner(){
   return false;
 }
 window._isBillingOwner = _isBillingOwner;
+
+// ═══════════ PRICING TIERS (dynamic, read from Stripe + billing_config) ═══════════
+window._billTiers = null;     // [{key,label,leadPriceId,leadAmount,memberPriceId,memberAmount,comp}]
+window._stripePrices = null;  // [{id,amount,product,interval}]
+async function _loadBillTiers(force){
+  if (window._billTiers && !force) return window._billTiers;
+  try { var snap = await fb.getDoc(fb.doc(fb.db,'billing_config','tiers')); window._billTiers = (snap.exists() && snap.data().tiers) || []; }
+  catch(e){ window._billTiers = window._billTiers || []; }
+  return window._billTiers;
+}
+window._loadBillTiers = _loadBillTiers;
+function _tierByKey(key){ return (window._billTiers||[]).find(function(t){ return t.key===key; }) || null; }
+async function _loadStripePrices(force){
+  if (window._stripePrices && !force) return window._stripePrices;
+  try {
+    var r = await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'stripe-list-prices'},body:'{}'});
+    var d = await r.json(); window._stripePrices = d.prices || [];
+  } catch(e){ window._stripePrices = window._stripePrices || []; }
+  return window._stripePrices;
+}
+window._loadStripePrices = _loadStripePrices;
+function _ownerTierKey(){
+  var id = userProfile && userProfile.agentId;
+  var ag = id && (DEFAULT_AGENTS||[]).find(function(a){ return a.id===id; });
+  return (ag && ag.billingTier) || (userProfile && userProfile.billingTier) || '';
+}
+window._ownerTierKey = _ownerTierKey;
+function _tierOpts(selectedKey){
+  return (window._billTiers||[]).map(function(t){
+    var amt = t.comp ? 'Free' : ('$'+((t.leadAmount||0)/100).toFixed(2)+' lead / $'+((t.memberAmount||0)/100).toFixed(2)+' member');
+    return '<option value="'+partnerEsc(t.key)+'" '+(t.key===selectedKey?'selected':'')+'>'+partnerEsc(t.label)+' \u2014 '+amt+'</option>';
+  }).join('');
+}
+function _priceOpts(selectedId){
+  return '<option value="">\u2014 select a Stripe price \u2014</option>' + (window._stripePrices||[]).map(function(p){
+    return '<option value="'+partnerEsc(p.id)+'" data-amt="'+(p.amount||0)+'" '+(p.id===selectedId?'selected':'')+'>'+partnerEsc(p.product||p.id)+' \u2014 $'+((p.amount||0)/100).toFixed(2)+'/'+(p.interval||'mo')+'</option>';
+  }).join('');
+}
 function renderTeamBilling(){
   var box = document.getElementById('team-billing-box');
   if (!box) return;
@@ -14804,7 +14946,11 @@ function renderTeamBilling(){
   }
   var status = p.subStatus || '', subId = p.stripeSubscriptionId || '';
   var members = _teamBillableMemberCount();
-  var LEAD = 39.99, MEM = 25.99; // founding rate
+  if (!window._billTiers && typeof _loadBillTiers==='function') { _loadBillTiers().then(function(){ try{ renderTeamBilling(); }catch(e){} }); }
+  var _ot = (typeof _ownerTierKey==='function' && window._billTiers) ? _tierByKey(_ownerTierKey()) : null;
+  var LEAD = (_ot && !_ot.comp && _ot.leadAmount) ? _ot.leadAmount/100 : 39.99;
+  var MEM  = (_ot && !_ot.comp && _ot.memberAmount) ? _ot.memberAmount/100 : 25.99;
+  var tierLabel = (_ot && _ot.label) ? _ot.label : 'Founding';
   var total = LEAD + members*MEM, seats = 1 + members;
   var html = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">'
     + '<div style="font-size:13px;font-weight:700;margin-bottom:8px;">\uD83D\uDCB3 Billing</div>';
@@ -14831,7 +14977,7 @@ function renderTeamBilling(){
     }
     html += '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:10px;">'
       + 'Your team: <strong>'+seats+' seat'+(seats===1?'':'s')+'</strong> (you + '+members+' member'+(members===1?'':'s')+')<br>'
-      + 'Founding rate: '+_billMoney(LEAD)+' lead + '+members+' \u00d7 '+_billMoney(MEM)+' = <strong>'+_billMoney(total)+'/mo</strong>'
+      + partnerEsc(tierLabel)+' rate: '+_billMoney(LEAD)+' lead + '+members+' \u00d7 '+_billMoney(MEM)+' = <strong>'+_billMoney(total)+'/mo</strong>'
       + (expired ? '' : '<br>First charge when your trial ends.')
       + '</div>'
       + '<button class="btn" style="width:100%;background:var(--green);color:#fff;" onclick="startSubscribe()">'+(expired?'Subscribe now':'Add payment &amp; subscribe')+'</button>';
@@ -14855,6 +15001,10 @@ async function startSubscribe(){
     };
     var _end = (typeof _trialEndMs==='function') ? _trialEndMs() : 0;   // align first charge to remaining app trial
     body.trialEnd = _end ? Math.floor(_end/1000) : 0;
+    if (typeof _loadBillTiers==='function') await _loadBillTiers();
+    var _tk = (typeof _ownerTierKey==='function') ? _ownerTierKey() : '';
+    var _t = _tk ? _tierByKey(_tk) : null;
+    if (_t && !_t.comp && _t.leadPriceId && _t.memberPriceId) { body.leadPriceId = _t.leadPriceId; body.memberPriceId = _t.memberPriceId; body.tierKey = _t.key; }
     if (userProfile && userProfile.stripeCustomerId) body.customerId = userProfile.stripeCustomerId;
     var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-checkout'}, body: JSON.stringify(body) });
     var d = await r.json();
