@@ -10150,7 +10150,7 @@ function renderAgentChatList() {
           + '<div style="width:36px;height:36px;border-radius:50%;background:var(--green-lt);color:var(--green-dk);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;">'
           + ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase()
           + '</div>'
-          + '<div><div style="font-weight:500;font-size:13.5px;">' + (b.firstName||'') + ' ' + (b.lastName||'') + '</div>'
+          + '<div><div style="font-weight:500;font-size:13.5px;">' + partnerEsc((b.firstName||'') + ' ' + (b.lastName||'')) + '</div>'
           + '<div style="font-size:11.5px;color:var(--text3);">Tap to open chat</div></div>'
           + '</button>';
       }).join('')
@@ -10973,7 +10973,7 @@ async function enterClientPreview() {
     var name = ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email || b.uid;
     return '<button onclick="window._startPreview(\''+b.uid+'\')" style="width:100%;text-align:left;padding:12px 16px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);margin-bottom:8px;cursor:pointer;font-family:inherit;font-size:13px;display:flex;align-items:center;gap:12px;">'+
       '<div style="width:36px;height:36px;border-radius:50%;background:var(--green-lt);color:var(--green-dk);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex-shrink:0;">'+((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase()+'</div>'+
-      '<div><div style="font-weight:500;">'+name+'</div><div style="font-size:11px;color:var(--text3);">'+((b.journeyType||'buyer')+' · '+(b.email||''))+'</div></div></button>';
+      '<div><div style="font-weight:500;">'+partnerEsc(name)+'</div><div style="font-size:11px;color:var(--text3);">'+partnerEsc((b.journeyType||'buyer')+' · '+(b.email||''))+'</div></div></button>';
   }).join('');
 
   var overlay = document.createElement('div');
@@ -11271,7 +11271,7 @@ async function renderBuyers() {
       ${window._selectMode ? `<input type="checkbox" class="contact-cb" onclick="event.stopPropagation();toggleContactSelect('${b.uid}',this.checked)" ${window._selectedContacts&&window._selectedContacts[b.uid]?'checked':''} title="Select" style="flex-shrink:0;width:16px;height:16px;cursor:pointer;align-self:center;" />` : ''}
       <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
       <div style="flex:1;min-width:0;">
-        <div class="buyer-name">${b.firstName||''} ${b.lastName||''}</div>
+        <div class="buyer-name">${partnerEsc((b.firstName||'')+' '+(b.lastName||''))}</div>
         <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
         <div>${crmStatusPill(b)}${b.segment?' <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:#EEF2FF;color:#4F46E5;">&#127991; '+b.segment+'</span>':''}</div>
         ${agentLine}${coAgentLine}
@@ -16861,7 +16861,14 @@ async function sendPushToAgentByShortId(agentShortId, title, body) {
       var snap = await fb.getDoc(fb.doc(fb.db, 'push_subscriptions', 'agent_' + agentShortId));
       if (snap.exists()) agentUid = snap.data().uid || null;
     } catch(e) {}
-    if (!agentUid) { console.log('No push record for agent:', agentShortId); return; }
+    if (!agentUid) {
+      // Not an agent id — it may be a lender id (lenders register under lender_*).
+      try {
+        var lsnap = await fb.getDoc(fb.doc(fb.db, 'push_subscriptions', 'lender_' + agentShortId));
+        if (lsnap.exists()) agentUid = lsnap.data().uid || null;
+      } catch(e) {}
+    }
+    if (!agentUid) { console.log('No push record for:', agentShortId); return; }
     fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
@@ -23211,7 +23218,15 @@ async function setDealStep(dealId, next) {
       await fb.updateDoc(fb.doc(fb.db,'users',deal.clientUid), patch);
       if (client) client[cf] = next;
     }
-  } catch(e) { console.log('setDealStep:', e.message); }
+  } catch(e) {
+    console.log('setDealStep:', e.message);
+    // Don't leave the UI showing a stage that never saved — revert and tell the user.
+    deal.step = cur; deal.status = dealStatusFromStep(deal); deal._storedStatus = deal.status;
+    if (client) { var _cf = isSeller ? 'currentSellerStep' : 'currentStep'; client[_cf] = cur; }
+    try { if (typeof renderDealTracker==='function') renderDealTracker(); } catch(_e){}
+    alert('Could not save the stage change \u2014 check your connection and try again.');
+    return;
+  }
   // When a deal first reaches Under Contract, open the proven contract-dates modal
   // (30/45/60 quick-fill + cash toggle; OK fills the deal timeline and sends the client the UC email).
   var justUC = (!isSeller && next===5 && cur<5) || (isSeller && next===9 && cur<9);
@@ -23221,6 +23236,12 @@ async function setDealStep(dealId, next) {
   if (justClosed) _activeFilter = 'closed';
   filterDeals(_activeFilter);
   if (justClosed && !deal.lbExported && typeof offerDealToLeaderboard==='function') offerDealToLeaderboard(deal);
+  // Loop the lender in on key milestones — under contract is their cue to move the loan.
+  if ((justUC || justClosed) && client && client.lenderId && client.lenderId !== 'none' && typeof sendPushToAgentByShortId==='function') {
+    var _who = (client.firstName || 'Your client');
+    if (justClosed) sendPushToAgentByShortId(client.lenderId, '\uD83C\uDF89 Deal closed', _who + '\u2019s transaction has closed.');
+    else sendPushToAgentByShortId(client.lenderId, '\uD83C\uDFE1 Under contract', _who + ' is under contract \u2014 time to move the loan.');
+  }
   if (justUC && (!deal.address || !deal.address.trim()) && typeof promptAddress==='function') {
     var _ucAddr = await promptAddress('Property address for this deal:', '');
     if (_ucAddr && _ucAddr.trim()) {
