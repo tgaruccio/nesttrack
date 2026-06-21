@@ -14948,6 +14948,14 @@ function renderTeamBilling(){
   }
   box.style.display = 'block';
   var p = userProfile || {};
+  // Platform owner — owns the install, never billed.
+  if (typeof isPlatformOwner==='function' && isPlatformOwner()) {
+    box.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">'
+      + '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">\uD83D\uDCB3 Billing</div>'
+      + '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;">You\u2019re the platform owner \u2014 billing doesn\u2019t apply to your account. Manage everyone else\u2019s pricing in Admin \u2192 Billing.</div>'
+      + '</div>';
+    return;
+  }
   // Comped owner — free, whole team rides along.
   if (typeof _ownerComped==='function' && _ownerComped()) {
     box.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">'
@@ -15073,6 +15081,7 @@ function _trialEndMs(){
 window._trialEndMs = _trialEndMs;
 async function _ensureTrialStarted(){
   try{
+    if (typeof isPlatformOwner==='function' && isPlatformOwner()) return;   // platform owner is never billed
     if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return;
     if (_ownerComped()) return;
     var p = userProfile || {};
@@ -15084,6 +15093,7 @@ async function _ensureTrialStarted(){
 }
 window._ensureTrialStarted = _ensureTrialStarted;
 function _billTier(){
+  if (typeof isPlatformOwner==='function' && isPlatformOwner()) return 'ok';   // platform owner: never trialed, walled, or locked
   if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return 'ok';
   if (_ownerComped()) return 'ok';                        // comped owner = free, whole team
   var p = userProfile || {};
