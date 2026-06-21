@@ -13739,7 +13739,7 @@ async function setBuyerStep(uid) {
     renderBuyers();
     if (_dealsLoaded) syncDealStatusFromStep(uid);
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
-    var existingDates = (buyer && buyer.buyerContractDates) || {};
+    var existingDates = _prefillDates(uid, 'buyer');
     if (newStep === 5) {
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'buyer', existingDates); }, 200);
@@ -14014,7 +14014,7 @@ async function setSellerStep(uid) {
     if (_dealsLoaded) syncDealStatusFromStep(uid);
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
-      var existingDates = (buyer && buyer.sellerContractDates) || {};
+      var existingDates = _prefillDates(uid, 'seller');
       closeM('buyer-modal');
       setTimeout(function(){ openContractDatesModal(uid, 'seller', existingDates); }, 200);
     }
@@ -14992,7 +14992,7 @@ async function agentSetStepForBuyer(stepId) {
     await loadBuyersForAgent();
     renderBuyers();
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
-    var existingDates = (buyer && buyer.contractDates) || {};
+    var existingDates = _prefillDates(uid, type);
     var type = (buyer && buyer.role === 'seller') ? 'seller' : 'buyer';
     if (stepId === 5) {
       setTimeout(function(){ openContractDatesModal(uid, type, existingDates); }, 200);
@@ -15020,7 +15020,7 @@ function openContractDatesForBuyer(uid, type) {
   var buyer = (allBuyers||[]).find(function(b){ return b.uid === uid; })
            || (myBuyers||[]).find(function(b){ return b.uid === uid; });
   var field = type === 'seller' ? 'sellerContractDates' : type === 'mortgage' ? 'mortgageContractDates' : 'buyerContractDates';
-  var existing = (buyer && buyer[field]) || {};
+  var existing = (type === 'mortgage') ? ((buyer && buyer[field]) || {}) : _prefillDates(uid, type);
   closeM('buyer-modal');
   setTimeout(function(){ openContractDatesModal(uid, type, existing); }, 200);
 }
@@ -15314,6 +15314,23 @@ function _dealDatesObj(deal) {
   };
   return Object.keys(o).some(function(k){ return o[k]; }) ? o : null;
 }
+// The active deal of a given side for a client (buyer vs seller), if one exists.
+function _activeDealForClient(uid, type) {
+  var wantSeller = (type === 'seller');
+  return (typeof _deals !== 'undefined' && _deals ? _deals : []).find(function(d){
+    return d.clientUid === uid && ((d.dealType === 'seller') === wantSeller);
+  }) || null;
+}
+// Dates to pre-fill the contract-dates modal with. Dates live WITH the deal, so we read
+// from the active deal — never from the client's mirror, which can be orphaned from a
+// deleted deal. No deal (or a fresh one) => blank, so a new journey starts clean.
+function _prefillDates(uid, type) {
+  if (type === 'mortgage') return null; // mortgage has no deal record
+  var d = _activeDealForClient(uid, type);
+  return (d && _dealDatesObj(d)) || {};
+}
+window._activeDealForClient = _activeDealForClient;
+window._prefillDates = _prefillDates;
 function renderTxnTimeline() {
   var today = new Date(); today.setHours(0,0,0,0);
 
@@ -23774,7 +23791,24 @@ window.emailDealDates = emailDealDates;
 async function deleteDeal(dealId) {
   if (!confirm('Delete this deal? This cannot be undone.')) return;
   var agentId = userProfile.agentId||'tom';
+  var deal = _deals.find(function(d){ return d.id===dealId; });
   await fb.deleteDoc(_dealDoc(dealId));
+  // Dates are mirrored onto the client for their journey view — clear the matching side so
+  // they die with the deal (otherwise they orphan and bleed into the next journey).
+  if (deal && deal.clientUid) {
+    var isSeller = deal.dealType === 'seller';
+    var sideField = isSeller ? 'sellerContractDates' : 'buyerContractDates';
+    var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; })
+              || (myBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+    var patch = {}; patch[sideField] = null;
+    // The generic active mirror — clear only if it belongs to this deal's side.
+    var cd = client && client.contractDates;
+    if (cd && ((isSeller && cd.contractType === 'seller') || (!isSeller && cd.contractType !== 'seller'))) patch.contractDates = null;
+    try {
+      await fb.updateDoc(fb.doc(fb.db,'users',deal.clientUid), patch);
+      if (client) { client[sideField] = null; if (patch.contractDates === null) client.contractDates = null; }
+    } catch(e){ console.log('deleteDeal date-clear:', e && e.message); }
+  }
   _deals = _deals.filter(function(d){ return d.id!==dealId; });
   var el = document.getElementById('deal-card-'+dealId);
   if (el) el.remove();
