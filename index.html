@@ -9073,7 +9073,7 @@ function renderSaved() {
           <span style="font-size:10.5px;color:var(--text3);margin-left:3px;">${p.rating||0}/5</span>
         </div>
         <div class="ptags">${(p.tags||[]).map(t=>`<span class="tag t-${t}">${tl(t)}</span>`).join('')}</div>
-        ${p.notes?`<div class="psnip">"${p.notes}"</div>`:''}
+        ${p.notes?`<div class="psnip">"${escapeHtml(p.notes)}"</div>`:''}
         <button class="btn btn-sm" style="margin-top:9px;width:100%;background:var(--surface2);font-size:12px;" onclick="event.stopPropagation();quickTour('${p.id}')">&#x1F4CB; Add to Touring</button>
         <div style="display:flex;gap:8px;margin-top:9px;">
           <button class="btn btn-sm" style="flex:1;background:var(--surface2);font-size:12px;" onclick="event.stopPropagation();quickTour('${p.id}')">📋 Add to Touring</button>
@@ -9972,6 +9972,10 @@ window.getAIRecs = getAIRecs;
 
 // ─── CHAT ───
 function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+// JS-string-safe escape for values dropped inside onclick="fn('...')" — protects against both
+// breakout (XSS) and legit apostrophes (e.g. O'Brien) that would otherwise break the call.
+function _jsq(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/</g,'\\x3c').replace(/>/g,'\\x3e'); }
+window._jsq = _jsq;
 
 function getChatRoomId(buyerIdOverride) {
   // New format: chat_{buyerUID} — stable, includes all team members
@@ -11272,7 +11276,7 @@ async function renderBuyers() {
       <div class="avatar lg">${initials.toUpperCase()||'B'}</div>
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${partnerEsc((b.firstName||'')+' '+(b.lastName||''))}</div>
-        <div class="buyer-meta">${b.email||''} ${b.phone?'· '+b.phone:''}</div>
+        <div class="buyer-meta">${escapeHtml(b.email||'')} ${b.phone?'· '+escapeHtml(b.phone):''}</div>
         <div>${crmStatusPill(b)}${b.segment?' <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:#EEF2FF;color:#4F46E5;">&#127991; '+b.segment+'</span>':''}</div>
         ${agentLine}${coAgentLine}
         ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; if(!b.pending) ctBtns+=' <button onclick="event.stopPropagation();go(\'messages\',document.querySelector(\'[data-pg=messages]\'));setTimeout(function(){openMsgThread(\''+b.uid+'\')},400);" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 9px;font-size:10.5px;cursor:pointer;">&#128172; Message</button>'; ctBtns+='</div>'; } return ctBtns; })()}
@@ -13117,7 +13121,7 @@ async function todoSave() {
   try {
     await fb.setDoc(fb.doc(fb.db, 'agent_todos', _profileUid()), { items: _todos, updatedAt: Date.now() });
     todoUpdateBadge();
-  } catch(e) { console.log('todoSave:', e.message); }
+  } catch(e) { console.log('todoSave:', e.message); alert('Could not save your to-do change \u2014 check your connection and try again.'); }
 }
 
 function todoUpdateBadge() {
@@ -13537,12 +13541,12 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;gap:12px;align-items:center;">
         <div class="avatar lg" style="width:48px;height:48px;font-size:16px;">${initials.toUpperCase()}</div>
         <div>
-          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${b.firstName} ${b.lastName}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
-          <div style="font-size:12px;color:var(--text2);">${b.email ? '<a href="mailto:'+b.email+'" style="color:var(--text2);text-decoration:none;">'+b.email+'</a>' : ''}${b.phone?' · <a href="tel:'+b.phone.replace(/[^0-9+]/g,'')+'" style="color:var(--text2);text-decoration:none;font-weight:600;">'+b.phone+'</a>':''}</div>
-          ${b.email2 ? '<div style="font-size:12px;color:var(--text2);margin-top:1px;">+ <a href="mailto:'+b.email2+'" style="color:var(--text2);text-decoration:none;">'+b.email2+'</a></div>' : ''}
+          <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${escapeHtml((b.firstName||'')+' '+(b.lastName||''))}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
+          <div style="font-size:12px;color:var(--text2);">${b.email ? '<a href="mailto:'+escapeHtml(b.email)+'" style="color:var(--text2);text-decoration:none;">'+escapeHtml(b.email)+'</a>' : ''}${b.phone?' · <a href="tel:'+b.phone.replace(/[^0-9+]/g,'')+'" style="color:var(--text2);text-decoration:none;font-weight:600;">'+escapeHtml(b.phone)+'</a>':''}</div>
+          ${b.email2 ? '<div style="font-size:12px;color:var(--text2);margin-top:1px;">+ <a href="mailto:'+escapeHtml(b.email2)+'" style="color:var(--text2);text-decoration:none;">'+escapeHtml(b.email2)+'</a></div>' : ''}
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
             <span style="font-size:12px;color:var(--text2);">📍</span>
-            <input type="text" placeholder="Mailing address" value="${b.mailingAddress||''}" onchange="saveClientField('${uid}','mailingAddress',this.value)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
+            <input type="text" placeholder="Mailing address" value="${escapeHtml(b.mailingAddress||'')}" onchange="saveClientField('${uid}','mailingAddress',this.value)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
           </div>
           ${(()=>{ var active=b.portalAccess; var invited=b.inviteSent||active; return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+(active?'<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">✓ Active</span>':(invited?'<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:2px 10px;font-weight:500;">📨 Pending</span>':''))+'<button onclick="openPortalInviteModal(\''+uid+'\',\''+partnerEsc((b.firstName||'')+' '+(b.lastName||'')).trim()+'\')" style="background:'+(invited?'var(--surface)':'var(--green)')+';color:'+(invited?'var(--text2)':'#fff')+';border:1px solid '+(invited?'var(--border)':'var(--green)')+';border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">'+(invited?'↺ Resend Invite':'✉ Invite to Portal')+'</button></div>'; })()}
           ${(()=>{ var hasDeal = (_deals||[]).some(function(d){ return d.clientUid===uid; }); return hasDeal ? '<span style="font-size:11px;background:#EFF6FF;color:#1D4ED8;border-radius:20px;padding:2px 10px;font-weight:500;cursor:pointer;" onclick="go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'deals\')},200);">🏠 In Deal Tracker</span>' : ''; })()}
@@ -13653,8 +13657,8 @@ async function openBuyerDetail(uid, scrollTo) {
     </details>
     <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:14px;">
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
-      <button class="btn" onclick="todoAddForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">＋ Task</button>
-      <button class="btn" onclick="openApptModalForClient('${uid}','${((b.firstName||'')+' '+(b.lastName||'')).trim()}')">📅 Appt</button>
+      <button class="btn" onclick="todoAddForClient('${uid}','${_jsq(((b.firstName||'')+' '+(b.lastName||'')).trim())}')">＋ Task</button>
+      <button class="btn" onclick="openApptModalForClient('${uid}','${_jsq(((b.firstName||'')+' '+(b.lastName||'')).trim())}')">📅 Appt</button>
       <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
     </div>
     <details style="margin-top:12px;">
@@ -26410,7 +26414,7 @@ async function saveClientField(uid, field, value) {
       var payload = { firstName: b&&b.firstName||'', lastName: b&&b.lastName||'', email: b&&b.email||'', phone: b&&b.phone||'', mailingAddress: b&&b.mailingAddress||'', propertyAddress: b&&b.propertyAddress||'', agentName: (userProfile.firstName||'')+' '+(userProfile.lastName||''), agentEmail: userProfile.email||'', source: 'NestTrack', updatedField: field };
       fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'webhook','X-Webhook-Url':userProfile.zapierWebhookUrl}, body:JSON.stringify(payload) }).catch(function(){});
     }
-  } catch(e) { console.log('saveClientField err:', e.message); }
+  } catch(e) { console.log('saveClientField err:', e.message); alert('Could not save that change \u2014 check your connection and try again.'); }
 }
 window.saveClientField = saveClientField;
 
@@ -26422,7 +26426,7 @@ async function saveMortLAField(uid, field, value) {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), patch);
     var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
     if (b) b[field] = value;
-  } catch(e) { console.log('saveMortLAField failed:', e.message); }
+  } catch(e) { console.log('saveMortLAField failed:', e.message); alert('Could not save that change \u2014 check your connection and try again.'); }
 }
 window.saveMortLAField = saveMortLAField;
 
