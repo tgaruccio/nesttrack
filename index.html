@@ -7209,7 +7209,11 @@ async function showApp() {
       go('agent', document.querySelector('[data-pg=agent]'));
       setTimeout(renderBuyers, 300);
     }, 100);
-    setTimeout(function(){ if (typeof _applyBillingGate==='function') _applyBillingGate(); }, 900);
+    setTimeout(function(){
+      if (typeof _ensureTrialStarted==='function') {
+        Promise.resolve(_ensureTrialStarted()).then(function(){ if (typeof _applyBillingGate==='function') _applyBillingGate(); });
+      } else if (typeof _applyBillingGate==='function') { _applyBillingGate(); }
+    }, 900);
     setTimeout(oneSignalRegister, 4000);
   } else {
     go('home', document.querySelector('[data-pg=home]'));
@@ -11503,6 +11507,7 @@ function _adminRowHtml(a, nested){
       +'<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(a.email?'<a href="mailto:'+partnerEsc(a.email)+'" style="color:var(--text3);text-decoration:none;">'+partnerEsc(a.email)+'</a>':'')+(a.phone?(' \u00b7 <a href="tel:'+partnerEsc(a.phone)+'" style="color:var(--text3);text-decoration:none;">'+partnerEsc(a.phone)+'</a>'):'')+'</div>'
       +(usageHtml?'<div style="font-size:10.5px;color:var(--text3);margin-top:1px;">'+usageHtml+'</div>':'')
     +'</div>'
+    +(role==='leader'?'<label style="display:flex;align-items:center;gap:4px;font-size:10.5px;color:var(--text3);cursor:pointer;flex-shrink:0;" title="Comp this team \u2014 free, no billing"><input type="checkbox" '+(a.comped?'checked':'')+' onchange="adminToggleComp(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> Free</label>':'')
     +(canManage?'<button class="btn" style="background:#F3E8FF;color:#7C3AED;font-size:10.5px;font-weight:700;padding:6px 9px;flex-shrink:0;" onclick="enterManageAs(\''+a.id+'\')">Manage as</button>':'')
     +(!isSelf?'<button class="btn btn-sm" style="color:var(--red-dk);font-size:10.5px;padding:6px 8px;flex-shrink:0;" onclick="removeAgent(\''+a.id+'\')">Remove</button>':'')
   +'</div>';
@@ -11676,6 +11681,7 @@ function adminInviteLeader(){
     +_adminField('Name','afm-name','name')
     +_adminField('Email','afm-email','email')
     +_adminField('Phone (optional)','afm-phone','tel')
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:2px 0 12px;cursor:pointer;line-height:1.4;"><input type="checkbox" id="afm-comp" style="cursor:pointer;flex-shrink:0;"/> <span>Comp this account (free) \u2014 they and their whole team get full access at no charge</span></label>'
     +'<button class="btn" style="width:100%;margin-top:6px;" onclick="adminSubmitInvite(\'leader\')">Send Leader Invite \u2192</button>'
   );
 }
@@ -11699,7 +11705,8 @@ async function adminSubmitInvite(role){
   var email=((document.getElementById('afm-email')||{}).value||'').trim();
   var phone=((document.getElementById('afm-phone')||{}).value||'').trim();
   var teamId=role==='member' ? ((document.getElementById('afm-team')||{}).value||'') : null;
-  var ok=await _createAgentInvite({name:name,email:email,phone:phone,role:role,teamId:teamId});
+  var comped=role==='leader' ? !!((document.getElementById('afm-comp')||{}).checked) : false;
+  var ok=await _createAgentInvite({name:name,email:email,phone:phone,role:role,teamId:teamId,comped:comped});
   if(ok!==false) _adminCloseModal();
 }
 async function _createAgentInvite(opts){
@@ -11711,7 +11718,7 @@ async function _createAgentInvite(opts){
   var teamId = teamRole==='leader' ? id : (opts.teamId || ((userProfile&&userProfile.agentId)||'tom'));
   var existing=DEFAULT_AGENTS.findIndex(function(a){return a.id===id || (a.email||'').toLowerCase()===email.toLowerCase();});
   if(existing>=0){ alert('Someone with that name or email already exists.'); return false; }
-  var agentData={ id:id, name:name, role:'REALTOR\u00AE', phone:phone, email:email, teamRole:teamRole, teamId:teamId, addedAt:new Date().toISOString() };
+  var agentData={ id:id, name:name, role:'REALTOR\u00AE', phone:phone, email:email, teamRole:teamRole, teamId:teamId, comped:!!opts.comped, addedAt:new Date().toISOString() };
   DEFAULT_AGENTS.push(agentData);
   try{ await fb.setDoc(fb.doc(fb.db,'team_agents',id), agentData); }
   catch(e){ DEFAULT_AGENTS.pop(); alert('Failed to save: '+e.message); return false; }
@@ -11740,6 +11747,15 @@ async function _createAgentInvite(opts){
 window._adminCloseModal=_adminCloseModal; window.adminSubmitInvite=adminSubmitInvite; window._createAgentInvite=_createAgentInvite;
 window._adminRowHtml=_adminRowHtml; window.adminToggleLeader=adminToggleLeader; window.adminFilter=adminFilter;
 window.adminInviteLeader=adminInviteLeader; window.adminAddMemberTo=adminAddMemberTo;
+async function adminToggleComp(id, comped){
+  try{
+    var a=(DEFAULT_AGENTS||[]).find(function(x){return x.id===id;});
+    if(a) a.comped=!!comped;
+    await fb.setDoc(fb.doc(fb.db,'team_agents',id), { comped: !!comped }, {merge:true});
+    if(typeof renderOwnerAdmin==='function') renderOwnerAdmin();
+  }catch(e){ alert('Could not update comp status: '+(e&&e.message||'')); }
+}
+window.adminToggleComp=adminToggleComp;
 async function ownerLoadUsage(){
   var btn=document.getElementById('owner-usage-btn'); if(btn){ btn.disabled=true; btn.textContent='Loading\u2026'; }
   var agents=(DEFAULT_AGENTS||[]);
@@ -14727,7 +14743,6 @@ function _teamRowHtml(a, lbFlags, nested) {
     +'<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);cursor:pointer;">'
     +'<input type="checkbox" '+(onLB?'checked':'')+' onchange="toggleLeaderboard(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> 🏆 Leaderboard'
     +'</label>'
-    +(!isSelf && _tr==='member' ? '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);cursor:pointer;" title="Uncheck to comp this seat (not billed)"><input type="checkbox" '+(_isBillable(a)?'checked':'')+' onchange="toggleBillable(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> 💳 Billed</label>' : '')
     +(!isSelf ? '<button class="btn btn-sm" onclick="assignOnboarding(\''+a.id+'\',\''+a.name+'\')" style="font-size:11px;color:var(--green-dk);border-color:var(--green-md);">🎓 Onboarding</button>' : '')
     +(!isSelf ? '<button class="btn btn-sm" onclick="removeAgent(\''+a.id+'\')" style="color:var(--red-dk);">Remove</button>' : '<span style="font-size:10px;color:var(--text3);">You</span>')
     +'</div>'
@@ -14779,6 +14794,14 @@ function renderTeamBilling(){
   }
   box.style.display = 'block';
   var p = userProfile || {};
+  // Comped owner — free, whole team rides along.
+  if (typeof _ownerComped==='function' && _ownerComped()) {
+    box.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">'
+      + '<div style="font-size:13px;font-weight:700;margin-bottom:6px;">\uD83D\uDCB3 Billing</div>'
+      + '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;">\u2728 Your account is <strong style="color:var(--green-dk);">complimentary</strong> \u2014 you and your whole team have full access at no charge.</div>'
+      + '</div>';
+    return;
+  }
   var status = p.subStatus || '', subId = p.stripeSubscriptionId || '';
   var members = _teamBillableMemberCount();
   var LEAD = 39.99, MEM = 25.99; // founding rate
@@ -14797,16 +14820,24 @@ function renderTeamBilling(){
       + '<button class="btn" style="width:100%;margin-top:10px;" onclick="openBillingPortal()">Manage billing &amp; payment</button>'
       + (status==='past_due'?'<div style="font-size:11.5px;color:#b45309;margin-top:6px;">Update your card to keep your access.</div>':'');
   } else {
+    // In-app trial → wall
+    var end = (typeof _trialEndMs==='function') ? _trialEndMs() : 0;
+    var daysLeft = end ? Math.max(0, Math.ceil((end - Date.now())/86400000)) : 30;
+    var expired = end && Date.now() >= end;
+    if (expired) {
+      html += '<div style="font-size:12.5px;color:#b45309;line-height:1.6;margin-bottom:10px;font-weight:600;">Your free trial has ended \u2014 subscribe to keep your access. Your data is all here, nothing\u2019s lost.</div>';
+    } else {
+      html += '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:10px;"><strong style="color:var(--green-dk);">'+daysLeft+' day'+(daysLeft===1?'':'s')+' left</strong> in your free trial.</div>';
+    }
     html += '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:10px;">'
       + 'Your team: <strong>'+seats+' seat'+(seats===1?'':'s')+'</strong> (you + '+members+' member'+(members===1?'':'s')+')<br>'
-      + 'Founding rate: '+_billMoney(LEAD)+' lead + '+members+' \u00d7 '+_billMoney(MEM)+' = <strong>'+_billMoney(total)+'/mo</strong><br>'
-      + '<span style="color:var(--green-dk);font-weight:600;">30 days free</span> \u2014 first charge after the trial.'
+      + 'Founding rate: '+_billMoney(LEAD)+' lead + '+members+' \u00d7 '+_billMoney(MEM)+' = <strong>'+_billMoney(total)+'/mo</strong>'
+      + (expired ? '' : '<br>First charge when your trial ends.')
       + '</div>'
-      + '<button class="btn" style="width:100%;background:var(--green);color:#fff;" onclick="startSubscribe()">Start 30-day free trial</button>';
+      + '<button class="btn" style="width:100%;background:var(--green);color:#fff;" onclick="startSubscribe()">'+(expired?'Subscribe now':'Add payment &amp; subscribe')+'</button>';
   }
   box.innerHTML = html + '</div>';
-  // Reconcile Stripe to the real seat count whenever the owner views billing (covers
-  // invites that were accepted elsewhere, removals, comps — no matter how the roster changed).
+  // Reconcile Stripe to the real seat count whenever the owner views billing.
   if (subId && (status==='active'||status==='trialing') && (1+members) !== (p.subSeats||0)) syncSeats();
 }
 window.renderTeamBilling = renderTeamBilling;
@@ -14822,6 +14853,8 @@ async function startSubscribe(){
       successUrl: _billUrl('?billing=success'),
       cancelUrl: _billUrl('?billing=cancel')
     };
+    var _end = (typeof _trialEndMs==='function') ? _trialEndMs() : 0;   // align first charge to remaining app trial
+    body.trialEnd = _end ? Math.floor(_end/1000) : 0;
     if (userProfile && userProfile.stripeCustomerId) body.customerId = userProfile.stripeCustomerId;
     var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-checkout'}, body: JSON.stringify(body) });
     var d = await r.json();
@@ -14863,21 +14896,51 @@ async function toggleBillable(agentId, billed){
 }
 window.toggleBillable = toggleBillable;
 
-// ═══════════ BILLING ENFORCEMENT (owner only; grace → read-only → lockout) ═══════════
+// ═══════════ BILLING ENFORCEMENT (owner only; comp / trial→wall / grace→read-only→lockout) ═══════════
+var BILL_TRIAL_DAYS = 30;
+function _ownerComped(){
+  var id = userProfile && userProfile.agentId;
+  var ag = id && (DEFAULT_AGENTS||[]).find(function(a){ return a.id===id; });
+  return !!(ag && ag.comped) || !!(userProfile && userProfile.comped);
+}
+window._ownerComped = _ownerComped;
+function _trialEndMs(){
+  var ts = userProfile && userProfile.trialStartedAt ? new Date(userProfile.trialStartedAt).getTime() : 0;
+  return ts ? ts + BILL_TRIAL_DAYS*86400000 : 0;
+}
+window._trialEndMs = _trialEndMs;
+async function _ensureTrialStarted(){
+  try{
+    if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return;
+    if (_ownerComped()) return;
+    var p = userProfile || {};
+    if (p.trialStartedAt || p.stripeSubscriptionId) return;
+    var now = Date.now();
+    userProfile.trialStartedAt = now;
+    if (currentUser && currentUser.uid) await fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { trialStartedAt: now }, {merge:true});
+  }catch(e){ console.log('ensureTrialStarted:', e && e.message); }
+}
+window._ensureTrialStarted = _ensureTrialStarted;
 function _billTier(){
   if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return 'ok';
+  if (_ownerComped()) return 'ok';                        // comped owner = free, whole team
   var p = userProfile || {};
-  if (!p.stripeSubscriptionId) return 'ok';             // never subscribed → not gated in v1
-  var st = p.subStatus || '';
-  if (st === 'active' || st === 'trialing') return 'ok';
-  if (st === 'canceled' || st === 'unpaid') return 'lockout';
-  if (st === 'past_due') {
-    var due = p.subRenewsAt ? new Date(p.subRenewsAt).getTime() : 0;   // for past_due this is the lapse date
-    if (!due) return 'grace';
-    var days = (Date.now() - due) / 86400000;
-    return days < 7 ? 'grace' : days < 14 ? 'readonly' : 'lockout';
+  var subId = p.stripeSubscriptionId || '', st = p.subStatus || '';
+  if (subId) {
+    if (st === 'active' || st === 'trialing') return 'ok';
+    if (st === 'canceled' || st === 'unpaid') return 'lockout';
+    if (st === 'past_due') {
+      var due = p.subRenewsAt ? new Date(p.subRenewsAt).getTime() : 0;   // for past_due this is the lapse date
+      if (!due) return 'grace';
+      var days = (Date.now() - due) / 86400000;
+      return days < 7 ? 'grace' : days < 14 ? 'readonly' : 'lockout';
+    }
+    return 'ok';
   }
-  return 'ok';
+  // Not subscribed → in-app trial → wall
+  var end = _trialEndMs();
+  if (!end) return 'ok';                                  // trial not initialized yet — don't wall prematurely
+  return Date.now() < end ? 'trial' : 'wall';
 }
 window._billReadOnly = false;
 function _billBlock(msg){
@@ -14892,16 +14955,30 @@ function _applyBillingGate(){
   var lk = document.getElementById('bill-lock-overlay'); if (lk) lk.remove();
   window._billReadOnly = false;
   if (tier === 'ok') return;
-  if (tier === 'lockout') {
+
+  if (tier === 'trial') {
+    var tend = (typeof _trialEndMs==='function') ? _trialEndMs() : 0;
+    var dleft = tend ? Math.max(0, Math.ceil((tend - Date.now())/86400000)) : 0;
+    if (dleft > 7) return;                       // only nudge in the final week
+    var tb = document.createElement('div');
+    tb.id = 'bill-gate-banner';
+    tb.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9000;background:#0F6E4F;color:#fff;padding:9px 14px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:12px;text-align:center;font-family:inherit;';
+    tb.innerHTML = '<span>\u23F3 '+dleft+' day'+(dleft===1?'':'s')+' left in your free trial.</span><button onclick="startSubscribe()" style="background:#fff;color:#0F1B33;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Add payment</button>';
+    document.body.appendChild(tb);
+    return;
+  }
+
+  if (tier === 'lockout' || tier === 'wall') {
+    var isWall = (tier === 'wall');
     var ov = document.createElement('div');
     ov.id = 'bill-lock-overlay';
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,27,51,0.96);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;';
     ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:420px;width:100%;padding:28px;text-align:center;">'
-      + '<div style="font-size:40px;margin-bottom:10px;">\uD83D\uDD12</div>'
-      + '<div style="font-size:19px;font-weight:800;color:#0F1B33;margin-bottom:8px;">Your subscription needs attention</div>'
-      + '<div style="font-size:13.5px;color:#5b6472;line-height:1.6;margin-bottom:20px;">Access is paused because your payment didn\u2019t go through. Update your card and you\u2019ll pick up right where you left off \u2014 all your data is safe.</div>'
-      + '<button onclick="(userProfile&&userProfile.stripeCustomerId)?openBillingPortal():startSubscribe()" style="width:100%;background:#1D9E75;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">Update payment &amp; reactivate</button>'
-      + '<button onclick="location.reload()" style="width:100%;background:none;border:none;color:#5b6472;font-size:12.5px;margin-top:12px;cursor:pointer;">I just paid \u2014 refresh</button>'
+      + '<div style="font-size:40px;margin-bottom:10px;">'+(isWall?'\uD83D\uDE80':'\uD83D\uDD12')+'</div>'
+      + '<div style="font-size:19px;font-weight:800;color:#0F1B33;margin-bottom:8px;">'+(isWall?'Your free trial has ended':'Your subscription needs attention')+'</div>'
+      + '<div style="font-size:13.5px;color:#5b6472;line-height:1.6;margin-bottom:20px;">'+(isWall?'Subscribe to keep using Nest Track \u2014 all your clients, deals, and data are right here waiting for you.':'Access is paused because your payment didn\u2019t go through. Update your card and you\u2019ll pick up right where you left off \u2014 all your data is safe.')+'</div>'
+      + '<button onclick="'+(isWall?'startSubscribe()':'(userProfile&&userProfile.stripeCustomerId)?openBillingPortal():startSubscribe()')+'" style="width:100%;background:#1D9E75;color:#fff;border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;">'+(isWall?'Subscribe to continue':'Update payment &amp; reactivate')+'</button>'
+      + '<button onclick="location.reload()" style="width:100%;background:none;border:none;color:#5b6472;font-size:12.5px;margin-top:12px;cursor:pointer;">'+(isWall?'I just subscribed \u2014 refresh':'I just paid \u2014 refresh')+'</button>'
       + '</div>';
     document.body.appendChild(ov);
     return;
@@ -14922,7 +14999,7 @@ window._applyBillingGate = _applyBillingGate;
 (function(){
   try {
     var q = new URLSearchParams(location.search);
-    if (q.get('billing')==='success') setTimeout(function(){ alert('\uD83C\uDF89 Subscription started \u2014 your 30-day free trial is active. Reopen Manage Team to see your billing status.'); }, 800);
+    if (q.get('billing')==='success') setTimeout(function(){ alert('\uD83C\uDF89 You\u2019re all set \u2014 your subscription is active. Your first charge lands when your free trial ends.'); }, 800);
     if (q.get('billing')) { history.replaceState(null,'',location.pathname); setTimeout(function(){ if(typeof _applyBillingGate==='function') _applyBillingGate(); }, 1200); }
   } catch(e){}
 })();
