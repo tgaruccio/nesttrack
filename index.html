@@ -1286,7 +1286,7 @@ textarea{resize:vertical;min-height:68px;}
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
     <div>
       <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="ad-greeting">Good morning</div>
-      <div style="font-size:12.5px;color:var(--text2);" id="ad-sub">Here's your day at a glance</div>
+      <div style="font-size:12.5px;color:var(--text2);display:flex;align-items:center;gap:6px;"><span id="ad-sub">Here's your day at a glance</span><span onclick="showHelp('overview')" title="New here? Quick platform overview" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
     </div>
   </div>
 
@@ -2835,6 +2835,13 @@ textarea{resize:vertical;min-height:68px;}
         </div>
       </div>
       <div id="email-editor-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
+    <!-- HELP / REPORT A BUG (everyone) -->
+    <div style="text-align:center;padding:18px 10px 6px;border-top:1px solid var(--border);margin-top:4px;">
+      <div style="font-size:12.5px;color:var(--text3);margin-bottom:8px;">Something not working, or have a question?</div>
+      <a href="mailto:tom@garucciogroup.com?subject=NestTrack%20Help%20%2F%20Bug%20Report&body=Hi%20Tom%2C%0A%0A(Tell%20me%20what%20happened%20or%20what%20you%20need%20help%20with%20%E2%80%94%20and%20what%20page%20you%20were%20on.)%0A%0AThanks!" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--green);font-weight:600;text-decoration:none;background:var(--green-lt);border:1px solid var(--green-md);border-radius:var(--r);padding:9px 16px;">🐞 Report a bug or get help</a>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px;">Emails Tom directly — he reads every one.</div>
     </div>
 
 
@@ -5735,6 +5742,8 @@ async function saveAgentProfile() {
 // ── HELP CENTER (data-driven, video-capable) ──
 // Built-in defaults = fallback so dots always say something even before Tom adds Firestore content.
 var HELP_DEFAULTS = {
+  overview:    { title:'Welcome to NestTrack', body:'<strong>What this is:</strong> your whole real estate business in one place — clients, deals, offers, showings, follow-up, and the client experience, all connected. Update something once and it flows everywhere it needs to. <strong>Start here:</strong> watch the quick overview video above for the full tour. Then look for the small <strong>?</strong> dots around the app — each one explains how that piece works and how it connects to the rest. <strong>On your phone?</strong> The video also shows how to add NestTrack to your home screen so reminders and alerts work.' },
+  install:     { title:'Add NestTrack to your home screen', body:'Installing puts NestTrack one tap away <em>and</em> turns on push notifications, so your reminders and new-lead alerts actually reach you. It takes about 20 seconds.<br/><br/><strong>On iPhone (use Safari):</strong><br/>1. Open NestTrack in <strong>Safari</strong> (not Chrome — only Safari can install on iPhone).<br/>2. Tap the <strong>Share</strong> button (the square with an arrow, at the bottom).<br/>3. Scroll down and tap <strong>Add to Home Screen</strong>.<br/>4. Tap <strong>Add</strong>. The NestTrack icon appears on your home screen — open it from there from now on.<br/><br/><strong>On Android (use Chrome):</strong><br/>1. Open NestTrack in <strong>Chrome</strong>.<br/>2. Tap the <strong>\u22EE</strong> menu (top right).<br/>3. Tap <strong>Add to Home screen</strong> (or tap the install banner if it pops up).<br/>4. Tap <strong>Add</strong> / <strong>Install</strong>.<br/><br/>After installing, <strong>always open NestTrack from the home screen icon</strong> — that\u2019s what keeps notifications working.' },
   showingtime: { title:'How to connect ShowingTime', body:'<strong>To set it up:</strong> in ShowingTime go to <strong>Settings → Calendar Sync → Subscribe Link</strong>, copy the <em>webcal://</em> URL, and paste it in the field here. <strong>Where it connects:</strong> once linked, your showings flow automatically into the Showings tab and your Seller Reports — so feedback and activity show up without you entering anything.' },
   zapier:      { title:'How to set up Zapier', body:'<strong>To set it up:</strong> in Zapier create a new Zap → <strong>Webhooks by Zapier → Catch Hook</strong>, then copy the webhook URL it gives you and paste it here. <strong>Where it connects:</strong> new and updated clients in NestTrack push out to whatever you wire on the other end of the Zap (your old CRM, a sheet, etc.).' },
   deals:       { title:'How to use the Deal Tracker', body:'<strong>To use it:</strong> open a deal, set the stage and key dates (contract, inspection, appraisal, closing), and add the parties. Update it as things move. <strong>Where it connects:</strong> everything you enter here feeds the rest of the app automatically — the client’s timeline updates, milestone emails get pre-drafted with the real dates, and your to-dos re-sort. Work the deal here and the client side keeps itself current.' },
@@ -5812,6 +5821,76 @@ window.showHelp = showHelp;
 // Back-compat: existing dots call showProfileHelp('showingtime'|'zapier')
 function showProfileHelp(type){ return showHelp(type); }
 window.showProfileHelp = showProfileHelp;
+
+// ── FIRST-LOGIN INSTALL NUDGE (mobile only, shows until installed) ──
+function _isStandalone(){
+  try {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+  } catch(e){ return false; }
+}
+function _isMobileDevice(){
+  try {
+    var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    var narrow = window.innerWidth <= 820;
+    var ua = /iphone|ipad|ipod|android/i.test(navigator.userAgent||'');
+    return (touch && narrow) || ua;
+  } catch(e){ return false; }
+}
+function _detectMobileOS(){
+  var ua = navigator.userAgent || '';
+  if (/iphone|ipad|ipod/i.test(ua)) return 'ios';
+  if (/android/i.test(ua)) return 'android';
+  return 'other';
+}
+async function maybeShowInstallNudge(){
+  // Only on mobile, only if NOT already installed (standalone), and only for agents
+  if (_isStandalone()) return;          // already installed → never show
+  if (!_isMobileDevice()) return;        // desktop → never show
+  if (document.getElementById('install-nudge')) return; // already showing
+
+  var content = (typeof _loadHelpContent==='function') ? await _loadHelpContent() : {};
+  var c = (content && content.install) || {};
+  var def = (typeof HELP_DEFAULTS!=='undefined' && HELP_DEFAULTS.install) || {};
+  var body = (c.body && c.body.trim()) ? c.body : (def.body||'');
+  var video = (typeof _helpEmbedUrl==='function') ? _helpEmbedUrl(c.video||'') : '';
+
+  // Show OS-relevant note up top
+  var os = _detectMobileOS();
+  var osHint = os==='ios' ? 'On iPhone, use <strong>Safari</strong>.' : (os==='android' ? 'On Android, use <strong>Chrome</strong>.' : '');
+  // Why-install reason depends on who's looking
+  var why = (typeof isAgent!=='undefined' && isAgent)
+    ? 'It only takes about 20 seconds \u2014 and it turns on the alerts that make NestTrack actually useful (new leads, reminders, client messages).'
+    : 'It only takes about 20 seconds \u2014 and it turns on notifications so you\u2019ll know the moment your agent messages you.';
+
+  var videoHtml = video
+    ? '<div style="position:relative;padding-bottom:60%;height:0;border-radius:12px;overflow:hidden;margin:0 0 14px;background:#000;"><iframe src="'+video+'" frameborder="0" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></div>'
+    : '';
+
+  var m=document.createElement('div');
+  m.className='mo'; m.id='install-nudge'; m.style.cssText='display:flex;z-index:9998;';
+  m.innerHTML='<div class="mbox" style="max-width:460px;">'
+    +'<div class="mhdr"><div class="mtitle">\uD83D\uDCF2 Add to your home screen</div>'
+    +'<button class="xbtn" onclick="dismissInstallNudge()">\u2715</button></div>'
+    +'<div style="padding:16px 22px 20px;">'
+    + (osHint?'<div style="font-size:12.5px;color:var(--text2);background:var(--surface2);border-radius:8px;padding:9px 11px;margin-bottom:14px;">'+osHint+' '+why+'</div>':'<div style="font-size:12.5px;color:var(--text2);background:var(--surface2);border-radius:8px;padding:9px 11px;margin-bottom:14px;">'+why+'</div>')
+    + videoHtml
+    + '<div style="font-size:13px;color:var(--text2);line-height:1.7;">'+body+'</div>'
+    + '<button class="btn btn-g" style="width:100%;margin-top:16px;" onclick="dismissInstallNudge()">Got it</button>'
+    + '<div style="text-align:center;margin-top:8px;"><span onclick="dismissInstallNudge()" style="font-size:12px;color:var(--text3);cursor:pointer;text-decoration:underline;">Remind me later</span></div>'
+    +'</div></div>';
+  m.addEventListener('click', function(e){ if(e.target===m) dismissInstallNudge(); });
+  document.body.appendChild(m);
+}
+window.maybeShowInstallNudge = maybeShowInstallNudge;
+
+// Dismiss = close for THIS session only. It returns next login until they actually install
+// (standalone detection), which is exactly the "show until installed" behavior.
+function dismissInstallNudge(){
+  var el=document.getElementById('install-nudge'); if(el) el.remove();
+}
+window.dismissInstallNudge = dismissInstallNudge;
+
 
 
 // ── DOCUMENT LIBRARY ──
@@ -7233,6 +7312,7 @@ async function showApp() {
     window._showAgentWelcome = false;
     setTimeout(function(){ openM('agent-welcome-modal'); }, 800);
   }
+  setTimeout(function(){ if(typeof maybeShowInstallNudge==='function') maybeShowInstallNudge(); }, 1600);
   setupChatHead();
   watchChat();
   if (isAgent) loadAgentDocs();
@@ -11941,6 +12021,8 @@ window.pricingDeleteTier=pricingDeleteTier;
 // ── HELP CONTENT ADMIN ──
 // Sections an agent might get stuck on. Keys must match the helpDot('key') calls placed in the UI.
 var HELP_SECTIONS = [
+  {key:'overview',    label:'Welcome / Overview (dashboard)'},
+  {key:'install',     label:'Add to Home Screen (install)'},
   {key:'deals',       label:'Deal Tracker'},
   {key:'offers',      label:'Offer Manager'},
   {key:'clients',     label:'Clients / Client Cards'},
