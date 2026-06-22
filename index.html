@@ -12405,16 +12405,27 @@ function renderMessagesPage() {
     var unread = (agentUnreadCounts||{})[r.uid]||0;
     var isActive = _msgCurrentBuyer && _msgCurrentBuyer.uid === r.uid;
     var lm = r.lm;
+    var _teamBadgeDM = r._isDM ? '<span style="background:var(--green-lt);color:var(--green-dk);border-radius:8px;padding:1px 6px;font-size:9px;font-weight:700;flex-shrink:0;margin-left:6px;">TEAM</span>' : '';
     var sub = (lm&&lm.text) ? _msgPreview(lm) : 'Start a conversation';
     var timeStr = (lm&&lm.ts) ? _msgRelTime(lm.ts) : '';
-    var _clickAttr = r._isDM
-      ? 'openDmFromThread(\''+r.uid+'\',\''+partnerEsc(name)+'\',\''+(r._agentId||'')+'\')'
-      : 'openMsgThread(\''+r.uid+'\')';
-    var _teamBadge = r._isDM ? '<span style="background:var(--green-lt);color:var(--green-dk);border-radius:8px;padding:1px 6px;font-size:9px;font-weight:700;flex-shrink:0;margin-left:6px;">TEAM</span>' : '';
-    return '<button onclick="'+_clickAttr+'" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
-      + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':(r._isDM?'var(--green-lt)':'var(--surface2)'))+';color:'+(unread?'#fff':(r._isDM?'var(--green-dk)':'var(--text2)'))+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+    if (r._isDM) {
+      // DM row: tappable area + a delete X (can't nest buttons, so use a wrapper)
+      return '<div style="display:flex;align-items:stretch;border-bottom:0.5px solid var(--border);background:'+(isActive?'var(--green-lt)':'none')+';">'
+        + '<button onclick="openDmFromThread(\''+r.uid+'\',\''+partnerEsc(name)+'\',\''+(r._agentId||'')+'\')" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:12px 4px 12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+          + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--green-lt)')+';color:'+(unread?'#fff':'var(--green-dk)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+_teamBadgeDM+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
+          + '<div style="font-size:11.5px;color:'+(unread?'var(--text)':'var(--text3)')+';font-weight:'+(unread?'500':'400')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>'
+          + '</div>'
+          + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;flex-shrink:0;">'+unread+'</span>' : '')
+        + '</button>'
+        + '<button onclick="deleteDmThread(\''+r.uid+'\',\''+partnerEsc(name)+'\')" title="Delete conversation" style="background:none;border:none;border-left:0.5px solid var(--border);padding:0 14px;cursor:pointer;color:var(--text3);font-size:16px;flex-shrink:0;">&#128465;</button>'
+      + '</div>';
+    }
+    return '<button onclick="openMsgThread(\''+r.uid+'\')" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+      + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--surface2)')+';color:'+(unread?'#fff':'var(--text2)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
       + '<div style="flex:1;min-width:0;">'
-      + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+_teamBadge+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
       + '<div style="font-size:11.5px;color:'+(unread?'var(--text)':'var(--text3)')+';font-weight:'+(unread?'500':'400')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>'
       + '</div>'
       + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;flex-shrink:0;">'+unread+'</span>' : '')
@@ -12634,6 +12645,19 @@ function openDmFromThread(otherUid, name, agentShortId){
   openAgentDM(otherUid, name, agentShortId);
 }
 window.openDmFromThread = openDmFromThread;
+
+// Delete (clear off list) a DM conversation for the current user
+async function deleteDmThread(otherUid, name){
+  if (!confirm('Delete your conversation with '+(name||'this teammate')+'? This clears it from your list.')) return;
+  var room = _dmRoomId(otherUid);
+  try {
+    await fb.deleteDoc(fb.doc(fb.db,'dm_threads', currentUser.uid+'__'+room));
+  } catch(e){ console.log('dm delete:', e.message); }
+  // Remove from local list and re-render immediately
+  _dmThreads = (_dmThreads||[]).filter(function(t){ return t.room !== room; });
+  try { renderMessagesPage(); } catch(e){}
+}
+window.deleteDmThread = deleteDmThread;
 
 window.renderMessagesPage = renderMessagesPage;
 
