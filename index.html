@@ -1284,8 +1284,8 @@ textarea{resize:vertical;min-height:68px;}
     </button>
 
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
-    <div style="min-width:0;flex:1;padding-right:164px;box-sizing:border-box;">
-      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="ad-greeting">Good morning</div>
+    <div style="min-width:0;flex:1;padding-right:118px;box-sizing:border-box;">
+      <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:300;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="ad-greeting">Good morning</div>
       <div style="font-size:12.5px;color:var(--text2);display:flex;align-items:center;gap:6px;"><span id="ad-sub">Here's your day at a glance</span><span onclick="showHelp('overview')" title="New here? Quick platform overview" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
     </div>
   </div>
@@ -13027,7 +13027,19 @@ async function renderAgentDashboard() {
   var initials = ((userProfile&&userProfile.firstName||'')[0]||'T') + ((userProfile&&userProfile.lastName||'')[0]||'');
   var el;
   el = document.getElementById('ad-greeting'); if (el) el.textContent = greeting + ', ' + firstName + '!';
-  el = document.getElementById('ad-avatar'); if (el) el.textContent = initials.toUpperCase();
+  el = document.getElementById('ad-avatar');
+  if (el) {
+    var _photo = (userProfile && (userProfile.photoUrl || userProfile.emailSignaturePhoto)) || '';
+    if (_photo) {
+      el.textContent = '';
+      el.style.backgroundImage = "url('" + _photo.replace(/'/g,"%27") + "')";
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+    } else {
+      el.style.backgroundImage = '';
+      el.textContent = initials.toUpperCase();
+    }
+  }
   var _adminBtn = document.getElementById('dash-admin-btn'); if (_adminBtn) _adminBtn.style.display = (typeof isPlatformOwner==='function' && isPlatformOwner() && !window._manageAsId) ? 'flex' : 'none';
   var today = new Date().toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
   el = document.getElementById('ad-sub'); if (el) el.textContent = today;
