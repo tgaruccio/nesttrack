@@ -20640,7 +20640,7 @@ async function saveManualShowing() {
       if (agentEmail) payload.cc = agentEmail;
       showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
         payload.html = finalHtml || payload.html;
-        payload.cc=_ccArray(ccValue,[agentEmail],buyer.email); if(!payload.cc.length)delete payload.cc;
+        payload.cc=_ccArray(ccValue,[agentEmail,buyer.email2],buyer.email); if(!payload.cc.length)delete payload.cc;
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       });
     }
