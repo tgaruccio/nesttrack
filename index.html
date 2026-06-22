@@ -12381,13 +12381,14 @@ function renderMessagesPage() {
       var nm = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
       if ((nm+' '+(b.email||'')).toLowerCase().indexOf(q)===-1) return;
       var lm = agentLastMsg[b.uid];
-      rows.push({ uid:b.uid, name:nm, lm:lm, ts:(lm&&lm.ts)||0 });
+      var _th = (_threads||[]).find(function(t){ return t.clientUid===b.uid; });
+      rows.push({ uid:b.uid, name:nm, lm:lm, ts:(lm&&lm.ts)||0, _roomId:(_th&&_th.roomId)||'' });
     });
     rows.sort(function(a,b){ if(b.ts!==a.ts) return b.ts-a.ts; return a.name.localeCompare(b.name); });
   } else {
     (_threads||[]).forEach(function(t){
       if(!t || !t.clientUid) return;
-      rows.push({ uid:t.clientUid, name:t.clientName||'Client', lm:{text:t.lastText||'',ts:t.lastTs||0,role:t.lastRole||''}, ts:t.lastTs||0 });
+      rows.push({ uid:t.clientUid, name:t.clientName||'Client', lm:{text:t.lastText||'',ts:t.lastTs||0,role:t.lastRole||''}, ts:t.lastTs||0, _roomId:t.roomId||'' });
     });
   }
 
@@ -12422,14 +12423,20 @@ function renderMessagesPage() {
         + '<button onclick="deleteDmThread(\''+r.uid+'\',\''+partnerEsc(name)+'\')" title="Delete conversation" style="background:none;border:none;border-left:0.5px solid var(--border);padding:0 14px;cursor:pointer;color:var(--text3);font-size:16px;flex-shrink:0;">&#128465;</button>'
       + '</div>';
     }
-    return '<button onclick="openMsgThread(\''+r.uid+'\')" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+    var _clientDelBtn = r._roomId
+      ? '<button onclick="deleteClientThread(\''+r._roomId+'\',\''+partnerEsc(name)+'\')" title="Delete conversation" style="background:none;border:none;border-left:0.5px solid var(--border);padding:0 14px;cursor:pointer;color:var(--text3);font-size:16px;flex-shrink:0;">&#128465;</button>'
+      : '';
+    return '<div style="display:flex;align-items:stretch;border-bottom:0.5px solid var(--border);background:'+(isActive?'var(--green-lt)':'none')+';">'
+      + '<button onclick="openMsgThread(\''+r.uid+'\')" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:12px '+(r._roomId?'4px':'14px')+' 12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
       + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--surface2)')+';color:'+(unread?'#fff':'var(--text2)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
       + '<div style="flex:1;min-width:0;">'
       + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
       + '<div style="font-size:11.5px;color:'+(unread?'var(--text)':'var(--text3)')+';font-weight:'+(unread?'500':'400')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>'
       + '</div>'
       + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;flex-shrink:0;">'+unread+'</span>' : '')
-      + '</button>';
+      + '</button>'
+      + _clientDelBtn
+      + '</div>';
   }).join('');
 }
 function filterMsgList(q) {
@@ -12658,6 +12665,20 @@ async function deleteDmThread(otherUid, name){
   try { renderMessagesPage(); } catch(e){}
 }
 window.deleteDmThread = deleteDmThread;
+
+// Delete (clear off list) a client conversation. Removes the thread summary doc.
+// If the client messages again, a fresh thread is created — this clears, not severs.
+async function deleteClientThread(roomId, name){
+  if (!roomId) return;
+  if (!confirm('Delete your conversation with '+(name||'this client')+'? It will reappear if they message you again.')) return;
+  try {
+    await fb.deleteDoc(fb.doc(fb.db,'threads', roomId));
+  } catch(e){ console.log('client thread delete:', e.message); alert('Could not delete: '+e.message); return; }
+  // onSnapshot will re-render automatically, but update locally for instant feedback
+  _threads = (_threads||[]).filter(function(t){ return t.roomId !== roomId; });
+  try { renderMessagesPage(); } catch(e){}
+}
+window.deleteClientThread = deleteClientThread;
 
 window.renderMessagesPage = renderMessagesPage;
 
