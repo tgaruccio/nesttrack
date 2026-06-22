@@ -3119,6 +3119,7 @@ textarea{resize:vertical;min-height:68px;}
   <div class="mbox">
     <div class="mhdr"><div class="mtitle">Manage Team</div><button class="xbtn" onclick="closeM('team-modal')">✕</button></div>
     <div id="team-billing-pointer" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--text2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;"><span>💳 Billing &amp; seats live in your Profile</span><button class="btn btn-sm" onclick="closeM('team-modal');go('agent',document.querySelector('[data-pg=agent]'));setTimeout(function(){switchAgentTab('profile');},150);">Open Profile →</button></div>
+    <div id="team-onboarding-modal-container" style="margin-bottom:14px;"></div>
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:6px;">Agents</div>
     <div id="team-list" style="display:flex;flex-direction:column;gap:8px;"></div>
     <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin:14px 0 6px;">Lenders</div>
@@ -15576,7 +15577,20 @@ async function assignOnboarding(agentId, agentName) {
       if (snap.empty) { alert('Could not find this agent\'s account. They may not have signed up yet.'); overlay.remove(); return; }
       var updates = { onboardingAssigned: true };
       if (mentorId) updates.mentorAgentId = mentorId;
-      snap.forEach(async function(d){ await fb.updateDoc(fb.doc(fb.db,'users',d.id), updates); });
+      var _seedTeamId = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+      snap.forEach(async function(d){
+        await fb.updateDoc(fb.doc(fb.db,'users',d.id), updates);
+        // Seed an onboarding record NOW so the agent shows in the tracker before
+        // they tick their first box. Store mentorAgentId + teamId on the record
+        // itself so the tracker filter never depends on DEFAULT_AGENTS having them.
+        try {
+          await fb.setDoc(fb.doc(fb.db,'agent_onboarding',d.id), {
+            completed: {}, agentId: agentId,
+            mentorAgentId: mentorId || null, teamId: _seedTeamId,
+            assignedAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp()
+          }, {merge:true});
+        } catch(e){}
+      });
       overlay.remove();
       showDealToast('🎓 Onboarding assigned to '+agentName+'!', null, null);
       renderTeamOnboardingInModal();
@@ -21751,8 +21765,10 @@ async function obSaveProgress() {
     await fb.setDoc(fb.doc(fb.db,'agent_onboarding',_profileUid()), {
       completed: _obProgress,
       updatedAt: fb.serverTimestamp(),
-      agentId: userProfile.agentId || 'tom'
-    });
+      agentId: userProfile.agentId || 'tom',
+      mentorAgentId: (userProfile && userProfile.mentorAgentId) || null,
+      teamId: (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'
+    }, {merge:true});
     // Record activity timestamp for inactivity check
     try { localStorage.setItem('ob_last_activity_'+currentUser.uid, String(Date.now())); } catch(e){}
   } catch(e) {}
@@ -22244,8 +22260,8 @@ async function obSaveEdits() {
 window.obSaveEdits = obSaveEdits;
 
 // ── TEAM ONBOARDING VIEW ──
-async function renderTeamOnboarding() {
-  var container = document.getElementById('team-onboarding-container');
+async function renderTeamOnboarding(containerId) {
+  var container = document.getElementById(containerId || 'team-onboarding-container');
   if (!container) return;
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading...</div>';
   try {
@@ -22257,11 +22273,14 @@ async function renderTeamOnboarding() {
     var _obMyTeam = (userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
     var filtered = records.filter(function(r){
       var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===r.agentId; });
-      if (!ae) return false;
-      if (typeof agentTeamId==='function' && agentTeamId(ae) === _obMyTeam) return true; // on my team
-      return ae.mentorAgentId === myAgentId; // or someone I personally mentor
+      // Prefer fields stored ON the record (reliable); fall back to DEFAULT_AGENTS.
+      var recMentor = (r.mentorAgentId !== undefined && r.mentorAgentId !== null) ? r.mentorAgentId : (ae && ae.mentorAgentId) || null;
+      var recTeam = r.teamId || (ae && typeof agentTeamId==='function' ? agentTeamId(ae) : null);
+      if (recTeam && recTeam === _obMyTeam) return true;   // on my team
+      if (recMentor && recMentor === myAgentId) return true; // someone I personally mentor
+      return false;
     });
-    if (!filtered.length) { container.innerHTML = ''; return; }
+    if (!filtered.length) { container.innerHTML = (containerId==='team-onboarding-modal-container') ? '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12.5px;">No onboarding in progress yet. Assign onboarding to a new agent and they\'ll show up here.</div>' : ''; return; }
     var total = OB_DEFAULT_STEPS ? OB_DEFAULT_STEPS.length : 0;
     var html = '<div style="padding:0 0 12px;"><div style="font-size:16px;font-weight:600;margin-bottom:4px;">&#x1F465; Team Onboarding</div></div>';
     filtered.forEach(function(r) {
@@ -22271,8 +22290,9 @@ async function renderTeamOnboarding() {
       var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===r.agentId; });
       var name = ae ? ae.name : (r.agentId||'Unknown');
       var initials = name.split(' ').map(function(w){ return w[0]||''; }).join('').substring(0,2).toUpperCase();
-      var mentorEntry = ae && ae.mentorAgentId ? (DEFAULT_AGENTS||[]).find(function(a){ return a.id===ae.mentorAgentId; }) : null;
-      var isMyAgent = ae && ae.mentorAgentId === myAgentId;
+      var _rowMentorId = (r.mentorAgentId !== undefined && r.mentorAgentId !== null) ? r.mentorAgentId : ((ae && ae.mentorAgentId) || null);
+      var mentorEntry = _rowMentorId ? (DEFAULT_AGENTS||[]).find(function(a){ return a.id===_rowMentorId; }) : null;
+      var isMyAgent = _rowMentorId === myAgentId;
       var lastStep = OB_DEFAULT_STEPS ? OB_DEFAULT_STEPS.slice().reverse().find(function(s){ return prog[s.id]; }) : null;
       var lastWeek = lastStep ? lastStep.week + ' — ' + lastStep.title : '';
       html += '<div class="card" style="margin-bottom:12px;'+(isMyAgent?'border-left:3px solid var(--green);':'')+'">'
@@ -22515,6 +22535,8 @@ window.teamChatClear = teamChatClear;
 window.teamChatToggleMute = teamChatToggleMute;
 
 window.renderTeamOnboarding = renderTeamOnboarding;
+function renderTeamOnboardingInModal(){ return renderTeamOnboarding('team-onboarding-modal-container'); }
+window.renderTeamOnboardingInModal = renderTeamOnboardingInModal;
 
 async function obNudge(uid, name) {
   var myName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your mentor';
