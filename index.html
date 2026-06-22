@@ -1284,8 +1284,8 @@ textarea{resize:vertical;min-height:68px;}
     </button>
 
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
-    <div>
-      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;" id="ad-greeting">Good morning</div>
+    <div style="min-width:0;flex:1;padding-right:164px;box-sizing:border-box;">
+      <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:300;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="ad-greeting">Good morning</div>
       <div style="font-size:12.5px;color:var(--text2);display:flex;align-items:center;gap:6px;"><span id="ad-sub">Here's your day at a glance</span><span onclick="showHelp('overview')" title="New here? Quick platform overview" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
     </div>
   </div>
@@ -26554,6 +26554,21 @@ function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((use
 function _lpBaseUrl(){ return 'https://app.garucciogroup.com/lp.html'; }
 function _lpFileUrl(t){ return 'https://app.garucciogroup.com/'+((LP_TEMPLATES[t]&&LP_TEMPLATES[t].file)||'lp.html'); }
 
+function openPreviewOverlay(url, label){
+  var ov=document.createElement('div');
+  ov.id='preview-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:900;display:flex;flex-direction:column;';
+  ov.innerHTML=
+    '<div style="padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
+      +'<button onclick="document.getElementById(\'preview-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
+      +'<div style="flex:1;font-size:15px;font-weight:600;">'+(label||'Preview')+'</div>'
+      +'<a href="'+url+'" target="_blank" rel="noopener" style="font-size:12px;color:var(--green);text-decoration:none;font-weight:600;">Open \u2197</a>'
+    +'</div>'
+    +'<iframe src="'+url+'" style="flex:1;width:100%;border:none;background:#fff;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>';
+  document.body.appendChild(ov);
+}
+window.openPreviewOverlay = openPreviewOverlay;
+
 function openLandingPages(){
   var ov=document.createElement('div');
   ov.id='lp-overlay';
@@ -26666,7 +26681,7 @@ async function lpEditTemplate(t){
     +'<input type="color" id="lp-accent" value="'+(cfg.accent||'#2A6EF4')+'" style="width:54px;height:38px;border:1px solid var(--border);border-radius:8px;padding:2px;cursor:pointer;"/>'
     +'<div style="display:flex;gap:8px;margin-top:18px;">'
       +'<button class="btn btn-g" style="flex:1;" onclick="lpSaveTemplate(\''+t+'\')">Save &amp; Get Link</button>'
-      +'<a class="btn" href="'+_lpFileUrl(t)+'?a='+agentId+'&t='+t+'" target="_blank" style="flex:1;text-align:center;text-decoration:none;">Preview</a>'
+      +'<button class="btn" style="flex:1;" onclick="openPreviewOverlay(\''+_lpFileUrl(t)+'?a='+agentId+'&t='+t+'\',\'Landing Page Preview\')">Preview</button>'
     +'</div>'
     +'<div id="lp-share" style="display:none;margin-top:18px;padding:14px;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);"></div>';
   if(t==='buyer'){
@@ -26858,7 +26873,7 @@ async function lpEditListing(id){
     +'</div>'
     +'<div style="display:flex;gap:8px;margin-top:18px;">'
       +'<button class="btn btn-g" style="flex:1;" onclick="lpSaveListing(\''+lid+'\')">Save &amp; Get Link</button>'
-      +'<a class="btn" href="https://app.garucciogroup.com/listing.html?id='+lid+'" target="_blank" style="flex:1;text-align:center;text-decoration:none;">Preview</a>'
+      +'<button class="btn" style="flex:1;" onclick="openPreviewOverlay(\'https://app.garucciogroup.com/listing.html?id='+lid+'\',\'Listing Preview\')">Preview</button>'
     +'</div>'
     +'<div id="lpl-share" style="display:none;margin-top:18px;padding:14px;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);"></div>'
     +(id?'<button class="btn btn-sm" style="width:100%;margin-top:14px;color:#E24B4A;border:1px solid #f3c9c8;" onclick="lpDeleteListing(\''+id+'\')">\uD83D\uDDD1 Delete this listing page</button>':'');
