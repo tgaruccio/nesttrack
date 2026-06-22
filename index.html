@@ -12438,6 +12438,18 @@ window.openContactPicker = openContactPicker;
 function renderContactPicker(q){
   var list = document.getElementById('cp-list'); if(!list) return;
   q = (q||'').toLowerCase().trim();
+  // Team agents (exclude myself) — for 1-on-1 agent DMs
+  var myAgentId = (userProfile && userProfile.agentId) || 'tom';
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var teamAgents = (DEFAULT_AGENTS||[]).filter(function(a){
+    if (!a.id || !a.name) return false;
+    if (a.id === myAgentId) return false; // not myself
+    var at = (typeof agentTeamId==='function') ? agentTeamId(a) : (a.teamId||a.id);
+    return at === myTeam; // only my team
+  });
+  if(q){
+    teamAgents = teamAgents.filter(function(a){ return (a.name||'').toLowerCase().indexOf(q)!==-1; });
+  }
   var contacts = (myBuyers||[]).filter(function(b){ return !b.pending; });
   if(q){
     contacts = contacts.filter(function(b){
@@ -12446,20 +12458,39 @@ function renderContactPicker(q){
     });
   }
   contacts.sort(function(a,b){ return (((a.firstName||'')+(a.lastName||'')).toLowerCase()).localeCompare(((b.firstName||'')+(b.lastName||'')).toLowerCase()); });
-  if(!contacts.length){ list.innerHTML='<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">'+(myBuyers&&myBuyers.length?'No contacts found':'No contacts yet')+'</div>'; return; }
+  if(!teamAgents.length && !contacts.length){ list.innerHTML='<div style="padding:20px;text-align:center;font-size:13px;color:var(--text3);">'+(myBuyers&&myBuyers.length?'No contacts found':'No contacts yet')+'</div>'; return; }
   var capped=false;
   if(!q && contacts.length>200){ contacts=contacts.slice(0,200); capped=true; }
-  list.innerHTML = (capped?'<div style="padding:8px 14px;font-size:11px;color:var(--text3);">Showing first 200 \u2014 search to narrow.</div>':'') + contacts.map(function(b){
-    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
-    var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
-    var sub = b.email||'';
-    return '<button onclick="pickContact(\''+b.uid+'\')" style="width:100%;text-align:left;background:none;border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
-      +'<div style="width:38px;height:38px;border-radius:50%;background:var(--surface2);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
-      +'<div style="flex:1;min-width:0;">'
-      +'<div style="font-size:13.5px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'
-      +(sub?'<div style="font-size:11.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>':'')
-      +'</div></button>';
-  }).join('');
+  var html = '';
+  // ── Team section ──
+  if (teamAgents.length) {
+    html += '<div style="padding:10px 14px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);">Team</div>';
+    html += teamAgents.map(function(a){
+      var initials = (a.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
+      return '<button onclick="pickAgentDM(\''+a.id+'\')" style="width:100%;text-align:left;background:none;border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+        +'<div style="width:38px;height:38px;border-radius:50%;background:var(--green-lt);color:var(--green-dk);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:13.5px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(a.name)+'</div>'
+        +'<div style="font-size:11.5px;color:var(--text3);">'+partnerEsc(a.role||'Teammate')+'</div>'
+        +'</div></button>';
+    }).join('');
+  }
+  // ── Clients section ──
+  if (contacts.length) {
+    html += '<div style="padding:10px 14px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);">Clients</div>';
+    html += (capped?'<div style="padding:8px 14px;font-size:11px;color:var(--text3);">Showing first 200 \u2014 search to narrow.</div>':'') + contacts.map(function(b){
+      var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email||'Client';
+      var initials = ((b.firstName||'?')[0]+(b.lastName||'?')[0]).toUpperCase();
+      var sub = b.email||'';
+      return '<button onclick="pickContact(\''+b.uid+'\')" style="width:100%;text-align:left;background:none;border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+        +'<div style="width:38px;height:38px;border-radius:50%;background:var(--surface2);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+        +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-size:13.5px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'
+        +(sub?'<div style="font-size:11.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>':'')
+        +'</div></button>';
+    }).join('');
+  }
+  list.innerHTML = html;
 }
 window.renderContactPicker = renderContactPicker;
 
@@ -12468,6 +12499,94 @@ function pickContact(uid){
   if(typeof openMsgThread==='function') openMsgThread(uid);
 }
 window.pickContact = pickContact;
+
+// ── 1-ON-1 AGENT DM ──
+var _dmListener = null;
+async function pickAgentDM(agentShortId){
+  var cp=document.getElementById('contact-picker'); if(cp) cp.remove();
+  var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentShortId; });
+  var name = ae ? ae.name : 'Teammate';
+  // Resolve the other agent's Firebase UID (stored in push_subscriptions/agent_<id>)
+  var otherUid = null;
+  try {
+    var snap = await fb.getDoc(fb.doc(fb.db,'push_subscriptions','agent_'+agentShortId));
+    if (snap.exists()) otherUid = snap.data().uid || null;
+  } catch(e){}
+  if (!otherUid) { alert(name+' hasn\'t signed in yet, so a direct chat can\'t be started until they do.'); return; }
+  openAgentDM(otherUid, name, agentShortId);
+}
+window.pickAgentDM = pickAgentDM;
+
+function _dmRoomId(otherUid){
+  var me = currentUser.uid;
+  var pair = [me, otherUid].sort();
+  return 'dm_' + pair[0] + '_' + pair[1];
+}
+
+function openAgentDM(otherUid, name, agentShortId){
+  var room = _dmRoomId(otherUid);
+  var existing = document.getElementById('agent-dm-overlay'); if(existing) existing.remove();
+  var initials = (name||'?').split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
+  var ov = document.createElement('div');
+  ov.id='agent-dm-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:320;display:flex;flex-direction:column;';
+  ov.innerHTML =
+    '<div style="padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
+      +'<button onclick="closeAgentDM()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
+      +'<div style="width:36px;height:36px;border-radius:50%;background:var(--green-lt);color:var(--green-dk);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div><div style="font-size:11px;color:var(--text3);">Direct message</div></div>'
+    +'</div>'
+    +'<div id="agent-dm-messages" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch;"></div>'
+    +'<div style="padding:12px;border-top:0.5px solid var(--border);display:flex;gap:8px;align-items:flex-end;background:var(--surface);flex-shrink:0;">'
+      +'<textarea id="agent-dm-input" placeholder="Message..." rows="1" style="flex:1;resize:none;border:1px solid var(--border);border-radius:20px;padding:10px 14px;font-size:14px;font-family:inherit;outline:none;background:var(--surface2);min-height:40px;max-height:120px;" oninput="this.style.height=\'auto\';this.style.height=this.scrollHeight+\'px\'" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();sendAgentDM(\''+otherUid+'\',\''+(agentShortId||'')+'\');}"></textarea>'
+      +'<button onclick="sendAgentDM(\''+otherUid+'\',\''+(agentShortId||'')+'\')" style="width:40px;height:40px;border-radius:50%;background:var(--green);border:none;color:#fff;font-size:18px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">\u2191</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+
+  var chatRef = fb.ref(fb.rtdb, 'chats/'+room+'/messages');
+  if (_dmListener) { try { _dmListener(); } catch(e){} _dmListener=null; }
+  _dmListener = fb.onChildAdded(chatRef, function(snapshot){
+    var msg = snapshot.val(); if(!msg) return;
+    var el = document.getElementById('agent-dm-messages'); if(!el) return;
+    var isMine = msg.senderId === currentUser.uid;
+    var time = msg.ts ? new Date(msg.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+    var date = msg.ts ? new Date(msg.ts).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) : '';
+    var lastDate = el.getAttribute('data-last-date');
+    if (date && date!==lastDate){ var dv=document.createElement('div'); dv.className='chat-day-divider'; dv.textContent=date; el.appendChild(dv); el.setAttribute('data-last-date',date); }
+    var wrapper=document.createElement('div');
+    wrapper.style.cssText='display:flex;flex-direction:column;align-items:'+(isMine?'flex-end':'flex-start')+';';
+    var bubble=document.createElement('div'); bubble.className='bubble '+(isMine?'me':'them');
+    bubble.innerHTML=escapeHtml(msg.text||'')+'<div class="ts">'+time+'</div>';
+    wrapper.appendChild(bubble); el.appendChild(wrapper); el.scrollTop=el.scrollHeight;
+  });
+}
+window.openAgentDM = openAgentDM;
+
+function closeAgentDM(){
+  if (_dmListener) { try { _dmListener(); } catch(e){} _dmListener=null; }
+  var ov=document.getElementById('agent-dm-overlay'); if(ov) ov.remove();
+}
+window.closeAgentDM = closeAgentDM;
+
+async function sendAgentDM(otherUid, agentShortId){
+  var input = document.getElementById('agent-dm-input');
+  if(!input) return;
+  var text = (input.value||'').trim();
+  if(!text) return;
+  input.value=''; input.style.height='auto';
+  var room = _dmRoomId(otherUid);
+  var myName = ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || 'Teammate';
+  try {
+    await fb.push(fb.ref(fb.rtdb,'chats/'+room+'/messages'), {
+      senderId: currentUser.uid, senderName: myName, text: text, ts: Date.now()
+    });
+    // Push notification to the other agent
+    if (agentShortId && typeof sendPushToAgentByShortId==='function') {
+      sendPushToAgentByShortId(agentShortId, 'Message from '+myName, text.substring(0,80));
+    }
+  } catch(e){ console.log('DM send failed:', e.message); }
+}
+window.sendAgentDM = sendAgentDM;
 
 window.renderMessagesPage = renderMessagesPage;
 
