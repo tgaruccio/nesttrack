@@ -7568,7 +7568,7 @@ function go(page, el) {
   if (page === 'marketing') { renderMarketing(); }
   if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'docs-explainer') { _populateDocExplainer(); }
-  if (page === 'messages') { renderMessagesPage(); }
+  if (page === 'messages') { renderMessagesPage(); loadDmThreads().then(function(){ try{ renderMessagesPage(); }catch(e){} }); }
   if (page === 'newsletter') {
     _nlContainerId = 'nl-blocks'; _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
     // Load fresh complete buyer list directly — don't use myBuyers which is filtered
@@ -12369,6 +12369,12 @@ function renderMessagesPage() {
   var q = si ? (si.value||'').toLowerCase().trim() : '';
 
   var rows = [];
+  // Team DMs first (persistent, reopenable)
+  (_dmThreads||[]).forEach(function(t){
+    if(!t || !t.otherUid) return;
+    if(q && (t.otherName||'').toLowerCase().indexOf(q)===-1) return;
+    rows.push({ uid:t.otherUid, name:t.otherName||'Teammate', lm:{text:t.lastText||'',ts:t.lastTs||0,role:''}, ts:t.lastTs||0, _isDM:true, _agentId:t.otherAgentId||'' });
+  });
   if (q) {
     var roster = (myBuyers||[]).filter(function(b){ return !b.pending; });
     roster.forEach(function(b){
@@ -12401,10 +12407,14 @@ function renderMessagesPage() {
     var lm = r.lm;
     var sub = (lm&&lm.text) ? _msgPreview(lm) : 'Start a conversation';
     var timeStr = (lm&&lm.ts) ? _msgRelTime(lm.ts) : '';
-    return '<button onclick="openMsgThread(\''+r.uid+'\')" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
-      + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':'var(--surface2)')+';color:'+(unread?'#fff':'var(--text2)')+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
+    var _clickAttr = r._isDM
+      ? 'openDmFromThread(\''+r.uid+'\',\''+partnerEsc(name)+'\',\''+(r._agentId||'')+'\')'
+      : 'openMsgThread(\''+r.uid+'\')';
+    var _teamBadge = r._isDM ? '<span style="background:var(--green-lt);color:var(--green-dk);border-radius:8px;padding:1px 6px;font-size:9px;font-weight:700;flex-shrink:0;margin-left:6px;">TEAM</span>' : '';
+    return '<button onclick="'+_clickAttr+'" data-uid="'+r.uid+'" data-name="'+partnerEsc(name.toLowerCase())+'" style="width:100%;text-align:left;background:'+(isActive?'var(--green-lt)':'none')+';border:none;border-bottom:0.5px solid var(--border);padding:12px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;font-family:inherit;">'
+      + '<div style="width:38px;height:38px;border-radius:50%;background:'+(unread?'var(--green)':(r._isDM?'var(--green-lt)':'var(--surface2)'))+';color:'+(unread?'#fff':(r._isDM?'var(--green-dk)':'var(--text2)'))+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;">'+initials+'</div>'
       + '<div style="flex:1;min-width:0;">'
-      + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;"><div style="flex:1;min-width:0;font-size:13.5px;font-weight:'+(unread?'600':'500')+';color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+_teamBadge+'</div>'+(timeStr?'<div style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+partnerEsc(timeStr)+'</div>':'')+'</div>'
       + '<div style="font-size:11.5px;color:'+(unread?'var(--text)':'var(--text3)')+';font-weight:'+(unread?'500':'400')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(sub)+'</div>'
       + '</div>'
       + (unread ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:600;flex-shrink:0;">'+unread+'</span>' : '')
@@ -12576,10 +12586,26 @@ async function sendAgentDM(otherUid, agentShortId){
   input.value=''; input.style.height='auto';
   var room = _dmRoomId(otherUid);
   var myName = ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || 'Teammate';
+  var otherName = '';
+  var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===agentShortId; });
+  if (ae) otherName = ae.name;
   try {
     await fb.push(fb.ref(fb.rtdb,'chats/'+room+'/messages'), {
       senderId: currentUser.uid, senderName: myName, text: text, ts: Date.now()
     });
+    // Persist a thread record for BOTH users so the DM shows in each person's
+    // Messages list and can be reopened later. Stored at dm_threads/{uid}/{room}.
+    var now = Date.now();
+    try {
+      await fb.setDoc(fb.doc(fb.db,'dm_threads', currentUser.uid+'__'+room), {
+        owner: currentUser.uid, otherUid: otherUid, otherName: otherName||'Teammate',
+        otherAgentId: agentShortId||'', room: room, lastText: text, lastTs: now, lastSender: currentUser.uid
+      }, {merge:true});
+      await fb.setDoc(fb.doc(fb.db,'dm_threads', otherUid+'__'+room), {
+        owner: otherUid, otherUid: currentUser.uid, otherName: myName,
+        otherAgentId: (userProfile&&userProfile.agentId)||'', room: room, lastText: text, lastTs: now, lastSender: currentUser.uid
+      }, {merge:true});
+    } catch(e){ console.log('dm thread write:', e.message); }
     // Push notification to the other agent
     if (agentShortId && typeof sendPushToAgentByShortId==='function') {
       sendPushToAgentByShortId(agentShortId, 'Message from '+myName, text.substring(0,80));
@@ -12587,6 +12613,27 @@ async function sendAgentDM(otherUid, agentShortId){
   } catch(e){ console.log('DM send failed:', e.message); }
 }
 window.sendAgentDM = sendAgentDM;
+
+// Load this user's DM threads (for the Messages list)
+var _dmThreads = [];
+async function loadDmThreads(){
+  if(!currentUser) return;
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'dm_threads'),
+      fb.where('owner','==',currentUser.uid)
+    ));
+    _dmThreads = [];
+    snap.forEach(function(d){ _dmThreads.push(d.data()); });
+    _dmThreads.sort(function(a,b){ return (b.lastTs||0)-(a.lastTs||0); });
+  } catch(e){ _dmThreads = []; }
+}
+window.loadDmThreads = loadDmThreads;
+// Reopen a DM thread from the Messages list
+function openDmFromThread(otherUid, name, agentShortId){
+  openAgentDM(otherUid, name, agentShortId);
+}
+window.openDmFromThread = openDmFromThread;
 
 window.renderMessagesPage = renderMessagesPage;
 
