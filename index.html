@@ -4392,6 +4392,7 @@ async function loadUserProfile() {
       if (typeof isPlatformOwner === 'function' && isPlatformOwner()) { _laPatch.platformOwner = true; userProfile.platformOwner = true; }
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
       _registerAgentPush();
+      try { oneSignalRegister(); } catch(e){}
       try { _watchClaimableLeads(); } catch(e){}
       await applyManageAsOverride();
     } else {
@@ -17489,6 +17490,28 @@ async function oneSignalRegister() {
   if (!currentUser) return;
   var debugEl = document.getElementById('push-test-result');
   function dbg(msg) { console.log(msg); if(debugEl) debugEl.textContent = msg; }
+  // --- NATIVE APP (Median wrapper): use the Median JavaScript Bridge ---
+  // The web OneSignal SDK below does NOT control the native iOS/Android push
+  // subscription. Inside the Median app we must call the native bridge so the
+  // device's external_id is set to the Firebase UID (what server push targets).
+  try {
+    var _isMedianApp = (typeof navigator!=='undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('median')>-1) || (typeof median!=='undefined' && median && median.onesignal);
+    if (_isMedianApp && typeof median!=='undefined' && median.onesignal) {
+      function _medianLogin(){
+        try {
+          if (median.onesignal.login) {
+            median.onesignal.login(currentUser.uid);
+            dbg('Median OneSignal: login ' + currentUser.uid);
+          } else if (median.onesignal.externalUserId && median.onesignal.externalUserId.set) {
+            median.onesignal.externalUserId.set({ externalId: currentUser.uid });
+            dbg('Median OneSignal: externalId set ' + currentUser.uid);
+          }
+        } catch(e){ dbg('Median OneSignal err: ' + (e&&e.message)); }
+      }
+      if (typeof median.onReady === 'function') { median.onReady(_medianLogin); } else { _medianLogin(); }
+    }
+  } catch(e){ dbg('median bridge check err: ' + (e&&e.message)); }
+  // --- WEB (PWA / browser): use the OneSignal web SDK ---
   try {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
@@ -17500,7 +17523,6 @@ async function oneSignalRegister() {
     });
   } catch(e) { dbg('oneSignalRegister err: ' + e.message); }
 }
-window.oneSignalRegister = oneSignalRegister;
 window.oneSignalRegister = oneSignalRegister;
 
 // Test push — sends to yourself, remove after confirming works
