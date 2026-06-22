@@ -14564,9 +14564,10 @@ async function massDeleteContacts(){
 }
 window.massDeleteContacts = massDeleteContacts;
 
-function openBulkAction(type){
+async function openBulkAction(type){
   var uids = Object.keys(window._selectedContacts||{});
   if(!uids.length) return;
+  if(type==='plan'){ if(typeof _smartPlans==='undefined' || !_smartPlans || !_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} } }
   var inner='';
   if(type==='segment'){
     inner='<label class="flabel">Segment / Source</label>'
