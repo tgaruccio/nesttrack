@@ -14936,6 +14936,26 @@ async function fireZapierWebhook(agentId, clientData) {
 }
 window.fireZapierWebhook = fireZapierWebhook;
 
+// ── APP DOWNLOAD LINKS (edit these once your apps are live) ──
+// Leave '' until approved — the block hides itself when both are empty.
+var APP_STORE_URL = ''; // e.g. 'https://apps.apple.com/app/idXXXXXXXXXX'
+var PLAY_STORE_URL = ''; // e.g. 'https://play.google.com/store/apps/details?id=io.nesttrack.app'
+function _inviteAppDownloadBlock(){
+  if (!APP_STORE_URL && !PLAY_STORE_URL) return '';
+  var btns = '';
+  if (APP_STORE_URL) {
+    btns += '<a href="'+APP_STORE_URL+'" style="display:inline-block;background:#1a1a1a;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;text-decoration:none;margin:0 4px 6px;font-weight:500;"> Download for iPhone</a>';
+  }
+  if (PLAY_STORE_URL) {
+    btns += '<a href="'+PLAY_STORE_URL+'" style="display:inline-block;background:#1a1a1a;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;text-decoration:none;margin:0 4px 6px;font-weight:500;">▶ Download for Android</a>';
+  }
+  return '<div style="text-align:center;background:#f7f7f7;border-radius:10px;padding:16px;margin:0 0 18px;">'
+    + '<div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:4px;">📲 Get the app</div>'
+    + '<div style="font-size:12px;color:#888;margin-bottom:10px;">Install NestTrack for push notifications, faster access, and the full experience.</div>'
+    + btns
+    + '</div>';
+}
+
 async function createInvite() {
   if (window._billBlock && _billBlock()) return;
   var first = document.getElementById('inv-first').value.trim();
@@ -14981,7 +15001,8 @@ async function createInvite() {
     // Journey-specific content
     var isBuyer  = true;
     var isSeller = false; // seller status set separately via journey type
-    var subjectLine = first + (isSeller ? ', your real estate portal is ready 🏠🏡' : ', your home buying portal is ready 🏠');
+    // Neutral subject — at invite time we may not know buyer vs seller yet.
+    var subjectLine = first + ', your real estate portal is ready 🏠';
 
     // Compact feature tiles
     function fTile(icon, title, desc) {
@@ -14993,13 +15014,9 @@ async function createInvite() {
     }
 
     var tiles = '';
-    if (isBuyer)  tiles += fTile('🗺️', 'Your Buying Journey', 'Every step mapped from first showing to closing. Know what\'s coming before it happens.');
-    if (isSeller) tiles += fTile('🏡', 'Your Selling Roadmap', 'Prep to closing, fully laid out. No surprises.');
-    if (isBuyer)  tiles += fTile('🏦', 'The Mortgage Trail', 'The loan process in plain English, start to finish.');
-    if (isBuyer)  tiles += fTile('🔍', 'Live Home Search', 'Search listings, save favorites, compare homes — all in one place.');
-    tiles += fTile('📚', 'Education + Document Explainer', 'Every stage explained. Every doc decoded. Ready when you need it.');
+    tiles += fTile('🗺️', 'Your Journey, Mapped', 'Every step laid out — from start to closing. Know what\'s coming before it happens.');
     tiles += fTile('📅', 'Transaction Timeline', 'Every deadline tracked automatically once you\'re under contract.');
-    if (isSeller) tiles += fTile('💵', 'Net Sheet Calculator', 'See your real proceeds before accepting any offer.');
+    tiles += fTile('📚', 'Education + Document Explainer', 'Every stage explained. Every doc decoded. Ready when you need it.');
     tiles += fTile('🤖', 'AI Tools', 'Mortgage calc, offer strategy, red flag analyzer, neighborhood intel, and more.');
     tiles += fTile('💬', 'Direct Chat with ' + agentName.split(' ')[0], 'Message right in the app — no lost texts, no phone tag.');
     tiles += fTile('👤', 'Your Team', 'Agent, lender, and title company — one tap away.');
@@ -15024,6 +15041,7 @@ async function createInvite() {
       + '<table width="100%" cellpadding="0" cellspacing="0">' + tiles + '</table>'
       + ctaBtn
       + '<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 18px;word-break:break-all;">Or copy: ' + link + '</p>'
+      + _inviteAppDownloadBlock()
       + '<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 14px;"/>'
       + '<div style="font-size:14px;font-weight:600;color:#1a1a1a;">' + agentName + '</div>'
       + '<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
