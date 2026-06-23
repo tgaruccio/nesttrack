@@ -13635,8 +13635,19 @@ window.todoLoad = todoLoad;
 
 var TC_LEAD_DAYS = 1; // TC tasks only hit the to-do list this many days before they're due
 function injectDealReminders() {
-  if (!_deals || !_deals.length) return;
   if (typeof TC_TASKS === 'undefined' || typeof tcTaskStatus !== 'function') return;
+  _deals = _deals || [];
+  // Clean up orphaned TC reminders: if a TC to-do's deal no longer exists, drop it.
+  // (Runs even with zero deals — in that case every TC reminder is an orphan.)
+  if (typeof _todos !== 'undefined' && _todos && _todos.length) {
+    var _orphanBefore = _todos.length;
+    _todos = _todos.filter(function(t){
+      if (!t.isTC || !t.dealId) return true;            // keep non-TC items
+      return _deals.some(function(d){ return d.id === t.dealId; }); // keep only if its deal still exists
+    });
+    if (_todos.length !== _orphanBefore) { try{ todoSave(); todoRender(); todoUpdateBadge(); }catch(e){} }
+  }
+  if (!_deals.length) return; // nothing more to inject
   var _td = _tcToday();
   // Declutter: drop TC auto-reminders that aren't due-soon yet (they stay in the deal's TC tab).
   var beforeLen = _todos.length;
