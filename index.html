@@ -1182,6 +1182,14 @@ textarea{resize:vertical;min-height:68px;}
       </select>
       <button class="btn btn-g" onclick="spSavePlan()">Save Plan</button>
     </div>
+    <div style="max-width:560px;margin:0 auto 12px;padding:10px 12px;background:var(--surface2);border-radius:var(--r-sm);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:12.5px;font-weight:600;color:var(--text2);">⚡ Auto-enroll when segment is:</span>
+      <select id="sp-autosegment" style="flex:1;min-width:150px;font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);">
+        <option value="">— Off (manual only) —</option>
+      </select>
+      <button type="button" class="btn btn-sm" onclick="spAddNewSegment()" style="white-space:nowrap;">+ New</button>
+      <div style="flex-basis:100%;font-size:11px;color:var(--text3);">When a NEW contact is imported or added with this segment, this plan starts automatically. A segment can trigger more than one plan.</div>
+    </div>
     <div id="sp-canvas" style="max-width:560px;margin:0 auto;"></div>
   </div>
 </div>
@@ -3223,20 +3231,45 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- IMPORT CSV MODAL -->
 <div class="mo" id="import-modal" style="display:none;">
-  <div class="mbox" style="max-width:520px;">
+  <div class="mbox" style="max-width:560px;">
     <div class="mhdr"><div class="mtitle">Import Contacts from CSV</div><button class="xbtn" onclick="closeM('import-modal')">✕</button></div>
-    <div class="notice">CSV should have columns: <strong>firstName, lastName, email, phone, crmStatus, journeyType</strong>. Optional: <strong>segment</strong>. Extra columns are ignored.</div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    <div class="notice">Upload any CSV — you'll match your columns on the next step. No need to format it first.</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
       <div>
         <label class="flabel">Upload CSV File</label>
         <input type="file" id="import-csv-file" accept=".csv" style="font-size:13px;" onchange="previewCSV(event)"/>
       </div>
-      <div>
-        <label class="flabel">Segment / Source <span style="color:var(--text3);font-weight:400;">(optional)</span></label>
-        <input type="text" id="import-segment" placeholder="e.g. March FB Ad, Spring Home Expo, FSBO 44130" style="width:100%;box-sizing:border-box;font-size:13px;"/>
-        <div style="font-size:11px;color:var(--text3);margin-top:3px;">Tags this whole upload so you can filter and bulk-manage them later. A &quot;segment&quot; column in your CSV overrides this per row.</div>
+
+      <!-- COLUMN MAPPING (appears after upload) -->
+      <div id="import-mapping" style="display:none;flex-direction:column;gap:8px;">
+        <div style="font-size:13px;font-weight:600;">Match your columns</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:-4px;">Tell us which of your CSV columns maps to each field. We guessed where we could.</div>
+        <div id="import-mapping-rows" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
+
+      <!-- BATCH STATUS + SEGMENT (appears after upload) -->
+      <div id="import-batch-opts" style="display:none;flex-direction:column;gap:10px;">
+        <div>
+          <label class="flabel">Add all as Status</label>
+          <select id="import-status-sel" style="width:100%;box-sizing:border-box;font-size:13px;">
+            <option value="pipeline">Pipeline (lead)</option>
+            <option value="active">Active client</option>
+            <option value="past">Past client</option>
+            <option value="nurture">Nurture / long-term</option>
+          </select>
+        </div>
+        <div>
+          <label class="flabel">Add all to Segment</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select id="import-segment-sel" style="flex:1;box-sizing:border-box;font-size:13px;" onchange="onImportSegmentChange()"></select>
+            <button type="button" class="btn btn-sm" onclick="importAddNewSegment()" style="white-space:nowrap;">+ New</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px;">Everyone in this upload gets tagged with this segment. If a segment has auto-enroll Smart Plans, they'll start automatically.</div>
+        </div>
+      </div>
+
       <a href="#" onclick="downloadCSVTemplate();return false;" style="font-size:12px;color:var(--green-dk);">⬇ Download template CSV</a>
+
       <div id="import-preview" style="display:none;flex-direction:column;gap:8px;">
         <div id="import-preview-info" style="font-size:13px;font-weight:500;"></div>
         <div id="import-conflicts-wrap" style="display:none;">
@@ -14708,6 +14741,48 @@ function _agentSegments(){
   return Object.keys(set).sort();
 }
 window._agentSegments=_agentSegments;
+
+// Managed segment list (persists in agent config) + segments derived from contacts.
+var _managedSegments = [];
+function _allSegments(){
+  var set={};
+  (_managedSegments||[]).forEach(function(s){ if(s) set[s]=1; });
+  _agentSegments().forEach(function(s){ if(s) set[s]=1; });
+  // segments referenced by any smart plan's autoSegment
+  (_smartPlans||[]).forEach(function(p){ if(p && p.autoSegment) set[p.autoSegment]=1; });
+  return Object.keys(set).sort();
+}
+window._allSegments=_allSegments;
+
+function _registerSegment(name){
+  name=(name||'').trim(); if(!name) return;
+  if(_managedSegments.indexOf(name)!==-1) return;
+  _managedSegments.push(name);
+  // Persist to agent config (best-effort)
+  try {
+    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'), { list:_managedSegments, updatedAt:fb.serverTimestamp() }, {merge:true});
+  } catch(e){}
+}
+window._registerSegment=_registerSegment;
+
+async function _loadManagedSegments(){
+  try {
+    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    var snap=await fb.getDoc(fb.doc(fb.db,'agents',aid,'config','segments'));
+    if(snap.exists() && Array.isArray(snap.data().list)) _managedSegments=snap.data().list;
+  } catch(e){}
+}
+window._loadManagedSegments=_loadManagedSegments;
+
+// Which smart plans auto-enroll for a given segment?
+function _plansForSegment(segment){
+  segment=(segment||'').trim().toLowerCase(); if(!segment) return [];
+  return (_smartPlans||[]).filter(function(p){
+    return p && p.autoSegment && p.autoSegment.trim().toLowerCase()===segment;
+  });
+}
+window._plansForSegment=_plansForSegment;
 
 async function saveContactSegment(uid){
   var inp=document.getElementById('bd-segment-in');
@@ -26377,6 +26452,7 @@ async function loadSmartPlans(){
     snap.forEach(function(d){ var p=d.data(); p.id=d.id; _smartPlans.push(p); });
     _smartPlans.sort(function(a,b){ return (b.updatedAt||0)-(a.updatedAt||0); });
   } catch(e){ console.log('loadSmartPlans err:', e.message); _smartPlans=[]; }
+  try { if(typeof _loadManagedSegments==='function') await _loadManagedSegments(); } catch(e){}
 }
 
 function spRenderList(){
@@ -26423,8 +26499,32 @@ function spOpenBuilder(){
   document.getElementById('sp-builder-view').style.display='block';
   document.getElementById('sp-name').value=_currentPlan.name||'';
   document.getElementById('sp-audience').value=_currentPlan.audience||'any';
+  // Populate auto-enroll segment dropdown
+  var asel=document.getElementById('sp-autosegment');
+  if(asel){
+    var segs=(typeof _allSegments==='function')?_allSegments():[];
+    var cur=_currentPlan.autoSegment||'';
+    if(cur && segs.indexOf(cur)===-1) segs=segs.concat([cur]);
+    asel.innerHTML='<option value="">— Off (manual only) —</option>'+segs.map(function(s){return '<option value="'+s.replace(/"/g,'&quot;')+'">'+s+'</option>';}).join('');
+    asel.value=cur;
+  }
   spRenderCanvas();
 }
+
+function spAddNewSegment(){
+  var name=prompt('Name the new segment (e.g. FSBO, Expired, Past Clients):');
+  if(name===null) return;
+  name=name.trim(); if(!name) return;
+  if(typeof _registerSegment==='function') _registerSegment(name);
+  var asel=document.getElementById('sp-autosegment');
+  if(asel){
+    var segs=(typeof _allSegments==='function')?_allSegments():[name];
+    if(segs.indexOf(name)===-1) segs=segs.concat([name]);
+    asel.innerHTML='<option value="">— Off (manual only) —</option>'+segs.map(function(s){return '<option value="'+s.replace(/"/g,'&quot;')+'">'+s+'</option>';}).join('');
+    asel.value=name;
+  }
+}
+window.spAddNewSegment = spAddNewSegment;
 
 function spCloseBuilder(){
   document.getElementById('sp-builder-view').style.display='none';
@@ -26790,9 +26890,11 @@ async function spSavePlan(){
   if(!name){ alert('Give your plan a name.'); return; }
   _currentPlan.name=name;
   _currentPlan.audience=(document.getElementById('sp-audience').value)||'any';
+  _currentPlan.autoSegment=((document.getElementById('sp-autosegment')||{}).value||'').trim();
+  if(_currentPlan.autoSegment && typeof _registerSegment==='function') _registerSegment(_currentPlan.autoSegment);
   _currentPlan.updatedAt=Date.now();
   if(_currentPlan._isNew){ _currentPlan.createdAt=Date.now(); _currentPlan.createdBy=_spAgentId(); }
-  var save={ name:_currentPlan.name, audience:_currentPlan.audience, steps:_currentPlan.steps||[],
+  var save={ name:_currentPlan.name, audience:_currentPlan.audience, autoSegment:_currentPlan.autoSegment||'', steps:_currentPlan.steps||[],
              senderFrom:(typeof agentFromField==='function'?agentFromField():''), senderReplyTo:(typeof agentReplyTo==='function'?(agentReplyTo()||''):''), senderSignature:(typeof agentSignatureHtml==='function'?agentSignatureHtml():''),
              updatedAt:_currentPlan.updatedAt, createdAt:_currentPlan.createdAt||Date.now(), createdBy:_currentPlan.createdBy||_spAgentId() };
   try {
@@ -27777,86 +27879,173 @@ function downloadCSVTemplate() {
 }
 window.downloadCSVTemplate = downloadCSVTemplate;
 
+// Robust CSV line parser — handles quoted fields with commas inside.
+function _parseCsvLine(line){
+  var out=[], cur='', q=false;
+  for (var i=0;i<line.length;i++){
+    var ch=line[i];
+    if (q){
+      if (ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else {q=false;} }
+      else cur+=ch;
+    } else {
+      if (ch==='"') q=true;
+      else if (ch===',') { out.push(cur); cur=''; }
+      else cur+=ch;
+    }
+  }
+  out.push(cur);
+  return out.map(function(s){ return s.trim(); });
+}
+
+var IMPORT_FIELDS = [
+  { key:'firstName', label:'First Name', hints:['first','fname','firstname','owner','ownerfirst'] },
+  { key:'lastName',  label:'Last Name',  hints:['last','lname','lastname','surname','ownerlast'] },
+  { key:'email',     label:'Email',      hints:['email','emailaddress','email1','primaryemail'] },
+  { key:'email2',    label:'Email 2',    hints:['email2','secondaryemail','altemail','otheremail'] },
+  { key:'phone',     label:'Phone',      hints:['phone','mobile','cell','phonenumber','primaryphone','tel','phone1'] },
+  { key:'phone2',    label:'Phone 2',    hints:['phone2','secondaryphone','altphone','otherphone','homephone'] },
+  { key:'address',   label:'Address',    hints:['address','propertyaddress','street','addr','propaddress'] },
+  { key:'notes',     label:'Notes',      hints:['notes','note','comment','comments','remarks'] }
+];
+var _csvHeaders = [];
+var _csvDataRows = [];
+var _importMapping = {};
+
 function previewCSV(event) {
   var file = event.target.files[0]; if (!file) return;
   var reader = new FileReader();
   reader.onload = function(e) {
-    var text = e.target.result;
-    var lines = text.trim().split('\n').map(function(l){ return l.trim(); });
-    if (!lines.length) return;
-    var headers = lines[0].split(',').map(function(h){ return h.trim().toLowerCase().replace(/[^a-z]/g,''); });
-    _importRows = [];
-    for (var i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      var vals = lines[i].split(',').map(function(v){ return v.trim().replace(/^"|"$/g,''); });
-      var row = {};
-      headers.forEach(function(h, idx){ row[h] = vals[idx] || ''; });
-      if (!row.firstname && !row.email) continue; // skip empty rows
-      _importRows.push({
-        firstName: row.firstname || row.first || '',
-        lastName: row.lastname || row.last || '',
-        email: row.email || '',
-        phone: row.phone || '',
-        crmStatus: row.crmstatus || row.crm || 'pipeline',
-        journeyType: row.journeytype || row.journey || 'buyer',
-        segment: row.segment || row.source || '',
-      });
-    }
-    // Find conflicts
-    var existingEmails = (allBuyers||[]).map(function(b){ return (b.email||'').toLowerCase(); });
-    _importConflicts = _importRows.filter(function(r){ return r.email && existingEmails.includes(r.email.toLowerCase()); });
-
-    // Render preview
-    var previewEl = document.getElementById('import-preview');
-    var infoEl = document.getElementById('import-preview-info');
-    var conflictsWrap = document.getElementById('import-conflicts-wrap');
-    var conflictsList = document.getElementById('import-conflicts-list');
-    var tableEl = document.getElementById('import-preview-table');
-    var confirmBtn = document.getElementById('import-confirm-btn');
-
-    infoEl.textContent = _importRows.length + ' contact'+ (_importRows.length!==1?'s':'') +' found in CSV.';
-
-    if (_importConflicts.length) {
-      conflictsWrap.style.display = 'block';
-      conflictsList.innerHTML = _importConflicts.map(function(r){
-        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--amber-lt);border-radius:6px;font-size:12px;">'
-          +'<input type="checkbox" class="conflict-skip" data-email="'+r.email+'" checked style="flex-shrink:0;"/>'
-          +'<span><strong>'+r.firstName+' '+r.lastName+'</strong> ('+r.email+') — already exists. <label style="cursor:pointer;">Check to skip.</label></span>'
-          +'</div>';
-      }).join('');
-    } else {
-      conflictsWrap.style.display = 'none';
-    }
-
-    tableEl.innerHTML = '<tr style="background:var(--surface2);font-size:11px;color:var(--text3);">'
-      +'<th style="padding:6px 8px;text-align:left;">Name</th>'
-      +'<th style="padding:6px 8px;text-align:left;">Email</th>'
-      +'<th style="padding:6px 8px;text-align:left;">Phone</th>'
-      +'<th style="padding:6px 8px;text-align:left;">Status</th>'
-      +'</tr>'
-      + _importRows.slice(0,10).map(function(r){
-          return '<tr style="border-bottom:1px solid var(--border);">'
-            +'<td style="padding:5px 8px;font-size:12px;">'+r.firstName+' '+r.lastName+'</td>'
-            +'<td style="padding:5px 8px;font-size:12px;color:var(--text2);">'+r.email+'</td>'
-            +'<td style="padding:5px 8px;font-size:12px;color:var(--text2);">'+r.phone+'</td>'
-            +'<td style="padding:5px 8px;font-size:12px;">'+r.crmStatus+'</td>'
-            +'</tr>';
-        }).join('')
-      + (_importRows.length > 10 ? '<tr><td colspan="4" style="padding:6px 8px;font-size:11px;color:var(--text3);">...and '+ (_importRows.length-10) +' more</td></tr>' : '');
-
-    previewEl.style.display = 'flex';
-    confirmBtn.style.display = 'inline-flex';
+    var text = String(e.target.result||'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    var lines = text.split('\n').filter(function(l){ return l.trim().length; });
+    if (lines.length < 2) { alert('That CSV looks empty or has no data rows.'); return; }
+    _csvHeaders = _parseCsvLine(lines[0]);
+    _csvDataRows = [];
+    for (var i=1;i<lines.length;i++){ _csvDataRows.push(_parseCsvLine(lines[i])); }
+    _importMapping = {};
+    IMPORT_FIELDS.forEach(function(f){
+      var found = -1;
+      for (var c=0;c<_csvHeaders.length;c++){
+        var norm = _csvHeaders[c].toLowerCase().replace(/[^a-z0-9]/g,'');
+        if (f.hints.indexOf(norm)!==-1){ found=c; break; }
+      }
+      _importMapping[f.key] = found;
+    });
+    renderImportMapping();
+    populateImportSegmentDropdown();
+    document.getElementById('import-mapping').style.display='flex';
+    document.getElementById('import-batch-opts').style.display='flex';
+    rebuildImportRowsFromMapping();
   };
   reader.readAsText(file);
 }
 window.previewCSV = previewCSV;
+
+function renderImportMapping(){
+  var wrap = document.getElementById('import-mapping-rows'); if(!wrap) return;
+  var html = IMPORT_FIELDS.map(function(f){
+    var sel = _importMapping[f.key];
+    var opts = '<option value="-1">— skip —</option>' + _csvHeaders.map(function(h,idx){
+      var label = (h||('Column '+(idx+1))).replace(/</g,'&lt;');
+      return '<option value="'+idx+'"'+(idx===sel?' selected':'')+'>'+label+'</option>';
+    }).join('');
+    var req = (f.key==='firstName'||f.key==='email') ? ' <span style="color:var(--green-dk);">•</span>' : '';
+    return '<div style="display:flex;align-items:center;gap:8px;">'
+      + '<div style="flex:0 0 95px;font-size:12.5px;color:var(--text2);">'+f.label+req+'</div>'
+      + '<select data-field="'+f.key+'" onchange="onImportMapChange(this)" style="flex:1;font-size:12.5px;box-sizing:border-box;">'+opts+'</select>'
+      + '</div>';
+  }).join('');
+  wrap.innerHTML = html;
+}
+
+function onImportMapChange(sel){
+  _importMapping[sel.getAttribute('data-field')] = parseInt(sel.value,10);
+  rebuildImportRowsFromMapping();
+}
+window.onImportMapChange = onImportMapChange;
+
+function rebuildImportRowsFromMapping(){
+  function val(row, key){ var idx=_importMapping[key]; return (idx>=0 && idx<row.length) ? (row[idx]||'') : ''; }
+  _importRows = [];
+  _csvDataRows.forEach(function(row){
+    var fn = val(row,'firstName'), em = val(row,'email');
+    if (!fn && !em) return;
+    _importRows.push({
+      firstName: fn, lastName: val(row,'lastName'),
+      email: em, email2: val(row,'email2'),
+      phone: val(row,'phone'), phone2: val(row,'phone2'),
+      address: val(row,'address'), notes: val(row,'notes'),
+      crmStatus: 'pipeline', journeyType: 'buyer', segment: ''
+    });
+  });
+  var existingEmails = (allBuyers||[]).map(function(b){ return (b.email||'').toLowerCase(); });
+  _importConflicts = _importRows.filter(function(r){ return r.email && existingEmails.includes(r.email.toLowerCase()); });
+
+  var previewEl = document.getElementById('import-preview');
+  var infoEl = document.getElementById('import-preview-info');
+  var conflictsWrap = document.getElementById('import-conflicts-wrap');
+  var conflictsList = document.getElementById('import-conflicts-list');
+  var tableEl = document.getElementById('import-preview-table');
+  var confirmBtn = document.getElementById('import-confirm-btn');
+
+  infoEl.textContent = _importRows.length + ' contact'+ (_importRows.length!==1?'s':'') +' ready to import.';
+
+  if (_importConflicts.length) {
+    conflictsWrap.style.display = 'block';
+    conflictsList.innerHTML = _importConflicts.map(function(r){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--amber-lt);border-radius:6px;font-size:12px;">'
+        +'<input type="checkbox" class="conflict-skip" data-email="'+(r.email||'').replace(/"/g,'&quot;')+'" checked style="flex-shrink:0;"/>'
+        +'<span><strong>'+(r.firstName||'')+' '+(r.lastName||'')+'</strong> ('+(r.email||'')+') — already exists. <label style="cursor:pointer;">Check to skip.</label></span>'
+        +'</div>';
+    }).join('');
+  } else {
+    conflictsWrap.style.display = 'none';
+  }
+
+  tableEl.innerHTML = '<tr style="background:var(--surface2);font-size:11px;color:var(--text3);">'
+    +'<th style="padding:6px 8px;text-align:left;">Name</th>'
+    +'<th style="padding:6px 8px;text-align:left;">Email</th>'
+    +'<th style="padding:6px 8px;text-align:left;">Phone</th></tr>'
+    + _importRows.slice(0,10).map(function(r){
+        return '<tr style="border-bottom:1px solid var(--border);">'
+          +'<td style="padding:5px 8px;font-size:12px;">'+(r.firstName||'')+' '+(r.lastName||'')+'</td>'
+          +'<td style="padding:5px 8px;font-size:12px;color:var(--text2);">'+(r.email||'')+'</td>'
+          +'<td style="padding:5px 8px;font-size:12px;color:var(--text2);">'+(r.phone||'')+'</td></tr>';
+      }).join('')
+    + (_importRows.length > 10 ? '<tr><td colspan="3" style="padding:6px 8px;font-size:11px;color:var(--text3);">...and '+ (_importRows.length-10) +' more</td></tr>' : '');
+
+  previewEl.style.display = 'flex';
+  if (confirmBtn) confirmBtn.style.display = _importRows.length ? 'inline-flex' : 'none';
+}
+window.rebuildImportRowsFromMapping = rebuildImportRowsFromMapping;
+
+function populateImportSegmentDropdown(){
+  var sel = document.getElementById('import-segment-sel'); if(!sel) return;
+  var segs = (typeof _allSegments==='function') ? _allSegments() : _agentSegments();
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">— No segment —</option>'
+    + segs.map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'">'+s+'</option>'; }).join('');
+  if (cur) sel.value = cur;
+}
+window.populateImportSegmentDropdown = populateImportSegmentDropdown;
+
+function importAddNewSegment(){
+  var name = prompt('Name the new segment (e.g. FSBO, Expired, Past Clients):');
+  if (name===null) return;
+  name = name.trim(); if(!name) return;
+  if (typeof _registerSegment==='function') _registerSegment(name);
+  populateImportSegmentDropdown();
+  var sel = document.getElementById('import-segment-sel'); if(sel) sel.value=name;
+}
+window.importAddNewSegment = importAddNewSegment;
+
+function onImportSegmentChange(){}
+window.onImportSegmentChange = onImportSegmentChange;
 
 async function confirmImport() {
   var btn = document.getElementById('import-confirm-btn');
   var statusEl = document.getElementById('import-status');
   btn.disabled = true; btn.textContent = 'Importing...';
 
-  // Get emails to skip (checked conflict checkboxes)
   var skipEmails = [];
   document.querySelectorAll('.conflict-skip:checked').forEach(function(cb){
     skipEmails.push(cb.getAttribute('data-email').toLowerCase());
@@ -27864,24 +28053,44 @@ async function confirmImport() {
 
   var toImport = _importRows.filter(function(r){ return !skipEmails.includes((r.email||'').toLowerCase()); });
   var agentId = userProfile.agentId || 'tom';
-  var batchSegment = ((document.getElementById('import-segment')||{}).value||'').trim();
-  var imported = 0, failed = 0;
+  var batchSegment = ((document.getElementById('import-segment-sel')||{}).value||'').trim();
+  var batchStatus = ((document.getElementById('import-status-sel')||{}).value||'pipeline').trim();
+  if (batchSegment && typeof _registerSegment==='function') _registerSegment(batchSegment);
 
+  // Which smart plans auto-enroll for this batch segment?
+  var autoPlans = (batchSegment && typeof _plansForSegment==='function') ? _plansForSegment(batchSegment) : [];
+
+  var imported = 0, failed = 0, enrolled = 0;
   for (var i = 0; i < toImport.length; i++) {
     var r = toImport[i];
     try {
       var contactId = 'contact_' + Date.now() + '_' + Math.random().toString(36).substring(2,6);
-      await fb.setDoc(fb.doc(fb.db, 'users', contactId), {
+      var doc = {
         firstName: r.firstName, lastName: r.lastName,
-        email: r.email, phone: r.phone,
+        email: r.email, email2: r.email2||'',
+        phone: r.phone, phone2: r.phone2||'',
+        address: r.address||'', notes: r.notes||'',
         agentId: agentId, lenderId: 'none', role: 'buyer',
         journeyType: r.journeyType || 'buyer',
-        crmStatus: r.crmStatus || 'pipeline',
-        segment: (r.segment && r.segment.trim()) || batchSegment || '',
+        crmStatus: batchStatus || 'pipeline',
+        segment: batchSegment || (r.segment||''),
         currentStep: 0, currentSellerStep: 0,
         portalAccess: false, isContact: true,
-        createdAt: fb.serverTimestamp(),
-      });
+        createdAt: fb.serverTimestamp()
+      };
+      // Auto-enroll: stamp the FIRST matching plan onto the contact so the server cron starts it.
+      if (autoPlans.length) {
+        var p = autoPlans[0];
+        doc.smartPlanId = p.id;
+        doc.smartPlanName = p.name || '';
+        doc.smartPlanOwner = agentId;
+        doc.smartPlanStatus = 'active';
+        doc.smartPlanStep = 0;
+        doc.smartPlanNextDue = (typeof spTodayET==='function') ? spTodayET() : new Date().toISOString().split('T')[0];
+        doc.smartPlanEnrolledAt = fb.serverTimestamp();
+        enrolled++;
+      }
+      await fb.setDoc(fb.doc(fb.db, 'users', contactId), doc);
       imported++;
     } catch(e) { failed++; }
   }
@@ -27890,9 +28099,12 @@ async function confirmImport() {
   renderBuyers();
   statusEl.style.display = 'block';
   statusEl.style.color = 'var(--green-dk)';
-  statusEl.textContent = '✓ Imported ' + imported + ' contact' + (imported!==1?'s':'') + (failed?' · '+failed+' failed':'') + (skipEmails.length?' · '+skipEmails.length+' skipped':'') + '.';
+  statusEl.textContent = '✓ Imported ' + imported + ' contact' + (imported!==1?'s':'')
+    + (enrolled?' · '+enrolled+' auto-enrolled in Smart Plan':'')
+    + (failed?' · '+failed+' failed':'')
+    + (skipEmails.length?' · '+skipEmails.length+' skipped':'') + '.';
   btn.disabled = false; btn.textContent = 'Import Contacts';
-  setTimeout(function(){ closeM('import-modal'); }, 1800);
+  setTimeout(function(){ closeM('import-modal'); }, 2200);
 }
 window.confirmImport = confirmImport;
 
