@@ -2449,6 +2449,7 @@ textarea{resize:vertical;min-height:68px;}
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
     <label style="font-size:11px;color:var(--text3);font-weight:600;flex-shrink:0;">Segment:</label>
     <select id="segment-filter" onchange="setSegmentFilter(this.value)" style="flex:1;max-width:260px;font-size:12px;"><option value="all">All segments</option></select>
+    <button type="button" class="btn btn-sm" onclick="openSegmentManager()" style="flex-shrink:0;font-size:11px;">Manage</button>
   </div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
     <input type="text" id="buyer-search" placeholder="Search buyers..." style="flex:1;min-width:180px;max-width:280px;" oninput="renderBuyers()"/>
@@ -3289,7 +3290,18 @@ textarea{resize:vertical;min-height:68px;}
   </div>
 </div>
 
-<!-- INVITE TO PORTAL MODAL -->
+<!-- SEGMENT MANAGER MODAL -->
+<div class="mo" id="segment-manager-modal" style="display:none;">
+  <div class="mbox" style="max-width:440px;">
+    <div class="mhdr"><div class="mtitle">Manage Segments</div><button class="xbtn" onclick="closeM('segment-manager-modal')">✕</button></div>
+    <div class="notice">Delete segments you no longer need. Contacts tagged with a deleted segment keep their tag until you change it.</div>
+    <div id="segment-manager-list" style="display:flex;flex-direction:column;gap:6px;margin:10px 0;max-height:340px;overflow-y:auto;"></div>
+    <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:4px;">
+      <button class="btn btn-sm btn-g" onclick="segManagerAddNew()">+ New Segment</button>
+      <button class="btn" onclick="closeM('segment-manager-modal')">Done</button>
+    </div>
+  </div>
+</div>
 <div class="mo" id="portal-invite-modal" style="display:none;">
   <div class="mbox" style="max-width:460px;">
     <div class="mhdr"><div class="mtitle">Invite to Portal</div><button class="xbtn" onclick="closeM('portal-invite-modal')">✕</button></div>
@@ -14786,6 +14798,66 @@ function _plansForSegment(segment){
   });
 }
 window._plansForSegment=_plansForSegment;
+
+// ── SEGMENT MANAGER ──
+function _countContactsInSegment(seg){
+  return (allBuyers||[]).filter(function(b){
+    var mine=(b.agentId===userProfile.agentId||b.coAgentId===userProfile.agentId||(isOwner()&&_adminShowAll));
+    return mine && (b.segment||'')===seg;
+  }).length;
+}
+function openSegmentManager(){
+  renderSegmentManager();
+  var m=document.getElementById('segment-manager-modal'); if(m) m.style.display='flex';
+}
+window.openSegmentManager=openSegmentManager;
+
+function renderSegmentManager(){
+  var el=document.getElementById('segment-manager-list'); if(!el) return;
+  var segs=(typeof _allSegments==='function')?_allSegments():[];
+  if(!segs.length){ el.innerHTML='<div style="padding:16px;text-align:center;color:var(--text3);font-size:12.5px;">No segments yet. Create one with "+ New Segment".</div>'; return; }
+  el.innerHTML=segs.map(function(s){
+    var count=_countContactsInSegment(s);
+    var plans=_plansForSegment(s).length;
+    var meta=[];
+    if(count) meta.push(count+' contact'+(count!==1?'s':''));
+    if(plans) meta.push(plans+' auto-plan'+(plans!==1?'s':''));
+    return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:0.5px solid var(--border);border-radius:var(--r-sm);">'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;">'+s.replace(/</g,'&lt;')+'</div>'
+      +(meta.length?'<div style="font-size:11px;color:var(--text3);">'+meta.join(' · ')+'</div>':'')+'</div>'
+      +'<button class="btn btn-sm" onclick="deleteSegment(\''+s.replace(/'/g,"\\'").replace(/"/g,'&quot;')+'\')" style="color:#E24B4A;flex-shrink:0;">Delete</button>'
+      +'</div>';
+  }).join('');
+}
+window.renderSegmentManager=renderSegmentManager;
+
+async function deleteSegment(seg){
+  var count=_countContactsInSegment(seg);
+  var plans=_plansForSegment(seg);
+  var warn='Delete the segment "'+seg+'"?';
+  if(count) warn+='\n\n'+count+' contact'+(count!==1?'s are':' is')+' tagged with it. They will KEEP the tag — deleting just removes it from your dropdown lists. (You can re-tag them anytime.)';
+  if(plans.length) warn+='\n\n⚠️ '+plans.length+' Smart Plan'+(plans.length!==1?'s':'')+' auto-enroll'+(plans.length===1?'s':'')+' on this segment. That auto-enroll will stop working until you point the plan at a different segment.';
+  if(!confirm(warn)) return;
+  // Remove from managed list
+  _managedSegments=(_managedSegments||[]).filter(function(x){ return x!==seg; });
+  try{
+    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    await fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'),{ list:_managedSegments, updatedAt:fb.serverTimestamp() },{merge:true});
+  }catch(e){}
+  renderSegmentManager();
+  if(typeof renderBuyers==='function') renderBuyers();
+}
+window.deleteSegment=deleteSegment;
+
+function segManagerAddNew(){
+  var name=prompt('Name the new segment (e.g. FSBO, Expired, Past Clients):');
+  if(name===null) return;
+  name=name.trim(); if(!name) return;
+  if(typeof _registerSegment==='function') _registerSegment(name);
+  renderSegmentManager();
+  if(typeof renderBuyers==='function') renderBuyers();
+}
+window.segManagerAddNew=segManagerAddNew;
 
 function onClientSegmentChange(uid){
   var sel=document.getElementById('bd-segment-in'); if(!sel) return;
