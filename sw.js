@@ -1,7 +1,7 @@
 // Nest Track Service Worker
 // Must be hosted at: https://app.garucciogroup.com/sw.js
 
-const CACHE = 'nesttrack-v2';
+const CACHE = 'nesttrack-v3';
 const OFFLINE = ['/'];
 
 self.addEventListener('install', function(e) {
@@ -22,6 +22,14 @@ self.addEventListener('activate', function(e) {
 
 self.addEventListener('fetch', function(e) {
   if (e.request.mode === 'navigate') {
+    var url = new URL(e.request.url);
+    // Standalone landing pages must NEVER fall back to the app shell ('/').
+    // Let them load straight from the network/file. Only the app root ('/')
+    // gets the offline fallback.
+    if (/\.html$/i.test(url.pathname)) {
+      e.respondWith(fetch(e.request));
+      return;
+    }
     e.respondWith(fetch(e.request).catch(function(){ return caches.match('/'); }));
   }
 });
@@ -47,11 +55,9 @@ self.addEventListener('notificationclick', function(e) {
   var url = (e.notification.data && e.notification.data.url) || '/';
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(cs) {
-      // If app is already open, focus it
       for (var i = 0; i < cs.length; i++) {
         if ('focus' in cs[i]) return cs[i].focus();
       }
-      // Otherwise open a new window
       if (clients.openWindow) return clients.openWindow(url);
     })
   );
