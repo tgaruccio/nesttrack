@@ -199,12 +199,12 @@
 </style>
 </head>
 <body>
-<div class="shell">
+<div class="shell" id="card-shell" style="opacity:0;transition:opacity .25s ease;">
 
   <!-- HERO -->
   <header class="hero">
     <div class="photo-wrap">
-      <img class="photo" id="ag-photo" src="https://i.pravatar.cc/256?img=12" alt="Agent photo"/>
+      <img class="photo" id="ag-photo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Crect width='128' height='128' fill='%23cfd8d3'/%3E%3C/svg%3E" alt="Agent photo"/>
       <div class="verified" title="Verified agent">✓</div>
     </div>
     <div class="h-name" id="ag-name">Tom Garuccio</div>
@@ -470,6 +470,9 @@ function render(){
   if(capBtn) capBtn.textContent='Send it to '+firstName+' →';
   var capP=document.querySelector('#cap-form-wrap p');
   if(capP) capP.textContent="Share your info and "+firstName+" will reach out personally — no spam, no bots.";
+
+  // reveal the card now that real data is in (prevents flash of placeholder)
+  var shell=document.getElementById('card-shell'); if(shell) shell.style.opacity='1';
 }
 
 function renderListings(){
@@ -749,6 +752,8 @@ if(document.readyState==='loading'){
 } else {
   bootCard();
 }
+// Absolute safety net: never leave the card invisible.
+setTimeout(function(){ var s=document.getElementById('card-shell'); if(s && s.style.opacity!=='1') s.style.opacity='1'; }, 2500);
 </script>
 </body>
 </html>
