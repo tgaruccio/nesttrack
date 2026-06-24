@@ -686,31 +686,35 @@ function mapConfigToAgent(c){
 
 // Pull this agent's up-to-5 most recent listing pages.
 function loadAgentListings(agentId){
-  // Firestore REST: run a structured query for listing_pages where agentId == X
+  // Firestore REST: query listing_pages where agentId == X.
+  // No orderBy (avoids needing a composite index) — we sort + cap in JS.
   var url='https://firestore.googleapis.com/v1/projects/'+FB_PROJECT+'/databases/(default)/documents:runQuery?key='+FB_KEY;
   var body={ structuredQuery:{
     from:[{collectionId:'listing_pages'}],
     where:{ fieldFilter:{ field:{fieldPath:'agentId'}, op:'EQUAL', value:{stringValue:agentId} } },
-    orderBy:[{ field:{fieldPath:'createdAt'}, direction:'DESCENDING' }],
-    limit:5
+    limit:25
   }};
   return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){ return r.ok?r.json():[]; })
     .then(function(rows){
       if(!Array.isArray(rows)) return [];
-      return rows.filter(function(x){return x.document;}).map(function(x){
+      var items = rows.filter(function(x){return x.document;}).map(function(x){
         var c={}; var f=x.document.fields||{}; Object.keys(f).forEach(function(k){ c[k]=fsVal(f[k]); });
         var photos = Array.isArray(c.photos)?c.photos:[];
         var beds=[]; if(c.beds)beds.push(c.beds+' bd'); if(c.baths)beds.push(c.baths+' ba'); if(c.sqft)beds.push((''+c.sqft).replace(/^(\d+)$/,'$1')+' sqft');
         var lid = x.document.name.split('/').pop();
         return {
           img: c.mainPhoto || photos[0] || '',
-          price: c.price ? ('$'+parseInt(c.price,10).toLocaleString('en-US')) : (c.priceText||''),
+          price: c.price ? ('$'+parseInt(c.price,10).toLocaleString('en-US')) : (c.priceText||c.price||''),
           addr: c.address || '',
           beds: beds.join(' · '),
-          url: 'listing.html?id='+lid
+          url: 'listing.html?id='+lid,
+          _sort: Number(c.updatedAt)||0
         };
       });
+      // most recent first, cap 5
+      items.sort(function(a,b){ return b._sort - a._sort; });
+      return items.slice(0,5);
     }).catch(function(){ return []; });
 }
 
