@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <style>
   /* ============ AGENT ACCENT — the one knob that themes the whole card ============ */
   :root{
@@ -377,12 +377,15 @@ function hexToRgb(h){ h=h.replace('#',''); if(h.length===3)h=h.split('').map(c=>
 function rgbToHex(r,g,b){ return '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0')).join(''); }
 function darken(hex,amt){ var c=hexToRgb(hex); return rgbToHex(c.r*(1-amt),c.g*(1-amt),c.b*(1-amt)); }
 function applyAccent(hex){
-  var root=document.documentElement.style;
-  var c=hexToRgb(hex);
-  root.setProperty('--accent',hex);
-  root.setProperty('--accent-deep',darken(hex,0.28));
-  root.setProperty('--accent-soft','rgba('+c.r+','+c.g+','+c.b+',0.08)');
-  root.setProperty('--accent-ring','rgba('+c.r+','+c.g+','+c.b+',0.28)');
+  if(!hex || typeof hex!=='string' || hex.charAt(0)!=='#'){ hex='#1D9E75'; }
+  try{
+    var root=document.documentElement.style;
+    var c=hexToRgb(hex);
+    root.setProperty('--accent',hex);
+    root.setProperty('--accent-deep',darken(hex,0.28));
+    root.setProperty('--accent-soft','rgba('+c.r+','+c.g+','+c.b+',0.08)');
+    root.setProperty('--accent-ring','rgba('+c.r+','+c.g+','+c.b+',0.28)');
+  }catch(e){}
 }
 
 // ============ SOCIAL ICONS (inline SVG so no external deps) ============
@@ -712,28 +715,36 @@ function loadAgentListings(agentId){
 }
 
 function bootCard(){
-  if(!CARD_ID){
-    // No ?id → demo mode
-    AGENT = DEMO_AGENT;
-    render(); initReveals(); initReviewRail();
-    return;
-  }
-  // Live mode
-  fsDoc(CARD_ID, 'card_config').then(function(cfg){
-    if(!cfg){ AGENT = DEMO_AGENT; render(); initReveals(); initReviewRail(); return; }
-    AGENT = mapConfigToAgent(cfg);
-    render(); initReveals(); initReviewRail();
-    // listings load async, then re-render just listings
-    if(AGENT.showListings){
-      loadAgentListings(CARD_ID).then(function(ls){
-        AGENT.listings = ls||[];
-        renderListings();
-      });
+  try {
+    if(!CARD_ID){
+      AGENT = DEMO_AGENT;
+      render(); initReveals(); initReviewRail();
+      return;
     }
-  });
+    fsDoc(CARD_ID, 'card_config').then(function(cfg){
+      try {
+        if(!cfg){ AGENT = DEMO_AGENT; }
+        else { AGENT = mapConfigToAgent(cfg); }
+        render(); initReveals(); initReviewRail();
+        if(AGENT.showListings){
+          loadAgentListings(CARD_ID).then(function(ls){
+            AGENT.listings = ls||[]; renderListings();
+          }).catch(function(){});
+        }
+      } catch(e){ try{ AGENT=DEMO_AGENT; render(); }catch(_){} }
+    }).catch(function(){
+      try{ AGENT=DEMO_AGENT; render(); initReveals(); initReviewRail(); }catch(_){}
+    });
+  } catch(e){
+    try{ AGENT=DEMO_AGENT; render(); }catch(_){}
+  }
 }
 
-bootCard();
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', bootCard);
+} else {
+  bootCard();
+}
 </script>
 </body>
 </html>
