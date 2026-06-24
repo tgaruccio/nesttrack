@@ -1145,6 +1145,11 @@ textarea{resize:vertical;min-height:68px;}
         <span style="font-size:13px;font-weight:600;color:#1D4ED8;">Landing Pages</span>
         <span style="font-size:11px;color:#1D4ED8;opacity:0.85;">Capture leads into your pipeline</span>
       </button>
+      <button onclick="openBizCardEditor()" style="background:#E9FBF3;border:1.5px solid #A8E6CD;border-radius:var(--r);padding:16px 14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;cursor:pointer;font-family:inherit;text-align:left;">
+        <span style="font-size:24px;">📱</span>
+        <span style="font-size:13px;font-weight:600;color:var(--green-dk,#0d5a3f);">Business Card</span>
+        <span style="font-size:11px;color:var(--green-dk,#0d5a3f);opacity:0.85;">Your shareable digital card</span>
+      </button>
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 10px;">Sending connections</div>
     <div id="sp-connect-tiles" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
@@ -7203,6 +7208,164 @@ async function loadDocLibrary() {
 }
 
 window.saveAgentProfile = saveAgentProfile;
+
+// ─── DIGITAL BUSINESS CARD ───
+var CARD_BASE_URL = 'https://nesttrack.io/card.html';  // where card.html is hosted
+var _bcReviews = [];
+
+function _bcToast(msg){
+  var t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green,#1D9E75);color:#fff;padding:12px 20px;border-radius:30px;font-size:14px;font-weight:600;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,0.2);';
+  document.body.appendChild(t);
+  setTimeout(function(){ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); }, 400); }, 1800);
+}
+
+function _bcAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
+function bizCardUrl(){ return CARD_BASE_URL + '?id=' + encodeURIComponent(_bcAgentId()); }
+
+function openBizCardEditor(){
+  var ov=document.createElement('div');
+  ov.id='bizcard-overlay';
+  ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:780;display:flex;flex-direction:column;';
+  ov.innerHTML=
+    '<div style="padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
+      +'<button onclick="document.getElementById(\'bizcard-overlay\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
+      +'<div style="flex:1;font-size:15px;font-weight:600;">\uD83D\uDCF1 Digital Business Card</div>'
+      +'<button class="btn btn-sm btn-g" onclick="saveBizCard()">Save</button>'
+    +'</div>'
+    +'<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;">'
+      +'<div style="font-size:13px;color:var(--text2);margin-bottom:16px;">Your shareable digital card. Share the link anywhere \u2014 it saves your contact to their phone and drops new leads straight into NestTrack.</div>'
+      +'<div id="bizcard-link-row" style="display:flex;gap:8px;align-items:center;margin-bottom:18px;">'
+        +'<input type="text" id="bizcard-link" readonly style="flex:1;font-size:13px;background:var(--surface2);" value=""/>'
+        +'<button class="btn btn-sm" onclick="copyBizCardLink()">Copy</button>'
+        +'<button class="btn btn-sm" onclick="openBizCard()">Open</button>'
+      +'</div>'
+      +'<label class="flabel">Card title <span style="color:var(--text3);font-weight:400;">(REALTOR&reg;, MLO, Real Estate Consultant&hellip;)</span></label>'
+      +'<input type="text" id="bc-title" placeholder="e.g. REALTOR&reg; &middot; Mortgage Specialist" style="margin-bottom:12px;"/>'
+      +'<label class="flabel">Tagline <span style="color:var(--text3);font-weight:400;">(one line under your name)</span></label>'
+      +'<input type="text" id="bc-tagline" placeholder="e.g. Helping Cleveland\'s west side find home" style="margin-bottom:12px;"/>'
+      +'<label class="flabel">Accent color</label>'
+      +'<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">'
+        +'<input type="color" id="bc-accent" value="#1D9E75" style="width:48px;height:38px;padding:2px;border:1px solid var(--border);border-radius:8px;cursor:pointer;"/>'
+        +'<span style="font-size:12px;color:var(--text3);">Themes your whole card.</span>'
+      +'</div>'
+      +'<label class="flabel">Intro video link <span style="color:var(--text3);font-weight:400;">(YouTube / Loom / Vimeo &mdash; optional)</span></label>'
+      +'<input type="text" id="bc-video" placeholder="Paste a video link" style="margin-bottom:12px;"/>'
+      +'<div style="font-size:13px;font-weight:600;margin:6px 0 8px;">Social links <span style="color:var(--text3);font-weight:400;">(only filled ones show)</span></div>'
+      +'<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">'
+        +'<input type="text" id="bc-instagram" placeholder="Instagram URL"/>'
+        +'<input type="text" id="bc-facebook" placeholder="Facebook URL"/>'
+        +'<input type="text" id="bc-tiktok" placeholder="TikTok URL"/>'
+        +'<input type="text" id="bc-youtube" placeholder="YouTube URL"/>'
+        +'<input type="text" id="bc-linkedin" placeholder="LinkedIn URL"/>'
+      +'</div>'
+      +'<div style="font-size:13px;font-weight:600;margin:6px 0 8px;">Reviews</div>'
+      +'<div style="display:flex;gap:8px;margin-bottom:8px;">'
+        +'<div style="flex:1;"><label class="flabel">Rating</label><input type="text" id="bc-rev-avg" placeholder="4.9"/></div>'
+        +'<div style="flex:2;"><label class="flabel">Count label</label><input type="text" id="bc-rev-count" placeholder="128 reviews"/></div>'
+      +'</div>'
+      +'<input type="text" id="bc-zillow" placeholder="Zillow profile URL (optional)" style="margin-bottom:8px;"/>'
+      +'<input type="text" id="bc-google" placeholder="Google reviews URL (optional)" style="margin-bottom:12px;"/>'
+      +'<div id="bc-reviews-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>'
+      +'<button class="btn btn-sm" onclick="bcAddReview()" style="margin-bottom:16px;">+ Add a review</button>'
+      +'<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:8px;">'
+        +'<input type="checkbox" id="bc-show-listings" checked style="width:auto;"/>'
+        +'Show my 5 most recent listings on the card'
+      +'</label>'
+    +'</div>';
+  document.body.appendChild(ov);
+  loadBizCard();
+}
+window.openBizCardEditor = openBizCardEditor;
+
+async function loadBizCard(){
+  var linkEl = document.getElementById('bizcard-link');
+  if(linkEl) linkEl.value = bizCardUrl();
+  try{
+    var snap = await fb.getDoc(fb.doc(fb.db,'card_config', _bcAgentId()));
+    var c = snap.exists() ? snap.data() : {};
+    var v = function(id,val){ var el=document.getElementById(id); if(el) el.value = val||''; };
+    v('bc-title', c.title);
+    v('bc-tagline', c.tagline);
+    var acc=document.getElementById('bc-accent'); if(acc) acc.value = c.accent || '#1D9E75';
+    v('bc-video', c.introVideo);
+    v('bc-instagram', c.instagram); v('bc-facebook', c.facebook); v('bc-tiktok', c.tiktok);
+    v('bc-youtube', c.youtube); v('bc-linkedin', c.linkedin);
+    v('bc-rev-avg', c.reviewsAvg); v('bc-rev-count', c.reviewsCount);
+    v('bc-zillow', c.zillowLink); v('bc-google', c.googleLink);
+    var sl=document.getElementById('bc-show-listings'); if(sl) sl.checked = (c.showListings !== false);
+    _bcReviews = Array.isArray(c.reviews) ? c.reviews.slice() : [];
+    renderBcReviews();
+  }catch(e){ _bcReviews=[]; renderBcReviews(); }
+}
+window.loadBizCard = loadBizCard;
+
+function renderBcReviews(){
+  var wrap=document.getElementById('bc-reviews-list'); if(!wrap) return;
+  wrap.innerHTML = _bcReviews.map(function(r,i){
+    return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px;">'
+      +'<textarea data-bc="quote" data-i="'+i+'" placeholder="What they said" rows="2" style="font-size:13px;">'+(r.quote||'').replace(/</g,'&lt;')+'</textarea>'
+      +'<div style="display:flex;gap:6px;">'
+      +'<input data-bc="name" data-i="'+i+'" placeholder="Their name" value="'+(r.name||'').replace(/"/g,'&quot;')+'" style="flex:1;font-size:12.5px;"/>'
+      +'<input data-bc="meta" data-i="'+i+'" placeholder="e.g. Bought in Westlake" value="'+(r.meta||'').replace(/"/g,'&quot;')+'" style="flex:1;font-size:12.5px;"/>'
+      +'<button class="btn btn-sm" onclick="bcRemoveReview('+i+')" style="color:#E24B4A;">&times;</button>'
+      +'</div></div>';
+  }).join('');
+  // wire inputs back to array
+  wrap.querySelectorAll('[data-bc]').forEach(function(el){
+    el.addEventListener('input', function(){
+      var i=+el.getAttribute('data-i'); var k=el.getAttribute('data-bc');
+      if(_bcReviews[i]) _bcReviews[i][k]=el.value;
+    });
+  });
+}
+function bcAddReview(){ _bcReviews.push({quote:'',name:'',meta:''}); renderBcReviews(); }
+function bcRemoveReview(i){ _bcReviews.splice(i,1); renderBcReviews(); }
+window.bcAddReview=bcAddReview; window.bcRemoveReview=bcRemoveReview;
+
+async function saveBizCard(){
+  var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var prof = userProfile || {};
+  var fullName = ((prof.firstName||'')+' '+(prof.lastName||'')).trim() || prof.name || '';
+  var cfg = {
+    // identity (pulled from profile so the card always matches)
+    name: fullName,
+    brokerage: prof.brokerage || '',
+    brokerLogo: prof.brokerageLogo || prof.brokerLogo || '',
+    photo: prof.photoUrl || '',
+    phone: prof.phone || '',
+    email: prof.email || (fb.auth.currentUser && fb.auth.currentUser.email) || '',
+    // card-specific
+    title: g('bc-title'),
+    tagline: g('bc-tagline'),
+    accent: g('bc-accent') || '#1D9E75',
+    introVideo: g('bc-video'),
+    instagram: g('bc-instagram'), facebook: g('bc-facebook'), tiktok: g('bc-tiktok'),
+    youtube: g('bc-youtube'), linkedin: g('bc-linkedin'),
+    reviewsAvg: g('bc-rev-avg'), reviewsCount: g('bc-rev-count'),
+    zillowLink: g('bc-zillow'), googleLink: g('bc-google'),
+    reviews: _bcReviews.filter(function(r){ return (r.quote||'').trim(); }),
+    showListings: !!(document.getElementById('bc-show-listings')||{}).checked,
+    agentId: _bcAgentId(),
+    updatedAt: fb.serverTimestamp()
+  };
+  try{
+    await fb.setDoc(fb.doc(fb.db,'card_config', _bcAgentId()), cfg, {merge:true});
+    _bcToast('Business card saved ✓');
+    var ov=document.getElementById('bizcard-overlay'); if(ov) setTimeout(function(){ ov.remove(); }, 900);
+  }catch(e){ alert('Could not save card: '+e.message); }
+}
+window.saveBizCard = saveBizCard;
+
+function copyBizCardLink(){
+  var url=bizCardUrl();
+  if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){ _bcToast('Card link copied ✓'); }); }
+  else { var el=document.getElementById('bizcard-link'); el.select(); document.execCommand('copy'); _bcToast('Card link copied ✓'); }
+}
+function openBizCard(){ window.open(bizCardUrl(), '_blank'); }
+window.copyBizCardLink=copyBizCardLink; window.openBizCard=openBizCard;
+
 
 function agentInitials(a) {
   const name = (a && a.name) || agentFullName();
