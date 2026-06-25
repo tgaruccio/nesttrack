@@ -26910,7 +26910,7 @@ function _spStepCard(s,i){
   else if(s.channel==='texttap'){ _rdy=!!(s.smsBody&&s.smsBody.trim()); _rdyLabel=_rdy?'✓ Text written':'⚠ No message — tap Edit to write it'; }
   else if(s.channel==='letter'){ _rdy=!!((s.letterTemplateId&&String(s.letterTemplateId).trim())||(s.letterBody&&s.letterBody.trim())); _rdyLabel=_rdy?'✓ Letter ready':'⚠ No template or text — tap Edit'; }
   else if(s.channel==='email'){ _rdy=!!((s.emailSubject&&s.emailSubject.trim())||(s.emailBody&&s.emailBody.trim())||(s.emailHtml&&s.emailHtml.trim())); _rdyLabel=_rdy?'✓ Email ready':'⚠ No email content — tap Edit'; }
-  else { _rdy=!!(s.webhookUrl&&s.webhookUrl.trim()); _rdyLabel=_rdy?'✓ Zap connected':'⚠ No webhook URL — won\'t fire'; }
+  else { _rdy=!!(s.content&&s.content.trim()); _rdyLabel=_rdy?'✓ Zapier step ready':'⚠ Add a label — tap Edit'; }
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
       +'<div style="flex:1;min-width:0;">'
@@ -26946,11 +26946,22 @@ function spInsertStep(idx, kind){
   var step;
   if(kind==='wait') step={ id:_spId(), kind:'wait', amount:2, unit:'days' };
   else step={ id:_spId(), kind:'do', channel:kind, content:'' };
+  // Zapier/text steps get a stable, unique Trigger ID (Lofty-style) generated once.
+  if(kind==='zapier' || kind==='text'){ step.triggerId = 'trig_' + Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,6); }
   _currentPlan.steps.splice(idx,0,step);
   spRenderCanvas();
   spEditStep(idx);   // open editor immediately
 }
 window.spInsertStep = spInsertStep;
+
+function spCopyTrigId(id){
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(id); }
+    else { var t=document.createElement('textarea'); t.value=id; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }
+    if(typeof showToast==='function') showToast('Trigger ID copied'); else if(typeof showDealToast==='function') showDealToast('Trigger ID copied', null, null);
+  } catch(e){ try{ if(typeof showToast==='function') showToast('Copy failed — select and copy manually'); }catch(_){} }
+}
+window.spCopyTrigId = spCopyTrigId;
 
 function spEditStep(i){
   var s=_currentPlan.steps[i]; if(!s) return;
@@ -27013,15 +27024,19 @@ function spEditStep(i){
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
         +'<input type="text" id="sp-step-content" placeholder="What this email is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
     } else {
+      var _tid = s.triggerId || ('trig_' + Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,6));
+      if(!s.triggerId) s.triggerId = _tid;
       inner=hdr
-        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">This step pings your Zap, which does the actual sending.</div>'
-        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Webhook URL <span style="font-weight:400;">(from Zapier)</span></label>'
-        +'<input type="text" id="sp-step-url" placeholder="https://hooks.zapier.com/hooks/catch/..." value="'+partnerEsc(s.webhookUrl||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 6px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
-        +'<button class="btn btn-sm" onclick="spTestZap()" style="margin-bottom:8px;">→ Send test to Zapier</button>'
-        +'<div id="sp-zap-test-status" style="font-size:11px;color:var(--text3);margin-bottom:10px;">Paste your URL, then tap this so Zapier can see the fields to map.</div>'
-        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
-        +'<input type="text" id="sp-step-content" placeholder="e.g. OpenPhone intro text" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
-        +'<div style="font-size:11px;color:var(--text3);margin-top:10px;">When due, NestTrack pings this URL with the contact\'s name, phone, email.</div>';
+        +'<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;background:#EDE9FE;border-radius:var(--r-sm);padding:11px 12px;">When a contact reaches this step, NestTrack fires this step\'s <strong>Trigger ID</strong> to Zapier — and your Zap does the rest (text, letter, add to an audience, anything). <strong>No webhook needed.</strong></div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">What should this step do?</label>'
+        +'<input type="text" id="sp-step-content" placeholder="e.g. FSBO Text 1" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Trigger ID <span style="font-weight:400;">(connect this in Zapier)</span></label>'
+        +'<div style="display:flex;gap:6px;align-items:center;margin:4px 0 6px;">'
+          +'<input type="text" id="sp-step-trigid" readonly value="'+partnerEsc(_tid)+'" style="flex:1;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:monospace;background:var(--surface2);"/>'
+          +'<button class="btn btn-sm" onclick="spCopyTrigId(\''+partnerEsc(_tid)+'\')">Copy</button>'
+        +'</div>'
+        +'<details style="margin-top:10px;"><summary style="font-size:11px;color:var(--text3);cursor:pointer;">How do I connect this to Zapier?</summary>'
+        +'<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:8px;">In Zapier, create a Zap with the trigger <strong>NestTrack → Smart Plan Step Reached</strong>, pick this <strong>Trigger ID</strong> from the dropdown (or paste it), then choose what it does (e.g. <strong>OpenPhone → Send Text</strong>). Each step has its own ID, so each can do something different.</div></details>';
     }
   }
   ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:400px;padding:20px;">'
@@ -27101,6 +27116,9 @@ function spSaveStep(i){
   } else {
     var ta=document.getElementById('sp-step-content');
     s.content=ta?ta.value:'';
+    var trigEl=document.getElementById('sp-step-trigid');
+    if(trigEl && trigEl.value.trim()) s.triggerId=trigEl.value.trim();
+    else if((s.channel==='zapier'||s.channel==='text') && !s.triggerId){ s.triggerId='trig_'+Math.random().toString(36).slice(2,8)+Math.random().toString(36).slice(2,6); }
     var urlEl=document.getElementById('sp-step-url');
     var audioEl=document.getElementById('sp-step-audio');
     var letterEl=document.getElementById('sp-step-letter');
