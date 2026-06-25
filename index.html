@@ -27791,10 +27791,12 @@ function spContactRowHtml(b){
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">'
       +'<div style="font-size:12px;color:var(--text);"><span style="font-size:11px;font-weight:700;color:#6D28D9;">📣 SMART PLAN</span> '+partnerEsc(b.smartPlanName||'Plan')
       +(due?' <span style="color:var(--text3);">· next step '+partnerEsc(due)+'</span>':'')+'</div>'
-      +'<div style="display:flex;gap:6px;">'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +'<button class="btn btn-sm btn-g" onclick="spFireNow(\''+b.uid+'\',this)">⚡ Fire now</button>'
         +'<button class="btn btn-sm btn-g" onclick="spMoveToFollowUp(\''+b.uid+'\')">✋ They replied</button>'
         +'<button class="btn btn-sm" style="color:#E24B4A;" onclick="spStopForContact(\''+b.uid+'\')">Stop</button>'
       +'</div>'
+      +'<div style="font-size:10.5px;color:var(--text3);width:100%;margin-top:2px;">Steps auto-fire at the top of each hour — or tap <strong>Fire now</strong> to run the next step immediately.</div>'
       +'</div>';
   }
   if (b && b.followUp===true && b.smartPlanStatus==='stopped'){
@@ -27812,6 +27814,33 @@ function spContactRowHtml(b){
     +'<button class="btn btn-sm btn-g" onclick="spOpenAssign(\''+b.uid+'\')" style="flex:1;">📣 Assign a Smart Plan</button></div>';
 }
 window.spContactRowHtml = spContactRowHtml;
+
+async function spFireNow(uid, btn){
+  if(!uid) return;
+  var orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='Firing…'; }
+  try {
+    var r = await fetch(PROXY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Action':'fire-plan-now'},
+      body: JSON.stringify({ uid: uid })
+    });
+    var j = await r.json();
+    if(j && j.ok){
+      if(btn){ btn.textContent = j.fired>0 ? ('✓ Fired '+j.fired) : '✓ Done'; }
+      if(typeof showToast==='function') showToast(j.fired>0 ? ('Fired '+j.fired+' step'+(j.fired!==1?'s':'')) : 'Nothing due to fire right now');
+      // refresh the contact's plan state
+      setTimeout(function(){ if(typeof loadBuyers==='function'){ loadBuyers(); } else if(typeof renderBuyers==='function'){ renderBuyers(); } }, 1200);
+    } else {
+      if(btn){ btn.disabled=false; btn.textContent=orig; }
+      if(typeof showToast==='function') showToast('Could not fire: '+((j&&j.reason)||'unknown')); else alert('Could not fire: '+((j&&j.reason)||'unknown'));
+    }
+  } catch(e){
+    if(btn){ btn.disabled=false; btn.textContent=orig; }
+    if(typeof showToast==='function') showToast('Fire failed: '+(e&&e.message||'network error')); else alert('Fire failed: '+(e&&e.message||''));
+  }
+}
+window.spFireNow = spFireNow;
 
 async function spOpenAssign(uid){
   if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
