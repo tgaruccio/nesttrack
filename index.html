@@ -3962,7 +3962,7 @@ const DEFAULT_LENDERS = [
 
 async function loadTeamLenders() {
   try {
-    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
     var _lendersSnapOwnerAll = (typeof isOwner==='function' && isOwner());
     var snap = _lendersSnapOwnerAll
       ? await fb.getDocs(fb.collection(fb.db, 'team_lenders'))
@@ -4138,7 +4138,7 @@ async function signUp() {
   try {
     window._signupInProgress = true;
     const cred = await fb.createUserWithEmailAndPassword(fb.auth, email, pass);
-    const selectedAgent = document.getElementById('su-agent').value || 'tom';
+    const selectedAgent = document.getElementById('su-agent').value || '';
     let agentId = selectedAgent;
     let inviteData = null;
 
@@ -4192,7 +4192,7 @@ async function signUp() {
       role: 'buyer',
       agentId: (existingContact && existingContact.agentId) || agentId,
       coAgentId: (existingContact && existingContact.coAgentId) || null,
-      lenderId: (existingContact && existingContact.lenderId) || 'tom',
+      lenderId: (existingContact && existingContact.lenderId) || '',
       journeyType: journeyType,
       currentStep: (existingContact && existingContact.currentStep > 0) ? existingContact.currentStep : 1,
       currentSellerStep: (existingContact && existingContact.currentSellerStep) || 0,
@@ -4299,7 +4299,7 @@ async function signOut() {
 
 async function loadTeamAgents() {
   try {
-    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
     var _agentsSnapOwnerAll = (typeof isOwner==='function' && isOwner());
     const snap = _agentsSnapOwnerAll
       ? await fb.getDocs(fb.collection(fb.db, 'team_agents'))
@@ -4570,12 +4570,12 @@ function dtPrefillLabel(k){
 }
 
 // Templates live at the team-lead level: agents/{agentId}/docTemplates/{id}
-function dtAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
+function dtAgentId(){ return (userProfile && userProfile.agentId) || ''; }
 // Effective team a person's shared content belongs to:
 //  owner/leader -> themselves; member -> their leader (teamId). For Tom this is always 'tom'.
 function agentTeamRole(ag){ if(!ag) return 'member'; if(ag.teamRole) return ag.teamRole; if(ag.id==='tom') return 'owner'; if(ag.isAdmin) return 'leader'; return 'member'; }
-function agentTeamId(ag){ if(!ag) return 'tom'; if(ag.teamId) return ag.teamId; var r=agentTeamRole(ag); return (r==='owner'||r==='leader')? ag.id : 'tom'; }
-function _teamIdForAgent(aid){ if(!aid) return 'tom'; if(userProfile && userProfile.agentId===aid && userProfile.teamId) return userProfile.teamId; var a=(DEFAULT_AGENTS||[]).find(function(x){return x.id===aid;}); if(a) return agentTeamId(a); return aid; }
+function agentTeamId(ag){ if(!ag) return ''; if(ag.teamId) return ag.teamId; var r=agentTeamRole(ag); return (r==='owner'||r==='leader')? ag.id : ''; }
+function _teamIdForAgent(aid){ if(!aid) return ''; if(userProfile && userProfile.agentId===aid && userProfile.teamId) return userProfile.teamId; var a=(DEFAULT_AGENTS||[]).find(function(x){return x.id===aid;}); if(a) return agentTeamId(a); return aid; }
 window._teamIdForAgent=_teamIdForAgent;
 // One-time backfill: stamp teamRole/teamId/agentId onto every agent's users doc so security
 // rules can read them. Owner-only, idempotent, runs from the owner's session.
@@ -4605,7 +4605,7 @@ async function backfillTeamFields(){
     });
     if(taJobs.length){ await Promise.all(taJobs); }
     // Stamp teamId onto team_lenders docs that predate the field (additive, safe).
-    var myT = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+    var myT = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
     var tlSnap = await fb.getDocs(fb.collection(fb.db,'team_lenders'));
     var tlJobs=[];
     tlSnap.forEach(function(d){
@@ -4617,9 +4617,9 @@ async function backfillTeamFields(){
   }catch(e){ console.log('backfillTeamFields error:', e.message); }
 }
 window.backfillTeamFields=backfillTeamFields;
-function dtTeamId(){ return (userProfile && userProfile.teamId) || (userProfile && userProfile.agentId) || 'tom'; }
+function dtTeamId(){ return (userProfile && userProfile.teamId) || (userProfile && userProfile.agentId) || ''; }
 // Agents on the current user's team (leader + their members). Used to scope agent pickers.
-function _myTeamAgents(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return (DEFAULT_AGENTS||[]).filter(function(a){ return (typeof agentTeamId!=='function') || agentTeamId(a)===t; }); }
+function _myTeamAgents(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))|| ''; return (DEFAULT_AGENTS||[]).filter(function(a){ return (typeof agentTeamId!=='function') || agentTeamId(a)===t; }); }
 function dtCol(){ return fb.collection(fb.db,'agents',dtTeamId(),'docTemplates'); }
 function dtDoc(id){ return fb.doc(fb.db,'agents',dtTeamId(),'docTemplates',id); }
 function dtStoragePath(id){ return 'docTemplates/'+dtTeamId()+'/'+id+'.pdf'; }
@@ -4665,7 +4665,7 @@ function dtShareTemplate(id){
   var teams={}; var order=[];
   (DEFAULT_AGENTS||[]).forEach(function(a){
     if(!a.id||!a.name) return;
-    var tid = (typeof agentTeamId==='function') ? agentTeamId(a) : 'tom';
+    var tid = (typeof agentTeamId==='function') ? agentTeamId(a) : '';
     if(tid===myTeam) return; // skip my own team — already mine
     if(!teams[tid]){ teams[tid]={agents:[],leaderName:tid}; order.push(tid); }
     teams[tid].agents.push(a);
@@ -4705,7 +4705,7 @@ async function dtCopyTemplateToTeam(tp, destTeamId){
   var url=await fb.getDownloadURL(sRef);
   await fb.setDoc(fb.doc(fb.db,'agents',destTeamId,'docTemplates',newId), {
     name: tp.name||'Shared Template', boxes: tp.boxes||[], stages: tp.stages||[], trailStages: tp.trailStages||[], sellerStages: tp.sellerStages||[], numPages: tp.numPages||1,
-    pdfPath: destPath, pdfUrl: url, sharedFrom: (userProfile&&userProfile.agentId)||'tom',
+    pdfPath: destPath, pdfUrl: url, sharedFrom: (userProfile&&userProfile.agentId)|| '',
     createdAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp()
   });
 }
@@ -5735,7 +5735,7 @@ async function saveAgentProfile() {
   if (!isAgent && !isLender) return;
   const data = {
     role: 'agent',
-    agentId: userProfile.agentId || currentAgent().id || 'tom',
+    agentId: userProfile.agentId || currentAgent().id || '',
     photoUrl: convertGoogleDriveImageUrl(document.getElementById('ap-photo').value.trim()),
     calendly: document.getElementById('ap-calendly').value.trim(),
     googleReviewUrl: document.getElementById('ap-google').value.trim(),
@@ -5976,7 +5976,7 @@ function renderDocLibrary() {
 // ── TEAM STATS ──
 // Leaderboard + financials are PER-TEAM. Owner (tom) keeps the original global docs (no migration);
 // every other team namespaces its docs by team id. A leader's team id is themselves.
-function _teamStatsTeamId(){ return (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'; }
+function _teamStatsTeamId(){ return (userProfile && (userProfile.teamId || userProfile.agentId)) || ''; }
 function _tsSettingsRef(){ var t=_teamStatsTeamId(); return fb.doc(fb.db,'team_stats', t==='tom' ? '_settings' : (t+'__settings')); }
 function _tsYearRef(year){ var t=_teamStatsTeamId(); return fb.doc(fb.db,'team_stats', t==='tom' ? String(year) : (t+'__'+year)); }
 var _teamStatsData = {};
@@ -6766,7 +6766,7 @@ function _finLeader(){ return (typeof isTeamLeader==='function' && isTeamLeader(
 
 function _finReceivedAgents(){
   if(_finLeader()){
-    var tid=(typeof _teamStatsTeamId==='function')?_teamStatsTeamId():((userProfile&&(userProfile.teamId||userProfile.agentId))||'tom');
+    var tid=(typeof _teamStatsTeamId==='function')?_teamStatsTeamId():((userProfile&&(userProfile.teamId||userProfile.agentId))|| '');
     return (DEFAULT_AGENTS||[]).filter(function(a){
       if(!a.id||!a.name) return false;
       if(typeof agentTeamId==='function' && agentTeamId(a)!==tid) return false;
@@ -7077,7 +7077,7 @@ const EMAIL_EDITOR_DEFS = [
 
 async function loadCustomEmailTemplates() {
   try {
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     var snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'));
     if (snap.exists()) _customEmailTemplates = snap.data();
   } catch(e) { console.log('loadCustomEmailTemplates err:', e.message); }
@@ -7124,7 +7124,7 @@ async function eeSave(key) {
   body = body.replace(/<span style="[^"]*">/gi,'').replace(/<\/span>/gi,'');
   _customEmailTemplates[key] = { subject: subject, body: body };
   try {
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'), _customEmailTemplates);
     var btn = document.getElementById('ee-save-btn-'+key);
     if (btn) { btn.textContent = '✓ Saved'; btn.style.background='var(--green)'; setTimeout(function(){ btn.textContent='Save'; btn.style.background=''; }, 2000); }
@@ -7137,7 +7137,7 @@ async function eeReset(key) {
   if (!confirm('Reset to default? Your changes will be deleted.')) return;
   delete _customEmailTemplates[key];
   try {
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','emailTemplates'), _customEmailTemplates);
     renderEmailEditorList();
     showDealToast('Reset to default', null, null);
@@ -7568,11 +7568,11 @@ async function showApp() {
   setTimeout(function(){ renderTrailMap(); }, 400);
   setTimeout(function(){ renderSellerTrail(); }, 500);
   loadClientDeals();
-  loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderPartners('all'); });
+  loadAgentPartners(userProfile.agentId|| '').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
   if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(typeof _loadManagedSegments==='function')_loadManagedSegments();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); }
-  await loadAgentPartners(userProfile.agentId||'tom');
+  await loadAgentPartners(userProfile.agentId|| '');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
   if (isAgent && window._showAgentWelcome) {
@@ -7822,7 +7822,7 @@ function go(page, el) {
   if (page === 'compare') { go('saved', document.querySelector('[data-pg=saved]')); return; }
   if (page === 'redflag') { go('photo', document.querySelector('[data-pg=photo]')); setTimeout(function(){ setPhotoMode('redflag'); },100); return; }
   if (page === 'tour') renderTours();
-  if (page==='partners'){loadAgentPartners(userProfile.agentId||'tom').then(function(){renderPartners('all');});}
+  if (page==='partners'){loadAgentPartners(userProfile.agentId|| '').then(function(){renderPartners('all');});}
   if (page === 'youragent') { renderYourAgent(); renderYourLender(); renderYourTitleCo(); }
   if (page === 'dash') renderDash();
   if (page === 'home') { renderHome(); var ha=document.getElementById('home-unread-alert'); if(ha) ha.style.display='none'; }
@@ -8650,7 +8650,7 @@ function agentReplyTo() {
 // The team's default lender. Tom's original team keeps Tom in-house; other teams resolve to their own
 // rostered lender (a single rostered lender becomes the default) or none.
 function _teamDefaultLender(){
-  var team = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var team = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
   if (team === 'tom') return 'tom';
   var teamLs = (typeof DEFAULT_LENDERS!=='undefined' ? DEFAULT_LENDERS : []).filter(function(l){ return l.teamId === team; });
   var def = teamLs.find(function(l){ return l.isDefault; });
@@ -9164,7 +9164,7 @@ async function logEmailActivity(uid, subject, type) {
       subject: subject,
       type: type || 'general',
       sentAt: fb.serverTimestamp(),
-      agentId: userProfile.agentId || 'tom'
+      agentId: userProfile.agentId || ''
     });
   } catch(e) { console.log('emailLog err:', e.message); }
 }
@@ -9815,7 +9815,7 @@ function _rebuildAgentPartners(){
   agentPartners = out;
 }
 async function loadAgentPartners(agentId) {
-  agentId = agentId || (userProfile && userProfile.agentId) || 'tom';
+  agentId = agentId || (userProfile && userProfile.agentId) || '';
   _partnerAgentId = agentId;
   var teamId = _resolvePartnerTeamId(agentId);
   _partnerTeamId = teamId;
@@ -9874,7 +9874,7 @@ async function _saveTeamPartners() {
 }
 // Save this user's personal list + hidden (member's own doc).
 async function _savePersonalPartners() {
-  var id = _partnerAgentId || (userProfile && userProfile.agentId) || 'tom';
+  var id = _partnerAgentId || (userProfile && userProfile.agentId) || '';
   try { await fb.setDoc(fb.doc(fb.db,'agent_partners', id), {partners:_personalPartners, hidden:_hiddenPartnerIds, _v2:true}); } catch(e){ console.log('savePersonal:',e.message); }
 }
 // Persist whichever doc holds this user's hidden list.
@@ -9929,7 +9929,7 @@ async function renderPartners(cat) {
   cat = cat || 'all';
   var grid = document.getElementById('partner-grid');
   if (!grid) return;
-  if (!agentPartners.length) await loadAgentPartners((userProfile&&userProfile.agentId)||'tom');
+  if (!agentPartners.length) await loadAgentPartners((userProfile&&userProfile.agentId)|| '');
   var lbl = document.getElementById('partners-agent-label');
   if (lbl && assignedAgent && assignedAgent.name) lbl.textContent = 'Curated by ' + assignedAgent.name;
   var filter = document.getElementById('partner-filter');
@@ -10200,7 +10200,7 @@ var _refChecked = {};
 
 async function openReferralModal() {
   // Load partners if not yet loaded
-  if (!agentPartners.length) await loadAgentPartners(userProfile.agentId||'tom');
+  if (!agentPartners.length) await loadAgentPartners(userProfile.agentId|| '');
   _refStep = 1; _refChecked = {}; // all start unchecked
   document.getElementById('ref-step1').style.display = 'block';
   document.getElementById('ref-step2').style.display = 'none';
@@ -10624,7 +10624,7 @@ function openAgentChat(buyerUid) {
   var agentEntry = DEFAULT_AGENTS.find(function(a) {
     return a.email === (userProfile&&userProfile.email) || a.id === (userProfile&&userProfile.agentId);
   });
-  var agentShortId = agentEntry ? agentEntry.id : 'tom';
+  var agentShortId = agentEntry ? agentEntry.id : '';
   currentChatRoom = 'chat_' + buyerUid;
   watchChat(buyerUid);
 }
@@ -11819,7 +11819,7 @@ function watchAllAgentChats() {
   var agentEntry = DEFAULT_AGENTS.find(function(a){
     return a.email && a.email.toLowerCase() === ((userProfile&&userProfile.email)||'').toLowerCase();
   });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
+  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)|| '';
   var lastSeen = 0;
   try { lastSeen = parseInt(localStorage.getItem('lastSeen_'+currentUser.uid)||'0'); } catch(e){}
 
@@ -11930,7 +11930,7 @@ function _adminRowHtml(a, nested){
   var role=(typeof agentTeamRole==='function')?agentTeamRole(a):'member';
   var u=_ownerUsage[a.id];
   var usageHtml = u ? (u.clients+' client'+(u.clients===1?'':'s')+(u.last?(' \u00b7 '+u.last):'')) : '';
-  var isSelf = a.id===((userProfile&&userProfile.agentId)||'tom');
+  var isSelf = a.id===((userProfile&&userProfile.agentId)|| '');
   var canManage = !isSelf && role!=='owner';
   var search=partnerEsc(String((a.name||'')+' '+(a.email||'')).toLowerCase());
   return '<div class="admin-node" data-search="'+search+'" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:'+(nested?'var(--surface)':'var(--surface2)')+';border-radius:8px;'+(nested?'border:1px solid var(--border);':'')+'">'
@@ -11950,7 +11950,7 @@ async function renderOwnerAdmin(){
   if(typeof isPlatformOwner!=='function' || !isPlatformOwner()){ panel.innerHTML='<div class="card" style="text-align:center;color:var(--text3);padding:30px;">Platform owner access only.</div>'; return; }
   if(typeof _loadBillTiers==='function'){ try{ await _loadBillTiers(); }catch(e){} }
   var agents=(DEFAULT_AGENTS||[]);
-  var myId=(userProfile&&userProfile.agentId)||'tom';
+  var myId=(userProfile&&userProfile.agentId)|| '';
   var loaded=Object.keys(_ownerUsage).length>0;
   var self=agents.find(function(a){return a.id===myId;});
   var myMembers=agents.filter(function(a){return agentTeamRole(a)==='member' && agentTeamId(a)===myId;});
@@ -12087,8 +12087,8 @@ function _plRow(label,sub,amount,color){
     +'<div style="font-weight:700;font-size:16px;color:'+color+';">$'+Number(amount||0).toLocaleString()+'</div></div>';
 }
 function adminTab(name){ window._adminTab=name; renderOwnerAdmin(); }
-function adminLoadFinance(){ _finLedger='platform__'+((currentUser&&currentUser.uid)||'tom'); _finPfx='admin-'; _finPlatform=true; loadFinances(); }
-function adminOnFinanceYearChange(){ var sel=document.getElementById('admin-finance-year'); if(sel)_financeYear=parseInt(sel.value)||_financeYear; _finLedger='platform__'+((currentUser&&currentUser.uid)||'tom'); _finPfx='admin-'; _finPlatform=true; renderFinances(); }
+function adminLoadFinance(){ _finLedger='platform__'+((currentUser&&currentUser.uid)|| ''); _finPfx='admin-'; _finPlatform=true; loadFinances(); }
+function adminOnFinanceYearChange(){ var sel=document.getElementById('admin-finance-year'); if(sel)_financeYear=parseInt(sel.value)||_financeYear; _finLedger='platform__'+((currentUser&&currentUser.uid)|| ''); _finPfx='admin-'; _finPlatform=true; renderFinances(); }
 window.adminTab=adminTab; window._adminStat=_adminStat; window.adminLoadFinance=adminLoadFinance; window.adminOnFinanceYearChange=adminOnFinanceYearChange;
 function adminToggleLeader(id){ var el=document.getElementById('admem-'+id); var ar=document.getElementById('adlarr-'+id); if(!el)return; var open=el.style.display==='none'||!el.style.display; el.style.display=open?'flex':'none'; if(ar)ar.textContent=open?'\u25BE':'\u25B8'; }
 function adminFilter(q){
@@ -12133,7 +12133,7 @@ async function adminInviteLeader(){
 }
 function adminAddMemberTo(teamId){
   var leaders=(DEFAULT_AGENTS||[]).filter(function(a){return agentTeamRole(a)==='leader';});
-  var myId=(userProfile&&userProfile.agentId)||'tom';
+  var myId=(userProfile&&userProfile.agentId)|| '';
   var opts='<option value="'+myId+'">Your team</option>'+leaders.map(function(L){return '<option value="'+L.id+'">'+partnerEsc(L.name||L.id)+'\u2019s team</option>';}).join('');
   _adminModal('\u2795 Add Member',
     '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.5;">Adds a member straight to a team. Normally leaders add their own \u2014 this is your owner override.</div>'
@@ -12163,7 +12163,7 @@ async function _createAgentInvite(opts){
   var id=name.toLowerCase().replace(/[^a-z0-9]/g,'').substring(0,12);
   var teamRole = opts.role==='leader' ? 'leader' : 'member';
   if(teamRole==='leader' && !isOwner()) teamRole='member';
-  var teamId = teamRole==='leader' ? id : (opts.teamId || ((userProfile&&userProfile.agentId)||'tom'));
+  var teamId = teamRole==='leader' ? id : (opts.teamId || ((userProfile&&userProfile.agentId)|| ''));
   var existing=DEFAULT_AGENTS.findIndex(function(a){return a.id===id || (a.email||'').toLowerCase()===email.toLowerCase();});
   if(existing>=0){ alert('Someone with that name or email already exists.'); return false; }
   var agentData={ id:id, name:name, role:'REALTOR\u00AE', phone:phone, email:email, teamRole:teamRole, teamId:teamId, comped:!!opts.comped, billingTier:opts.billingTier||'', addedAt:new Date().toISOString() };
@@ -12526,7 +12526,7 @@ function switchAgentTab(tab) {
   } else if (tab==='partners') {
     if (ptb) { ptb.style.background='var(--green)'; ptb.style.color='#fff'; }
     if (ptp) ptp.style.display='flex';
-    if (!agentPartners.length) { loadAgentPartners(userProfile.agentId||'tom').then(function(){ renderAgentPartnersEditor(); }); } else { renderAgentPartnersEditor(); }
+    if (!agentPartners.length) { loadAgentPartners(userProfile.agentId|| '').then(function(){ renderAgentPartnersEditor(); }); } else { renderAgentPartnersEditor(); }
   } else if (tab==='reports') {
     if (rtb) { rtb.style.background='var(--green)'; rtb.style.color='#fff'; }
     if (rtp) rtp.style.display='flex';
@@ -12615,7 +12615,7 @@ function openAgentInboxChat(buyerUid, buyerName, buyerPhone) {
   if (agentChatListener2) { try { agentChatListener2(); } catch(e){} agentChatListener2=null; }
   clearAgentUnreadForBuyer(buyerUid);
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email && a.email.toLowerCase()===(userProfile&&userProfile.email||'').toLowerCase(); });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
+  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)|| '';
   agentCurrentRoom = 'chat_'+agentShortId+'_'+buyerUid;
   var chatRef = fb.ref(fb.rtdb, 'chats/'+agentCurrentRoom+'/messages');
   agentChatListener2 = fb.onChildAdded(chatRef, function(snapshot) {
@@ -12749,8 +12749,8 @@ function renderContactPicker(q){
   var list = document.getElementById('cp-list'); if(!list) return;
   q = (q||'').toLowerCase().trim();
   // Team agents (exclude myself) — for 1-on-1 agent DMs
-  var myAgentId = (userProfile && userProfile.agentId) || 'tom';
-  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var myAgentId = (userProfile && userProfile.agentId) || '';
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
   var teamAgents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
     if (a.id === myAgentId) return false; // not myself
@@ -13327,7 +13327,7 @@ function openMsgThread(buyerUid) {
   if (_msgListener) { try { _msgListener(); } catch(e){} _msgListener = null; }
 
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email===(userProfile&&userProfile.email)||a.id===(userProfile&&userProfile.agentId); });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
+  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)|| '';
   var roomId = 'chat_'+buyerUid;
   var msgsEl = document.getElementById('msg-msgs');
   if (msgsEl) { msgsEl.innerHTML = ''; msgsEl.removeAttribute('data-last-date'); }
@@ -13445,7 +13445,7 @@ function sendAgentMsg() {
   input.value = ''; input.style.height = 'auto';
 
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.email===(userProfile&&userProfile.email)||a.id===(userProfile&&userProfile.agentId); });
-  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)||'tom';
+  var agentShortId = agentEntry ? agentEntry.id : (userProfile&&userProfile.agentId)|| '';
   var roomId = 'chat_'+_msgCurrentBuyer.uid;
   var agentName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim()||'Your Agent';
 
@@ -13577,7 +13577,7 @@ async function renderAgentDashboard() {
 
   // Next appointment
   try {
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     var apptSnap = await fb.getDocs(fb.collection(fb.db,'agents',agentId,'appointments'));
     var appts = [];
     apptSnap.forEach(function(d){ appts.push(d.data()); });
@@ -13623,7 +13623,7 @@ async function renderAgentDashboard() {
   // Count manual showings from Firestore this week
   var firestoreShowingCount = 0;
   try {
-    var msSnap = await fb.getDocs(fb.collection(fb.db,'agents',userProfile.agentId||'tom','manualShowings'));
+    var msSnap = await fb.getDocs(fb.collection(fb.db,'agents',userProfile.agentId|| '','manualShowings'));
     msSnap.forEach(function(d){
       var m = d.data();
       if (!m.date) return;
@@ -13982,7 +13982,7 @@ window.injectDealReminders = injectDealReminders;
 // when the app is shut. Done/skip/off tasks get their reminder deleted so nothing stale fires.
 async function syncTCReminders() {
   if (!_deals || typeof currentUser==='undefined' || !currentUser || typeof TC_TASKS==='undefined') return;
-  var agentId = (userProfile && userProfile.agentId) || 'tom';
+  var agentId = (userProfile && userProfile.agentId) || '';
   var uid = currentUser.uid;
   var today = _tcToday();
   _deals.forEach(function(deal){
@@ -14218,7 +14218,7 @@ function todoSetReminder(sid) {
     t.reminderTime = null;
     todoSave(); todoRender();
     // Remove from Firestore
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'todoReminders',t.id)).catch(function(){});
     return;
   }
@@ -14253,7 +14253,7 @@ function todoSetReminder(sid) {
     todoSave(); todoRender();
     overlay.remove();
     // Save to Firestore for server-side push
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     fb.setDoc(fb.doc(fb.db,'agents',agentId,'todoReminders',t.id), {
       reminderTime: d + 'T' + ti,
       text: t.text,
@@ -15012,7 +15012,7 @@ function _registerSegment(name){
   _managedSegments.push(name);
   // Persist to agent config (best-effort)
   try {
-    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
     fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'), { list:_managedSegments, updatedAt:fb.serverTimestamp() }, {merge:true});
   } catch(e){}
 }
@@ -15020,7 +15020,7 @@ window._registerSegment=_registerSegment;
 
 async function _loadManagedSegments(){
   try {
-    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
     var snap=await fb.getDoc(fb.doc(fb.db,'agents',aid,'config','segments'));
     if(snap.exists() && Array.isArray(snap.data().list)) _managedSegments=snap.data().list;
   } catch(e){}
@@ -15080,7 +15080,7 @@ async function deleteSegment(seg){
   // Remove from managed list
   _managedSegments=(_managedSegments||[]).filter(function(x){ return x!==seg; });
   try{
-    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    var aid=(userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
     await fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'),{ list:_managedSegments, updatedAt:fb.serverTimestamp() },{merge:true});
   }catch(e){}
   renderSegmentManager();
@@ -15243,7 +15243,7 @@ async function _bulkEnrollPlan(uid, planId){
   var plans=(typeof _smartPlans!=='undefined'&&_smartPlans)?_smartPlans:[];
   var plan=plans.find(function(x){return x.id===planId;}); if(!plan) throw new Error('plan not found');
   var today=(typeof _spTodayStr==='function')?_spTodayStr():new Date().toISOString().split('T')[0];
-  var patch={ smartPlanId:plan.id, smartPlanName:plan.name||'Plan', smartPlanOwner:(typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)||'tom')), smartPlanStatus:'active', smartPlanStep:0, smartPlanNextDue:today, smartPlanEnrolledAt:today };
+  var patch={ smartPlanId:plan.id, smartPlanName:plan.name||'Plan', smartPlanOwner:(typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)|| '')), smartPlanStatus:'active', smartPlanStep:0, smartPlanNextDue:today, smartPlanEnrolledAt:today };
   await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
   var b=(allBuyers||[]).find(function(x){return x.uid===uid;});
   if(b) Object.assign(b, patch);
@@ -15380,7 +15380,7 @@ async function createInvite() {
   var phone = (document.getElementById('inv-phone')||{}).value||'';
   var agentId = document.getElementById('inv-agent').value;
   var invLenderEl = document.getElementById('inv-lender');
-  var invLenderId = invLenderEl ? invLenderEl.value : 'tom';
+  var invLenderId = invLenderEl ? invLenderEl.value : '';
   var resultEl = document.getElementById('invite-result');
   if (!first || !email) { alert('First name and email are required.'); return; }
 
@@ -15542,7 +15542,7 @@ window.switchTeamRole = switchTeamRole;
 function renderTeamLenders() {
   var el = document.getElementById('team-lender-list');
   if (!el) return;
-  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
   var mine = (DEFAULT_LENDERS||[]).filter(function(l){ return l.teamId===myTeam || (myTeam==='tom' && (l.id==='tom' || !l.teamId)); });
   if (!mine.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 2px;">No lenders on your team yet.</div>'; return; }
   el.innerHTML = mine.map(function(l) {
@@ -15560,7 +15560,7 @@ function renderTeamLenders() {
 }
 window.renderTeamLenders = renderTeamLenders;
 async function setTeamDefaultLender(id){
-  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
   for (var i=0;i<(DEFAULT_LENDERS||[]).length;i++){
     var l=DEFAULT_LENDERS[i];
     var onTeam = (l.teamId===myTeam || (myTeam==='tom' && (l.id==='tom' || !l.teamId)));
@@ -15597,7 +15597,7 @@ async function addLenderAndInvite() {
   if (existing) { alert('A lender with that email already exists.'); return; }
 
   // Manage Team adds a TEAM-lender (a lender on THIS leader's team). Owner-lenders are admin-only.
-  var lenderTeamId = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var lenderTeamId = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
   var lenderTeamRole = 'member';
   var setDefault = !!(document.getElementById('tl-default') && document.getElementById('tl-default').checked);
   var lenderData = { id, name, role: 'Licensed Mortgage Professional', phone, email, company, applyLink, teamId: lenderTeamId, teamRole: lenderTeamRole, isDefault: setDefault, addedAt: new Date().toISOString() };
@@ -15670,7 +15670,7 @@ window.addLenderAndInvite = addLenderAndInvite;
 // ── Admin: provision an OWNER-LENDER (heads their own team; agents join them) ──
 function adminInviteOwnerLender(){
   var leaders=(DEFAULT_AGENTS||[]).filter(function(a){return agentTeamRole(a)==='leader';});
-  var myId=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+  var myId=(userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
   var opts='<option value="'+myId+'">Your team</option>'+leaders.map(function(L){return '<option value="'+L.id+'">'+partnerEsc(L.name||L.id)+'\u2019s team</option>';}).join('');
   _adminModal('\uD83C\uDFE6 Add Lender',
     '<label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;background:#EAF2FB;border:1px solid #B9D4EE;border-radius:12px;padding:10px 12px;cursor:pointer;">'
@@ -15700,7 +15700,7 @@ async function adminSubmitOwnerLender(){
   // Owns own team (default) vs joins an existing team as that team's lender.
   var _ownChk=document.getElementById('aflm-owner');
   var owns = !_ownChk || _ownChk.checked;
-  var teamId = owns ? id : (((document.getElementById('aflm-team')||{}).value) || ((userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'));
+  var teamId = owns ? id : (((document.getElementById('aflm-team')||{}).value) || ((userProfile&&(userProfile.teamId||userProfile.agentId))|| ''));
   var teamRole = owns ? 'owner' : 'member';
   var lenderData={ id:id, name:name, role:'Licensed Mortgage Professional', phone:phone, email:email, applyLink:applyLink, teamId:teamId, teamRole:teamRole, addedAt:new Date().toISOString() };
   try { await fb.setDoc(fb.doc(fb.db,'team_lenders',id), lenderData); }
@@ -15748,7 +15748,7 @@ function _teamRowHtml(a, lbFlags, nested) {
   var _badge = _tr==='owner' ? '<span class="pill" style="background:#1e40af;color:#fff;">Owner</span>'
              : _tr==='leader' ? '<span class="pill" style="background:#7C3AED;color:#fff;">Team Leader</span>'
              : '<span class="pill" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">Member</span>';
-  var isSelf = a.id === ((userProfile && userProfile.agentId) || 'tom');
+  var isSelf = a.id === ((userProfile && userProfile.agentId) || '');
   return '<div style="display:flex;justify-content:space-between;align-items:center;background:'+(nested?'var(--surface)':'var(--surface2)')+';padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;'+(nested?'border:1px solid var(--border);':'')+'">'
     +'<div style="flex:1;min-width:0;">'
     +'<div style="font-weight:500;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+a.name+' '+_badge+'</div>'
@@ -15775,7 +15775,7 @@ window.toggleLeaderTeam = toggleLeaderTeam;
 
 // ═══════════ BILLING (team-leader / owner-lender) ═══════════
 function _isBillable(a){ return a && a.billable !== false; }
-function _billOwnerTeamId(){ return (userProfile && (userProfile.agentId || userProfile.teamId || userProfile.lenderId)) || 'tom'; }
+function _billOwnerTeamId(){ return (userProfile && (userProfile.agentId || userProfile.teamId || userProfile.lenderId)) || ''; }
 function _teamBillableMemberCount(){
   var myId = _billOwnerTeamId();
   return (DEFAULT_AGENTS||[]).filter(function(a){
@@ -16122,7 +16122,7 @@ window._applyMemberGate = _applyMemberGate;
 })();
 
 function renderTeam() {
-  var myId = (userProfile && userProfile.agentId) || 'tom';
+  var myId = (userProfile && userProfile.agentId) || '';
   var owner = (typeof isOwner==='function') && isOwner();
   fb.getDoc(_tsSettingsRef()).then(function(snap){
     var lbFlags = (snap.exists() && snap.data().leaderboard) || {};
@@ -16222,7 +16222,7 @@ async function assignOnboarding(agentId, agentName) {
       if (snap.empty) { alert('Could not find this agent\'s account. They may not have signed up yet.'); overlay.remove(); return; }
       var updates = { onboardingAssigned: true };
       if (mentorId) updates.mentorAgentId = mentorId;
-      var _seedTeamId = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+      var _seedTeamId = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
       snap.forEach(async function(d){
         await fb.updateDoc(fb.doc(fb.db,'users',d.id), updates);
         // Seed an onboarding record NOW so the agent shows in the tracker before
@@ -16267,7 +16267,7 @@ async function addAgentAndInvite() {
   var teamRole = (document.getElementById('ta-teamrole') && document.getElementById('ta-teamrole').value) || 'member';
   // Guardrail: only the owner can create Team Leaders. Anyone else can only add members to their own team.
   if (teamRole === 'leader' && !isOwner()) teamRole = 'member';
-  var teamId = (teamRole === 'leader') ? id : ((window._adminAddTargetTeam && isOwner()) ? window._adminAddTargetTeam : ((userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'));
+  var teamId = (teamRole === 'leader') ? id : ((window._adminAddTargetTeam && isOwner()) ? window._adminAddTargetTeam : ((userProfile && (userProfile.teamId || userProfile.agentId)) || ''));
   window._adminAddTargetTeam = null;
   const agentData = { id, name, role: 'REALTOR®', phone, email, teamRole: teamRole, teamId: teamId, addedAt: new Date().toISOString() };
 
@@ -16361,7 +16361,7 @@ function openTeamModal() {
     var _bp = document.getElementById('team-billing-pointer'); if (_bp) _bp.style.display = (typeof _isBillingOwner==='function' && _isBillingOwner()) ? 'flex' : 'none';
     var mentorSel = document.getElementById('ta-mentor');
     if (mentorSel) {
-      var _myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+      var _myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
       mentorSel.innerHTML = '<option value="">— No mentor assigned —</option>'
         + DEFAULT_AGENTS.filter(function(a){ return typeof agentTeamId!=='function' || agentTeamId(a) === _myTeam; }).map(function(a){
             return '<option value="'+a.id+'">'+a.name+(a.role?' — '+a.role:'')+'</option>';
@@ -16578,7 +16578,7 @@ async function saveContractDates(sendEmail) {
     if (isUC) showUnderContractEmailPreview(_cdmBuyerUid, dates, _cdmType);
     // Sync dates to linked deal card, or auto-create deal if none exists
     try {
-      var agentId2 = userProfile.agentId||'tom';
+      var agentId2 = userProfile.agentId|| '';
       var linkedDeals;
       if (_cdmDealId) {
         var _oneDeal = (_deals||[]).find(function(d){ return d.id===_cdmDealId; });
@@ -17044,7 +17044,7 @@ async function _ensureTrailTemplates(){
   if (window._dtTemplates) return window._dtTemplates;
   var teamId = (userProfile && userProfile.teamId)
     || (typeof assignedAgent!=='undefined' && assignedAgent && (assignedAgent.teamId || (typeof agentTeamId==='function' ? agentTeamId(assignedAgent) : null)))
-    || (userProfile && userProfile.agentId) || 'tom';
+    || (userProfile && userProfile.agentId) || '';
   try {
     var snap = await fb.getDocs(fb.collection(fb.db,'agents',teamId,'docTemplates'));
     var arr=[]; snap.forEach(function(d){ var o=d.data(); o.id=d.id; arr.push(o); });
@@ -18276,7 +18276,7 @@ async function _registerAgentPush() {
     var muted = false;
     try { muted = (localStorage.getItem('team_chat_muted')==='true') || (userProfile.teamChatMuted===true); } catch(e){}
     var _nm = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim();
-    var _tid = (userProfile.teamId || userProfile.agentId || userProfile.lenderId || 'tom');
+    var _tid = (userProfile.teamId || userProfile.agentId || userProfile.lenderId || '');
     if (isAgent && userProfile.agentId) {
       await fb.setDoc(fb.doc(fb.db,'push_subscriptions','agent_'+userProfile.agentId), {
         uid: currentUser.uid, agentId: userProfile.agentId, name: _nm,
@@ -18370,7 +18370,7 @@ var STATUS_COLORS  = {
 
 // ── Load listings for this agent ──
 async function loadListings() {
-  var agentId = (userProfile && userProfile.agentId) || 'tom';
+  var agentId = (userProfile && userProfile.agentId) || '';
   try {
     var snap = await fb.getDocs(fb.query(
       fb.collection(fb.db, 'offer_listings'),
@@ -18588,7 +18588,7 @@ async function saveListing(existingId) {
   if (photoFileInput && photoFileInput.files && photoFileInput.files[0]) {
     try {
       var photoFile = photoFileInput.files[0];
-      var agentId = userProfile.agentId || 'tom';
+      var agentId = userProfile.agentId || '';
       var photoPath = 'listings/' + agentId + '/' + Date.now() + '_' + photoFile.name.replace(/[^a-zA-Z0-9.]/g,'_');
       var sRef = fb.storageRef(fb.storage, photoPath);
         var snapshot = await fb.uploadBytes(sRef, photoFile);
@@ -18630,7 +18630,7 @@ async function saveListing(existingId) {
     giveawayEnabled: !!(document.getElementById('lm-giveaway') && document.getElementById('lm-giveaway').checked),
     giveawayPrize: (document.getElementById('lm-giveaway-prize') && document.getElementById('lm-giveaway-prize').value.trim()) || '$100 Amazon Gift Card',
     clientUid:clientUid, clientName:clientName, deadline:deadline,
-    agentId: userProfile.agentId||'tom', code:code||Math.random().toString(36).substring(2,8).toUpperCase(),
+    agentId: userProfile.agentId|| '', code:code||Math.random().toString(36).substring(2,8).toUpperCase(),
     customFields:fields, active:true, createdAt:fb.serverTimestamp(),
     offerCount: existingId ? ((_listings.find(function(l){return l.id===existingId;})||{}).offerCount||0) : 0, autoSend:autoSend, listPct:listPct, taxes:taxes, county:county, mortgage:mortgage,
   };
@@ -18647,7 +18647,7 @@ async function saveListing(existingId) {
           address: address,
           clientName: clientName,
           clientUid: clientUid || null,
-          agentId: userProfile.agentId || 'tom',
+          agentId: userProfile.agentId || '',
           status: 'Listed',
           dealType: 'seller',
           step: 6,
@@ -18656,7 +18656,7 @@ async function saveListing(existingId) {
           commMode: 'dollar',
           offerListingId: savedRef.id,
         };
-        var _laid = userProfile.agentId || 'tom';
+        var _laid = userProfile.agentId || '';
         await fb.addDoc(_dealCol(), Object.assign(_stampDealMembers(dealData, _laid), {createdAt: fb.serverTimestamp()}));
         console.log('Listed seller deal auto-created from listing');
       } catch(de) { console.log('Deal auto-create failed:', de.message); }
@@ -18680,7 +18680,7 @@ async function createDealFromListing(listingId) {
       address: l.address || '',
       clientName: l.clientName || '',
       clientUid: l.clientUid || null,
-      agentId: userProfile.agentId || 'tom',
+      agentId: userProfile.agentId || '',
       status: 'Listed',
       dealType: 'seller',
       salePrice: l.listPrice ? parseFloat(String(l.listPrice).replace(/[^0-9.]/g,'')) || 0 : 0,
@@ -18688,7 +18688,7 @@ async function createDealFromListing(listingId) {
       commMode: 'dollar',
       offerListingId: listingId,
     };
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     await fb.addDoc(_dealCol(), Object.assign(_stampDealMembers(dealData, agentId),{createdAt:fb.serverTimestamp()}));
     await loadDeals();
     if (typeof renderDealTracker === 'function') renderDealTracker();
@@ -18723,7 +18723,7 @@ async function purgeOldListings() {
   var now          = new Date();
   var cutoff120    = new Date(now); cutoff120.setDate(cutoff120.getDate() - 120);
   var cutoff365    = new Date(now); cutoff365.setDate(cutoff365.getDate() - 365);
-  var agentId      = (userProfile && userProfile.agentId) || 'tom';
+  var agentId      = (userProfile && userProfile.agentId) || '';
   var fullDeleted  = 0;
   var pdfsDeleted  = 0;
 
@@ -20138,7 +20138,7 @@ var _pendingShowings = []; // showings fetched from ShowingTime, not yet assigne
 
 // ── Fetch showings from ShowingTime via Worker ──
 async function fetchShowingTimeEvents() {
-  var agentId = (userProfile && userProfile.agentId) || 'tom';
+  var agentId = (userProfile && userProfile.agentId) || '';
   var stUrl = null;
   try {
     var aSnap = await fb.getDoc(fb.doc(fb.db,'users',_profileUid()));
@@ -20180,7 +20180,7 @@ async function renderShowingInbox() {
   window._parsedShowings = events;
   var manualShowings = [];
   try {
-    var agId = userProfile.agentId||'tom';
+    var agId = userProfile.agentId|| '';
     var mSnap = await fb.getDocs(fb.collection(fb.db,'agents',agId,'manualShowings'));
     mSnap.forEach(function(d){ manualShowings.push(Object.assign({id:d.id},d.data())); });
     var now = Date.now();
@@ -20212,7 +20212,7 @@ async function renderShowingInbox() {
   // Load showing assignments
   window._showingAssignments = {};
   try {
-    var agId2 = userProfile.agentId||'tom';
+    var agId2 = userProfile.agentId|| '';
     var asnSnap = await fb.getDocs(fb.collection(fb.db,'agents',agId2,'showingAssignments'));
     asnSnap.forEach(function(d){
       var data = d.data();
@@ -20407,7 +20407,7 @@ async function saveAppt() {
   var dt = new Date(dateVal + 'T' + timeVal + ':00');
   var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id===agentId; });
   var agentName = (userProfile.firstName||'')+' '+(userProfile.lastName||'');
   var agentEmail = agentObj ? agentObj.email : '';
@@ -20505,7 +20505,7 @@ function _ccArray(ccValue, extras, toEmail){
 }
 window._ccArray=_ccArray;
 async function _commitAppt(appt, sendEmail) {
-  var agentId = appt.agentId || userProfile.agentId || 'tom';
+  var agentId = appt.agentId || userProfile.agentId || '';
 
   // 1. Save to Firestore FIRST — this must succeed before anything else
   var ref;
@@ -20609,7 +20609,7 @@ async function renderApptList() {
   }
   el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:10px;">Loading...</div>';
   try {
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     var now = Date.now();
     var cutoff = now + 60*24*60*60*1000; // 60 days ahead
     var clearBefore = now - 3*60*60*1000; // 3 hours ago
@@ -20679,7 +20679,7 @@ window.renderApptList = renderApptList;
 async function deleteAppt(docId, clientName, todoId) {
   if (!confirm('Remove appointment for '+clientName+'?')) return;
   try {
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'appointments',docId));
     // Remove from todos too
     _todos = _todos.filter(function(t){ return t.id !== todoId; });
@@ -20779,7 +20779,7 @@ async function assignShowing(idx) {
 
     // 4. Save assignment to Firestore so inbox remembers
     try {
-      var agentId = userProfile.agentId||'tom';
+      var agentId = userProfile.agentId|| '';
       var assignKey = ((ev.address||'')+(ev.start||'')).replace(/[^a-zA-Z0-9]/g,'_').substring(0,80)||('st_'+idx);
       await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',assignKey), {
         clientUid: clientUid,
@@ -20846,7 +20846,7 @@ async function assignShowingToBuyer(evKey) {
   });
   if (!ev) { alert('Showing not found.'); return; }
 
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   var dt = ev.start ? new Date(ev.start) : new Date();
   var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
@@ -20917,7 +20917,7 @@ async function assignShowingToBuyer(evKey) {
 window.assignShowingToBuyer = assignShowingToBuyer;
 
 async function unassignShowing(evKey) {
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try {
     await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',String(evKey)));
     if (window._showingAssignments) delete window._showingAssignments[evKey];
@@ -20980,7 +20980,7 @@ async function saveManualShowing() {
     var dateStr = dt.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
     var timeStr = dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
 
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     var showingUid = 'manual-' + Date.now();
 
     // Save to agent's manual showings collection (for inbox display)
@@ -21028,7 +21028,7 @@ async function saveManualShowing() {
     if (sendEmail && buyer && buyer.email) {
       var clientFirst = buyer.firstName || 'there';
       var agentName = (currentAgent&&currentAgent().name) || ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your Agent';
-      var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === (userProfile.agentId||'tom'); });
+      var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === (userProfile.agentId|| ''); });
       var agentEmail = agentObj ? agentObj.email : '';
       var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
         +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
@@ -21076,7 +21076,7 @@ window.saveManualShowing = saveManualShowing;
 async function deleteManualShowing(docId) {
   if (!confirm('Remove this showing?')) return;
   try {
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     await fb.deleteDoc(fb.doc(fb.db,'agents',agentId,'manualShowings',docId));
     renderShowingInbox();
   } catch(e) { alert('Failed: '+e.message); }
@@ -21152,7 +21152,7 @@ var SELLER_PREFILLS = [
 
 // ── Load deals for current agent ──
 async function loadDeals() {
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   try {
     var snap = await fb.getDocs(_dealCol());
     _deals = [];
@@ -21172,7 +21172,7 @@ async function loadDeals() {
     // other teams are a different collection entirely. Only a true co-agent (non-leader)
     // gets a narrowed view: just the deals they're agent or co-agent on.
     if (!(typeof isTeamLeader==='function' && isTeamLeader()) && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
-      var _meId = (userProfile && userProfile.agentId) || 'tom';
+      var _meId = (userProfile && userProfile.agentId) || '';
       _deals = _deals.filter(function(d){
         if (d.agentId === _meId) return true;
         var _c = allBuyers.find(function(b){ return b.uid === d.clientUid; });
@@ -21215,7 +21215,7 @@ window.loadDeals = loadDeals;
 
 // ── Save deal to Firestore ──
 async function saveDeal(dealId, data) {
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   if (dealId) {
     await fb.updateDoc(_dealDoc(dealId), data);
   } else {
@@ -21467,7 +21467,7 @@ function renderSellerReports() {
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading listings...</div>';
 
   // Load listings from offer_listings and showings
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   Promise.all([
     fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings'), fb.where('agentId','==',agentId), fb.where('active','==',true))),
     loadShowingTimeFeed() // Always fetch fresh for seller reports
@@ -21552,7 +21552,7 @@ async function _checkMentorStatus_legacy() {
   }
   // Check if any agents have this agent as mentor
   try {
-    var myId = userProfile.agentId || 'tom';
+    var myId = userProfile.agentId || '';
     var snap = await fb.getDocs(fb.query(
       fb.collection(fb.db,'users'),
       fb.where('mentorAgentId','==',myId)
@@ -21565,7 +21565,7 @@ async function _checkMentorStatus_legacy() {
 }
 async function checkOpenHouseLeads() {
   if (!currentUser || !isAgent) return;
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   var lastCheck = 0;
   try { lastCheck = parseInt(localStorage.getItem('oh_leads_check_'+agentId)||'0'); } catch(e){}
   var checkFrom = lastCheck || (Date.now() - 86400000);
@@ -21719,12 +21719,12 @@ var _obSteps = null; // cached from Firestore or defaults
 // Onboarding curriculum is PER-TEAM. Owner (tom) keeps the original global doc (no migration);
 // other teams namespace by team id. Members read their leader's curriculum (their teamId).
 // A team with no custom curriculum falls back to OB_DEFAULT_STEPS as a starting program.
-function _obStepsRef(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return fb.doc(fb.db,'onboarding_config', t==='tom' ? 'steps' : ('steps_'+t)); }
+function _obStepsRef(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))|| ''; return fb.doc(fb.db,'onboarding_config', t==='tom' ? 'steps' : ('steps_'+t)); }
 // New teams (not tom) start from a generic blank scaffold, NOT tom's personal program.
 var OB_NEW_TEAM_STEPS = [
   {id:'w1s1', week:'Week 1', weekTitle:'Getting Started', title:'Welcome — build your onboarding', desc:'This is your team\u2019s onboarding program. Use the Edit button to add your own steps — videos, links, and tasks to guide new agents through their first 30 days. Delete this placeholder once you\u2019ve added your own.', videoUrl:'', thumb:'', link:'', linkLabel:''}
 ];
-function _obDefaultSteps(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return t==='tom' ? OB_DEFAULT_STEPS : OB_NEW_TEAM_STEPS; }
+function _obDefaultSteps(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))|| ''; return t==='tom' ? OB_DEFAULT_STEPS : OB_NEW_TEAM_STEPS; }
 var _obProgress = {}; // {stepId: true/false}
 
 var OB_DEFAULT_STEPS = [
@@ -22081,7 +22081,7 @@ async function ohAddPhotos(event) {
   try {
     for (var i=0; i<files.length; i++) {
       var file = files[i];
-      var path = 'oh_photos/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+i+'_'+file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+      var path = 'oh_photos/'+(userProfile.agentId|| '')+'/'+Date.now()+'_'+i+'_'+file.name.replace(/[^a-zA-Z0-9.]/g,'_');
       var sRef = fb.storageRef(fb.storage, path);
       var snap = await fb.uploadBytes(sRef, file);
       var url = await fb.getDownloadURL(snap.ref);
@@ -22157,7 +22157,7 @@ async function ohAddDocs(event) {
   try {
     for (var i=0; i<files.length; i++) {
       var file = files[i];
-      var path = 'oh_docs/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      var path = 'oh_docs/'+(userProfile.agentId|| '')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
       var sRef = fb.storageRef(fb.storage, path);
       var snap = await fb.uploadBytes(sRef, file);
       var url = await fb.getDownloadURL(snap.ref);
@@ -22407,9 +22407,9 @@ async function obSaveProgress() {
     await fb.setDoc(fb.doc(fb.db,'agent_onboarding',_profileUid()), {
       completed: _obProgress,
       updatedAt: fb.serverTimestamp(),
-      agentId: userProfile.agentId || 'tom',
+      agentId: userProfile.agentId || '',
       mentorAgentId: (userProfile && userProfile.mentorAgentId) || null,
-      teamId: (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'
+      teamId: (userProfile && (userProfile.teamId || userProfile.agentId)) || ''
     }, {merge:true});
     // Record activity timestamp for inactivity check
     try { localStorage.setItem('ob_last_activity_'+currentUser.uid, String(Date.now())); } catch(e){}
@@ -22795,7 +22795,7 @@ async function obUploadThumb(event, stepId) {
   var file = event.target.files[0];
   if (!file) return;
   try {
-    var path = 'ob_thumbs/'+(userProfile.agentId||'tom')+'/'+stepId+'_'+Date.now()+'.jpg';
+    var path = 'ob_thumbs/'+(userProfile.agentId|| '')+'/'+stepId+'_'+Date.now()+'.jpg';
     var sRef = fb.storageRef(fb.storage, path);
     var snap = await fb.uploadBytes(sRef, file);
     var url = await fb.getDownloadURL(snap.ref);
@@ -22907,12 +22907,12 @@ async function renderTeamOnboarding(containerId) {
   if (!container) return;
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading...</div>';
   try {
-    var myAgentId = userProfile.agentId || 'tom';
+    var myAgentId = userProfile.agentId || '';
     var snap = await fb.getDocs(fb.collection(fb.db,'agent_onboarding'));
     if (snap.empty) { container.innerHTML = ''; return; }
     var records = [];
     snap.forEach(function(d){ var r=d.data(); r.uid=d.id; records.push(r); });
-    var _obMyTeam = (userProfile&&(userProfile.teamId||userProfile.agentId))||'tom';
+    var _obMyTeam = (userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
     var filtered = records.filter(function(r){
       var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===r.agentId; });
       // Prefer fields stored ON the record (reliable); fall back to DEFAULT_AGENTS.
@@ -22964,7 +22964,7 @@ async function renderTeamOnboarding(containerId) {
 var teamChatListener = null;
 // Each team has its OWN chat room. Owner (tom) keeps the original room (no migration);
 // every other team uses a room namespaced by team id. Members share their leader's room.
-function teamChatRoom(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom'; return t==='tom' ? 'team_chat' : ('team_chat_'+t); }
+function teamChatRoom(){ var t=(userProfile&&(userProfile.teamId||userProfile.agentId))|| ''; return t==='tom' ? 'team_chat' : ('team_chat_'+t); }
 
 function teamChatApplyCollapsed(collapsed){
   var msgs = document.getElementById('team-chat-messages');
@@ -23112,7 +23112,7 @@ async function teamChatSendPhoto(event) {
   if (!file) return;
   var input = document.getElementById('team-chat-photo-input');
   try {
-    var path = 'team_chat_photos/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    var path = 'team_chat_photos/'+(userProfile.agentId|| '')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
     var sRef = fb.storageRef(fb.storage, path);
     var snap = await fb.uploadBytes(sRef, file);
     var url = await fb.getDownloadURL(snap.ref);
@@ -23126,7 +23126,7 @@ async function teamChatSendPhoto(event) {
 window.teamChatSendPhoto = teamChatSendPhoto;
 
 async function teamChatPush(body) {
-  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (a.id === userProfile.agentId) return false;            // skip self
     return agentTeamId(a) === myTeam;                          // same team only
@@ -24141,7 +24141,7 @@ async function srSendReport() {
       sentAt: fb.serverTimestamp(),
       showingCount: _srCurrent.showings.filter(function(s){ return s.keep!==false; }).length || (_srCurrent.quickShowingCount||0),
       reverseProspecting: _srCurrent.reverseProspecting||0,
-      agentId: userProfile.agentId||'tom',
+      agentId: userProfile.agentId|| '',
       emailHtml: emailHtml
     };
     await fb.addDoc(fb.collection(fb.db,'users',client.uid,'sellerReports'), reportData);
@@ -24175,7 +24175,7 @@ async function srUploadVideoThumb(event) {
   var file = event.target.files[0];
   if (!file) return;
   try {
-    var path = 'sr_thumbs/' + (userProfile.agentId||'tom') + '/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g,'_');
+    var path = 'sr_thumbs/' + (userProfile.agentId|| '') + '/' + Date.now() + '_' + file.name.replace(/[^a-zA-Z0-9.]/g,'_');
     var sRef = fb.storageRef(fb.storage, path);
     var snapshot = await fb.uploadBytes(sRef, file);
     var url = await fb.getDownloadURL(snapshot.ref);
@@ -24426,7 +24426,7 @@ window.dismissDealToLeaderboard = dismissDealToLeaderboard;
 async function confirmDealToLeaderboard(dealId){
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) { closeM('deal-lb-modal'); return; }
-  var agentId = deal.agentId || userProfile.agentId || 'tom';
+  var agentId = deal.agentId || userProfile.agentId || '';
   var rawAmt = (document.getElementById('dlb-amount')||{}).value || '';
   var amount = parseFloat(String(rawAmt).replace(/[^0-9.]/g,'')) || 0;
   var address = ((document.getElementById('dlb-address')||{}).value || '').trim();
@@ -24530,7 +24530,7 @@ function showPrefillOptions(dealId, dealType) {
   if (!newItems.length) { alert('All prefill items already added!'); return; }
   if (confirm('Add '+newItems.length+' standard checklist items for this deal type?')) {
     var checklist = (deal&&deal.checklist||[]).concat(newItems.map(function(t){ return {text:t,done:false}; }));
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     fb.updateDoc(_dealDoc(dealId),{checklist:checklist}).then(function(){
       var d = _deals.find(function(x){ return x.id===dealId; });
       if (d) d.checklist = checklist;
@@ -24563,7 +24563,7 @@ async function addChecklistItem(dealId) {
   });
   deal.checklist = toSave;
 
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   await fb.updateDoc(_dealDoc(dealId),{checklist:toSave});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, merged);
@@ -24581,7 +24581,7 @@ async function toggleChecklistItem(dealId, idx, checked) {
   var savedItem = deal.checklist.find(function(i){ return i.text===itemText; });
   if (savedItem) { savedItem.done = checked; }
   else { deal.checklist.push({text:itemText, done:checked}); }
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   // Save only the custom/modified items (not pure prefills that are undone)
   var toSave = deal.checklist.filter(function(item){
     return item.done; // save done items; prefills that are undone stay as defaults
@@ -24607,7 +24607,7 @@ async function removeChecklistItem(dealId, idx) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (!deal || !deal.checklist) return;
   deal.checklist.splice(idx, 1);
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   await fb.updateDoc(_dealDoc(dealId),{checklist:deal.checklist});
   var el = document.getElementById('deal-checklist-'+dealId);
   if (el) el.innerHTML = renderChecklist(dealId, deal.checklist);
@@ -24620,7 +24620,7 @@ async function saveDealNotes(dealId) {
   var notes = el.value;
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (deal) deal.notes = notes;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   await fb.updateDoc(_dealDoc(dealId),{notes:notes});
 }
 window.saveDealNotes = saveDealNotes;
@@ -24628,7 +24628,7 @@ window.saveDealNotes = saveDealNotes;
 async function updateDealStatus(dealId, status) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (deal) { deal.status = status; deal._storedStatus = status; }
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try {
     await fb.updateDoc(_dealDoc(dealId), {status:status});
   } catch(e) { console.log('updateDealStatus err:', e.message); }
@@ -24648,7 +24648,7 @@ async function setDealStep(dealId, next) {
   var client = (allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
   var cur = (deal.step != null) ? deal.step : (client ? (isSeller ? (client.currentSellerStep||0) : (client.currentStep||0)) : 0);
   if (next === cur) return;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   deal.step = next; deal.lastStepUpdate = Date.now();
   deal.status = dealStatusFromStep(deal); deal._storedStatus = deal.status;
   try {
@@ -24715,7 +24715,7 @@ async function setDealType(dealId, type) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) return;
   deal.dealType = type;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try { await fb.updateDoc(_dealDoc(dealId), { dealType: type }); }
   catch(e){ console.log('setDealType:', e.message); }
   filterDeals(_activeFilter);
@@ -24779,7 +24779,7 @@ async function addDealParty(dealId) {
   if (!name && !email && !phone) return;
   if (!deal.parties) deal.parties = [];
   deal.parties.push({ role:role, name:name, email:email, phone:phone, showClient:_partyDefaultShow(role) });
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try { await fb.updateDoc(_dealDoc(dealId), { parties: deal.parties }); }
   catch(e){ console.log('addDealParty:', e.message); }
   filterDeals(_activeFilter);
@@ -24791,7 +24791,7 @@ async function toggleDealPartyShow(dealId, idx) {
   var p = deal.parties[idx];
   var cur = (p.showClient!==undefined) ? p.showClient : _partyDefaultShow(p.role);
   p.showClient = !cur;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try { await fb.updateDoc(_dealDoc(dealId), { parties: deal.parties }); }
   catch(e){ console.log('toggleDealPartyShow:', e.message); }
   filterDeals(_activeFilter);
@@ -25091,7 +25091,7 @@ async function setTCTaskStatus(dealId, key, status){
     for (var i=_todos.length-1; i>=0; i--){ if(_todos[i].id===rid){ _todos.splice(i,1); removed=true; } }
     if (removed){ if(typeof todoSave==='function')todoSave(); if(typeof todoUpdateBadge==='function')todoUpdateBadge(); if(typeof todoRender==='function')todoRender(); }
   }
-  try{ fb.deleteDoc(fb.doc(fb.db,'agents',((userProfile&&userProfile.agentId)||'tom'),'todoReminders','tc_'+dealId+'_'+key)).catch(function(){}); }catch(e){}
+  try{ fb.deleteDoc(fb.doc(fb.db,'agents',((userProfile&&userProfile.agentId)|| ''),'todoReminders','tc_'+dealId+'_'+key)).catch(function(){}); }catch(e){}
   filterDeals(_activeFilter);
 }
 window.setTCTaskStatus = setTCTaskStatus;
@@ -25126,7 +25126,7 @@ async function removeDealParty(dealId, idx) {
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal || !deal.parties) return;
   deal.parties.splice(idx, 1);
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try { await fb.updateDoc(_dealDoc(dealId), { parties: deal.parties }); }
   catch(e){ console.log('removeDealParty:', e.message); }
   filterDeals(_activeFilter);
@@ -25153,7 +25153,7 @@ async function logDealComm(dealId, type, subject) {
   if (!deal) return;
   if (!deal.comms) deal.comms = [];
   deal.comms.push({ ts: Date.now(), type: type, subject: subject });
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   try { await fb.updateDoc(_dealDoc(dealId), { comms: deal.comms }); }
   catch(e){ console.log('logDealComm:', e.message); }
   filterDeals(_activeFilter);
@@ -25184,7 +25184,7 @@ function renderDealComms(deal) {
 async function updateDealDate(dealId, field, value) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
   if (deal) deal[field] = value;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   var update = {};
   update[field] = value;
   await fb.updateDoc(_dealDoc(dealId), update);
@@ -25214,7 +25214,7 @@ window.emailDealDates = emailDealDates;
 
 async function deleteDeal(dealId) {
   if (!confirm('Delete this deal? This cannot be undone.')) return;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   var deal = _deals.find(function(d){ return d.id===dealId; });
   await fb.deleteDoc(_dealDoc(dealId));
   // Dates are mirrored onto the client for their journey view — clear the matching side so
@@ -25246,7 +25246,7 @@ async function editDealAddress(dealId) {
   if (newAddr === null) return;
   newAddr = newAddr.trim();
   if (deal) deal.address = newAddr;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   fb.updateDoc(_dealDoc(dealId),{address:newAddr}).then(function(){
     filterDeals(_activeFilter);
   });
@@ -25294,7 +25294,7 @@ window.dealStatusFromStep = dealStatusFromStep;
 
 // Team: stamp owner as lead member on a new deal (members map + memberIds for shared queries).
 function _stampDealMembers(data, ownerId) {
-  if (!ownerId) ownerId = (userProfile && userProfile.agentId) || 'tom';
+  if (!ownerId) ownerId = (userProfile && userProfile.agentId) || '';
   var m = (data.members && typeof data.members==='object') ? data.members : {};
   if (!m[ownerId]) m[ownerId] = 'lead';
   data.members = m;
@@ -25306,7 +25306,7 @@ window._stampDealMembers = _stampDealMembers;
 
 // Team: all deal reads/writes resolve to the team's shared path. Solo agents fall back to their own id.
 function _dealTeamId() {
-  var me = (userProfile && (userProfile.agentId || userProfile.teamId)) || (currentUser && currentUser.uid) || 'tom';
+  var me = (userProfile && (userProfile.agentId || userProfile.teamId)) || (currentUser && currentUser.uid) || '';
   // Team leaders ALWAYS load their own team's deal path — never derive, even if they
   // happen to be a co-agent on some client. This is the safeguard against an empty feed.
   if (typeof isTeamLeader==='function' && isTeamLeader()) return me;
@@ -25365,7 +25365,7 @@ function _canSeeTeamDeals(){
   return (typeof isOwner==='function' && isOwner()) || (typeof isTeamLeader==='function' && isTeamLeader());
 }
 function _teamMemberIds(){
-  var meId = (userProfile && userProfile.agentId) || 'tom';
+  var meId = (userProfile && userProfile.agentId) || '';
   var roster = (typeof _myTeamAgents==='function') ? _myTeamAgents() : [];
   return roster.filter(function(a){ return a.id !== meId; }).map(function(a){ return a.id; });
 }
@@ -25384,8 +25384,8 @@ async function loadTeamDeals(){
   _teamDeals = [];
   _teamDealsIndexErr = false;
   if (!_canSeeTeamDeals() || !_hasTeamMembers()) return;
-  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom';
-  var meId = (userProfile && userProfile.agentId) || 'tom';
+  var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
+  var meId = (userProfile && userProfile.agentId) || '';
   try {
     var snap = await fb.getDocs(fb.query(fb.collectionGroup(fb.db,'deals'), fb.where('teamId','==',myTeam)));
     snap.forEach(function(d){
@@ -25482,7 +25482,7 @@ window.loadTeamDeals = loadTeamDeals;
 window.renderTeamDeals = renderTeamDeals;
 
 // ═══════════════ LEAD ROUTING (team-leader auto-distribution settings) ═══════════════
-function _leadDistTeamId(){ return (userProfile && (userProfile.teamId || userProfile.agentId)) || 'tom'; }
+function _leadDistTeamId(){ return (userProfile && (userProfile.teamId || userProfile.agentId)) || ''; }
 var _leadDistCfg = null;
 async function openLeadDistModal(){
   if (!isTeamLeader()) return;
@@ -25573,7 +25573,7 @@ function _watchClaimableLeads(){
   try {
     if (!isAgent || !currentUser || !userProfile || !userProfile.agentId) return;
     if (_claimUnsub) { try { _claimUnsub(); } catch(e){} _claimUnsub = null; }
-    var myTeam = (userProfile.teamId || userProfile.agentId) || 'tom';
+    var myTeam = (userProfile.teamId || userProfile.agentId) || '';
     var myId = userProfile.agentId;
     var qy = fb.query(fb.collection(fb.db,'team_leads'), fb.where('teamId','==',myTeam));
     _claimUnsub = fb.onSnapshot(qy, function(snap){
@@ -25616,7 +25616,7 @@ async function claimLead(leadId){
   var lead = (_claimableLeads||[]).find(function(l){ return l.id === leadId; });
   if (!lead) return;
   var myId = userProfile.agentId;
-  var myTeam = (userProfile.teamId || userProfile.agentId) || 'tom';
+  var myTeam = (userProfile.teamId || userProfile.agentId) || '';
   // 1) Atomic claim — the security rule rejects this if status is no longer 'open' (someone beat us).
   try {
     await fb.updateDoc(fb.doc(fb.db,'team_leads',leadId), {
@@ -25672,7 +25672,7 @@ const LEAD_EMAIL_DOMAIN = 'flenaxenue.resend.app';
 async function _ensureLeadToken(){
   if (userProfile && userProfile.leadToken) return userProfile.leadToken;
   var tok = 'lt_' + Math.random().toString(36).substring(2,8) + Math.random().toString(36).substring(2,8);
-  var aId = (userProfile && userProfile.agentId) || 'tom';
+  var aId = (userProfile && userProfile.agentId) || '';
   var tId = (userProfile && (userProfile.teamId || userProfile.agentId)) || aId;
   try {
     await fb.setDoc(fb.doc(fb.db,'lead_tokens',tok), {
@@ -25818,7 +25818,7 @@ async function createNewDeal() {
     status: status,
     checklist: checklist,
     notes: '',
-    agentId: userProfile.agentId||'tom',
+    agentId: userProfile.agentId|| '',
   };
 
   var newId = await saveDeal(null, data);
@@ -25845,7 +25845,7 @@ async function setPropertyAddress(uid) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',uid), {propertyAddress:newAddr});
     if (b) { b.propertyAddress = newAddr; }
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     var linked = _deals.find(function(d){ return d.clientUid===uid && !d.address; });
     if (linked) {
       await fb.updateDoc(_dealDoc(linked.id),{address:newAddr});
@@ -25856,7 +25856,7 @@ async function setPropertyAddress(uid) {
 }
 window.setPropertyAddress = setPropertyAddress;
 function setJourneyType(uid, jType) {
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   fb.updateDoc(fb.doc(fb.db, 'users', uid), { journeyType: jType })
     .then(function() {
       var b = myBuyers.find(function(x){ return x.uid === uid; });
@@ -25888,7 +25888,7 @@ async function addDealTodo(dealId) {
   if (!deal) return;
   var todos = (deal.todos||[]).concat([text]);
   deal.todos = todos;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   await fb.updateDoc(_dealDoc(dealId),{todos:todos});
   var el = document.getElementById('deal-todos-'+dealId);
   if (el) el.innerHTML = renderDealTodos(dealId, todos);
@@ -25904,7 +25904,7 @@ async function checkDealTodo(dealId, idx) {
   setTimeout(async function() {
     var todos = (deal.todos||[]).filter(function(_,i){ return i!==idx; });
     deal.todos = todos;
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     await fb.updateDoc(_dealDoc(dealId),{todos:todos});
     var el = document.getElementById('deal-todos-'+dealId);
     if (el) el.innerHTML = renderDealTodos(dealId, todos);
@@ -26021,7 +26021,7 @@ window.sendTaskCompleteEmail = sendTaskCompleteEmail;
 async function addToDealTracker(uid, dealType) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
   if (!b) return;
-  var agentId = userProfile.agentId||'tom';
+  var agentId = userProfile.agentId|| '';
   if (!_dealsLoaded) await loadDeals();
   // Check memory first
   var existing = _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
@@ -26144,7 +26144,7 @@ async function setListingAddress(uid) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',uid), {listingAddress:newAddr});
     if (b) b.listingAddress = newAddr;
-    var agentId = userProfile.agentId||'tom';
+    var agentId = userProfile.agentId|| '';
     var linked = _deals.find(function(d){ return d.clientUid===uid && d.dealType==='seller' && !d.address; });
     if (linked) {
       await fb.updateDoc(_dealDoc(linked.id),{address:newAddr});
@@ -26253,9 +26253,9 @@ function editClientInfo(uid) {
       await fb.updateDoc(fb.doc(fb.db,'users',uid), {firstName:first, lastName:last, email:email, email2:email2, name2:name2, phone:phone});
       if (b) { b.firstName=first; b.lastName=last; b.email=email; b.email2=email2; b.name2=name2; b.phone=phone; }
       // Fire Zapier webhook for CRM sync (non-blocking)
-      fireZapierWebhook(b ? (b.agentId||userProfile.agentId||'tom') : (userProfile.agentId||'tom'), {firstName:first,lastName:last,email:email,phone:phone,journeyType:(b&&b.journeyType)||'buyer'}).catch(function(){});
+      fireZapierWebhook(b ? (b.agentId||userProfile.agentId|| '') : (userProfile.agentId|| ''), {firstName:first,lastName:last,email:email,phone:phone,journeyType:(b&&b.journeyType)||'buyer'}).catch(function(){});
       // Update deal name if linked
-      var agentId = userProfile.agentId||'tom';
+      var agentId = userProfile.agentId|| '';
       var linked = _deals.filter(function(d){ return d.clientUid===uid; });
       var fullName = (first+' '+last).trim();
       for (var i=0;i<linked.length;i++) {
@@ -26303,7 +26303,7 @@ async function syncDealStatusFromStep(uid) {
     if (!_deals || !_deals.length) return;
     var b = (allBuyers || []).find(function(x){ return x.uid === uid; });
     if (!b) return;
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     var mirror = [
       { type: 'buyer',  step: (b.currentStep != null ? b.currentStep : null) },
       { type: 'seller', step: (b.currentSellerStep != null ? b.currentSellerStep : null) }
@@ -26325,7 +26325,7 @@ window.syncDealStatusFromStep = syncDealStatusFromStep;
 
 // One-time Firestore repair: remove duplicates + reset all auto-set statuses
 async function repairDealTrackerData() {
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   var snap = await fb.getDocs(_dealCol());
   var seen = {}; var updates = []; var deletes = []; var allDocs = [];
   snap.forEach(function(docSnap) { allDocs.push({ id: docSnap.id, d: docSnap.data() }); });
@@ -26685,7 +26685,7 @@ var SP_CHANNELS = {
   zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap (text, letter, AI call, audience…)' }
 };
 
-function _spAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
+function _spAgentId(){ return (userProfile && userProfile.agentId) || ''; }
 function _spCol(){ return fb.collection(fb.db,'agents',_spAgentId(),'smartPlans'); }
 function _spDoc(id){ return fb.doc(fb.db,'agents',_spAgentId(),'smartPlans',id); }
 function _spId(){ return 'sp_'+Date.now()+'_'+Math.random().toString(36).slice(2,7); }
@@ -27322,7 +27322,7 @@ var LP_TEMPLATES = {
     }
   }
 };
-function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)||'tom')); }
+function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)|| '')); }
 function _lpBaseUrl(){ return 'https://app.garucciogroup.com/lp.html'; }
 function _lpFileUrl(t){ return 'https://app.garucciogroup.com/'+((LP_TEMPLATES[t]&&LP_TEMPLATES[t].file)||'lp.html'); }
 
@@ -28061,7 +28061,7 @@ async function createContact() {
         body: JSON.stringify({
           firstName:first, lastName:last, email:email, phone:phone, address:address,
           source:_src, notes:notes,
-          teamId:(userProfile&&(userProfile.teamId||userProfile.agentId))||'tom',
+          teamId:(userProfile&&(userProfile.teamId||userProfile.agentId))|| '',
           mode:_mode
         })
       });
@@ -28456,7 +28456,7 @@ async function confirmImport() {
   });
 
   var toImport = _importRows.filter(function(r){ return !skipEmails.includes((r.email||'').toLowerCase()); });
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   var batchSegment = ((document.getElementById('import-segment-sel')||{}).value||'').trim();
   var batchStatus = ((document.getElementById('import-status-sel')||{}).value||'pipeline').trim();
   if (batchSegment && typeof _registerSegment==='function') _registerSegment(batchSegment);
@@ -28617,7 +28617,7 @@ function videoEmailBlock(url, title) {
 async function loadVideoLibrary() {
   if (!isAgent || !currentUser) return;
   try {
-    var agentId = userProfile.agentId || 'tom';
+    var agentId = userProfile.agentId || '';
     var snap = await fb.getDocs(fb.collection(fb.db, 'agents', agentId, 'videoLibrary'));
     _agentVideos = [];
     snap.forEach(function(d){ _agentVideos.push(Object.assign({id: d.id}, d.data())); });
@@ -28700,13 +28700,13 @@ async function avUploadThumb(event, videoId) {
   var hidden = document.getElementById('av-thumb-url');
   if (status) status.textContent = 'Uploading...';
   try {
-    var path = 'video_thumbs/'+(userProfile.agentId||'tom')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    var path = 'video_thumbs/'+(userProfile.agentId|| '')+'/'+Date.now()+'_'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
     var sRef = fb.storageRef(fb.storage, path);
     var snap = await fb.uploadBytes(sRef, file);
     var url = await fb.getDownloadURL(snap.ref);
     if (videoId) {
       // Updating existing video in library
-      var agentId = userProfile.agentId||'tom';
+      var agentId = userProfile.agentId|| '';
       await fb.updateDoc(fb.doc(fb.db,'agents',agentId,'videoLibrary',videoId), {thumb: url});
       var v = _agentVideos.find(function(x){ return x.id === videoId; });
       if (v) v.thumb = url;
@@ -28751,7 +28751,7 @@ async function saveVideoToLibrary() {
   var thumbUrlVal = (document.getElementById('av-thumb-url')||{}).value || '';
   if (!url) { alert('Please enter a video URL.'); return; }
   if (!title) title = 'Video ' + (_agentVideos.length + 1);
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   try {
     var ref = await fb.addDoc(fb.collection(fb.db, 'agents', agentId, 'videoLibrary'), {
       url: url, title: title, step: step || null,
@@ -28767,7 +28767,7 @@ window.saveVideoToLibrary = saveVideoToLibrary;
 
 async function deleteAgentVideo(id) {
   if (!confirm('Remove this video from your library?')) return;
-  var agentId = userProfile.agentId || 'tom';
+  var agentId = userProfile.agentId || '';
   try {
     await fb.deleteDoc(fb.doc(fb.db, 'agents', agentId, 'videoLibrary', id));
     _agentVideos = _agentVideos.filter(function(v){ return v.id !== id; });
