@@ -7225,7 +7225,13 @@ function _bcToast(msg){
   setTimeout(function(){ t.style.transition='opacity .4s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); }, 400); }, 1800);
 }
 
-function _bcAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
+function _bcAgentId(){
+  // Use the logged-in agent's own ID. NEVER fall back to a hardcoded agent —
+  // doing so would leak another agent's card data onto an unconfigured account.
+  if (userProfile && userProfile.agentId) return userProfile.agentId;
+  if (currentUser && currentUser.uid) return currentUser.uid;
+  return '';
+}
 function bizCardUrl(){ return CARD_BASE_URL + '?id=' + encodeURIComponent(_bcAgentId()); }
 
 function openBizCardHub(){
