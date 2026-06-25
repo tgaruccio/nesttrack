@@ -9107,11 +9107,11 @@ async function sendStepEmail(uid, stepNum, type, pushInfo) {
           body: JSON.stringify(stepPayload)
         });
 
-        // Client push fires ONLY here — after the email actually sent. If the agent
-        // cancels the preview or the send fails, this never runs, so the client's
-        // in-app message/push stays in sync with the email.
-        if (pushInfo && pushInfo.uid && typeof sendPushToUser === 'function') {
-          try { sendPushToUser(pushInfo.uid, pushInfo.title, pushInfo.body); } catch(e){}
+        // The in-app message fires here — only after the email actually sent.
+        // (_postStepToChat handles the message + its own push, exactly as before;
+        // we just moved WHEN it runs so it sends with the email, not before.)
+        if (pushInfo && pushInfo.postChat && pushInfo.uid && typeof _postStepToChat === 'function') {
+          try { _postStepToChat(pushInfo.uid, pushInfo.isSeller, pushInfo.chatStep); } catch(e){}
         }
 
         // Mortgage: send separate promo email to listing agent if CC enabled and has email
@@ -9275,6 +9275,10 @@ async function showUnderContractEmailPreview(uid, dates, type) {
         body:JSON.stringify({to:clientToList(buyer),subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),signature:agentSignatureHtml(),cc:_ccArray(ccValue,[],buyer.email)})});
       showDealToast('Under Contract email sent!', null, null);
       logEmailActivity(uid, subject, 'under_contract');
+      // In-app message fires only after the UC email actually sent.
+      if (typeof _postStepToChat === 'function') {
+        try { _postStepToChat(uid, type==='seller', type==='seller'?9:5); } catch(e){}
+      }
     } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
   }, isSeller ? 9 : 5, type, ccParts.join(', '));
 }
@@ -14581,7 +14585,8 @@ function stepEmailPrompt(message) {
       + '<div style="font-size:15px;font-weight:600;margin-bottom:6px;">Update Step</div>'
       + '<div style="font-size:13px;color:var(--text2);margin-bottom:18px;">' + message + '</div>'
       + '<div style="display:flex;flex-direction:column;gap:8px;">'
-      + '<button id="sep-send" style="padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:13px;font-weight:500;cursor:pointer;">Save &amp; Send Email to Client</button>'
+      + '<button id="sep-send" style="padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:13px;font-weight:500;cursor:pointer;">Save &amp; Review Email →</button>'
+      + '<div style="font-size:11px;color:var(--text3);text-align:center;margin:-4px 0 2px;">You\'ll preview &amp; approve the email before anything sends to your client.</div>'
       + '<button id="sep-nosend" style="padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;cursor:pointer;">Save Only (No Email)</button>'
       + '<button id="sep-cancel" style="padding:8px;background:none;color:var(--text3);border:none;font-size:12px;cursor:pointer;">Cancel</button>'
       + '</div></div>';
@@ -14630,7 +14635,8 @@ async function setBuyerStep(uid) {
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
     if (newStep > 0 && newStep !== 5 && !skipForCash && window._pendingStepEmailChoice !== 'nosend') {
       var _bStepName = (typeof BUYER_STEPS !== 'undefined' && BUYER_STEPS[newStep-1]) || ('Step '+newStep);
-      sendStepEmail(uid, newStep, 'buyer', { uid: uid, title: 'Step Update 🏠', body: 'You\'ve reached Step '+newStep+': '+_bStepName });
+      sendStepEmail(uid, newStep, 'buyer');
+      sendPushToUser(uid, 'Step Update 🏠', 'You\'ve reached Step '+newStep+': '+_bStepName);
     } else if (newStep === 5) {
       sendPushToUser(uid, '🏠 You\'re Under Contract!', 'Congratulations — your offer was accepted. Your agent will send you full details shortly.');
     }
@@ -14901,7 +14907,8 @@ async function setSellerStep(uid) {
     }
     if (newStep > 0 && newStep !== 9 && window._pendingStepEmailChoice !== 'nosend') {
       var _sStepName = (typeof SELLER_STEPS !== 'undefined' && SELLER_STEPS[newStep-1]) || ('Step '+newStep);
-      sendStepEmail(uid, newStep, 'seller', { uid: uid, title: 'Listing Update 🏡', body: 'You\'ve reached Step '+newStep+': '+_sStepName });
+      sendStepEmail(uid, newStep, 'seller');
+      sendPushToUser(uid, 'Listing Update 🏡', 'You\'ve reached Step '+newStep+': '+_sStepName);
     } else if (newStep === 9) {
       // Push only — email will fire after agent previews and approves
       sendPushToUser(uid, '🏡 You\'re Under Contract!', 'Congratulations — your home is under contract. Your agent will send you full details shortly.');
@@ -14929,7 +14936,8 @@ async function setMortgageStep(uid) {
     if (buyer) buyer.currentMortgageStep = newStep;
     if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') {
       var _mStepName = (typeof MORTGAGE_STEPS !== 'undefined' && MORTGAGE_STEPS[newStep-1]) || ('Step '+newStep);
-      sendStepEmail(uid, newStep, 'mortgage', { uid: uid, title: 'Mortgage Update 💰', body: 'You\'ve reached Step '+newStep+': '+_mStepName });
+      sendStepEmail(uid, newStep, 'mortgage');
+      sendPushToUser(uid, 'Mortgage Update 💰', 'You\'ve reached Step '+newStep+': '+_mStepName);
     }
     window._pendingStepEmailChoice = null;
   } catch(e) { alert('Failed: ' + e.message); }
@@ -16385,7 +16393,8 @@ async function agentSetStepForBuyer(stepId) {
     var skipCash = bForEmail && bForEmail.buyerIsCash && (stepId === 6 || stepId === 8);
     if (!skipCash) {
       var _bsName = (typeof BUYER_STEPS !== 'undefined' && BUYER_STEPS[stepId-1]) || ('Step '+stepId);
-      sendStepEmail(uid, stepId, 'buyer', { uid: uid, title: 'Step Update 🏠', body: 'You\'ve reached Step '+stepId+': '+_bsName });
+      sendStepEmail(uid, stepId, 'buyer');
+      sendPushToUser(uid, 'Step Update 🏠', 'You\'ve reached Step '+stepId+': '+_bsName);
     }
   } catch(e) { alert('Failed: '+e.message); }
 }
@@ -16553,7 +16562,6 @@ async function saveContractDates(sendEmail) {
     // Only send plain timeline email if NOT on UC step (UC preview includes timeline)
     if (sendEmail && !isUC) sendContractDatesEmail(_cdmBuyerUid, _cdmType, dates);
     if (isUC) showUnderContractEmailPreview(_cdmBuyerUid, dates, _cdmType);
-    if (sendEmail && isUC && typeof _postStepToChat==='function') _postStepToChat(_cdmBuyerUid, _cdmType==='seller', _cdmType==='seller'?9:5);
     // Sync dates to linked deal card, or auto-create deal if none exists
     try {
       var agentId2 = userProfile.agentId||'tom';
@@ -24682,10 +24690,9 @@ async function setDealStep(dealId, next) {
     if (_emap[next]) {
       var _choice = await stepEmailPrompt('Send the update email for this step to '+(deal.clientName||'your client')+'?');
       if (_choice === 'send') {
-        sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer');
         var _sn = isSeller ? ((typeof SELLER_STEPS!=='undefined' && SELLER_STEPS[next-1] && SELLER_STEPS[next-1].title)||('Step '+next)) : (((typeof TIMELINE_STEPS!=='undefined' && TIMELINE_STEPS.find(function(s){return s.id===next;}))||{}).name||('Step '+next));
+        sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer', { uid: deal.clientUid, title: (isSeller?'Listing Update 🏡':'Step Update 🏠'), body: 'You\'ve reached '+_sn, postChat: true, isSeller: isSeller, chatStep: next });
         logDealComm(deal.id, 'step', 'Step update \u2014 '+_sn);
-        if (typeof _postStepToChat==='function') _postStepToChat(deal.clientUid, isSeller, next);
       }
     }
   }
