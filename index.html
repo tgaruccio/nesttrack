@@ -20143,10 +20143,8 @@ async function fetchShowingTimeEvents() {
   try {
     var aSnap = await fb.getDoc(fb.doc(fb.db,'users',_profileUid()));
     if (aSnap.exists()) stUrl = aSnap.data().showingTimeUrl;
-    if (!stUrl) {
-      var a2Snap = await fb.getDoc(fb.doc(fb.db,'agents',agentId));
-      if (a2Snap.exists()) stUrl = a2Snap.data().showingTimeUrl;
-    }
+    // NO fallback to a shared agents/{id} doc — an agent's ShowingTime URL must
+    // come ONLY from their own profile, or showings from another agent could leak in.
   } catch(e) { console.log('ST: Firestore error', e.message); }
 
   console.log('ST: URL found =', stUrl || 'NONE');
