@@ -1167,7 +1167,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
     </div>
 
-    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 12px;">Campaigns</div>
+    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 12px;">Campaigns <span onclick="showHelp('campaigns')" title="What is this? How does it connect?" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;vertical-align:middle;text-transform:none;">?</span></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:13px;color:var(--text2);">Build automated multi-step campaigns (VM drops, letters, texts) and assign them to contacts.</div>
       <button class="btn btn-g" onclick="spNewPlan()" style="white-space:nowrap;">+ New Smart Plan</button>
@@ -5812,7 +5812,11 @@ var HELP_DEFAULTS = {
   marketing:   { title:'How to use Marketing', body:'<strong>To use it:</strong> this is your hub for staying in front of people — send branded emails, run Smart Plans, and generate marketing pieces. <strong>Where it connects:</strong> it pulls from your Clients list and their segments, so you can target the right group (past clients, sphere, leads) without building lists by hand.' },
   onboarding:  { title:'How to use Onboarding', body:'<strong>To use it:</strong> work through the checklist to set up your account — profile, integrations, branding. Team leaders can hit <em>Edit</em> to customize the steps and categories for their agents. <strong>Where it connects:</strong> your progress shows on the team’s accountability dashboard, so leaders can see who’s set up and who needs a nudge.' },
   leaderboard: { title:'How to use the Team Leaderboard', body:'<strong>To use it:</strong> it ranks your team by units and volume for the year, pulled from everyone’s deals. Team leaders can export CSV, send standings to the team, set lead routing, and manage the roster. <strong>Where it connects:</strong> the numbers come straight from the Deal Tracker, so as agents close deals the board updates itself — no manual scorekeeping.' },
-  profile:     { title:'How to set up your Profile', body:'<strong>To use it:</strong> fill in your photo, bio, and contact info, set your branding, and (if you’re the subscription owner) manage billing here. <strong>Where it connects:</strong> your profile info flows onto your clients’ Your Agent card, your branded emails, and your landing pages — so setting it up once makes everything you send look consistent and professional.' }
+  profile:     { title:'How to set up your Profile', body:'<strong>To use it:</strong> fill in your photo, bio, and contact info, set your branding, and (if you’re the subscription owner) manage billing here. <strong>Where it connects:</strong> your profile info flows onto your clients’ Your Agent card, your branded emails, and your landing pages — so setting it up once makes everything you send look consistent and professional.' },
+  campaigns:   { title:'How to create Smart Plans', body:'<strong>To set it up:</strong> open Campaigns and build a Smart Plan — add steps (texts, emails, letters, wait timers, Zapier actions) in the order you want them to fire. <strong>What it’s for:</strong> automated, multi-touch follow-up that runs in the background — FSBO sequences, expired campaigns, new-lead nurture, past-client touches. <strong>Where it connects:</strong> apply a plan to a contact or segment and NestTrack fires each step on schedule, so leads and past clients stop going cold without you remembering to follow up.' },
+  zapierstep:  { title:'How to add a Zapier action to a Smart Plan', body:'<strong>What it’s for:</strong> firing anything Zapier can do (OpenPhone texts, AI calls, letters, Facebook audiences) at an exact point in your plan. Each step gets its own unique <strong>Trigger ID</strong>, so each can do something different.<br><br><strong>To set it up:</strong><br>1. Add a <strong>Zapier</strong> step and name it (e.g. “FSBO Text 1”).<br>2. Tap <strong>⚡ Send test to Zapier</strong> — this gives Zapier sample info to work with.<br>3. Copy the Trigger ID.<br>4. In Zapier, create a Zap → trigger <em>NestTrack → Smart Plan Step Reached</em> → paste the Trigger ID.<br>5. Click <strong>Test trigger</strong> — your sample info appears to map.<br>6. Add your action (e.g. OpenPhone → Send Text), map the fields, turn the Zap on.<br><br><strong>Where it connects:</strong> when a real contact reaches that step in a live plan, NestTrack sends their real info to your Zap automatically.' },
+  slybroadcast:{ title:'How to connect Slybroadcast', body:'<strong>To set it up:</strong> connect your Slybroadcast account so NestTrack can drop ringless voicemails through your Smart Plans. <strong>What it’s for:</strong> sending pre-recorded voicemail drops to contacts without ringing their phone — great for FSBO/expired outreach at scale. <strong>Where it connects:</strong> once connected, a Smart Plan voicemail step sends your recording to the contact automatically when they reach that step.' },
+  thanksio:    { title:'How to connect Thanks.io', body:'<strong>To set it up:</strong> connect your Thanks.io account so NestTrack can send physical mail — handwritten cards, postcards, letters — from your Smart Plans. <strong>What it’s for:</strong> automated direct mail touches (just-listed/just-sold, holiday cards, past-client mailers) without going to the post office. <strong>Where it connects:</strong> a Smart Plan letter step hands the contact’s name and address to Thanks.io, which prints and mails it for you.' }
 };
 
 window._helpContent = null;
@@ -12309,7 +12313,11 @@ var HELP_SECTIONS = [
   {key:'onboarding',  label:'Onboarding'},
   {key:'leaderboard', label:'Team Leaderboard'},
   {key:'showingtime', label:'ShowingTime integration'},
-  {key:'zapier',      label:'Zapier integration'}
+  {key:'zapier',      label:'Zapier integration'},
+  {key:'campaigns',   label:'Campaigns (creating Smart Plans)'},
+  {key:'zapierstep',  label:'Zapier action in a Smart Plan'},
+  {key:'slybroadcast',label:'Slybroadcast (voicemail drops)'},
+  {key:'thanksio',    label:'Thanks.io (direct mail)'}
 ];
 
 async function renderHelpAdmin(){
@@ -26670,8 +26678,7 @@ var SP_CHANNELS = {
   vm:      { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
   letter:  { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
   texttap: { label:'Text (you send)', icon:'📲', color:'#0369A1', bg:'#E0F2FE', desc:'Push reminder — you tap to send from your own phone' },
-  text:    { label:'Text (Zapier)', icon:'💬', color:'#065F46', bg:'#D1FAE5', desc:'Automated SMS via your Zapier → OpenPhone' },
-  zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap' }
+  zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap (text, letter, AI call, audience…)' }
 };
 
 function _spAgentId(){ return (userProfile && userProfile.agentId) || 'tom'; }
@@ -26722,7 +26729,7 @@ function openConnectModal(provider){
   if(provider==='sly'){
     title.textContent='Connect Slybroadcast';
     body.innerHTML=''
-      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send ringless voicemail drops from your own Slybroadcast account.</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send ringless voicemail drops from your own Slybroadcast account. '+helpDot('slybroadcast')+'</div>'
       +'<label class="flabel" style="color:var(--text2);font-weight:600;">Slybroadcast email</label>'
       +'<input type="email" id="cm-sly-email" autocomplete="off" value="'+partnerEsc(_connectCreds.slyEmail||'')+'" placeholder="you@email.com"/>'
       +'<label class="flabel" style="color:var(--text2);font-weight:600;margin-top:10px;">Password</label>'
@@ -26734,7 +26741,7 @@ function openConnectModal(provider){
   } else {
     title.textContent='Connect thanks.io';
     body.innerHTML=''
-      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send physical letters from your own thanks.io account.</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Send physical letters from your own thanks.io account. '+helpDot('thanksio')+'</div>'
       +'<label class="flabel" style="color:var(--text2);font-weight:600;">thanks.io API key</label>'
       +'<input type="text" id="cm-tio-key" autocomplete="off" placeholder="'+(_connectCreds.hasThanksio?'API key applied — leave blank to keep':'paste your API key')+'"/>'
       +'<div style="font-size:11px;color:var(--text3);margin-top:6px;">Find it in your thanks.io dashboard under Profile → API.</div>'
@@ -26963,6 +26970,25 @@ function spCopyTrigId(id){
 }
 window.spCopyTrigId = spCopyTrigId;
 
+async function spSendTestToZapier(trigId){
+  var st = document.getElementById('sp-ziptest-status');
+  var setS = function(msg,color){ if(st){ st.textContent=msg; st.style.color=color||'var(--text3)'; } };
+  // Read the Trigger ID straight from the open editor field — no save/reopen needed.
+  if(!trigId){ var f=document.getElementById('sp-step-trigid'); trigId = f ? f.value.trim() : ''; }
+  if(!trigId){ setS('No Trigger ID found — close and reopen this step.','#B91C1C'); return; }
+  setS('Sending test to Zapier…','var(--text2)');
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if(!apiKey){ setS('Connect your Zapier API key first (Profile → Connect a Lead Source).','#B91C1C'); return; }
+    var url = PROXY_URL + '/api/v1/test-fire?api_key=' + encodeURIComponent(apiKey) + '&triggerId=' + encodeURIComponent(trigId);
+    var r = await fetch(url);
+    var j = await r.json();
+    if(j && j.ok){ setS('✓ Test sent! Copy your Trigger ID, then in Zapier hit "Test trigger" to pull it in.','var(--green)'); }
+    else { setS('Could not send test: ' + ((j&&j.note)||'unknown error'), '#B91C1C'); }
+  } catch(e){ setS('Test failed: ' + (e&&e.message||'network error'), '#B91C1C'); }
+}
+window.spSendTestToZapier = spSendTestToZapier;
+
 function spEditStep(i){
   var s=_currentPlan.steps[i]; if(!s) return;
   if(s.channel==='email'){ spEmailDesignOpen(i); return; }
@@ -27027,7 +27053,7 @@ function spEditStep(i){
       var _tid = s.triggerId || ('trig_' + Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,6));
       if(!s.triggerId) s.triggerId = _tid;
       inner=hdr
-        +'<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;background:#EDE9FE;border-radius:var(--r-sm);padding:11px 12px;">When a contact reaches this step, NestTrack fires this step\'s <strong>Trigger ID</strong> to Zapier — and your Zap does the rest (text, letter, add to an audience, anything). <strong>No webhook needed.</strong></div>'
+        +'<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;background:#EDE9FE;border-radius:var(--r-sm);padding:11px 12px;">When a contact reaches this step, NestTrack fires this step\'s <strong>Trigger ID</strong> to Zapier — and your Zap does the rest (text, letter, add to an audience, anything). <strong>No webhook needed.</strong> '+helpDot('zapierstep')+'</div>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">What should this step do?</label>'
         +'<input type="text" id="sp-step-content" placeholder="e.g. FSBO Text 1" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Trigger ID <span style="font-weight:400;">(connect this in Zapier)</span></label>'
@@ -27035,8 +27061,10 @@ function spEditStep(i){
           +'<input type="text" id="sp-step-trigid" readonly value="'+partnerEsc(_tid)+'" style="flex:1;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:monospace;background:var(--surface2);"/>'
           +'<button class="btn btn-sm" onclick="spCopyTrigId(\''+partnerEsc(_tid)+'\')">Copy</button>'
         +'</div>'
+        +'<button class="btn btn-g btn-sm" onclick="spSendTestToZapier()" style="width:100%;margin:4px 0 4px;">⚡ Send test to Zapier</button>'
+        +'<div id="sp-ziptest-status" style="font-size:11px;color:var(--text3);margin-bottom:6px;">Tap this once, then build your Zap in Zapier — it gives Zapier sample info to map.</div>'
         +'<details style="margin-top:10px;"><summary style="font-size:11px;color:var(--text3);cursor:pointer;">How do I connect this to Zapier?</summary>'
-        +'<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-top:8px;">In Zapier, create a Zap with the trigger <strong>NestTrack → Smart Plan Step Reached</strong>, pick this <strong>Trigger ID</strong> from the dropdown (or paste it), then choose what it does (e.g. <strong>OpenPhone → Send Text</strong>). Each step has its own ID, so each can do something different.</div></details>';
+        +'<div style="font-size:11px;color:var(--text3);line-height:1.7;margin-top:8px;"><strong>1.</strong> Tap <strong>⚡ Send test to Zapier</strong> above.<br><strong>2.</strong> Copy the Trigger ID.<br><strong>3.</strong> In Zapier, create a Zap → trigger <strong>NestTrack → Smart Plan Step Reached</strong> → paste the Trigger ID.<br><strong>4.</strong> Click <strong>Test trigger</strong> — your sample info shows up to map.<br><strong>5.</strong> Add your action (e.g. <strong>OpenPhone → Send Text</strong>), map the fields, turn the Zap on.<br><br>Each step has its own Trigger ID, so each can do something different.</div></details>';
     }
   }
   ov.innerHTML='<div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:400px;padding:20px;">'
