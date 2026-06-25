@@ -3,72 +3,32 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Tom Garuccio · The Garuccio Group</title>
+<title>Digital Business Card</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <style>
-  /* ============ AGENT ACCENT — the one knob that themes the whole card ============ */
   :root{
-    --accent:#1D9E75;          /* agent picks this */
-    --accent-deep:#14704F;     /* derived darker shade for gradients/text */
-    --accent-soft:#1D9E7514;   /* derived translucent wash */
-    --accent-ring:#1D9E7533;
-    --ink:#15201B;
-    --ink-soft:#5c6b63;
-    --line:#e7ece9;
-    --bg:#ffffff;
-    --card:#ffffff;
-    --star:#F5A623;
+    --accent:#1D9E75;--accent-deep:#14704F;--accent-soft:#1D9E7514;--accent-ring:#1D9E7533;
+    --ink:#15201B;--ink-soft:#5c6b63;--line:#e7ece9;--bg:#ffffff;--card:#ffffff;--star:#F5A623;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   html{scroll-behavior:smooth;}
-  body{
-    font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
-    color:var(--ink);
-    background:
-      radial-gradient(1200px 500px at 50% -200px, var(--accent-soft), transparent 70%),
-      #f6f8f7;
-    line-height:1.5;
-    -webkit-font-smoothing:antialiased;
-    min-height:100vh;
-  }
+  body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);background:radial-gradient(1200px 500px at 50% -200px, var(--accent-soft), transparent 70%),#f6f8f7;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
   .shell{max-width:480px;margin:0 auto;padding:0 16px 60px;}
-
-  /* ============ HERO — the person, presented ============ */
-  .hero{
-    position:relative;
-    text-align:center;
-    padding:48px 22px 30px;
-    background:linear-gradient(168deg, var(--accent) 0%, var(--accent-deep) 130%);
-    border-radius:0 0 32px 32px;
-    overflow:hidden;
-    box-shadow:0 18px 50px var(--accent-ring);
-  }
+  .hero{position:relative;text-align:center;padding:48px 22px 30px;background:linear-gradient(168deg, var(--accent) 0%, var(--accent-deep) 130%);border-radius:0 0 32px 32px;overflow:hidden;box-shadow:0 18px 50px var(--accent-ring);}
   .hero::before{content:"";position:absolute;top:-120px;right:-90px;width:280px;height:280px;border-radius:50%;background:rgba(255,255,255,0.08);}
   .hero::after{content:"";position:absolute;bottom:-110px;left:-70px;width:230px;height:230px;border-radius:50%;background:rgba(255,255,255,0.05);}
   .photo-wrap{position:relative;z-index:2;display:inline-block;margin-bottom:16px;}
-  .photo{
-    width:128px;height:128px;border-radius:50%;object-fit:cover;
-    border:4px solid rgba(255,255,255,0.9);
-    box-shadow:0 12px 30px rgba(0,0,0,0.22);
-    background:#cfd8d3;
-  }
-  .verified{
-    position:absolute;bottom:6px;right:6px;
-    width:30px;height:30px;border-radius:50%;
-    background:#fff;display:flex;align-items:center;justify-content:center;
-    box-shadow:0 4px 12px rgba(0,0,0,0.18);font-size:15px;
-  }
+  .photo{width:128px;height:128px;border-radius:50%;object-fit:cover;border:4px solid rgba(255,255,255,0.9);box-shadow:0 12px 30px rgba(0,0,0,0.22);background:#cfd8d3;}
+  .verified{position:absolute;bottom:6px;right:6px;width:30px;height:30px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.18);font-size:15px;}
   .h-name{position:relative;z-index:2;font-family:'Fraunces',serif;font-weight:500;font-size:30px;letter-spacing:-0.5px;color:#fff;line-height:1.1;}
   .h-title{position:relative;z-index:2;font-size:13px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:rgba(255,255,255,0.88);margin-top:7px;}
   .h-brokerage{position:relative;z-index:2;display:inline-flex;align-items:center;gap:8px;margin-top:14px;background:rgba(255,255,255,0.16);backdrop-filter:blur(4px);padding:7px 14px 7px 8px;border-radius:30px;}
   .h-brokerage img{width:24px;height:24px;border-radius:6px;object-fit:cover;background:#fff;}
   .h-brokerage span{font-size:12.5px;font-weight:600;color:#fff;}
   .h-tag{position:relative;z-index:2;font-size:14px;color:rgba(255,255,255,0.9);margin-top:16px;max-width:300px;margin-left:auto;margin-right:auto;line-height:1.45;}
-
-  /* ============ INTRO VIDEO ============ */
   .intro-video{max-width:420px;margin:18px auto 0;}
   .iv-frame{position:relative;border-radius:20px;overflow:hidden;background:#000;box-shadow:0 14px 38px rgba(21,32,27,0.16);aspect-ratio:16/10;cursor:pointer;}
   .iv-frame img{width:100%;height:100%;object-fit:cover;display:block;opacity:0.92;}
@@ -78,23 +38,8 @@
   .iv-frame:hover .pbtn{transform:scale(1.08);}
   .iv-play .pbtn svg{width:26px;height:26px;margin-left:3px;color:var(--accent-deep);}
   .iv-label{position:absolute;left:14px;bottom:12px;color:#fff;font-size:13px;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.5);display:flex;align-items:center;gap:6px;}
-
-  /* ============ SIGNATURE — Save My Contact + QR ============ */
-  .save-block{
-    position:relative;z-index:6;
-    margin:-26px auto 0;max-width:420px;
-    background:var(--card);border-radius:22px;
-    box-shadow:0 20px 50px rgba(21,32,27,0.14);
-    padding:22px;text-align:center;
-  }
-  .save-btn{
-    width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
-    background:linear-gradient(135deg,var(--accent),var(--accent-deep));
-    color:#fff;border:none;border-radius:15px;padding:17px;
-    font-family:inherit;font-size:16.5px;font-weight:700;cursor:pointer;
-    box-shadow:0 10px 24px var(--accent-ring);
-    transition:transform .15s, box-shadow .15s;
-  }
+  .save-block{position:relative;z-index:6;margin:-26px auto 0;max-width:420px;background:var(--card);border-radius:22px;box-shadow:0 20px 50px rgba(21,32,27,0.14);padding:22px;text-align:center;}
+  .save-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));color:#fff;border:none;border-radius:15px;padding:17px;font-family:inherit;font-size:16.5px;font-weight:700;cursor:pointer;box-shadow:0 10px 24px var(--accent-ring);transition:transform .15s, box-shadow .15s;}
   .save-btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px var(--accent-ring);}
   .save-btn:active{transform:translateY(0);}
   .save-btn svg{width:20px;height:20px;}
@@ -105,37 +50,19 @@
   #qrcode{display:inline-block;padding:14px;background:#fff;border:1px solid var(--line);border-radius:16px;}
   #qrcode img, #qrcode canvas{display:block;border-radius:6px;}
   .qr-cap{font-size:12px;color:var(--ink-soft);margin-top:10px;}
-
-  /* ============ QUICK ACTIONS ============ */
   .actions{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:420px;margin:14px auto 0;}
-  .action{
-    display:flex;flex-direction:column;align-items:center;gap:6px;
-    background:var(--card);border:1px solid var(--line);border-radius:16px;
-    padding:15px 8px;text-decoration:none;color:var(--ink);
-    transition:transform .15s, border-color .15s, box-shadow .15s;
-  }
+  .action{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:15px 8px;text-decoration:none;color:var(--ink);transition:transform .15s, border-color .15s, box-shadow .15s;}
   .action:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 20px rgba(21,32,27,0.07);}
   .action .ai{width:42px;height:42px;border-radius:12px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;}
   .action .ai svg{width:21px;height:21px;color:var(--accent-deep);}
   .action span{font-size:12.5px;font-weight:600;}
-
-  /* ============ SECTION SHELL ============ */
   .sec{max-width:420px;margin:30px auto 0;}
   .sec-h{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px;display:flex;align-items:center;gap:9px;}
   .sec-h::after{content:"";flex:1;height:1px;background:var(--line);}
-
-  /* ============ SOCIALS ============ */
   .socials{display:flex;flex-wrap:wrap;gap:10px;}
-  .soc{
-    flex:1;min-width:60px;aspect-ratio:1.4;
-    display:flex;align-items:center;justify-content:center;
-    background:var(--card);border:1px solid var(--line);border-radius:14px;
-    text-decoration:none;transition:transform .15s, box-shadow .15s;
-  }
+  .soc{flex:1;min-width:60px;aspect-ratio:1.4;display:flex;align-items:center;justify-content:center;background:var(--card);border:1px solid var(--line);border-radius:14px;text-decoration:none;transition:transform .15s, box-shadow .15s;}
   .soc:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(21,32,27,0.08);}
   .soc svg{width:23px;height:23px;}
-
-  /* ============ REVIEWS ============ */
   .rev-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .rev-score{display:flex;align-items:center;gap:9px;}
   .rev-num{font-family:'Fraunces',serif;font-size:30px;font-weight:500;line-height:1;}
@@ -145,10 +72,7 @@
   .rev-src{font-size:12px;font-weight:600;color:var(--accent-deep);text-decoration:none;}
   .rev-rail{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
   .rev-rail::-webkit-scrollbar{display:none;}
-  .rev-card{
-    scroll-snap-align:center;flex:0 0 86%;
-    background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;
-  }
+  .rev-card{scroll-snap-align:center;flex:0 0 86%;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;}
   .rev-quote{font-size:14.5px;line-height:1.55;color:var(--ink);}
   .rev-quote::before{content:"\201C";font-family:'Fraunces',serif;font-size:34px;color:var(--accent);line-height:0;vertical-align:-12px;margin-right:2px;}
   .rev-by{margin-top:13px;display:flex;align-items:center;gap:9px;}
@@ -158,8 +82,6 @@
   .rev-dots{display:flex;justify-content:center;gap:6px;margin-top:14px;}
   .rev-dots .d{width:6px;height:6px;border-radius:50%;background:var(--line);transition:background .2s,width .2s;}
   .rev-dots .d.on{background:var(--accent);width:18px;}
-
-  /* ============ LISTINGS (optional) ============ */
   .listings{display:flex;flex-direction:column;gap:12px;}
   .lst{display:flex;gap:13px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:11px;text-decoration:none;color:var(--ink);transition:transform .15s,box-shadow .15s;}
   .lst:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(21,32,27,0.08);}
@@ -168,8 +90,6 @@
   .lst .price{font-family:'Fraunces',serif;font-size:19px;font-weight:500;}
   .lst .addr{font-size:13px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
   .lst .beds{font-size:12px;color:var(--ink-soft);margin-top:5px;}
-
-  /* ============ REVERSE CAPTURE — feeds NestTrack ============ */
   .capture{max-width:420px;margin:34px auto 0;background:linear-gradient(168deg,var(--accent) 0%,var(--accent-deep) 140%);border-radius:24px;padding:26px 22px;box-shadow:0 18px 44px var(--accent-ring);}
   .capture h3{font-family:'Fraunces',serif;font-weight:500;font-size:22px;color:#fff;text-align:center;letter-spacing:-0.3px;}
   .capture p{font-size:13.5px;color:rgba(255,255,255,0.88);text-align:center;margin-top:6px;margin-bottom:18px;}
@@ -183,40 +103,30 @@
   .cap-done.show{display:block;}
   .cap-done .big{font-size:40px;}
   .cap-done .msg{font-size:15px;font-weight:600;margin-top:8px;}
-
-  /* ============ FOOTER ============ */
   .foot{text-align:center;margin-top:36px;font-size:11.5px;color:var(--ink-soft);}
   .foot a{color:var(--accent-deep);text-decoration:none;font-weight:600;}
   .foot .pb{margin-top:8px;opacity:0.7;}
-
-  /* ============ MOTION ============ */
   .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease, transform .6s ease;}
   .reveal.in{opacity:1;transform:none;}
-  @media (prefers-reduced-motion: reduce){
-    .reveal{opacity:1;transform:none;transition:none;}
-    html{scroll-behavior:auto;}
-  }
+  @media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none;transition:none;}html{scroll-behavior:auto;}}
 </style>
 </head>
 <body>
 <div class="shell" id="card-shell" style="opacity:0;transition:opacity .25s ease;">
-
-  <!-- HERO -->
   <header class="hero">
     <div class="photo-wrap">
       <img class="photo" id="ag-photo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Crect width='128' height='128' fill='%23cfd8d3'/%3E%3C/svg%3E" alt="Agent photo"/>
       <div class="verified" title="Verified agent">✓</div>
     </div>
-    <div class="h-name" id="ag-name">Tom Garuccio</div>
-    <div class="h-title" id="ag-title">REALTOR® · Mortgage Specialist</div>
+    <div class="h-name" id="ag-name"></div>
+    <div class="h-title" id="ag-title"></div>
     <div class="h-brokerage">
-      <img id="ag-broker-logo" src="https://placehold.co/48x48/1D9E75/fff?text=G" alt=""/>
-      <span id="ag-brokerage">The Garuccio Group</span>
+      <img id="ag-broker-logo" src="" alt=""/>
+      <span id="ag-brokerage"></span>
     </div>
-    <div class="h-tag" id="ag-tagline">Helping Cleveland's west side find home — relationships over transactions.</div>
+    <div class="h-tag" id="ag-tagline"></div>
   </header>
 
-  <!-- INTRO VIDEO (optional, right under the hero — "meet me") -->
   <section class="intro-video reveal" id="sec-intro-video" style="display:none;">
     <div class="iv-frame" id="iv-frame" onclick="playIntro()">
       <img id="iv-poster" src="" alt="Intro video"/>
@@ -227,7 +137,6 @@
     </div>
   </section>
 
-  <!-- SAVE CONTACT + QR -->
   <div class="save-block reveal">
     <button class="save-btn" id="save-btn" onclick="saveContact()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -245,37 +154,34 @@
     </div>
   </div>
 
-  <!-- QUICK ACTIONS -->
   <div class="actions reveal">
-    <a class="action" id="act-call" href="tel:+12165551234">
+    <a class="action" id="act-call" href="#">
       <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
       <span>Call</span>
     </a>
-    <a class="action" id="act-text" href="sms:+12165551234">
+    <a class="action" id="act-text" href="#">
       <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></div>
       <span>Text</span>
     </a>
-    <a class="action" id="act-email" href="mailto:tom@garucciogroup.com">
+    <a class="action" id="act-email" href="#">
       <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
       <span>Email</span>
     </a>
   </div>
 
-  <!-- SOCIALS -->
   <section class="sec reveal" id="sec-social">
     <div class="sec-h">Connect</div>
     <div class="socials" id="socials"></div>
   </section>
 
-  <!-- REVIEWS -->
   <section class="sec reveal" id="sec-reviews">
     <div class="sec-h">What people say</div>
     <div class="rev-top">
       <div class="rev-score">
-        <div class="rev-num" id="rev-avg">4.9</div>
+        <div class="rev-num" id="rev-avg"></div>
         <div class="rev-stars">
           <div class="s">★★★★★</div>
-          <div class="c" id="rev-count">128 reviews</div>
+          <div class="c" id="rev-count"></div>
         </div>
       </div>
       <div class="rev-links" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
@@ -287,7 +193,6 @@
     <div class="rev-dots" id="rev-dots"></div>
   </section>
 
-  <!-- REVERSE CAPTURE (above listings — connect first, then show what I'm selling) -->
   <section class="capture reveal" id="sec-capture">
     <div id="cap-form-wrap">
       <h3>Let's stay in touch</h3>
@@ -295,7 +200,7 @@
       <div class="cap-field"><input type="text" id="cap-name" placeholder="Your name" autocomplete="name"/></div>
       <div class="cap-field"><input type="tel" id="cap-phone" placeholder="Phone" autocomplete="tel"/></div>
       <div class="cap-field"><input type="email" id="cap-email" placeholder="Email" autocomplete="email"/></div>
-      <button class="cap-submit" id="cap-submit" onclick="shareInfo()">Send it to Tom →</button>
+      <button class="cap-submit" id="cap-submit" onclick="shareInfo()">Send →</button>
     </div>
     <div class="cap-done" id="cap-done">
       <div class="big">🤝</div>
@@ -303,92 +208,50 @@
     </div>
   </section>
 
-  <!-- LISTINGS (optional, toggled per agent — 5 most recent) -->
   <section class="sec reveal" id="sec-listings" style="display:none;">
     <div class="sec-h">Now serving</div>
     <div class="listings" id="listings"></div>
   </section>
 
   <div class="foot">
-    <div><a href="https://nesttrack.io" target="_blank" rel="noopener">Tom Garuccio</a> · The Garuccio Group</div>
+    <div id="foot-agent"></div>
     <div class="pb">Powered by NestTrack</div>
   </div>
 
 </div>
-
 <script>
-// ============================================================
-// AGENT DATA
-// Live mode: the page reads ?id=<agentId> and pulls that agent's card
-// config from Firestore (card_config/{agentId}). If no ?id or load fails,
-// it shows the DEMO data below so the page is never blank.
-// ============================================================
 var WORKER_URL = 'https://app.tom-b52.workers.dev';
 var FB_PROJECT = 'buyers-880bc';
 var FB_KEY     = 'AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY';
 var CARD_PARAMS = new URLSearchParams(location.search);
 var CARD_ID = (CARD_PARAMS.get('id') || '').trim();
 
+// Demo data ONLY shows when there is no ?id= at all (a bare preview).
+// It uses placeholder text — never a real person's name or photo.
 var DEMO_AGENT = {
-  name: "Tom Garuccio",
-  title: "REALTOR® · Mortgage Specialist",
-  brokerage: "The Garuccio Group",
-  brokerLogo: "https://placehold.co/48x48/1D9E75/fff?text=G",
-  photo: "https://i.pravatar.cc/256?img=12",
-  tagline: "Helping Cleveland's west side find home — relationships over transactions.",
-  accent: "#1D9E75",
-  phone: "+12165551234",
-  email: "tom@garucciogroup.com",
-  cardUrl: location.href,
-  leadToken: "",
-  agentId: "tom",
-  introVideo: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-  introVideoPoster: "",
-  socials: {
-    instagram: "https://instagram.com/",
-    facebook: "https://facebook.com/",
-    tiktok: "https://tiktok.com/",
-    youtube: "https://youtube.com/",
-    linkedin: "https://linkedin.com/"
-  },
-  reviews: {
-    avg: "4.9",
-    count: "128 reviews",
-    zillowLink: "https://www.zillow.com/profile/",
-    googleLink: "https://g.page/r/example",
-    items: [
-      { quote: "Tom made our first home purchase feel easy. He answered every question, day or night, and never made us feel rushed.", name: "Sarah & Mike P.", meta: "Bought in Westlake" },
-      { quote: "We sold above asking in a week. Tom's pricing strategy and prep advice were spot on. Couldn't recommend him more.", name: "Dan R.", meta: "Sold in Rocky River" },
-      { quote: "What set Tom apart was the communication. I always knew exactly what was happening with my deal. No surprises.", name: "Jennifer L.", meta: "Bought in Bay Village" },
-      { quote: "Handled both my sale and purchase at once and made it seamless. A true professional who actually cares.", name: "The Coleman Family", meta: "Avon Lake" }
-    ]
-  },
-  showListings: true,
-  listings: [
-    { img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=300&q=70", price:"$485,000", addr:"21 Lakeshore Dr, Bay Village", beds:"4 bd · 3 ba · 2,640 sqft", url:"listing.html?id=demo1" },
-    { img:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=300&q=70", price:"$629,900", addr:"108 Maple Ridge, Westlake", beds:"5 bd · 4 ba · 3,200 sqft", url:"listing.html?id=demo2" }
-  ]
+  name:"Your Name", title:"REALTOR\u00AE", brokerage:"Your Brokerage", brokerLogo:"",
+  photo:"", tagline:"Set up your digital business card in NestTrack.",
+  accent:"#1D9E75", phone:"", email:"", cardUrl:location.href, leadToken:"", agentId:"demo",
+  introVideo:"", introVideoPoster:"",
+  socials:{instagram:"",facebook:"",tiktok:"",youtube:"",linkedin:""},
+  reviews:{avg:"",count:"",zillowLink:"",googleLink:"",items:[]},
+  showListings:false, listings:[]
 };
 
-var AGENT = DEMO_AGENT;   // replaced by live data when ?id= loads
+var AGENT = DEMO_AGENT;
 
-// ============ helpers: derive accent shades from one hex ============
 function hexToRgb(h){ h=h.replace('#',''); if(h.length===3)h=h.split('').map(c=>c+c).join(''); var n=parseInt(h,16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}; }
 function rgbToHex(r,g,b){ return '#'+[r,g,b].map(x=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0')).join(''); }
 function darken(hex,amt){ var c=hexToRgb(hex); return rgbToHex(c.r*(1-amt),c.g*(1-amt),c.b*(1-amt)); }
 function applyAccent(hex){
   if(!hex || typeof hex!=='string' || hex.charAt(0)!=='#'){ hex='#1D9E75'; }
-  try{
-    var root=document.documentElement.style;
-    var c=hexToRgb(hex);
-    root.setProperty('--accent',hex);
-    root.setProperty('--accent-deep',darken(hex,0.28));
+  try{ var root=document.documentElement.style; var c=hexToRgb(hex);
+    root.setProperty('--accent',hex); root.setProperty('--accent-deep',darken(hex,0.28));
     root.setProperty('--accent-soft','rgba('+c.r+','+c.g+','+c.b+',0.08)');
     root.setProperty('--accent-ring','rgba('+c.r+','+c.g+','+c.b+',0.28)');
   }catch(e){}
 }
 
-// ============ SOCIAL ICONS (inline SVG so no external deps) ============
 var SOCIAL_SVG = {
   instagram:'<svg viewBox="0 0 24 24" fill="#E1306C"><path d="M12 2.2c3.2 0 3.6 0 4.9.1 1.2.1 1.8.3 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.3.1 1.7.1 4.9s0 3.6-.1 4.9c-.1 1.2-.3 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.3.1-1.7.1-4.9.1s-3.6 0-4.9-.1c-1.2-.1-1.8-.3-2.2-.4-.6-.2-1-.5-1.4-.9-.4-.4-.7-.8-.9-1.4-.2-.4-.4-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.9c.1-1.2.3-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.1-1.1 0-1.7.2-2.1.4-.5.2-.9.4-1.3.8-.4.4-.6.8-.8 1.3-.2.4-.3 1-.4 2.1-.1 1.2-.1 1.6-.1 4.7s0 3.5.1 4.7c0 1.1.2 1.7.4 2.1.2.5.4.9.8 1.3.4.4.8.6 1.3.8.4.2 1 .3 2.1.4 1.2.1 1.6.1 4.7.1s3.5 0 4.7-.1c1.1 0 1.7-.2 2.1-.4.5-.2.9-.4 1.3-.8.4-.4.6-.8.8-1.3.2-.4.3-1 .4-2.1.1-1.2.1-1.6.1-4.7s0-3.5-.1-4.7c0-1.1-.2-1.7-.4-2.1-.2-.5-.4-.9-.8-1.3-.4-.4-.8-.6-1.3-.8-.4-.2-1-.3-2.1-.4-1.2-.1-1.6-.1-4.7-.1zm0 3.1a4.9 4.9 0 1 1 0 9.8 4.9 4.9 0 0 1 0-9.8zm0 8.1a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4zm6.3-8.3a1.15 1.15 0 1 1-2.3 0 1.15 1.15 0 0 1 2.3 0z"/></svg>',
   facebook:'<svg viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07c0 6 4.39 10.97 10.13 11.87v-8.4H7.08v-3.47h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.95h-1.51c-1.49 0-1.96.93-1.96 1.87v2.25h3.33l-.53 3.47h-2.8v8.4C19.61 23.04 24 18.07 24 12.07z"/></svg>',
@@ -397,56 +260,61 @@ var SOCIAL_SVG = {
   linkedin:'<svg viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zm1.78 13.02H3.56V9h3.56v11.45zM22.22 0H1.77C.8 0 0 .78 0 1.74v20.52C0 23.22.8 24 1.77 24h20.45c.98 0 1.78-.78 1.78-1.74V1.74C24 .78 23.2 0 22.22 0z"/></svg>'
 };
 
-// ============ RENDER ============
 function render(){
   applyAccent(AGENT.accent);
-  document.getElementById('ag-photo').src = AGENT.photo;
-  document.getElementById('ag-name').textContent = AGENT.name;
-  document.getElementById('ag-title').textContent = AGENT.title || '';
-  if (!AGENT.title) document.getElementById('ag-title').style.display='none';
+
+  // Photo — only show if present; otherwise the gray placeholder stays.
+  var _ph=document.getElementById('ag-photo');
+  if(_ph){ if(AGENT.photo){ _ph.src=AGENT.photo; } }
+
+  document.getElementById('ag-name').textContent = AGENT.name || '';
+
+  var _t=document.getElementById('ag-title');
+  if(AGENT.title){ _t.textContent=AGENT.title; } else { _t.style.display='none'; }
+
   if (AGENT.brokerage) {
     document.getElementById('ag-brokerage').textContent = AGENT.brokerage;
-    document.getElementById('ag-broker-logo').src = AGENT.brokerLogo || '';
-    if (!AGENT.brokerLogo) document.getElementById('ag-broker-logo').style.display='none';
+    var _bl=document.getElementById('ag-broker-logo');
+    if(AGENT.brokerLogo){ _bl.src=AGENT.brokerLogo; } else { _bl.style.display='none'; }
   } else {
     document.querySelector('.h-brokerage').style.display='none';
   }
-  if (AGENT.tagline) { document.getElementById('ag-tagline').textContent = AGENT.tagline; }
-  else { document.getElementById('ag-tagline').style.display='none'; }
-  document.title = AGENT.name + (AGENT.brokerage ? ' · ' + AGENT.brokerage : '');
 
-  // quick actions
-  document.getElementById('act-call').href = 'tel:'+AGENT.phone;
-  document.getElementById('act-text').href = 'sms:'+AGENT.phone;
-  document.getElementById('act-email').href = 'mailto:'+AGENT.email;
+  var _tg=document.getElementById('ag-tagline');
+  if (AGENT.tagline) { _tg.textContent = AGENT.tagline; } else { _tg.style.display='none'; }
 
-  // socials — only render filled links; hide whole section if none
+  document.title = AGENT.name ? (AGENT.name + (AGENT.brokerage ? ' \u00B7 ' + AGENT.brokerage : '')) : 'Digital Business Card';
+
+  // Footer — blank-safe, built from the agent's own data (never hardcoded).
+  var _foot=document.getElementById('foot-agent');
+  if(_foot){ _foot.textContent = AGENT.name ? (AGENT.name + (AGENT.brokerage ? ' \u00B7 ' + AGENT.brokerage : '')) : ''; }
+
+  // quick actions — only link if the value exists
+  var _call=document.getElementById('act-call'), _text=document.getElementById('act-text'), _email=document.getElementById('act-email');
+  if(AGENT.phone){ _call.href='tel:'+AGENT.phone; _text.href='sms:'+AGENT.phone; } else { _call.style.display='none'; _text.style.display='none'; }
+  if(AGENT.email){ _email.href='mailto:'+AGENT.email; } else { _email.style.display='none'; }
+
   var sc = document.getElementById('socials'); sc.innerHTML='';
   var socCount = 0;
   Object.keys(AGENT.socials||{}).forEach(function(k){
-    var url = AGENT.socials[k];
-    if(!url || !SOCIAL_SVG[k]) return;
+    var url = AGENT.socials[k]; if(!url || !SOCIAL_SVG[k]) return;
     var a = document.createElement('a');
     a.className='soc'; a.href=url; a.target='_blank'; a.rel='noopener'; a.setAttribute('aria-label',k);
-    a.innerHTML = SOCIAL_SVG[k];
-    sc.appendChild(a); socCount++;
+    a.innerHTML = SOCIAL_SVG[k]; sc.appendChild(a); socCount++;
   });
   if (!socCount) document.getElementById('sec-social').style.display='none';
 
-  // intro video (optional)
   if (AGENT.introVideo) {
     document.getElementById('sec-intro-video').style.display='';
-    document.getElementById('iv-poster').src = AGENT.introVideoPoster || AGENT.photo;
+    document.getElementById('iv-poster').src = AGENT.introVideoPoster || AGENT.photo || '';
   }
 
-  // reviews — hide entirely if none
   if (!AGENT.reviews || !AGENT.reviews.items || !AGENT.reviews.items.length) {
     document.getElementById('sec-reviews').style.display='none';
   } else {
     document.getElementById('rev-avg').textContent = AGENT.reviews.avg || '';
     document.getElementById('rev-count').textContent = AGENT.reviews.count || '';
-    var rz = document.getElementById('rev-link-zillow');
-    var rg = document.getElementById('rev-link-google');
+    var rz = document.getElementById('rev-link-zillow'); var rg = document.getElementById('rev-link-google');
     if (AGENT.reviews.zillowLink) { rz.href = AGENT.reviews.zillowLink; rz.style.display=''; }
     if (AGENT.reviews.googleLink) { rg.href = AGENT.reviews.googleLink; rg.style.display=''; }
     var rail = document.getElementById('rev-rail'); rail.innerHTML='';
@@ -454,24 +322,24 @@ function render(){
     AGENT.reviews.items.forEach(function(r,i){
       var card=document.createElement('div'); card.className='rev-card';
       var initials=(r.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase();
-      card.innerHTML='<div class="rev-quote">'+r.quote+'</div>'
-        +'<div class="rev-by"><div class="rev-av">'+initials+'</div><div><div class="nm">'+r.name+'</div><div class="mt">'+(r.meta||'')+'</div></div></div>';
+      card.innerHTML='<div class="rev-quote"></div><div class="rev-by"><div class="rev-av"></div><div><div class="nm"></div><div class="mt"></div></div></div>';
+      card.querySelector('.rev-quote').appendChild(document.createTextNode(r.quote||''));
+      card.querySelector('.rev-av').textContent=initials;
+      card.querySelector('.nm').textContent=r.name||'';
+      card.querySelector('.mt').textContent=r.meta||'';
       rail.appendChild(card);
       var d=document.createElement('div'); d.className='d'+(i===0?' on':''); dots.appendChild(d);
     });
   }
 
-  // listings (optional) — 5 most recent only
   renderListings();
 
-  // capture button label → agent's first name
   var firstName=(AGENT.name||'').split(' ')[0]||'me';
   var capBtn=document.getElementById('cap-submit');
-  if(capBtn) capBtn.textContent='Send it to '+firstName+' →';
+  if(capBtn) capBtn.textContent = (AGENT.name? ('Send it to '+firstName+' \u2192') : 'Send \u2192');
   var capP=document.querySelector('#cap-form-wrap p');
-  if(capP) capP.textContent="Share your info and "+firstName+" will reach out personally — no spam, no bots.";
+  if(capP && AGENT.name) capP.textContent="Share your info and "+firstName+" will reach out personally \u2014 no spam, no bots.";
 
-  // reveal the card now that real data is in (prevents flash of placeholder)
   var shell=document.getElementById('card-shell'); if(shell) shell.style.opacity='1';
 }
 
@@ -483,17 +351,17 @@ function renderListings(){
     AGENT.listings.slice(0,5).forEach(function(L){
       if(!L.price && !L.addr) return;
       var a=document.createElement('a'); a.className='lst'; a.href=L.url||'#'; if(L.url&&L.url!=='#'){a.target='_blank';a.rel='noopener';}
-      a.innerHTML='<img src="'+(L.img||'')+'" alt=""/><div class="li"><div class="price">'+(L.price||'')+'</div><div class="addr">'+(L.addr||'')+'</div><div class="beds">'+(L.beds||'')+'</div></div>';
+      a.innerHTML='<img src="'+(L.img||'')+'" alt=""/><div class="li"><div class="price"></div><div class="addr"></div><div class="beds"></div></div>';
+      a.querySelector('.price').textContent=L.price||'';
+      a.querySelector('.addr').textContent=L.addr||'';
+      a.querySelector('.beds').textContent=L.beds||'';
       ls.appendChild(a);
     });
     if(!ls.children.length) sec.style.display='none';
-  } else {
-    sec.style.display='none';
-  }
+  } else { sec.style.display='none'; }
 }
 window.renderListings = renderListings;
 
-// ============ INTRO VIDEO PLAY ============
 function playIntro(){
   var frame=document.getElementById('iv-frame');
   var src=AGENT.introVideo; if(!src) return;
@@ -510,126 +378,73 @@ function playIntro(){
   } else if(/cloudflarestream\.com/.test(src)){
     var sep = src.indexOf('?')>=0 ? '&' : '?';
     embed='<iframe src="'+src+sep+'autoplay=true" allow="autoplay; fullscreen" allowfullscreen></iframe>';
-  } else {
-    embed='<video src="'+src+'" controls autoplay playsinline></video>';
-  }
-  frame.innerHTML=embed;
-  frame.onclick=null;
+  } else { embed='<video src="'+src+'" controls autoplay playsinline></video>'; }
+  frame.innerHTML=embed; frame.onclick=null;
 }
 window.playIntro = playIntro;
 
-// ============ SAVE CONTACT (vCard) ============
 function saveContact(){
+  if(!AGENT.name) return;
   var names = AGENT.name.trim().split(' ');
-  var first = names.shift()||'';
-  var last = names.join(' ')||'';
-  var vcard = [
-    'BEGIN:VCARD','VERSION:3.0',
-    'N:'+last+';'+first+';;;',
-    'FN:'+AGENT.name,
-    'ORG:'+AGENT.brokerage,
-    'TITLE:'+AGENT.title,
-    'TEL;TYPE=CELL:'+AGENT.phone,
-    'EMAIL;TYPE=WORK:'+AGENT.email,
-    'URL:'+AGENT.cardUrl,
-    'END:VCARD'
-  ].join('\n');
-  var blob = new Blob([vcard], {type:'text/vcard'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href=url; a.download=(first+'_'+last).replace(/\s+/g,'')+'.vcf';
+  var first = names.shift()||''; var last = names.join(' ')||'';
+  var vcard = ['BEGIN:VCARD','VERSION:3.0','N:'+last+';'+first+';;;','FN:'+AGENT.name,'ORG:'+(AGENT.brokerage||''),'TITLE:'+(AGENT.title||''),'TEL;TYPE=CELL:'+(AGENT.phone||''),'EMAIL;TYPE=WORK:'+(AGENT.email||''),'URL:'+AGENT.cardUrl,'END:VCARD'].join('\n');
+  var blob = new Blob([vcard], {type:'text/vcard'}); var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url; a.download=(first+'_'+last).replace(/\s+/g,'')+'.vcf';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
-  var btn=document.getElementById('save-btn');
-  var old=btn.innerHTML;
-  btn.innerHTML='✓ Contact saved';
-  setTimeout(function(){ btn.innerHTML=old; }, 2200);
+  var btn=document.getElementById('save-btn'); var old=btn.innerHTML;
+  btn.innerHTML='\u2713 Contact saved'; setTimeout(function(){ btn.innerHTML=old; }, 2200);
 }
 
-// ============ QR ============
 var qrBuilt=false;
 function toggleQR(){
-  var panel=document.getElementById('qr-panel');
-  var txt=document.getElementById('qr-toggle-text');
-  var open=panel.classList.toggle('open');
-  txt.textContent = open ? 'Hide QR code' : 'Show QR code';
+  var panel=document.getElementById('qr-panel'); var txt=document.getElementById('qr-toggle-text');
+  var open=panel.classList.toggle('open'); txt.textContent = open ? 'Hide QR code' : 'Show QR code';
   if(open && !qrBuilt){
-    new QRCode(document.getElementById('qrcode'), {
-      text: AGENT.cardUrl, width:170, height:170,
+    new QRCode(document.getElementById('qrcode'), { text: AGENT.cardUrl, width:170, height:170,
       colorDark: getComputedStyle(document.documentElement).getPropertyValue('--accent-deep').trim()||'#14704F',
-      colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M
-    });
+      colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
     qrBuilt=true;
   }
 }
 
-// ============ REVERSE CAPTURE → NestTrack ============
 function shareInfo(){
   var name=document.getElementById('cap-name').value.trim();
   var phone=document.getElementById('cap-phone').value.trim();
   var email=document.getElementById('cap-email').value.trim();
   if(!name || (!phone && !email)){ alert('Please add your name and a phone or email.'); return; }
-  var btn=document.getElementById('cap-submit');
-  btn.disabled=true; btn.textContent='Sending…';
+  var btn=document.getElementById('cap-submit'); btn.disabled=true; btn.textContent='Sending\u2026';
   var parts=name.split(' ');
-  var payload={
-    firstName: parts.shift()||'',
-    lastName: parts.join(' ')||'',
-    phone: phone, email: email,
-    agentId: (AGENT.agentId||'tom'),
-    source: 'Digital Business Card',
+  var payload={ firstName: parts.shift()||'', lastName: parts.join(' ')||'', phone: phone, email: email,
+    agentId: (AGENT.agentId||''), source: 'Digital Business Card',
     notes: 'Shared their info from '+(AGENT.name||'agent')+"'s digital business card.",
-    leadStatus: 'pipeline',
-    leadSegment: 'Card Leads'
-  };
-  function done(){
-    document.getElementById('cap-form-wrap').style.display='none';
-    document.getElementById('cap-done').classList.add('show');
-  }
-  // In demo mode (no live agent), just simulate success.
+    leadStatus: 'pipeline', leadSegment: 'Card Leads' };
+  function done(){ document.getElementById('cap-form-wrap').style.display='none'; document.getElementById('cap-done').classList.add('show'); }
   if(!CARD_ID){ setTimeout(done, 600); return; }
   fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'inbound-lead'},body:JSON.stringify(payload)})
-    .then(function(r){ return r.json().catch(function(){return{};}); })
-    .then(done)
-    .catch(function(){ btn.disabled=false; btn.textContent='Send it to '+((AGENT.name||'').split(' ')[0]||'me')+' →'; alert('Something went wrong — please try again.'); });
+    .then(function(r){ return r.json().catch(function(){return{};}); }).then(done)
+    .catch(function(){ btn.disabled=false; btn.textContent=(AGENT.name?('Send it to '+((AGENT.name||'').split(' ')[0]||'me')+' \u2192'):'Send \u2192'); alert('Something went wrong \u2014 please try again.'); });
 }
 
-// ============ scroll reveals ============
 function initReveals(){
-  var io=new IntersectionObserver(function(es){
-    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
-  }, {threshold:0.12});
+  var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, {threshold:0.12});
   document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
-  // hero block visible immediately
-  setTimeout(function(){ document.querySelector('.save-block').classList.add('in'); }, 120);
+  setTimeout(function(){ var sb=document.querySelector('.save-block'); if(sb) sb.classList.add('in'); }, 120);
 }
 
-// ============ review carousel dots + gentle auto-advance ============
 function initReviewRail(){
-  var rail=document.getElementById('rev-rail');
-  var dots=document.getElementById('rev-dots').children;
+  var rail=document.getElementById('rev-rail'); var dots=document.getElementById('rev-dots').children;
   if(!rail || !dots.length) return;
-  function activeIndex(){
-    var cards=rail.children; var mid=rail.scrollLeft + rail.clientWidth/2;
-    var best=0,bd=1e9;
-    for(var i=0;i<cards.length;i++){ var c=cards[i]; var center=c.offsetLeft+c.offsetWidth/2; var d=Math.abs(center-mid); if(d<bd){bd=d;best=i;} }
-    return best;
-  }
+  function activeIndex(){ var cards=rail.children; var mid=rail.scrollLeft + rail.clientWidth/2; var best=0,bd=1e9;
+    for(var i=0;i<cards.length;i++){ var c=cards[i]; var center=c.offsetLeft+c.offsetWidth/2; var d=Math.abs(center-mid); if(d<bd){bd=d;best=i;} } return best; }
   function syncDots(){ var a=activeIndex(); for(var i=0;i<dots.length;i++) dots[i].classList.toggle('on',i===a); }
   rail.addEventListener('scroll', function(){ window.requestAnimationFrame(syncDots); });
-  // gentle auto-advance (pauses on user interaction)
   var paused=false, idx=0;
-  rail.addEventListener('touchstart',function(){paused=true;});
-  rail.addEventListener('mousedown',function(){paused=true;});
-  setInterval(function(){
-    if(paused) return;
-    var cards=rail.children; if(!cards.length) return;
-    idx=(idx+1)%cards.length;
-    rail.scrollTo({left:cards[idx].offsetLeft - (rail.clientWidth-cards[idx].offsetWidth)/2, behavior:'smooth'});
-  }, 4200);
+  rail.addEventListener('touchstart',function(){paused=true;}); rail.addEventListener('mousedown',function(){paused=true;});
+  setInterval(function(){ if(paused) return; var cards=rail.children; if(!cards.length) return; idx=(idx+1)%cards.length;
+    rail.scrollTo({left:cards[idx].offsetLeft - (rail.clientWidth-cards[idx].offsetWidth)/2, behavior:'smooth'}); }, 4200);
 }
 
-// ============ LIVE LOAD from Firestore (card_config/{agentId}) ============
 function fsVal(v){
   if(!v) return '';
   if(v.stringValue!==undefined) return v.stringValue;
@@ -648,55 +463,22 @@ function fsDoc(id, collection){
   }).catch(function(){ return null; });
 }
 
-// Map a card_config Firestore doc into the AGENT shape the card renders.
 function mapConfigToAgent(c){
-  var a = {
-    name: c.name || '',
-    title: c.title || '',
-    brokerage: c.brokerage || '',
-    brokerLogo: c.brokerLogo || '',
-    photo: c.photo || '',
-    tagline: c.tagline || '',
-    accent: c.accent || '#1D9E75',
-    phone: c.phone || '',
-    email: c.email || '',
-    cardUrl: location.href,
-    leadToken: c.leadToken || '',
-    agentId: CARD_ID,
-    introVideo: c.introVideo || '',
-    introVideoPoster: c.introVideoPoster || '',
-    socials: {
-      instagram: c.instagram || '',
-      facebook: c.facebook || '',
-      tiktok: c.tiktok || '',
-      youtube: c.youtube || '',
-      linkedin: c.linkedin || ''
-    },
-    reviews: {
-      avg: c.reviewsAvg || '',
-      count: c.reviewsCount || '',
-      zillowLink: c.zillowLink || '',
-      googleLink: c.googleLink || '',
-      items: Array.isArray(c.reviews) ? c.reviews.map(function(r){
-        return { quote:(r&&r.quote)||'', name:(r&&r.name)||'', meta:(r&&r.meta)||'' };
-      }).filter(function(r){ return r.quote; }) : []
-    },
-    showListings: c.showListings !== false,
-    listings: []   // listings loaded separately below
+  return {
+    name: c.name || '', title: c.title || '', brokerage: c.brokerage || '', brokerLogo: c.brokerLogo || '',
+    photo: c.photo || '', tagline: c.tagline || '', accent: c.accent || '#1D9E75',
+    phone: c.phone || '', email: c.email || '', cardUrl: location.href, leadToken: c.leadToken || '', agentId: CARD_ID,
+    introVideo: c.introVideo || '', introVideoPoster: c.introVideoPoster || '',
+    socials: { instagram: c.instagram || '', facebook: c.facebook || '', tiktok: c.tiktok || '', youtube: c.youtube || '', linkedin: c.linkedin || '' },
+    reviews: { avg: c.reviewsAvg || '', count: c.reviewsCount || '', zillowLink: c.zillowLink || '', googleLink: c.googleLink || '',
+      items: Array.isArray(c.reviews) ? c.reviews.map(function(r){ return { quote:(r&&r.quote)||'', name:(r&&r.name)||'', meta:(r&&r.meta)||'' }; }).filter(function(r){ return r.quote; }) : [] },
+    showListings: c.showListings !== false, listings: []
   };
-  return a;
 }
 
-// Pull this agent's up-to-5 most recent listing pages.
 function loadAgentListings(agentId){
-  // Firestore REST: query listing_pages where agentId == X.
-  // No orderBy (avoids needing a composite index) — we sort + cap in JS.
   var url='https://firestore.googleapis.com/v1/projects/'+FB_PROJECT+'/databases/(default)/documents:runQuery?key='+FB_KEY;
-  var body={ structuredQuery:{
-    from:[{collectionId:'listing_pages'}],
-    where:{ fieldFilter:{ field:{fieldPath:'agentId'}, op:'EQUAL', value:{stringValue:agentId} } },
-    limit:25
-  }};
+  var body={ structuredQuery:{ from:[{collectionId:'listing_pages'}], where:{ fieldFilter:{ field:{fieldPath:'agentId'}, op:'EQUAL', value:{stringValue:agentId} } }, limit:25 }};
   return fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){ return r.ok?r.json():[]; })
     .then(function(rows){
@@ -706,53 +488,44 @@ function loadAgentListings(agentId){
         var photos = Array.isArray(c.photos)?c.photos:[];
         var beds=[]; if(c.beds)beds.push(c.beds+' bd'); if(c.baths)beds.push(c.baths+' ba'); if(c.sqft)beds.push((''+c.sqft).replace(/^(\d+)$/,'$1')+' sqft');
         var lid = x.document.name.split('/').pop();
-        return {
-          img: c.mainPhoto || photos[0] || '',
-          price: c.price ? ('$'+parseInt(c.price,10).toLocaleString('en-US')) : (c.priceText||c.price||''),
-          addr: c.address || '',
-          beds: beds.join(' · '),
-          url: 'listing.html?id='+lid,
-          _sort: Number(c.updatedAt)||0
-        };
+        return { img: c.mainPhoto || photos[0] || '', price: c.price ? ('$'+parseInt(c.price,10).toLocaleString('en-US')) : (c.priceText||c.price||''),
+          addr: c.address || '', beds: beds.join(' \u00B7 '), url: 'listing.html?id='+lid, _sort: Number(c.updatedAt)||0 };
       });
-      // most recent first, cap 5
       items.sort(function(a,b){ return b._sort - a._sort; });
       return items.slice(0,5);
     }).catch(function(){ return []; });
 }
 
 function bootCard(){
+  // A blank agent — used when a real ?id= was given but data didn't load.
+  // We NEVER fall back to demo/Tom data for a real card; empty stays empty.
+  var EMPTY_AGENT = {
+    name:'', title:'', brokerage:'', brokerLogo:'', photo:'', tagline:'', accent:'#1D9E75',
+    phone:'', email:'', cardUrl:location.href, leadToken:'', agentId:CARD_ID||'',
+    introVideo:'', introVideoPoster:'',
+    socials:{instagram:'',facebook:'',tiktok:'',youtube:'',linkedin:''},
+    reviews:{avg:'',count:'',zillowLink:'',googleLink:'',items:[]},
+    showListings:true, listings:[]
+  };
   try {
     if(!CARD_ID){
-      AGENT = DEMO_AGENT;
-      render(); initReveals(); initReviewRail();
-      return;
+      AGENT = DEMO_AGENT; render(); initReveals(); initReviewRail(); return;
     }
     fsDoc(CARD_ID, 'card_config').then(function(cfg){
       try {
-        if(!cfg){ AGENT = DEMO_AGENT; }
-        else { AGENT = mapConfigToAgent(cfg); }
+        if(!cfg){ AGENT = EMPTY_AGENT; } else { AGENT = mapConfigToAgent(cfg); }
         render(); initReveals(); initReviewRail();
         if(AGENT.showListings){
-          loadAgentListings(CARD_ID).then(function(ls){
-            AGENT.listings = ls||[]; renderListings();
-          }).catch(function(){});
+          loadAgentListings(CARD_ID).then(function(ls){ AGENT.listings = ls||[]; renderListings(); }).catch(function(){});
         }
-      } catch(e){ try{ AGENT=DEMO_AGENT; render(); }catch(_){} }
+      } catch(e){ try{ AGENT=EMPTY_AGENT; render(); }catch(_){} }
     }).catch(function(){
-      try{ AGENT=DEMO_AGENT; render(); initReveals(); initReviewRail(); }catch(_){}
+      try{ AGENT=EMPTY_AGENT; render(); initReveals(); initReviewRail(); }catch(_){}
     });
-  } catch(e){
-    try{ AGENT=DEMO_AGENT; render(); }catch(_){}
-  }
+  } catch(e){ try{ AGENT=EMPTY_AGENT; render(); }catch(_){} }
 }
 
-if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded', bootCard);
-} else {
-  bootCard();
-}
-// Absolute safety net: never leave the card invisible.
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', bootCard); } else { bootCard(); }
 setTimeout(function(){ var s=document.getElementById('card-shell'); if(s && s.style.opacity!=='1') s.style.opacity='1'; }, 2500);
 </script>
 </body>
