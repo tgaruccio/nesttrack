@@ -3966,7 +3966,7 @@ const DEFAULT_AGENTS = [
 ];
 
 const DEFAULT_LENDERS = [
-  {id:'tom',name:'Tom Garuccio',role:'Licensed Mortgage Professional',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',applyLink:'https://1660690.my1003app.com/2784866/register',isDefault:true},
+  {id:'tom',name:'Tom Garuccio',role:'Licensed Mortgage Professional',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',applyLink:'https://1660690.my1003app.com/2784866/register',teamId:'tom',isDefault:true},
 ];
 
 async function loadTeamLenders() {
@@ -4433,7 +4433,21 @@ async function loadUserProfile() {
       if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; userProfile.teamRole = agentTeamRole(ag); userProfile.teamId = agentTeamId(ag); }
       else { isAgent = userProfile.role === 'agent'; }
       // Check lender role (can overlap with agent)
-      const lg = DEFAULT_LENDERS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
+      // The email-match below promotes a user to "lender" when their email matches a
+      // lender record. That match must only fire when the record genuinely belongs to
+      // this user — otherwise a shared/reused email (e.g. a demo account) wrongly promotes
+      // a team leader to lender and their profile-save overwrites that lender's doc.
+      // Real lenders are set up with role==='lender' (handled by the else-if) so this
+      // email-match is only a fallback; we require the matched record to tie to the user's
+      // own team or pre-existing lenderId before trusting it.
+      var _emailLender = DEFAULT_LENDERS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
+      var _myTeam = (userProfile.teamId || userProfile.agentId) || '';
+      var _matchBelongsToMe = _emailLender && (
+        userProfile.role === 'lender' ||                                   // already a lender
+        (userProfile.lenderId && userProfile.lenderId === _emailLender.id) || // already linked to this lender id
+        (_emailLender.teamId && _emailLender.teamId === _myTeam)            // the lender record is on my own team
+      );
+      const lg = _matchBelongsToMe ? _emailLender : null;
       if (lg) { isLender = true; userProfile.lenderId = lg.id; }
       else if (userProfile.role === 'lender') { isLender = true; }
       // Find assigned agent
