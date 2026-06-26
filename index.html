@@ -4571,6 +4571,15 @@ function dtPrefillLabel(k){
 
 // Templates live at the team-lead level: agents/{agentId}/docTemplates/{id}
 function dtAgentId(){ return (userProfile && userProfile.agentId) || ''; }
+// The sending agent's OWN brokerage — used in client-facing emails/messages.
+// Never hardcoded to one team; blank if the agent hasn't set it.
+function _agentBrokerage(){ return (userProfile && userProfile.brokerage) || (assignedAgent && assignedAgent.brokerage) || ''; }
+window._agentBrokerage = _agentBrokerage;
+// The person SENDING an invite (the logged-in team leader/owner) — for invite emails.
+// Never hardcoded; each inviter's own info appears in the invites they send.
+function _inviterName(){ return (((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim() || (userProfile&&userProfile.name) || ''; }
+function _inviterEmail(){ return (userProfile && userProfile.email) || (fb.auth.currentUser && fb.auth.currentUser.email) || ''; }
+window._inviterName = _inviterName; window._inviterEmail = _inviterEmail;
 // Effective team a person's shared content belongs to:
 //  owner/leader -> themselves; member -> their leader (teamId). For Tom this is always 'tom'.
 function agentTeamRole(ag){ if(!ag) return 'member'; if(ag.teamRole) return ag.teamRole; if(ag.id==='tom') return 'owner'; if(ag.isAdmin) return 'leader'; return 'member'; }
@@ -7485,7 +7494,7 @@ function renderYourLender() {
     '<div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">'
     + photo
     + '<div style="flex:1;min-width:220px;">'
-    + '<div style="font-family:Fraunces,serif;font-size:22px;font-weight:300;letter-spacing:-.4px;">'+(l.name||'Tom Garuccio')+'</div>'
+    + '<div style="font-family:Fraunces,serif;font-size:22px;font-weight:300;letter-spacing:-.4px;">'+(l.name|| '')+'</div>'
     + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+(l.role||'Licensed Mortgage Professional')+'</div>'
     + '<div style="font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px;">'+(l.bio||'Your lender works alongside your agent to guide you through the financing side — pre-approval, loan application, rate lock, and clear to close.')+'</div>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">'
@@ -9073,7 +9082,7 @@ async function sendStepEmail(uid, stepNum, type, pushInfo) {
     if (!client.email) return;
     var first = client.firstName || 'there';
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
-    var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+    var agentName = agentObj ? agentObj.name : '';
     var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : type === 'mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
     var hardcoded = emailMap[stepNum];
     if (!hardcoded) return;
@@ -9213,7 +9222,7 @@ async function sendContractDatesEmail(uid, type, dates) {
     if (!client.email) return;
     var first = client.firstName || 'there';
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
-    var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+    var agentName = agentObj ? agentObj.name : '';
     var isSeller = type === 'seller';
     var isMortgage = type === 'mortgage';
     var fields = isSeller ? SELLER_CONTRACT_FIELDS : isMortgage ? MORTGAGE_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
@@ -9252,7 +9261,7 @@ async function showUnderContractEmailPreview(uid, dates, type) {
   if (!buyer) return;
   var first = buyer.firstName || 'there';
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.agentId; });
-  var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+  var agentName = agentObj ? agentObj.name : '';
   var googleReviewUrl = userProfile.googleReviewUrl || userProfile.apGoogleReview || '';
   var isSeller = type === 'seller';
 
@@ -9342,7 +9351,7 @@ async function emailNetSheet() {
       for (var ci = 0; ci < allClients.length; ci++) {
         var bc = allClients[ci];
         try {
-          var agentName = (assignedAgent && assignedAgent.name) || 'Tom Garuccio';
+          var agentName = (assignedAgent && assignedAgent.name) || '';
           var breakdown = document.getElementById('ns-breakdown');
           var rows = '';
           if (breakdown) {
@@ -9380,7 +9389,7 @@ async function emailNetSheet() {
     });
   }
 
-  var agentName = (assignedAgent && assignedAgent.name) || 'Tom Garuccio';
+  var agentName = (assignedAgent && assignedAgent.name) || '';
   var html = '<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a;">'
     + '<div style="background:#D97706;padding:24px 28px;border-radius:10px 10px 0 0;">'
     + '<div style="font-size:22px;font-weight:300;color:#fff;">Net Sheet Estimate</div>'
@@ -9771,9 +9780,9 @@ function partnerActionButtons(p) {
   const buttons = [];
   if (phone) {
     buttons.push(`<a class="btn btn-sm" href="tel:${phone}">☎ Call</a>`);
-    buttons.push(`<a class="btn btn-sm" href="sms:${phone}?&body=${encodeURIComponent('Hi '+(p.name||'')+', I was referred through The Garuccio Group preferred partner list.')}">💬 Text</a>`);
+    buttons.push(`<a class="btn btn-sm" href="sms:${phone}?&body=${encodeURIComponent('Hi '+(p.name||'')+', I was referred through '+(_agentBrokerage()||'my agent')+' preferred partner list.')}">💬 Text</a>`);
   }
-  if (p.email) buttons.push(`<a class="btn btn-sm" href="mailto:${partnerEsc(p.email)}?subject=${encodeURIComponent('Referral from The Garuccio Group')}">✉️ Email</a>`);
+  if (p.email) buttons.push(`<a class="btn btn-sm" href="mailto:${partnerEsc(p.email)}?subject=${encodeURIComponent('Referral from '+(_agentBrokerage()||'my agent')+'')}">✉️ Email</a>`);
   if (p.web) {
     const web = /^https?:\/\//i.test(p.web) ? p.web : 'https://' + p.web;
     buttons.push(`<a class="btn btn-sm" href="${partnerEsc(web)}" target="_blank" rel="noopener">🌐 Site</a>`);
@@ -10343,7 +10352,7 @@ async function sendReferrals() {
   var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
     +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
     +'<div style="font-size:22px;font-weight:300;color:#fff;">Referral Recommendations</div>'
-    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">From '+agentName+' - The Garuccio Group</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">From '+agentName+(_agentBrokerage()?' - '+_agentBrokerage():'')+'</div>'
     +'</div>'
     +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+clientFirst+',</p>'
@@ -10354,7 +10363,7 @@ async function sendReferrals() {
     +'</div>'
     +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:18px 0 14px;"/>'
     +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
-    +'<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
+    +'<div style="font-size:12px;color:#888;">'+partnerEsc(_agentBrokerage())+'</div>'
     +'</div></div>';
   var btn = document.getElementById('ref-next-btn');
   if (btn) btn.disabled = true;
@@ -10937,7 +10946,7 @@ async function emailMortCalc() {
   if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
   var result = document.getElementById('mort-result');
   if (!result || result.style.display === 'none') { alert('Calculate a payment first.'); return; }
-  var agentName = ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || 'Tom Garuccio';
+  var agentName = ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || '';
   var price = (document.getElementById('mort-price')||{}).value || '';
   var down = (document.getElementById('mort-down')||{}).value || '';
   var rate = (document.getElementById('mort-rate')||{}).value || '';
@@ -13869,7 +13878,7 @@ async function sendPreApprovalEmail() {
   var toEmail = csdGetEmail('pa-client-search') || (manual && manual.value.trim());
   if (!toEmail) { alert('Please select a client or enter an email address.'); return; }
   var note = noteEl ? noteEl.value.trim() : '';
-  var agentName = ((userProfile&&userProfile.firstName||'') + ' ' + (userProfile&&userProfile.lastName||'')).trim() || 'Tom Garuccio';
+  var agentName = ((userProfile&&userProfile.firstName||'') + ' ' + (userProfile&&userProfile.lastName||'')).trim() || '';
   var PREAPPROVAL_LINK = agentPreApproval();
   var html = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
     + '<div style="background:#1D9E75;padding:24px 28px;border-radius:10px 10px 0 0;">'
@@ -13881,7 +13890,7 @@ async function sendPreApprovalEmail() {
     + (PREAPPROVAL_LINK ? '<div style="text-align:center;margin:24px 0;"><a href="'+PREAPPROVAL_LINK+'" style="background:#1D9E75;color:#fff;padding:14px 32px;border-radius:25px;font-size:16px;text-decoration:none;display:inline-block;font-weight:500;">Start My Pre-Approval →</a></div>' : '')
     + '<p style="font-size:13px;color:#888;text-align:center;">Questions? Reply to this email'+(agentBrandPhone()?' or call '+agentName+' directly at '+agentBrandPhone():'')+'.</p>'
     + '<hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;"/>'
-    + '<p style="font-size:12px;color:#888;margin:0;">Sent by '+agentName+' · The Garuccio Group</p>'
+    + '<p style="font-size:12px;color:#888;margin:0;">Sent by '+agentName+(_agentBrokerage()?' · '+_agentBrokerage():'')+'</p>'
     + '</div></div>';
   showEmailPreview(toEmail, 'Get Pre-Approved — Start Your Home Journey', html, async function(finalHtml, ccValue) {
     try {
@@ -14686,7 +14695,7 @@ async function setBuyerAgent(uid) {
       + '</div>'
       + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Log in to Nest Track to view their full profile and pick up where they left off.</p>';
     var subject = 'You\'ve been assigned ' + clientName + ' on Nest Track';
-    var emailHtml = nsEmailWrap(userProfile && userProfile.name || 'Tom Garuccio', subject, bodyHtml, userProfile);
+    var emailHtml = nsEmailWrap(userProfile && userProfile.name || '', subject, bodyHtml, userProfile);
     showEmailPreview(agentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         await fetch(PROXY_URL, {
@@ -14734,7 +14743,7 @@ async function setCoAgent(uid) {
       + '</div>'
       + '<p style="font-size:14px;color:#444;line-height:1.7;margin:0;">Log in to Nest Track to view their full profile.</p>';
     var subject = 'You\'ve been added as co-agent for ' + clientName + ' on Nest Track';
-    var emailHtml = nsEmailWrap(userProfile && userProfile.name || 'Tom Garuccio', subject, bodyHtml, userProfile);
+    var emailHtml = nsEmailWrap(userProfile && userProfile.name || '', subject, bodyHtml, userProfile);
     showEmailPreview(coAgentObj.email, subject, emailHtml, async function(finalHtml, ccValue) {
       try {
         var payload = { to: coAgentObj.email, subject: subject, html: finalHtml || emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
@@ -14778,9 +14787,9 @@ async function agentChatWith(uid) {
   // Open direct SMS to buyer
   const phone = (b.phone||'').replace(/\D/g,'');
   if (phone) {
-    window.open(`sms:${phone}?body=${encodeURIComponent(`Hi ${b.firstName}, this is ${userProfile.firstName} from The Garuccio Group!`)}`, '_blank');
+    window.open(`sms:${phone}?body=${encodeURIComponent(`Hi ${b.firstName}, this is ${userProfile.firstName}${_agentBrokerage()?' from '+_agentBrokerage():''}!`)}`, '_blank');
   } else {
-    window.open(`mailto:${b.email}?subject=The Garuccio Group&body=Hi ${b.firstName}, this is ${userProfile.firstName} from The Garuccio Group!`, '_blank');
+    window.open(`mailto:${b.email}?subject=${encodeURIComponent(_agentBrokerage()||'Hello')}&body=${encodeURIComponent(`Hi ${b.firstName}, this is ${userProfile.firstName}${_agentBrokerage()?' from '+_agentBrokerage():''}!`)}`, '_blank');
   }
 }
 async function aiBuyerSummary(uid) {
@@ -15387,7 +15396,7 @@ async function createInvite() {
   var code = Math.random().toString(36).substring(2,8).toUpperCase();
   var link = _inviteLink('invite', code, email, ((first||'')+' '+(last||'')).trim());
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === agentId; });
-  var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+  var agentName = agentObj ? agentObj.name : '';
 
   var inviteData = {
     firstName: first, lastName: last, email: email, phone: phone,
@@ -15447,7 +15456,7 @@ async function createInvite() {
     var emailHtml = '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;">'
       + '<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
       + '<div style="font-size:22px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
-      + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">The Garuccio Group — Your Personal Real Estate Portal</div>'
+      + '<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">'+(_agentBrokerage()?_agentBrokerage()+' · ':'')+'Your Personal Real Estate Portal</div>'
       + '</div>'
       + '<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
       + '<p style="font-size:17px;font-weight:300;margin:0 0 10px;">Hi ' + first + ',</p>'
@@ -15460,7 +15469,7 @@ async function createInvite() {
       + _inviteAppDownloadBlock()
       + '<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 14px;"/>'
       + '<div style="font-size:14px;font-weight:600;color:#1a1a1a;">' + agentName + '</div>'
-      + '<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
+      + '<div style="font-size:12px;color:#888;">'+partnerEsc(_agentBrokerage())+'</div>'
       + (agentPhone ? '<div style="font-size:13px;color:#555;margin-top:2px;">📞 ' + agentPhone + '</div>' : '')
       + (agentEmail ? '<div style="font-size:13px;color:#1D9E75;">' + agentEmail + '</div>' : '')
       + '</div></div>'
@@ -15498,7 +15507,7 @@ async function resendInvite(uid) {
   var link = _inviteLink('invite', code, buyer.email, ((buyer.firstName||'')+' '+(buyer.lastName||'')).trim());
   var first = buyer.firstName || 'there';
   var agentEntry = DEFAULT_AGENTS.find(function(a){ return a.id === buyer.agentId; });
-  var agentName = agentEntry ? agentEntry.name : 'Tom Garuccio';
+  var agentName = agentEntry ? agentEntry.name : '';
   var agentPhone = agentEntry ? (agentEntry.phone||'') : '';
   var agentEmail = agentEntry ? (agentEntry.email||'') : '';
   var subjectLine = first + ', a reminder: your real estate portal is waiting for you';
@@ -15645,13 +15654,13 @@ async function addLenderAndInvite() {
     +'</div>'
     +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
-    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join Nest Track as a mortgage professional by Tom Garuccio. Track your mortgage clients through every step of their journey, stay in sync with agents, and keep everyone updated automatically.</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join Nest Track as a mortgage professional'+(_inviterName()?' by '+_inviterName():'')+'. Track your mortgage clients through every step of their journey, stay in sync with agents, and keep everyone updated automatically.</p>'
     +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account.</p>'
     +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#185FA5;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Lender Account →</a></div>'
     +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
     +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 16px;"/>'
-    +'<div style="font-size:14px;font-weight:600;">Tom Garuccio</div>'
-    +'<div style="font-size:12px;color:#888;">The Garuccio Group · Tom@GaruccioGroup.com</div>'
+    +'<div style="font-size:14px;font-weight:600;">'+_inviterName()+'</div>'
+    +'<div style="font-size:12px;color:#888;">'+_agentBrokerage()+(_agentBrokerage()&&_inviterEmail()?' · ':'')+_inviterEmail()+'</div>'
     +'</div></div>';
 
   var subject = first + ', your Nest Track lender account is ready';
@@ -16172,17 +16181,17 @@ async function sendAgentInvite() {
     var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
       +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
       +'<div style="font-size:24px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
-      +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">The Garuccio Group — Agent Platform</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">'+(_agentBrokerage()?_agentBrokerage()+' · ':'')+'Agent Platform</div>'
       +'</div>'
       +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
       +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
-      +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join the Nest Track agent platform by Tom Garuccio. Nest Track is your all-in-one client management system — buyer and seller journey tracking, deal management, messaging, showings, and more.</p>'
+      +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join the Nest Track agent platform'+(_inviterName()?' by '+_inviterName():'')+'. Nest Track is your all-in-one client management system — buyer and seller journey tracking, deal management, messaging, showings, and more.</p>'
       +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account and watch a quick walkthrough of the platform.</p>'
       +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Agent Account →</a></div>'
       +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
       +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 16px;"/>'
-      +'<div style="font-size:14px;font-weight:600;">Tom Garuccio</div>'
-      +'<div style="font-size:12px;color:#888;">The Garuccio Group</div>'
+      +'<div style="font-size:14px;font-weight:600;">'+_inviterName()+'</div>'
+      +'<div style="font-size:12px;color:#888;">'+partnerEsc(_agentBrokerage())+'</div>'
       +'<div style="font-size:13px;color:#1D9E75;">Tom@GaruccioGroup.com</div>'
       +'</div></div>';
     await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
@@ -16309,17 +16318,17 @@ async function addAgentAndInvite() {
   var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
     +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
     +'<div style="font-size:24px;font-weight:300;color:#fff;letter-spacing:-0.4px;">Nest Track</div>'
-    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">The Garuccio Group — Agent Platform</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">'+(_agentBrokerage()?_agentBrokerage()+' · ':'')+'Agent Platform</div>'
     +'</div>'
     +'<div style="background:#fff;padding:28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     +'<p style="font-size:18px;font-weight:300;margin:0 0 12px;">Hi '+first+',</p>'
-    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join the Nest Track agent platform by Tom Garuccio. Nest Track is your all-in-one client management system — buyer and seller journey tracking, deal management, messaging, showings, and more.</p>'
+    +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;">You\'ve been invited to join the Nest Track agent platform'+(_inviterName()?' by '+_inviterName():'')+'. Nest Track is your all-in-one client management system — buyer and seller journey tracking, deal management, messaging, showings, and more.</p>'
     +'<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;">Click below to set up your account.</p>'
     +'<div style="text-align:center;margin:24px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:14px 36px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Set Up My Agent Account →</a></div>'
     +'<p style="font-size:11px;color:#bbb;text-align:center;margin:0 0 20px;word-break:break-all;">Or copy: '+link+'</p>'
     +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 16px;"/>'
-    +'<div style="font-size:14px;font-weight:600;">Tom Garuccio</div>'
-    +'<div style="font-size:12px;color:#888;">The Garuccio Group · Tom@GaruccioGroup.com</div>'
+    +'<div style="font-size:14px;font-weight:600;">'+_inviterName()+'</div>'
+    +'<div style="font-size:12px;color:#888;">'+_agentBrokerage()+(_agentBrokerage()&&_inviterEmail()?' · ':'')+_inviterEmail()+'</div>'
     +'</div></div>';
 
   var subject = first + ', your Nest Track agent account is ready';
@@ -20441,7 +20450,7 @@ async function saveAppt() {
   var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
     +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
     +'<div style="font-size:22px;font-weight:300;color:#fff;">'+emoji+' Appointment Confirmed</div>'
-    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Nest Track · The Garuccio Group</div>'
+    +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Nest Track'+(_agentBrokerage()?' · '+_agentBrokerage():'')+'</div>'
     +'</div>'
     +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
     +'<p style="font-size:15px;font-weight:300;margin:0 0 16px;">Hi '+partnerEsc(clientFirst)+',</p>'
@@ -22379,7 +22388,7 @@ function showOHFlyer(l, w) {
     + agentPhotoHtml
     + '<div>'
     + '<div class="agent-name">'+agentName+'</div>'
-    + '<div class="agent-role">Real Brokerage &middot; The Garuccio Group</div>'
+    + '<div class="agent-role">'+(_agentBrokerage()||'')+'</div>'
     + '<div class="agent-contact">'+agentPhone+(agentPhone&&agentEmail?' &middot; ':'')+agentEmail+'</div>'
     + '</div></div>'
     + '<div class="nt-footer">Powered by Nest Track</div>'
@@ -28183,7 +28192,7 @@ async function sendPortalInvite() {
   var link = _inviteLink('invite', code, b.email, ((b.firstName||'')+' '+(b.lastName||'')).trim());
   var note = (document.getElementById('pi-note')||{}).value || '';
   var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === b.agentId; });
-  var agentName = agentObj ? agentObj.name : 'Tom Garuccio';
+  var agentName = agentObj ? agentObj.name : '';
   var first = b.firstName || 'there';
 
   var includeOnboarding = !!(document.getElementById('pi-onboarding') && document.getElementById('pi-onboarding').checked);
