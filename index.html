@@ -3770,8 +3770,15 @@ function A(str) {
     .replace(/\{agentFirst\}/g, agentFirstName())
     .replace(/\{agentPossessive\}/g, agentPossessive())
     .replace(/\{agentPhone\}/g, (typeof agentBrandPhone==='function' ? agentBrandPhone() : ''))
+    .replace(/\{lender\}/g, (typeof lenderBrandName==='function' ? lenderBrandName() : 'your lender'))
     .replace(/\{preApprovalLink\}/g, (typeof agentPreApproval==='function' ? agentPreApproval() : ''));
 }
+// Assigned lender's name for buyer-trail copy; "your lender" when none assigned.
+function lenderBrandName(){
+  var L = (typeof assignedLender !== 'undefined') ? assignedLender : null;
+  return (L && L.name) || 'your lender';
+}
+window.lenderBrandName = lenderBrandName;
 function updateAgentTokens(root) {
   root = root || document.body;
   if (!root) return;
@@ -3832,9 +3839,9 @@ const TIMELINE_STEPS = [
    videoId:'51ca13389c1942caa24ab33c7c327803'},
   {id:2,name:'Pre-Approval',short:'Pre-Approval',
    summary:'Before we look at homes, we get you pre-approved with a trusted lender. This tells you exactly what you can afford, makes your offers stronger, and removes surprises.',
-   bullets:['Connect with Tom directly — he is your licensed mortgage professional','Submit financial documents (W-2s, pay stubs, bank statements)','Receive your pre-approval letter — usually within 24-48 hours','Lock in a rate range so you can shop confidently','This step is FREE and doesn\'t obligate you to anything'],
+   bullets:['Connect with {lender} — your licensed mortgage professional','Submit financial documents (W-2s, pay stubs, bank statements)','Receive your pre-approval letter — usually within 24-48 hours','Lock in a rate range so you can shop confidently','This step is FREE and doesn\'t obligate you to anything'],
    actionLabel:'Get Pre-Approved Now',
-   actionUrl:'https://1660690.my1003app.com/2784866/register?time=1775863969580',
+   actionUrl:'{preApprovalLink}',
    videoId:null},
   {id:3,name:'Touring Homes',short:'Touring',
    summary:'The fun part! We tour homes that match your criteria. I help you see things others miss, point out potential issues, and keep you focused on your priorities.',
@@ -3965,10 +3972,9 @@ const DEFAULT_LENDERS = [
 async function loadTeamLenders() {
   try {
     var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
-    var _lendersSnapOwnerAll = (typeof isOwner==='function' && isOwner());
-    var snap = _lendersSnapOwnerAll
-      ? await fb.getDocs(fb.collection(fb.db, 'team_lenders'))
-      : await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
+    // Always scope to MY team's lenders — even for the owner. Seeing every team's
+    // lenders in the assignment dropdown is wrong (and surfaced cross-team records).
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
     snap.forEach(function(doc) {
       var l = doc.data();
       var idx = DEFAULT_LENDERS.findIndex(function(x){ return x.id === l.id; });
@@ -8110,8 +8116,9 @@ function openStep(id) {
 
   const loom = ''; // Videos removed
 
-  const actionBtn = s.actionUrl
-    ? `<a href="${s.actionUrl}" target="_blank" class="btn btn-g btn-w">${s.actionLabel} →</a>`
+  const _resolvedActionUrl = s.actionUrl ? A(s.actionUrl) : '';
+  const actionBtn = (s.actionUrl && _resolvedActionUrl)
+    ? `<a href="${_resolvedActionUrl}" target="_blank" class="btn btn-g btn-w">${s.actionLabel} →</a>`
     : s.actionPage
     ? `<button class="btn btn-g btn-w" onclick="go('${s.actionPage}',document.querySelector('[data-pg=${s.actionPage}]'));closeM('step-modal');">${s.actionLabel} →</button>`
     : '';
