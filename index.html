@@ -920,7 +920,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
   </div>
 
-  <a href="https://1660690.my1003app.com/2784866/register" id="mj-apply-hero" target="_blank" class="btn btn-g btn-w" style="font-size:15px;padding:13px;">Start My Pre-Approval →</a>
+  <a href="#" id="mj-apply-hero" target="_blank" class="btn btn-g btn-w" style="font-size:15px;padding:13px;">Start My Pre-Approval →</a>
 </div>
 
 <!-- IDX -->
@@ -1035,7 +1035,7 @@ textarea{resize:vertical;min-height:68px;}
       <div id="ns-net-sub" style="font-size:12px;opacity:0.85;"></div>
     </div>
     <div class="card" id="ns-breakdown" style="padding:0;overflow:hidden;"></div>
-    <div class="notice" style="background:#FEF3C7;color:#92400E;font-size:11.5px;">Title fees based on real Northeast Ohio closings. Tax proration estimated at 9 months. Your actual net will vary — contact Tom for a precise net sheet.</div>
+    <div class="notice" style="background:#FEF3C7;color:#92400E;font-size:11.5px;">Title fees based on real Northeast Ohio closings. Tax proration estimated at 9 months. Your actual net will vary — contact your agent for a precise net sheet.</div>
     <div class="card" style="display:flex;flex-direction:column;gap:10px;">
       <div style="font-size:13px;font-weight:500;">Email this Net Sheet</div>
       <div id="ns-client-wrap" style="display:none;flex-direction:column;gap:6px;">
@@ -1046,7 +1046,7 @@ textarea{resize:vertical;min-height:68px;}
       <button class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;" onclick="emailNetSheet()">📧 Send Net Sheet</button>
       <div id="ns-email-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;"></div>
     </div>
-    <a href="tel:4407547449" class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;font-size:14px;padding:13px;">📞 Get a Precise Net Sheet from Tom</a>
+    <a href="#" id="ns-contact-btn" class="btn" style="background:#D97706;color:#fff;border-color:#B45309;justify-content:center;font-size:14px;padding:13px;">📞 Get a Precise Net Sheet</a>
   </div>
 </div>
 
@@ -1255,10 +1255,10 @@ textarea{resize:vertical;min-height:68px;}
     </div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="mj-contact-blurb">Have a mortgage question? Tom can walk you through loan options, rates, and what you qualify for.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="mj-contact-btns">
-      <a href="tel:4407547449" id="mj-call" class="btn" style="justify-content:center;font-size:13px;">Call</a>
-      <a href="sms:4407547449" id="mj-text" class="btn" style="justify-content:center;font-size:13px;">Text</a>
+      <a href="#" id="mj-call" class="btn" style="justify-content:center;font-size:13px;">Call</a>
+      <a href="#" id="mj-text" class="btn" style="justify-content:center;font-size:13px;">Text</a>
       <a href="#" id="mj-email" class="btn" style="justify-content:center;font-size:13px;">Email</a>
-      <a href="https://1660690.my1003app.com/2784866/register" id="mj-apply" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
+      <a href="#" id="mj-apply" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
     </div>
   </div>
   <!-- Agent-only email section -->
@@ -1467,8 +1467,8 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Your link display -->
   <div class="card" style="display:flex;flex-direction:column;gap:10px;">
     <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.1em;color:var(--text3);">Your Pre-Approval Link</div>
-    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;color:var(--text2);word-break:break-all;font-family:monospace;">https://1660690.my1003app.com/2784866/register</div>
-    <button class="btn btn-sm" onclick="navigator.clipboard.writeText('https://1660690.my1003app.com/2784866/register').then(function(){ var b=document.getElementById('pa-copy-status'); b.style.display='block'; setTimeout(function(){ b.style.display='none'; },2000); })">📋 Copy Link</button>
+    <div style="background:var(--surface2);border-radius:var(--r-sm);padding:10px 14px;font-size:13px;color:var(--text2);word-break:break-all;font-family:monospace;" id="pa-link-display">—</div>
+    <button class="btn btn-sm" onclick="var _l=(typeof agentPreApproval==='function'?agentPreApproval():'');if(!_l)return;navigator.clipboard.writeText(_l).then(function(){ var b=document.getElementById('pa-copy-status'); b.style.display='block'; setTimeout(function(){ b.style.display='none'; },2000); })">📋 Copy Link</button>
     <div id="pa-copy-status" style="display:none;font-size:12px;color:var(--green-dk);font-weight:500;">✓ Copied to clipboard</div>
   </div>
 
@@ -7935,6 +7935,8 @@ function go(page, el) {
   }
   if (page === 'commute') { buildCommuteDropdown(); }
   if (page === 'agent-preapproval' && isAgent) {
+    var _paDisp = document.getElementById('pa-link-display');
+    if (_paDisp) { var _pal = (typeof agentPreApproval==='function' ? agentPreApproval() : ''); _paDisp.textContent = _pal || 'No pre-approval link set yet — add yours in your profile.'; }
     createClientSearchDropdown('pa-client-search', function(uid, email, name){
       var manualEl = document.getElementById('pa-manual-email'); if (manualEl) manualEl.value = '';
     }, 'Search clients...');
@@ -8520,6 +8522,14 @@ function _pctOr(val, def) {
 window._pctOr = _pctOr;
 
 function calcNetSheet() {
+  // Net-sheet contact button → assigned agent's phone (never hardcoded). Hide if none.
+  (function(){
+    var btn = document.getElementById('ns-contact-btn'); if(!btn) return;
+    var ag = (typeof currentAgent==='function') ? currentAgent() : null;
+    var ph = (ag && ag.phone) || '';
+    if(ph){ btn.href = 'tel:'+String(ph).replace(/[^0-9+]/g,''); btn.style.display=''; }
+    else { btn.style.display='none'; }
+  })();
   var price = parseFloat(document.getElementById('ns-price').value) || 0;
   var result = document.getElementById('ns-result');
   if (!price) { result.style.display = 'none'; return; }
@@ -8623,7 +8633,7 @@ function calcNetSheet() {
 window.calcNetSheet = calcNetSheet;
 
 // ─── CLIENT NOTIFICATION EMAILS ───
-var PREAPPROVAL_LINK = 'https://1660690.my1003app.com/2784866/register';
+var PREAPPROVAL_LINK = (typeof agentPreApproval==='function' ? agentPreApproval() : '');
 var APP_LINK = 'https://app.garucciogroup.com';
 
 function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
