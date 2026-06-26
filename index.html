@@ -8002,7 +8002,7 @@ function renderEducation() {
             <div style="font-size:11px;color:var(--text3);">Step ${i+1} of ${MJ_STEPS.length} · Tap to learn more →</div>
           </div>
         </div>
-        <div style="font-size:12.5px;color:var(--text2);line-height:1.65;">${s.body.substring(0,130)}${s.body.length>130?'…':''}</div>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.65;">${_mjResolve(s.body).substring(0,130)}${_mjResolve(s.body).length>130?'…':''}</div>
       </div>`).join('');
     return;
   }
@@ -8032,7 +8032,9 @@ function renderEducation() {
 window.renderEducation = renderEducation;
 
 function showMJStepEdu(i) {
-  const s = MJ_STEPS[i]; if (!s) return;
+  const s0 = MJ_STEPS[i]; if (!s0) return;
+  const s = { ...s0, body: _mjResolve(s0.body), tip: _mjResolve(s0.tip),
+    action: s0.action ? { ...s0.action, url: _mjResolve(s0.action.url), label: _mjResolve(s0.action.label) } : s0.action };
   const body = document.getElementById('step-modal-body'); if (!body) return;
   body.innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px;">
@@ -11057,7 +11059,9 @@ function showHomeSellerStep(i) {
 window.showHomeSellerStep = showHomeSellerStep;
 
 function showHomeMJStep(i) {
-  var s = MJ_STEPS[i]; if (!s) return;
+  var s0 = MJ_STEPS[i]; if (!s0) return;
+  var s = Object.assign({}, s0, { body: _mjResolve(s0.body), tip: _mjResolve(s0.tip),
+    action: s0.action ? Object.assign({}, s0.action, { url: _mjResolve(s0.action.url), label: _mjResolve(s0.action.label) }) : s0.action });
   ['home-buyer-popup','home-sell-popup'].forEach(function(pid){ var p=document.getElementById(pid); if(p) p.style.display='none'; });
   var acts = '';
   if (s.action) {
@@ -17238,42 +17242,56 @@ const SELLER_STEPS = [
     action:{label:'Net Sheet Calculator', page:'netsheet'} },
 ];
 
+// Resolve mortgage-step tokens to the assigned lender (or generic if none).
+// {LENDER} -> lender name or "Your lender"; {LENDERPHONE} -> their phone; {LENDERLINK} -> their apply link.
+function _mjResolve(text){
+  if(text==null) return text;
+  var L = (typeof assignedLender !== 'undefined') ? assignedLender : null;
+  var nm = (L && L.name) || 'Your lender';
+  var ph = (L && L.phone) || '';
+  var lk = (L && (L.preApprovalLink || L.applyLink)) || '';
+  return String(text)
+    .replace(/\{LENDER\}/g, nm)
+    .replace(/\{LENDERPHONE\}/g, ph)
+    .replace(/\{LENDERLINK\}/g, lk);
+}
+window._mjResolve = _mjResolve;
 const MJ_STEPS = [
   { icon:'💬', title:'Step 1 — Initial Consultation',
-    body:'Tom reviews your goals, timeline, and financial picture. This is the starting point — one conversation sets the direction for everything that follows.',
-    tip:'📞 Call or text Tom: 440-754-7449',
+    body:'{LENDER} reviews your goals, timeline, and financial picture. This is the starting point — one conversation sets the direction for everything that follows.',
+    tip:'📞 Call or text {LENDER}: {LENDERPHONE}',
     highlight:true },
   { icon:'✅', title:'Step 2 — Pre-Approval',
-    body:'Tom pulls your credit, reviews income and assets, and issues your pre-approval letter. This is what puts you in a serious buying position — sellers require it before considering any offer.',
-    tip:'Tom issues pre-approvals directly — same day in most cases.',
-    action:{label:'Start Pre-Approval →', url:'https://1660690.my1003app.com/2784866/register?time=1775863969580'} },
+    body:'{LENDER} pulls your credit, reviews income and assets, and issues your pre-approval letter. This is what puts you in a serious buying position — sellers require it before considering any offer.',
+    tip:'{LENDER} issues pre-approvals directly — same day in most cases.',
+    action:{label:'Start Pre-Approval →', url:'{LENDERLINK}'} },
   { icon:'🏠', title:'Step 3 — Under Contract',
-    body:'Your offer was accepted — congratulations! The mortgage process now kicks into full gear. Tom locks in your loan details and the clock starts on your closing timeline.',
+    body:'Your offer was accepted — congratulations! The mortgage process now kicks into full gear. {LENDER} locks in your loan details and the clock starts on your closing timeline.',
     tip:'Do not make any large purchases or open new credit accounts during this period.' },
   { icon:'📋', title:'Step 4 — Loan Application',
-    body:'Tom submits your formal loan application. You will receive a Loan Estimate within 3 business days showing your rate, monthly payment, and all closing costs. Review every line.',
-    tip:'Compare the Loan Estimate carefully — ask Tom about anything that looks off.' },
+    body:'{LENDER} submits your formal loan application. You will receive a Loan Estimate within 3 business days showing your rate, monthly payment, and all closing costs. Review every line.',
+    tip:'Compare the Loan Estimate carefully — ask {LENDER} about anything that looks off.' },
   { icon:'🔒', title:'Step 5 — Rate Lock',
-    body:'Tom advises you on the best time to lock your interest rate. A rate lock (typically 30–60 days) protects you from market movement between now and closing.',
+    body:'{LENDER} advises you on the best time to lock your interest rate. A rate lock (typically 30–60 days) protects you from market movement between now and closing.',
     tip:'Even a 0.25% rate difference on a $400k loan is ~$60/month over the life of the loan.' },
   { icon:'📄', title:'Step 6 — Document Collection',
-    body:'Tom gathers everything underwriting needs: W-2s, pay stubs, bank statements, tax returns, and photo ID. Respond to any document requests quickly — every day counts on your timeline.',
+    body:'{LENDER} gathers everything underwriting needs: W-2s, pay stubs, bank statements, tax returns, and photo ID. Respond to any document requests quickly — every day counts on your timeline.',
     tip:'Have all documents in a folder on your phone — it makes the process much faster.' },
   { icon:'🔍', title:'Step 7 — Appraisal',
-    body:'A licensed appraiser visits the property to confirm its value supports your loan amount. Tom orders this and keeps you updated on the results.',
-    tip:'If the appraisal comes in low, Tom will walk you through your options.' },
+    body:'A licensed appraiser visits the property to confirm its value supports your loan amount. {LENDER} orders this and keeps you updated on the results.',
+    tip:'If the appraisal comes in low, {LENDER} will walk you through your options.' },
   { icon:'🏦', title:'Step 8 — Underwriting',
-    body:'The underwriter reviews your full file — income, employment, assets, and the appraisal. They may ask for additional documents ("conditions"). Tom handles communication and keeps things moving.',
+    body:'The underwriter reviews your full file — income, employment, assets, and the appraisal. They may ask for additional documents ("conditions"). {LENDER} handles communication and keeps things moving.',
     tip:'Do not switch jobs, buy a car, or make large deposits during underwriting.' },
   { icon:'📬', title:'Step 9 — Closing Disclosure',
-    body:'Three business days before closing, Tom sends your Closing Disclosure — a final breakdown of all loan costs, fees, and the exact amount you need to bring to the table. Review it carefully.',
+    body:'Three business days before closing, {LENDER} sends your Closing Disclosure — a final breakdown of all loan costs, fees, and the exact amount you need to bring to the table. Review it carefully.',
     tip:'Compare it to your original Loan Estimate. Most numbers should match.' },
   { icon:'🎯', title:'Step 10 — Clear to Close',
-    body:'"Clear to Close" is the best phrase in real estate. Underwriting has approved everything. Tom confirms your final numbers, schedules closing, and walks you through what to bring.',
+    body:'"Clear to Close" is the best phrase in real estate. Underwriting has approved everything. {LENDER} confirms your final numbers, schedules closing, and walks you through what to bring.',
     tip:'You\'re almost there — the hardest part is behind you.' },
   { icon:'🎉', title:'Step 11 — Closing Day',
-    body:'You sign the final documents, the loan funds, the deed is recorded, and you get the keys. Tom is there with you from start to finish.',
-    tip:'Bring your photo ID, any final items Tom requests, and your excitement!',
+    body:'You sign the final documents, the loan funds, the deed is recorded, and you get the keys. {LENDER} is there with you from start to finish.',
+    tip:'Bring your photo ID, any final items {LENDER} requests, and your excitement!',
     highlight:true },
 ];
 
@@ -17508,7 +17526,9 @@ function renderMortgageJourney() {
 }
 
 function showMJStep(i) {
-  var s = MJ_STEPS[i]; if (!s) return;
+  var s0 = MJ_STEPS[i]; if (!s0) return;
+  var s = Object.assign({}, s0, { body: _mjResolve(s0.body), tip: _mjResolve(s0.tip),
+    action: s0.action ? Object.assign({}, s0.action, { url: _mjResolve(s0.action.url), label: _mjResolve(s0.action.label) }) : s0.action });
 
   // Highlight selected MJ circle
   document.querySelectorAll('#mj-trail-map circle[data-mjid]').forEach(function(c) {
