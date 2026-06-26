@@ -920,7 +920,7 @@ textarea{resize:vertical;min-height:68px;}
     </div>
   </div>
 
-  <a href="https://1660690.my1003app.com/2784866/register?time=1775863969580" target="_blank" class="btn btn-g btn-w" style="font-size:15px;padding:13px;">Start My Pre-Approval with Tom →</a>
+  <a href="https://1660690.my1003app.com/2784866/register" id="mj-apply-hero" target="_blank" class="btn btn-g btn-w" style="font-size:15px;padding:13px;">Start My Pre-Approval →</a>
 </div>
 
 <!-- IDX -->
@@ -1253,12 +1253,12 @@ textarea{resize:vertical;min-height:68px;}
       <div style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;flex-shrink:0;">TG</div>
       <div><div style="font-weight:600;font-size:15px;">Tom Garuccio</div><div style="font-size:12px;color:var(--text2);">Licensed Mortgage Professional</div><div style="font-size:12px;color:var(--green-dk);font-weight:500;">440-754-7449</div></div>
     </div>
-    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;">Have a mortgage question? Tom can walk you through loan options, rates, and what you qualify for.</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <a href="tel:4407547449" class="btn" style="justify-content:center;font-size:13px;">Call Tom</a>
-      <a href="sms:4407547449" class="btn" style="justify-content:center;font-size:13px;">Text Tom</a>
-      <a href="mailto:Tom@GaruccioGroup.com" class="btn" style="justify-content:center;font-size:13px;">Email Tom</a>
-      <a href="https://1660690.my1003app.com/2784866/register" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="mj-contact-blurb">Have a mortgage question? Tom can walk you through loan options, rates, and what you qualify for.</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="mj-contact-btns">
+      <a href="tel:4407547449" id="mj-call" class="btn" style="justify-content:center;font-size:13px;">Call</a>
+      <a href="sms:4407547449" id="mj-text" class="btn" style="justify-content:center;font-size:13px;">Text</a>
+      <a href="mailto:Tom@GaruccioGroup.com" id="mj-email" class="btn" style="justify-content:center;font-size:13px;">Email</a>
+      <a href="https://1660690.my1003app.com/2784866/register" id="mj-apply" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
     </div>
   </div>
   <!-- Agent-only email section -->
@@ -4430,9 +4430,9 @@ async function loadUserProfile() {
       else if (userProfile.role === 'lender') { isLender = true; }
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
-      // Find assigned lender
+      // Find assigned lender — null if none (no fallback to Tom). No lender = no mortgage trail.
       var lenderId = userProfile.lenderId || _teamDefaultLender();
-      assignedLender = DEFAULT_LENDERS.find(a => a.id === lenderId) || DEFAULT_LENDERS[0];
+      assignedLender = lenderId ? (DEFAULT_LENDERS.find(a => a.id === lenderId) || null) : null;
       // Update last active + persist team identity so security rules can read it
       var _laPatch = { lastActive: fb.serverTimestamp() };
       if (userProfile.agentId) _laPatch.agentId = userProfile.agentId;
@@ -4479,8 +4479,9 @@ async function loadAssignedAgentProfile() {
       assignedAgent = normalizeAgent({ ...base, ...userProfile, id: userProfile.agentId || base.id });
       // If this user is also a lender, their agent profile feeds the lender card too
       if (isLender) {
-        var lenderBase = DEFAULT_LENDERS.find(function(l){ return l.id === userProfile.lenderId; }) || DEFAULT_LENDERS[0];
+        var lenderBase = DEFAULT_LENDERS.find(function(l){ return l.id === userProfile.lenderId; }) || {};
         assignedLender = Object.assign({}, lenderBase, {
+          name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || userProfile.name || lenderBase.name || '',
           photoUrl: userProfile.photoUrl || lenderBase.photoUrl || '',
           bio: userProfile.bio || lenderBase.bio || '',
           calendly: userProfile.calendly || lenderBase.calendly || '',
@@ -4530,10 +4531,10 @@ async function loadAssignedAgentProfile() {
       ));
       lqs.forEach(function(d) {
         var ldata = d.data();
-        assignedLender = Object.assign({}, assignedLender, {
-          photoUrl: ldata.photoUrl || assignedLender.photoUrl || '',
-          bio: ldata.bio || assignedLender.bio || '',
-          calendly: ldata.calendly || assignedLender.calendly || '',
+        assignedLender = Object.assign({}, assignedLender || {}, {
+          photoUrl: ldata.photoUrl || (assignedLender && assignedLender.photoUrl) || '',
+          bio: ldata.bio || (assignedLender && assignedLender.bio) || '',
+          calendly: ldata.calendly || (assignedLender && assignedLender.calendly) || '',
         });
       });
     } catch(e) { console.log('lender profile load:', e.message); }
@@ -17421,6 +17422,31 @@ function keepSellerDetailVisible(det) {
 function renderMortgageJourney() {
   var map = document.getElementById('mj-trail-map');
   if (!map) return;
+
+  // Mortgage contact buttons pull from the assigned LENDER (never hardcoded).
+  // Trail always stays visible; only the contact buttons hide when there's no lender.
+  (function(){
+    var L = (typeof assignedLender !== 'undefined') ? assignedLender : null;
+    var applyLink = (L && (L.preApprovalLink || L.applyLink)) || '';
+    var lname = (L && L.name) || '';
+    var lphone = (L && L.phone) || '';
+    var lemail = (L && L.email) || '';
+    function setBtn(id, href){
+      var el = document.getElementById(id); if(!el) return;
+      if(href){ el.href = href; el.style.display=''; } else { el.style.display='none'; }
+    }
+    setBtn('mj-call', lphone ? ('tel:'+String(lphone).replace(/[^0-9+]/g,'')) : '');
+    setBtn('mj-text', lphone ? ('sms:'+String(lphone).replace(/[^0-9+]/g,'')) : '');
+    setBtn('mj-email', lemail ? ('mailto:'+lemail) : '');
+    setBtn('mj-apply', applyLink);
+    setBtn('mj-apply-hero', applyLink);
+    var blurb = document.getElementById('mj-contact-blurb');
+    if(blurb){
+      blurb.textContent = lname
+        ? ('Have a mortgage question? '+lname+' can walk you through loan options, rates, and what you qualify for.')
+        : 'Have a mortgage question? Your lender can walk you through loan options, rates, and what you qualify for.';
+    }
+  })();
 
   // Mobile-first sizing — matches buyer trail logic
   var mob = window.innerWidth <= 700;
