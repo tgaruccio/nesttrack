@@ -1257,7 +1257,7 @@ textarea{resize:vertical;min-height:68px;}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="mj-contact-btns">
       <a href="tel:4407547449" id="mj-call" class="btn" style="justify-content:center;font-size:13px;">Call</a>
       <a href="sms:4407547449" id="mj-text" class="btn" style="justify-content:center;font-size:13px;">Text</a>
-      <a href="mailto:Tom@GaruccioGroup.com" id="mj-email" class="btn" style="justify-content:center;font-size:13px;">Email</a>
+      <a href="#" id="mj-email" class="btn" style="justify-content:center;font-size:13px;">Email</a>
       <a href="https://1660690.my1003app.com/2784866/register" id="mj-apply" target="_blank" class="btn btn-g" style="justify-content:center;font-size:13px;">Get Pre-Approved</a>
     </div>
   </div>
@@ -3753,7 +3753,7 @@ function currentAgent() {
 
 // Dynamic buyer-facing agent copy helpers.
 // Use {agentFirst} or {agentFull} inside buyer-facing text.
-// Mortgage/lender copy intentionally stays hard-coded to Tom Garuccio.
+// Mortgage/lender copy resolves dynamically from the assigned lender (see _mjResolve / assignedLender).
 function agentFullName() {
   return currentAgent().name || 'your agent';
 }
@@ -15480,8 +15480,8 @@ async function createInvite() {
     tiles += fTile('💬', 'Direct Chat with ' + agentName.split(' ')[0], 'Message right in the app — no lost texts, no phone tag.');
     tiles += fTile('👤', 'Your Team', 'Agent, lender, and title company — one tap away.');
 
-    var agentPhone = agentObj ? (agentObj.phone || '') : '440-754-7449';
-    var agentEmail = agentObj ? (agentObj.email || 'Tom@GaruccioGroup.com') : 'Tom@GaruccioGroup.com';
+    var agentPhone = agentObj ? (agentObj.phone || '') : '';
+    var agentEmail = agentObj ? (agentObj.email || '') : '';
 
     var ctaBtn = '<div style="text-align:center;margin:20px 0;">'
       + '<a href="' + link + '" style="background:#1D9E75;color:#fff;padding:13px 34px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Open My Portal →</a>'
@@ -16226,7 +16226,7 @@ async function sendAgentInvite() {
       +'<hr style="border:none;border-top:1px solid #f0f0f0;margin:0 0 16px;"/>'
       +'<div style="font-size:14px;font-weight:600;">'+_inviterName()+'</div>'
       +'<div style="font-size:12px;color:#888;">'+partnerEsc(_agentBrokerage())+'</div>'
-      +'<div style="font-size:13px;color:#1D9E75;">Tom@GaruccioGroup.com</div>'
+      +'<div style="font-size:13px;color:#1D9E75;">'+_inviterEmail()+'</div>'
       +'</div></div>';
     await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'},
       body: JSON.stringify({ to: email, subject: first+', your Nest Track agent account is ready', html: emailHtml }) });
