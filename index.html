@@ -1000,17 +1000,10 @@ textarea{resize:vertical;min-height:68px;}
 <!-- NET SHEET CALCULATOR -->
 <div class="page" id="page-netsheet">
   <div class="ph"><div class="pt">Net Sheet Calculator</div><span class="pill" style="background:#FEF3C7;color:#92400E;border:1px solid #F59E0B;">Seller Tool</span></div>
-  <div class="notice" style="background:#FEF3C7;color:#92400E;">Based on real Erieview Title closing costs. Enter your details and see a line-by-line estimate of what you walk away with at closing.</div>
+  <div class="notice" style="background:#FEF3C7;color:#92400E;">Enter your details and see a line-by-line estimate of what you walk away with at closing.</div>
   <div class="card" style="display:flex;flex-direction:column;gap:14px;">
     <div class="fg2">
       <div><label class="flabel">Expected Sale Price</label><input type="number" id="ns-price" placeholder="450000" oninput="calcNetSheet()"/></div>
-      <div><label class="flabel">County</label>
-        <select id="ns-county" onchange="calcNetSheet()">
-          <option value="cuyahoga">Cuyahoga County</option>
-          <option value="lorain">Lorain County</option>
-          <option value="medina">Medina County</option>
-        </select>
-      </div>
     </div>
     <div class="fg2">
       <div><label class="flabel">Annual Property Taxes</label><input type="number" id="ns-taxes" placeholder="6000" oninput="calcNetSheet()"/><div style="font-size:11px;color:var(--text3);margin-top:3px;">Ohio prorates taxes in arrears at closing</div></div>
@@ -2411,7 +2404,7 @@ textarea{resize:vertical;min-height:68px;}
   <div class="card" style="text-align:center;background:var(--green-lt);border-color:var(--green-md);">
     <div style="font-weight:500;font-size:14px;color:var(--green-dk);margin-bottom:4px;">Loving the experience?</div>
     <div style="font-size:12px;color:var(--green-dk);margin-bottom:10px;">{agentFirst} would love a quick Google review — it means the world to a small team.</div>
-    <a href="https://g.page/r/CYTaeIyFmCHoEBM/review" target="_blank" class="btn btn-g">Leave a Review ★</a>
+    <a href="#" id="dash-review-btn" target="_blank" class="btn btn-g">Leave a Review ★</a>
   </div>
 </div>
 
@@ -2732,6 +2725,26 @@ textarea{resize:vertical;min-height:68px;}
           <input type="url" id="ap-preapproval" placeholder="https://your-lender-apply-link..."/>
           <div style="font-size:11px;color:var(--text3);margin-top:4px;">Used for the &ldquo;Get Pre-Approved&rdquo; button in your client emails. Leave blank to hide it.</div>
         </div>
+      </div>
+
+      <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:8px 2px 10px;">Net Sheet Defaults</div>
+      <div style="font-size:11.5px;color:var(--text3);margin:0 2px 12px;line-height:1.5;">These power your Seller Net Sheet estimates. Defaults reflect a typical Ohio closing — adjust them for your market. Leave blank to use the defaults.</div>
+      <div class="fg2">
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Transfer / Conveyance Tax</label>
+          <input type="number" step="0.01" id="ap-ns-transfer" placeholder="4"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Dollars per $1,000 of sale price. Ohio default: 4.</div>
+        </div>
+        <div>
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Tax Proration</label>
+          <input type="number" step="1" id="ap-ns-proration" placeholder="75"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">% of annual property taxes the seller typically owes at closing. Ohio default: 75.</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label class="flabel" style="color:var(--text2);font-weight:600;">Title &amp; Settlement Fees</label>
+        <input type="number" step="1" id="ap-ns-title" placeholder="1495"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Flat estimate of total title/settlement costs. Tip: pull your last closing statement(s) and add up just the title fees (escrow, exam, closing, search, etc.). Default: 1495.</div>
       </div>
 
       <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:8px 2px 10px;">Integrations</div>
@@ -3771,8 +3784,15 @@ function A(str) {
     .replace(/\{agentPossessive\}/g, agentPossessive())
     .replace(/\{agentPhone\}/g, (typeof agentBrandPhone==='function' ? agentBrandPhone() : ''))
     .replace(/\{lender\}/g, (typeof lenderBrandName==='function' ? lenderBrandName() : 'your lender'))
+    .replace(/\{reviewLink\}/g, (typeof agentReviewLink==='function' ? agentReviewLink() : ''))
     .replace(/\{preApprovalLink\}/g, (typeof agentPreApproval==='function' ? agentPreApproval() : ''));
 }
+// Assigned agent's Google review link; empty if none set.
+function agentReviewLink(){
+  var a = (typeof currentAgent==='function') ? currentAgent() : null;
+  return (a && a.googleReviewUrl) || (userProfile && userProfile.googleReviewUrl) || '';
+}
+window.agentReviewLink = agentReviewLink;
 // Assigned lender's name for buyer-trail copy; "your lender" when none assigned.
 function lenderBrandName(){
   var L = (typeof assignedLender !== 'undefined') ? assignedLender : null;
@@ -3800,6 +3820,11 @@ function updateAgentTokens(root) {
       }
     });
   });
+
+  // Dashboard "Leave a Review" button → assigned agent's own review link (hide if none).
+  var _rv = document.getElementById('dash-review-btn');
+  if (_rv) { var _rl = (typeof agentReviewLink==='function' ? agentReviewLink() : '');
+    if (_rl) { _rv.href = _rl; _rv.style.display=''; } else { _rv.style.display='none'; } }
 }
 
 let chatUnsubs = [];
@@ -5628,6 +5653,11 @@ function renderAgentProfileEditor() {
       var pa=document.getElementById('ap-preapproval');
       if(pa) pa.value=d.preApprovalLink||'';
       if(userProfile) userProfile.preApprovalLink = d.preApprovalLink||'';
+      var _nsc = d.netSheetConfig || {};
+      var _nst=document.getElementById('ap-ns-transfer'); if(_nst) _nst.value=_nsc.transferPer1k||'';
+      var _nsp=document.getElementById('ap-ns-proration'); if(_nsp) _nsp.value=_nsc.proration||'';
+      var _nsf=document.getElementById('ap-ns-title'); if(_nsf) _nsf.value=_nsc.titleFees||'';
+      if(userProfile) userProfile.netSheetConfig = d.netSheetConfig || userProfile.netSheetConfig;
       var sg=document.getElementById('ap-signature');
       if(sg && d.emailSignature) sg.value=d.emailSignature;
       var sgp=document.getElementById('ap-sig-photo');
@@ -5773,6 +5803,11 @@ async function saveAgentProfile() {
     googleReviewUrl: document.getElementById('ap-google').value.trim(),
     zillowReviewUrl: document.getElementById('ap-zillow').value.trim(),
     preApprovalLink: document.getElementById('ap-preapproval') ? document.getElementById('ap-preapproval').value.trim() : '',
+    netSheetConfig: {
+      transferPer1k: document.getElementById('ap-ns-transfer') ? document.getElementById('ap-ns-transfer').value.trim() : '',
+      proration: document.getElementById('ap-ns-proration') ? document.getElementById('ap-ns-proration').value.trim() : '',
+      titleFees: document.getElementById('ap-ns-title') ? document.getElementById('ap-ns-title').value.trim() : ''
+    },
     bio: document.getElementById('ap-bio').value.trim(),
     showingTimeUrl: document.getElementById('ap-showingtime') ? document.getElementById('ap-showingtime').value.trim() : '',
     zapierWebhookUrl: document.getElementById('ap-zapier') ? document.getElementById('ap-zapier').value.trim() : '',
@@ -8531,10 +8566,14 @@ function calcNetSheet() {
     else { btn.style.display='none'; }
   })();
   var price = parseFloat(document.getElementById('ns-price').value) || 0;
+  // Net-sheet defaults: read the agent's saved config, falling back to Ohio baseline numbers.
+  var _nsc = (userProfile && userProfile.netSheetConfig) || {};
+  var _cfgTransfer = (_nsc.transferPer1k !== undefined && _nsc.transferPer1k !== '' && !isNaN(parseFloat(_nsc.transferPer1k))) ? parseFloat(_nsc.transferPer1k) : 4;
+  var _cfgProration = (_nsc.proration !== undefined && _nsc.proration !== '' && !isNaN(parseFloat(_nsc.proration))) ? parseFloat(_nsc.proration) : 75;
+  var _cfgTitle = (_nsc.titleFees !== undefined && _nsc.titleFees !== '' && !isNaN(parseFloat(_nsc.titleFees))) ? parseFloat(_nsc.titleFees) : 1495;
   var result = document.getElementById('ns-result');
   if (!price) { result.style.display = 'none'; return; }
 
-  var county = document.getElementById('ns-county').value;
   var taxes = parseFloat(document.getElementById('ns-taxes').value) || 0;
   var mortgage = parseFloat(document.getElementById('ns-mortgage').value) || 0;
   var listPct = _pctOr(document.getElementById('ns-list-pct').value, 2.5);
@@ -8547,8 +8586,8 @@ function calcNetSheet() {
   var buyComm = price * buyPct / 100;
 
   // Conveyance fee — all 3 counties = $4/$1,000 + $0.50 county service fee
-  var conveyance = Math.round(price / 1000) * 4;
-  var countyServiceFee = county === 'cuyahoga' ? 0.50 : 0;
+  var conveyance = Math.round(price / 1000) * _cfgTransfer;
+  var countyServiceFee = 0;
 
   // Erieview Title fees (actual from closing statement, scaled slightly by price)
   // Fixed fees from statement:
@@ -8564,11 +8603,14 @@ function calcNetSheet() {
   var deedPrep = 75;            // Deed Preparation (Alina Law)
   var waterSewerHold = 200;     // Water/Sewer Hold (refundable, est.)
 
-  var totalTitleFees = closingFee + cpcCoverage + disbursementFee + escrowFee + examFee +
+  // Whether the agent has set a custom flat title fee (vs. using the itemized Ohio default).
+  var _usingCustomTitle = (_nsc.titleFees !== undefined && _nsc.titleFees !== '' && !isNaN(parseFloat(_nsc.titleFees)));
+  var _itemizedTitleSum = closingFee + cpcCoverage + disbursementFee + escrowFee + examFee +
     patriotSearch + shippingFee + taxSearch + titleUpdate + deedPrep + waterSewerHold;
+  var totalTitleFees = _usingCustomTitle ? _cfgTitle : _itemizedTitleSum;
 
   // Tax proration — Ohio pays in arrears, seller owes ~75% of annual taxes (9 months)
-  var taxProration = Math.round(taxes * 0.75);
+  var taxProration = Math.round(taxes * (_cfgProration/100));
 
   var totalDeductions = listComm + buyComm + conveyance + countyServiceFee +
     totalTitleFees + taxProration + credits + warranty + mortgage;
@@ -8590,12 +8632,17 @@ function calcNetSheet() {
     { label:'Buyer Agent Commission (' + buyPct + '%)', val:fmtd(buyComm) },
     { label:'', val:'', spacer:true },
     { label:'GOVERNMENT FEES', val:'', header:true },
-    { label:'Conveyance Fee (' + county.charAt(0).toUpperCase()+county.slice(1) + ' Co. — $4/$1,000)', val:fmtd(conveyance) },
+    { label:'Transfer / Conveyance Tax', val:fmtd(conveyance) },
   ];
   if (countyServiceFee) rows.push({ label:'County Service Fee', val:fmtd(countyServiceFee) });
   rows = rows.concat([
     { label:'', val:'', spacer:true },
-    { label:'TITLE & CLOSING FEES (based on real closing costs)', val:'', header:true },
+    { label:'TITLE & CLOSING FEES', val:'', header:true },
+  ]);
+  if (_usingCustomTitle) {
+    rows.push({ label:'Title & Settlement Fees', val:fmtd(_cfgTitle) });
+  } else {
+    rows = rows.concat([
     { label:'Closing Fee', val:fmtd(closingFee) },
     { label:'CPC Coverage — Seller', val:fmtd(cpcCoverage) },
     { label:'Disbursement / Funding Fee', val:fmtd(disbursementFee) },
@@ -8607,9 +8654,12 @@ function calcNetSheet() {
     { label:'Title Update & Conditional Filing', val:fmtd(titleUpdate) },
     { label:'Deed Preparation', val:fmtd(deedPrep) },
     { label:'Water/Sewer Hold (est.)', val:fmtd(waterSewerHold) },
+    ]);
+  }
+  rows = rows.concat([
     { label:'', val:'', spacer:true },
     { label:'TAXES & OTHER', val:'', header:true },
-    { label:'Prorated Property Taxes (est. 9 of 12 months)', val:taxes > 0 ? fmtd(taxProration) : 'Enter taxes above' },
+    { label:'Prorated Property Taxes (est.)', val:taxes > 0 ? fmtd(taxProration) : 'Enter taxes above' },
   ]);
   if (credits > 0) rows.push({ label:'Seller Concessions / Credits', val:fmtd(credits) });
   if (warranty > 0) rows.push({ label:'Home Warranty', val:fmtd(warranty) });
@@ -16956,7 +17006,7 @@ const TRAIL_STAGES = [
     title:'Closing Day — You Did It!',
     body:'Sign, fund, get the keys. {agentFirst} celebrates with you. You\'re officially a homeowner. And {agentFirst} is still just a phone call away — for questions, referrals, or whatever comes next.',
     facts:['Closing takes about 1 hour','Deed recorded — you own the home','{agentFirst} hands you the keys','#UncompromisingService — even after closing'],
-    action:{label:'Leave {agentFirst} a Review ★', url:'https://g.page/r/CYTaeIyFmCHoEBM/review'} },
+    action:{label:'Leave {agentFirst} a Review ★', url:'{reviewLink}'} },
 ];
 
 var _clientDeals = [];
@@ -18613,7 +18663,6 @@ function openListingModal(l) {
     + '<div class="fg2">'
     + '<div><label class="flabel">Listing Commission %</label><input type="number" id="lm-list-pct" placeholder="2.5" step="0.25" value="'+(l&&(l.listPct||l.listPct===0)?l.listPct:'')+'"/></div>'
     + '<div><label class="flabel">Annual Property Taxes ($)</label><input type="number" id="lm-taxes" placeholder="6000" value="'+(l&&l.taxes?l.taxes:'')+'"/></div>'
-    + '<div><label class="flabel">County</label><select id="lm-county"><option value="cuyahoga"'+(l&&l.county==="cuyahoga"?' selected':'')+'>Cuyahoga</option><option value="lorain"'+(l&&l.county==="lorain"?' selected':'')+'>Lorain</option><option value="medina"'+(l&&l.county==="medina"?' selected':'')+'>Medina</option></select></div>'
     + '<div><label class="flabel">Mortgage Balance ($)</label><input type="number" id="lm-mortgage" placeholder="0" value="'+(l&&l.mortgage?l.mortgage:'')+'"/></div>'
     + '</div>'
     + '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--r);margin-top:2px;">'
@@ -19366,10 +19415,14 @@ async function sendOfferToClient(listingId, offerId) {
 
   function computeNS(price, lp, bp, taxes, county, mort, credits) {
     var lc = price*lp/100, bc = price*bp/100;
-    var conv = Math.round(price/1000)*4;
-    var cf = county==='cuyahoga'?0.50:0;
-    var tf = 125+55+65+400+400+10+50+40+75+75+200;
-    var tp = Math.round(taxes*0.75);
+    var _onsc = (userProfile && userProfile.netSheetConfig) || {};
+    var _ocTransfer = (_onsc.transferPer1k!==undefined && _onsc.transferPer1k!=='' && !isNaN(parseFloat(_onsc.transferPer1k))) ? parseFloat(_onsc.transferPer1k) : 4;
+    var _ocProration = (_onsc.proration!==undefined && _onsc.proration!=='' && !isNaN(parseFloat(_onsc.proration))) ? parseFloat(_onsc.proration) : 75;
+    var _ocTitle = (_onsc.titleFees!==undefined && _onsc.titleFees!=='' && !isNaN(parseFloat(_onsc.titleFees))) ? parseFloat(_onsc.titleFees) : (125+55+65+400+400+10+50+40+75+75+200);
+    var conv = Math.round(price/1000)*_ocTransfer;
+    var cf = 0;
+    var tf = _ocTitle;
+    var tp = Math.round(taxes*(_ocProration/100));
     var total = lc+bc+conv+cf+tf+tp+credits+mort;
     return {lc:lc,bc:bc,conv:conv,cf:cf,tf:tf,tp:tp,total:total,net:price-total};
   }
@@ -19488,7 +19541,6 @@ async function sendOfferToClient(listingId, offerId) {
   grid.appendChild(makeInput('sor-taxes','Annual Taxes',nsTaxes,'number'));
   grid.appendChild(makeInput('sor-mortgage','Mortgage',nsMortgage,'number'));
   grid.appendChild(makeInput('sor-credits','Closing Credits',nsCredits,'number'));
-  grid.appendChild(makeInput('sor-county','County',nsCounty,'select'));
   editDiv.appendChild(grid);
   nsDiv.appendChild(editDiv);
 
@@ -19559,7 +19611,7 @@ function updateSORNet() {
   var listPct  = _pctOr(document.getElementById('sor-list-pct').value, 2.5);
   var buyPct   = _pctOr(document.getElementById('sor-buy-pct').value, 2.5);
   var taxes    = parseFloat(document.getElementById('sor-taxes').value)||0;
-  var county   = document.getElementById('sor-county').value;
+  var county   = '';
   var mortgage = parseFloat(document.getElementById('sor-mortgage').value)||0;
   var credits  = parseFloat(document.getElementById('sor-credits').value)||0;
   var ns = ctx.computeNS(price, listPct, buyPct, taxes, county, mortgage, credits);
