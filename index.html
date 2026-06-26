@@ -3588,6 +3588,53 @@ const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 // Setup Google Places autocomplete on an input element
 // Address autocomplete on an existing input, using the current Places API (AutocompleteSuggestion).
 // Keeps your input element + all existing input.value logic; just adds a styled prediction dropdown.
+
+// — Address parts helpers —
+// Heuristic split of a combined US address string into {street, city, state, zip}.
+// Used as a fallback when an address did NOT come from Google autocomplete (manual typing,
+// CSV import, inbound lead). Google autocomplete provides exact parts; this is the backstop.
+function _splitAddress(str){
+  var out = { street:'', city:'', state:'', zip:'' };
+  if (!str) return out;
+  var s = String(str).trim();
+  // Pull trailing ZIP (5 or 5-4)
+  var zm = s.match(/\b(\d{5}(?:-\d{4})?)\s*$/);
+  if (zm){ out.zip = zm[1]; s = s.slice(0, zm.index).trim().replace(/,\s*$/, ''); }
+  // Pull trailing 2-letter state (US)
+  var sm = s.match(/[,\s]([A-Za-z]{2})\s*$/);
+  if (sm){ out.state = sm[1].toUpperCase(); s = s.slice(0, sm.index).trim().replace(/,\s*$/, ''); }
+  // Remaining: split on commas → last chunk is city, rest is street
+  var parts = s.split(',').map(function(p){ return p.trim(); }).filter(Boolean);
+  if (parts.length >= 2){ out.city = parts[parts.length-1]; out.street = parts.slice(0, parts.length-1).join(', '); }
+  else if (parts.length === 1){ out.street = parts[0]; }
+  return out;
+}
+// Rebuild a combined address string from parts (used when a split field is edited).
+function _joinAddress(p){
+  p = p || {};
+  var line1 = (p.street||'').trim();
+  var cityState = [ (p.city||'').trim(), [ (p.state||'').trim(), (p.zip||'').trim() ].filter(Boolean).join(' ') ].filter(Boolean).join(', ');
+  return [line1, cityState].filter(Boolean).join(', ');
+}
+// Parse Google Places addressComponents array → {street, city, state, zip}.
+function _partsFromGoogle(components){
+  var r = { street:'', city:'', state:'', zip:'' }, num='', route='';
+  (components||[]).forEach(function(c){
+    var types = c.types || [];
+    var long = c.longText || c.long_name || '';
+    var short = c.shortText || c.short_name || '';
+    if (types.indexOf('street_number')!==-1) num = long;
+    else if (types.indexOf('route')!==-1) route = long;
+    else if (types.indexOf('locality')!==-1) r.city = long;
+    else if (types.indexOf('postal_town')!==-1 && !r.city) r.city = long;
+    else if (types.indexOf('sublocality')!==-1 && !r.city) r.city = long;
+    else if (types.indexOf('administrative_area_level_1')!==-1) r.state = short || long;
+    else if (types.indexOf('postal_code')!==-1) r.zip = long;
+  });
+  r.street = [num, route].filter(Boolean).join(' ');
+  return r;
+}
+
 var _placesSession = null;
 function _placesSessionToken(){
   try { if (!_placesSession) _placesSession = new google.maps.places.AutocompleteSessionToken(); } catch(e){}
@@ -3622,7 +3669,20 @@ function setupPlacesAC(inputId) {
     position();
   }
   async function choose(p){
-    try { var pl=p.prediction.toPlace(); await pl.fetchFields({fields:['formattedAddress']}); input.value=pl.formattedAddress||p.text; }
+    try {
+      var pl=p.prediction.toPlace();
+      await pl.fetchFields({fields:['formattedAddress','addressComponents']});
+      input.value=pl.formattedAddress||p.text;
+      // Stash exact Google parts on the input so the field's save handler can use them.
+      try {
+        var parts = _partsFromGoogle(pl.addressComponents || []);
+        input.dataset.addrStreet = parts.street || '';
+        input.dataset.addrCity   = parts.city || '';
+        input.dataset.addrState  = parts.state || '';
+        input.dataset.addrZip    = parts.zip || '';
+        input.dataset.addrFromGoogle = '1';
+      } catch(e){}
+    }
     catch(e){ input.value=p.text; }
     input.dispatchEvent(new Event('input',{bubbles:true}));
     input.dispatchEvent(new Event('change',{bubbles:true}));
@@ -14612,7 +14672,17 @@ async function openBuyerDetail(uid, scrollTo) {
           ${b.email2 ? '<div style="font-size:12px;color:var(--text2);margin-top:1px;">+ <a href="mailto:'+escapeHtml(b.email2)+'" style="color:var(--text2);text-decoration:none;">'+escapeHtml(b.email2)+'</a></div>' : ''}
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
             <span style="font-size:12px;color:var(--text2);">📍</span>
-            <input type="text" placeholder="Mailing address" value="${escapeHtml(b.mailingAddress||'')}" onchange="saveClientField('${uid}','mailingAddress',this.value)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
+            <input id="bd-mailing-${uid}" type="text" autocomplete="street-address" placeholder="Mailing address" value="${escapeHtml(b.mailingAddress||'')}" onchange="saveClientAddress('${uid}',this)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
+          </div>
+          <div style="margin-top:2px;"><span id="bd-addr-chev-${uid}" onclick="toggleAddrParts('${uid}')" style="font-size:10.5px;color:var(--text3);cursor:pointer;user-select:none;">▾ Edit parts</span></div>
+          <div id="bd-addr-parts-${uid}" style="display:none;margin-top:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:8px;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <input id="bd-addr-street-${uid}" type="text" placeholder="Street" value="${escapeHtml(b.mailingStreet||'')}" onchange="saveClientAddressPart('${uid}')" style="flex:1 1 100%;font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;box-sizing:border-box;" />
+              <input id="bd-addr-city-${uid}" type="text" placeholder="City" value="${escapeHtml(b.mailingCity||'')}" onchange="saveClientAddressPart('${uid}')" style="flex:2 1 100px;font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;box-sizing:border-box;" />
+              <input id="bd-addr-state-${uid}" type="text" placeholder="State" maxlength="2" value="${escapeHtml(b.mailingState||'')}" onchange="saveClientAddressPart('${uid}')" style="flex:0 1 60px;font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;box-sizing:border-box;text-transform:uppercase;" />
+              <input id="bd-addr-zip-${uid}" type="text" placeholder="Zip" value="${escapeHtml(b.mailingZip||'')}" onchange="saveClientAddressPart('${uid}')" style="flex:0 1 80px;font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;box-sizing:border-box;" />
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px;">Editing a field updates the full address above.</div>
           </div>
           ${(()=>{ var active=b.portalAccess; var invited=b.inviteSent||active; return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+(active?'<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">✓ Active</span>':(invited?'<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:2px 10px;font-weight:500;">📨 Pending</span>':''))+'<button onclick="openPortalInviteModal(\''+uid+'\',\''+partnerEsc((b.firstName||'')+' '+(b.lastName||'')).trim()+'\')" style="background:'+(invited?'var(--surface)':'var(--green)')+';color:'+(invited?'var(--text2)':'#fff')+';border:1px solid '+(invited?'var(--border)':'var(--green)')+';border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">'+(invited?'↺ Resend Invite':'✉ Invite to Portal')+'</button></div>'; })()}
           ${(()=>{ var hasDeal = (_deals||[]).some(function(d){ return d.clientUid===uid; }); return hasDeal ? '<span style="font-size:11px;background:#EFF6FF;color:#1D4ED8;border-radius:20px;padding:2px 10px;font-weight:500;cursor:pointer;" onclick="go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'deals\')},200);">🏠 In Deal Tracker</span>' : ''; })()}
@@ -28099,7 +28169,7 @@ async function homebotEnroll(uid, btn){
     var r = await fetch(url, {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ contact: { firstName:b.firstName||'', lastName:b.lastName||'', email:b.email||'', mailingAddress:b.mailingAddress||'', uid:uid } })
+      body: JSON.stringify({ contact: { firstName:b.firstName||'', lastName:b.lastName||'', email:b.email||'', mailingAddress:b.mailingAddress||'', street:b.mailingStreet||'', city:b.mailingCity||'', state:b.mailingState||'', zip:b.mailingZip||'', uid:uid } })
     });
     var j = await r.json();
     if(j && j.ok){
@@ -28231,6 +28301,57 @@ async function saveClientField(uid, field, value) {
   } catch(e) { console.log('saveClientField err:', e.message); alert('Could not save that change \u2014 check your connection and try again.'); }
 }
 window.saveClientField = saveClientField;
+
+// — Client mailing address: save full string + split parts together —
+// Full address is master. If the address came from Google autocomplete, use its exact parts;
+// otherwise derive parts heuristically. Saves mailingAddress + mailingStreet/City/State/Zip.
+async function saveClientAddress(uid, inputEl){
+  if (window._billBlock && _billBlock()) return;
+  var full = (inputEl && inputEl.value || '').trim();
+  var parts;
+  if (inputEl && inputEl.dataset && inputEl.dataset.addrFromGoogle === '1'){
+    parts = { street: inputEl.dataset.addrStreet||'', city: inputEl.dataset.addrCity||'', state: inputEl.dataset.addrState||'', zip: inputEl.dataset.addrZip||'' };
+    inputEl.dataset.addrFromGoogle = '';
+  } else {
+    parts = _splitAddress(full);
+  }
+  try {
+    var update = { mailingAddress: full, mailingStreet: parts.street||'', mailingCity: parts.city||'', mailingState: parts.state||'', mailingZip: parts.zip||'' };
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), update);
+    var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
+    if (b){ b.mailingAddress=full; b.mailingStreet=parts.street||''; b.mailingCity=parts.city||''; b.mailingState=parts.state||''; b.mailingZip=parts.zip||''; }
+    var f=function(id,v){ var el=document.getElementById(id); if(el && document.activeElement!==el) el.value=v; };
+    f('bd-addr-street-'+uid, parts.street||''); f('bd-addr-city-'+uid, parts.city||''); f('bd-addr-state-'+uid, parts.state||''); f('bd-addr-zip-'+uid, parts.zip||'');
+  } catch(e){ console.log('saveClientAddress err:', e.message); alert('Could not save the address - check your connection and try again.'); }
+}
+window.saveClientAddress = saveClientAddress;
+
+// Edited a split field -> rebuild the full address from parts, save everything.
+async function saveClientAddressPart(uid){
+  if (window._billBlock && _billBlock()) return;
+  var g=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var parts = { street:g('bd-addr-street-'+uid), city:g('bd-addr-city-'+uid), state:g('bd-addr-state-'+uid), zip:g('bd-addr-zip-'+uid) };
+  var full = _joinAddress(parts);
+  var mainEl = document.getElementById('bd-mailing-'+uid);
+  if (mainEl) mainEl.value = full;
+  try {
+    var update = { mailingAddress: full, mailingStreet: parts.street, mailingCity: parts.city, mailingState: parts.state, mailingZip: parts.zip };
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), update);
+    var b = (myBuyers||allBuyers||[]).find(function(x){ return x.uid===uid; });
+    if (b){ b.mailingAddress=full; b.mailingStreet=parts.street; b.mailingCity=parts.city; b.mailingState=parts.state; b.mailingZip=parts.zip; }
+  } catch(e){ console.log('saveClientAddressPart err:', e.message); alert('Could not save the address - check your connection and try again.'); }
+}
+window.saveClientAddressPart = saveClientAddressPart;
+
+function toggleAddrParts(uid){
+  var wrap = document.getElementById('bd-addr-parts-'+uid);
+  var chev = document.getElementById('bd-addr-chev-'+uid);
+  if (!wrap) return;
+  var open = wrap.style.display !== 'none';
+  wrap.style.display = open ? 'none' : 'block';
+  if (chev) chev.textContent = open ? '\u25be Edit parts' : '\u25b4 Hide parts';
+}
+window.toggleAddrParts = toggleAddrParts;
 
 // ─── LISTING AGENT FIELD (mortgage section) ───
 async function saveMortLAField(uid, field, value) {
