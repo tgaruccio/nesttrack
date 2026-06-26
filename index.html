@@ -895,13 +895,13 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- MORTGAGE JOURNEY -->
 <div class="page" id="page-mortgagejourney">
-  <div class="ph"><div class="pt">The Mortgage Trail</div><span class="pill pill-b">Tom Garuccio · Mortgage Financing</span></div>
+  <div class="ph"><div class="pt">The Mortgage Trail</div><span class="pill pill-b" id="mj-header-pill">Mortgage Financing</span></div>
   <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:4px;">Follow the mortgage trail from pre-approval to keys. Tap any stop to open its details below the map.</div>
 
   <div id="mj-trail-game" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;">
     <div style="background:linear-gradient(135deg,#185FA5,#378ADD);padding:16px 20px;color:#fff;">
       <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:300;letter-spacing:-0.3px;">🏦 The Mortgage Trail</div>
-      <div style="font-size:12px;opacity:0.85;margin-top:2px;">Tom Garuccio · Mortgage Financing</div>
+      <div style="font-size:12px;opacity:0.85;margin-top:2px;" id="mj-header-sub">Mortgage Financing</div>
     </div>
     <div class="journey-map-shell" style="padding:20px 20px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <div id="mj-trail-map"></div>
@@ -1250,8 +1250,8 @@ textarea{resize:vertical;min-height:68px;}
   </div>
   <div class="card" style="border:1.5px solid var(--green-md);">
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-      <div style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;flex-shrink:0;">TG</div>
-      <div><div style="font-weight:600;font-size:15px;">Tom Garuccio</div><div style="font-size:12px;color:var(--text2);">Licensed Mortgage Professional</div><div style="font-size:12px;color:var(--green-dk);font-weight:500;">440-754-7449</div></div>
+      <div style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;flex-shrink:0;" id="mj-lender-avatar">TG</div>
+      <div><div style="font-weight:600;font-size:15px;" id="mj-lender-name">Your Lender</div><div style="font-size:12px;color:var(--text2);" id="mj-lender-title">Mortgage Professional</div><div style="font-size:12px;color:var(--green-dk);font-weight:500;" id="mj-lender-phone"></div></div>
     </div>
     <div style="font-size:13px;color:var(--text2);margin-bottom:14px;" id="mj-contact-blurb">Have a mortgage question? Tom can walk you through loan options, rates, and what you qualify for.</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="mj-contact-btns">
@@ -17464,6 +17464,16 @@ function renderMortgageJourney() {
         ? ('Have a mortgage question? '+lname+' can walk you through loan options, rates, and what you qualify for.')
         : 'Have a mortgage question? Your lender can walk you through loan options, rates, and what you qualify for.';
     }
+    // Header pill + subtitle, lender profile card — all from the assigned lender.
+    var ltitle = (L && L.title) || (L && L.role) || 'Mortgage Professional';
+    function setTxt(id, txt){ var el=document.getElementById(id); if(el) el.textContent = txt; }
+    setTxt('mj-header-pill', lname ? (lname+' \u00B7 Mortgage Financing') : 'Mortgage Financing');
+    setTxt('mj-header-sub', lname ? (lname+' \u00B7 Mortgage Financing') : 'Mortgage Financing');
+    setTxt('mj-lender-name', lname || 'Your Lender');
+    setTxt('mj-lender-title', ltitle);
+    setTxt('mj-lender-phone', lphone || '');
+    var av = document.getElementById('mj-lender-avatar');
+    if(av){ av.textContent = lname ? lname.split(' ').map(function(w){return w[0]||'';}).join('').substring(0,2).toUpperCase() : '\uD83C\uDFE6'; }
   })();
 
   // Mobile-first sizing — matches buyer trail logic
