@@ -3593,22 +3593,34 @@ const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 // Heuristic split of a combined US address string into {street, city, state, zip}.
 // Used as a fallback when an address did NOT come from Google autocomplete (manual typing,
 // CSV import, inbound lead). Google autocomplete provides exact parts; this is the backstop.
+var _US_STATES = {'alabama':'AL','alaska':'AK','arizona':'AZ','arkansas':'AR','california':'CA','colorado':'CO','connecticut':'CT','delaware':'DE','florida':'FL','georgia':'GA','hawaii':'HI','idaho':'ID','illinois':'IL','indiana':'IN','iowa':'IA','kansas':'KS','kentucky':'KY','louisiana':'LA','maine':'ME','maryland':'MD','massachusetts':'MA','michigan':'MI','minnesota':'MN','mississippi':'MS','missouri':'MO','montana':'MT','nebraska':'NE','nevada':'NV','new hampshire':'NH','new jersey':'NJ','new mexico':'NM','new york':'NY','north carolina':'NC','north dakota':'ND','ohio':'OH','oklahoma':'OK','oregon':'OR','pennsylvania':'PA','rhode island':'RI','south carolina':'SC','south dakota':'SD','tennessee':'TN','texas':'TX','utah':'UT','vermont':'VT','virginia':'VA','washington':'WA','west virginia':'WV','wisconsin':'WI','wyoming':'WY'};
+var _STREET_TYPES = /\b(st|street|ave|avenue|rd|road|dr|drive|ln|lane|blvd|boulevard|ct|court|cir|circle|way|pl|place|ter|terrace|pkwy|parkway|hwy|highway|trl|trail|loop|run|pass|path|sq|square)\.?\b/i;
+function _addrClean(x){ return (x||'').replace(/^[.,\s]+|[.,\s]+$/g,'').trim(); }
 function _splitAddress(str){
   var out = { street:'', city:'', state:'', zip:'' };
   if (!str) return out;
   var s = String(str).trim();
-  // Strip a trailing country segment Google appends (", USA" / ", United States").
   s = s.replace(/,\s*(USA|United States(?: of America)?|US)\s*$/i, '').trim().replace(/,\s*$/, '');
-  // Pull trailing ZIP (5 or 5-4)
   var zm = s.match(/(\d{5}(?:-\d{4})?)\s*$/);
   if (zm){ out.zip = zm[1]; s = s.slice(0, zm.index).trim().replace(/,\s*$/, ''); }
-  // Pull trailing 2-letter state (US)
-  var sm = s.match(/[,\s]([A-Za-z]{2})\s*$/);
-  if (sm){ out.state = sm[1].toUpperCase(); s = s.slice(0, sm.index).trim().replace(/,\s*$/, ''); }
-  // Remaining: split on commas → last chunk is city, rest is street
-  var parts = s.split(',').map(function(p){ return p.trim(); }).filter(Boolean);
-  if (parts.length >= 2){ out.city = parts[parts.length-1]; out.street = parts.slice(0, parts.length-1).join(', '); }
-  else if (parts.length === 1){ out.street = parts[0]; }
+  var matchedFull = false;
+  for (var nm in _US_STATES){
+    var re = new RegExp('[,\\s]'+nm.replace(/ /g,'\\s+')+'\\s*$','i');
+    if (re.test(s)){ out.state = _US_STATES[nm]; s = s.replace(re,'').trim().replace(/,\s*$/,''); matchedFull=true; break; }
+  }
+  if (!matchedFull){
+    var sm = s.match(/[,\s]([A-Za-z]{2})\s*$/);
+    if (sm){ out.state = sm[1].toUpperCase(); s = s.slice(0, sm.index).trim().replace(/,\s*$/, ''); }
+  }
+  if (s.indexOf(',') !== -1){
+    var parts = s.split(',').map(function(p){ return p.trim(); }).filter(Boolean);
+    if (parts.length >= 2){ out.city = _addrClean(parts[parts.length-1]); out.street = _addrClean(parts.slice(0, parts.length-1).join(', ')); }
+    else if (parts.length === 1){ out.street = _addrClean(parts[0]); }
+  } else {
+    var m = s.match(_STREET_TYPES);
+    if (m){ var idx = m.index + m[0].length; if (s[idx]==='.') idx++; out.street = _addrClean(s.slice(0, idx)); out.city = _addrClean(s.slice(idx)); }
+    else { out.street = _addrClean(s); }
+  }
   return out;
 }
 // Rebuild a combined address string from parts (used when a split field is edited).
