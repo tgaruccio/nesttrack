@@ -3726,7 +3726,9 @@ const LENDER = {
 };
 
 function normalizeAgent(agent) {
-  const fallback = (typeof DEFAULT_AGENTS !== 'undefined' && DEFAULT_AGENTS[0]) ? DEFAULT_AGENTS[0] : {};
+  // No agent → empty object (NOT Tom). normalizeAgent then fills name as "your agent"
+  // and leaves photo/phone/email blank, so another agent never inherits Tom's data.
+  const fallback = {};
   const a = agent || fallback || {};
   const name = (a.name || [a.firstName, a.lastName].filter(Boolean).join(' ') || 'your agent').trim();
   return {
@@ -3746,7 +3748,7 @@ function normalizeAgent(agent) {
 }
 
 function currentAgent() {
-  return normalizeAgent(assignedAgent || ((typeof DEFAULT_AGENTS !== 'undefined' && DEFAULT_AGENTS[0]) ? DEFAULT_AGENTS[0] : null));
+  return normalizeAgent(assignedAgent || null);
 }
 
 // Dynamic buyer-facing agent copy helpers.
@@ -4429,7 +4431,7 @@ async function loadUserProfile() {
       if (lg) { isLender = true; userProfile.lenderId = lg.id; }
       else if (userProfile.role === 'lender') { isLender = true; }
       // Find assigned agent
-      assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
+      assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || normalizeAgent(null);
       // Find assigned lender — null if none (no fallback to Tom). No lender = no mortgage trail.
       var lenderId = userProfile.lenderId || _teamDefaultLender();
       assignedLender = lenderId ? (DEFAULT_LENDERS.find(a => a.id === lenderId) || null) : null;
@@ -4475,7 +4477,7 @@ function showLogin() {
 async function loadAssignedAgentProfile() {
   try {
     if (isAgent) {
-      const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
+      const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || {};
       assignedAgent = normalizeAgent({ ...base, ...userProfile, id: userProfile.agentId || base.id });
       // If this user is also a lender, their agent profile feeds the lender card too
       if (isLender) {
@@ -4511,7 +4513,7 @@ async function loadAssignedAgentProfile() {
       });
       return;
     }
-    const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || DEFAULT_AGENTS[0];
+    const base = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || {};
     assignedAgent = normalizeAgent(base);
     const qs = await fb.getDocs(fb.query(
       fb.collection(fb.db, 'users'),
@@ -7431,7 +7433,12 @@ function copyBizCardLink(){
   if(navigator.clipboard){ navigator.clipboard.writeText(url).then(function(){ _bcToast('Card link copied ✓'); }); }
   else { var el=document.getElementById('bizcard-link'); el.select(); document.execCommand('copy'); _bcToast('Card link copied ✓'); }
 }
-function openBizCard(){ window.open(bizCardUrl(), '_blank'); }
+function openBizCard(){
+  // Use the in-app overlay (has a back button) instead of window.open _blank,
+  // which traps users in the mobile webview with no way back.
+  if (typeof openPreviewOverlay === 'function') { openPreviewOverlay(bizCardUrl(), 'Business Card'); }
+  else { window.open(bizCardUrl(), '_blank'); }
+}
 window.copyBizCardLink=copyBizCardLink; window.openBizCard=openBizCard;
 
 
@@ -11475,7 +11482,7 @@ window._startPreview = async function(buyerUid) {
   isAgent = false;
   isLender = false;
   userProfile = buyerProfile;
-  assignedAgent = DEFAULT_AGENTS.find(function(a){ return a.id === buyerProfile.agentId; }) || DEFAULT_AGENTS[0];
+  assignedAgent = DEFAULT_AGENTS.find(function(a){ return a.id === buyerProfile.agentId; }) || normalizeAgent(null);
 
   // Show banner, hide agent UI, show buyer UI
   var banner = document.getElementById('client-preview-banner');
