@@ -523,9 +523,13 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
     <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
-    <div class="ns">Client View</div>
     <button class="nb" onclick="enterClientPreview()" style="color:var(--green-dk);font-weight:500;">👁️ Preview as Client</button>
   </div>
+  <!-- CLIENT VIEW collapsible toggle (agents only; collapsed by default). Real clients never see this header; their menu shows normally. -->
+  <div class="ns" id="client-view-toggle" onclick="toggleClientView()" style="display:none;cursor:pointer;user-select:none;align-items:center;justify-content:space-between;">
+    <span>Client View</span><span id="client-view-caret" style="font-size:11px;transition:transform .15s;">▸</span>
+  </div>
+  <div id="client-view-menu">
   <div class="ns" id="sidebar-start-label">Start Here</div>
   <button class="nb" data-pg="home" onclick="go('home',this)">🏠 Home</button>
   <button class="nb" data-pg="guide" onclick="go('guide',this)">🗺️ The Home Buyers Trail</button>
@@ -559,6 +563,7 @@ textarea{resize:vertical;min-height:68px;}
   <button class="nb" data-pg="docs-explainer" onclick="go('docs-explainer',this)">📄 Document Explainer</button>
   <button class="nb" data-pg="education" onclick="go('education',this)">📚 Education</button>
   <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
+  </div><!-- /client-view-menu -->
 
 </div>
 
@@ -7759,6 +7764,23 @@ async function showApp() {
   document.getElementById('user-role').textContent = isAgent ? 'Agent' : (isLender ? 'Lender' : 'Buyer');
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
+  // CLIENT VIEW collapse: for agents/lenders, show the toggle header and collapse the client menu by default.
+  // Real clients never see the toggle and get their menu shown normally.
+  (function(){
+    var _cvt=document.getElementById('client-view-toggle');
+    var _cvm=document.getElementById('client-view-menu');
+    var _cvc=document.getElementById('client-view-caret');
+    if(_cvt&&_cvm){
+      if(isAgent||isLender){
+        _cvt.style.display='flex';
+        _cvm.style.display='none';            // collapsed by default
+        if(_cvc)_cvc.style.transform='rotate(0deg)';
+      } else {
+        _cvt.style.display='none';           // clients: no toggle
+        _cvm.style.display='';               // clients: menu shown normally
+      }
+    }
+  })();
   var _ndt=document.getElementById('nb-doctemplates');if(_ndt)_ndt.style.display=isTeamLeader()?'block':'none';
   // Hide buyer journey timeline bar for agents — they have no buyer journey
   
@@ -11649,6 +11671,16 @@ window.toggleAdminShowAll = toggleAdminShowAll;
 var _previewMode = false;
 var _previewBuyerUid = null;
 
+function toggleClientView(){
+  var m=document.getElementById('client-view-menu');
+  var c=document.getElementById('client-view-caret');
+  if(!m)return;
+  var open=(m.style.display!=='none');
+  m.style.display=open?'none':'';
+  if(c)c.style.transform=open?'rotate(0deg)':'rotate(90deg)';
+}
+window.toggleClientView=toggleClientView;
+
 async function enterClientPreview() {
   if (_previewMode) return;
   closeSidebar();
@@ -14781,7 +14813,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128226;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Marketing &amp; Nurture</div></div>
       <div id="sp-contact-row-${uid}">${spContactRowHtml(b)}</div>
-      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.homebotEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On Homebot</span> <span style="font-size:11px;color:var(--text3);">&mdash; getting the monthly digest</span> <span onclick="homebotEnroll('${uid}',this,true)" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Re-send</span><span onclick="showHelp('homebot')" title="How Homebot works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button class="btn btn-sm" onclick="homebotEnroll('${uid}',this)">&#127968; Add to Homebot</button> <span style="font-size:11px;color:var(--text3);">&mdash; monthly home-value digest</span><span onclick="showHelp('homebot')" title="How Homebot works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
+      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.homebotEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On Homebot</span> <span style="font-size:11px;color:var(--text3);">&mdash; getting the monthly digest</span> <span onclick="homebotEnroll('${uid}',this,true)" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Re-send</span> <span onclick="homebotRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('homebot')" title="How Homebot works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button class="btn btn-sm" onclick="homebotEnroll('${uid}',this)">&#127968; Add to Homebot</button> <span style="font-size:11px;color:var(--text3);">&mdash; monthly home-value digest</span><span onclick="showHelp('homebot')" title="How Homebot works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128202;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Activity</div></div>
@@ -28205,6 +28237,20 @@ async function homebotEnroll(uid, btn, isResend){
   }
 }
 window.homebotEnroll = homebotEnroll;
+
+// Clears NestTrack's local "on Homebot" tracking for a contact. This does NOT stop the digest —
+// the agent must remove/archive the client inside Homebot itself. We make that explicit.
+async function homebotRemove(uid){
+  if(!uid) return;
+  var ok = confirm('Remove the Homebot tag for this contact in NestTrack?\n\nIMPORTANT: this only updates NestTrack\u2019s tracking. To actually stop the monthly digest, you must remove this client inside Homebot \u2014 NestTrack can add clients to Homebot but cannot remove them.');
+  if(!ok) return;
+  try { await saveClientField(uid, 'homebotEnrolled', false); } catch(e){}
+  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
+  if(b) b.homebotEnrolled = false;
+  if(typeof showToast==='function') showToast('Removed in NestTrack. Remember to also shut them off in Homebot.');
+  try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
+}
+window.homebotRemove = homebotRemove;
 
 async function spOpenAssign(uid){
   if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
