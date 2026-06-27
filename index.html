@@ -15222,14 +15222,16 @@ function _goLiveEnsureModal(){
   wrap.addEventListener('click', function(e){ if (e.target === wrap) _goLiveSkip(); });
 }
 
-function _goLiveListingPrompt(uid){
-  var deal = (window._deals||[]).find(function(d){ return d.clientUid===uid && d.dealType==='seller'; });
-  if (!deal) return;                 // no seller deal -> nothing to attach to
+// Core opener — works from a deal object (so either entry point can call it).
+function _goLiveOpen(deal){
+  if (!deal || deal.dealType!=='seller') return;
   if (deal.offerListingId) return;   // already linked -> stay silent (no duplicates)
-  var b = (window.allBuyers||[]).find(function(x){ return x.uid===uid; });
-  var addr = deal.address || (b && (b.listingAddress || b.propertyAddress)) || '';
-  var existing = (window._listings||[]).find(function(l){ return l.clientUid===uid && l.active!==false; });
-  _goLiveCtx = { uid:uid, dealId:deal.id, existingListingId: existing ? existing.id : '' };
+  var b = (window.allBuyers||[]).find(function(x){ return x.uid===deal.clientUid; });
+  var addr = (deal.address && deal.address.trim())
+    || (b && (b.listingAddress || b.propertyAddress || b.mailingAddress))
+    || '';
+  var existing = (window._listings||[]).find(function(l){ return deal.clientUid && l.clientUid===deal.clientUid && l.active!==false; });
+  _goLiveCtx = { uid: deal.clientUid||'', dealId: deal.id, existingListingId: existing ? existing.id : '' };
   _goLiveEnsureModal();
   var ai = document.getElementById('goLiveAddr'); if (ai) ai.value = addr;
   var lbl = document.getElementById('goLiveMakeLbl');
@@ -15237,6 +15239,11 @@ function _goLiveListingPrompt(uid){
   var mk = document.getElementById('goLiveMake'); if (mk) mk.checked = true;
   document.getElementById('goLiveModal').style.display = 'flex';
 }
+
+// Entry from the Deal Tracker (setDealStep gives us a dealId).
+function _goLiveByDeal(dealId){ var d=(window._deals||[]).find(function(x){ return x.id===dealId; }); _goLiveOpen(d); }
+// Entry from the client journey (setSellerStep gives us a client uid).
+function _goLiveListingPrompt(uid){ var d=(window._deals||[]).find(function(x){ return x.clientUid===uid && x.dealType==='seller'; }); _goLiveOpen(d); }
 
 function _goLiveSkip(){ var m=document.getElementById('goLiveModal'); if (m) m.style.display='none'; }
 
@@ -15246,13 +15253,15 @@ async function _goLiveSave(){
   var uid = _goLiveCtx.uid, dealId = _goLiveCtx.dealId;
   _goLiveSkip();
   try {
-    // 1) Save the address onto the deal AND the client card (connect from all angles).
+    // 1) Save the address onto the deal AND (if linked to a client) the client card.
     if (addr) {
       try { await fb.updateDoc(_dealDoc(dealId), { address: addr }); } catch(e){ console.log('goLive deal addr:', e && e.message); }
-      try {
-        await fb.updateDoc(fb.doc(fb.db,'users',uid), { listingAddress: addr });
-        var b = (window.allBuyers||[]).find(function(x){ return x.uid===uid; }); if (b) b.listingAddress = addr;
-      } catch(e){ console.log('goLive client addr:', e && e.message); }
+      if (uid) {
+        try {
+          await fb.updateDoc(fb.doc(fb.db,'users',uid), { listingAddress: addr });
+          var b = (window.allBuyers||[]).find(function(x){ return x.uid===uid; }); if (b) b.listingAddress = addr;
+        } catch(e){ console.log('goLive client addr:', e && e.message); }
+      }
     }
     // 2) Create or link the Offer Manager listing.
     if (make) {
@@ -15283,6 +15292,7 @@ async function _goLiveSave(){
   } catch(e){ alert('Could not finish going live: ' + (e && e.message ? e.message : e)); }
 }
 window._goLiveListingPrompt = _goLiveListingPrompt;
+window._goLiveByDeal = _goLiveByDeal;
 
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
@@ -25128,6 +25138,7 @@ async function setDealStep(dealId, next) {
   if (justUC) _activeFilter = 'contract';
   // When a deal reaches its closing step, jump to the Closed tab.
   var justClosed = (!isSeller && next>=11 && cur<11) || (isSeller && next>=13 && cur<13);
+  var justListed = (isSeller && next===6 && cur<6);
   if (justClosed) _activeFilter = 'closed';
   filterDeals(_activeFilter);
   if (justClosed && !deal.lbExported && typeof offerDealToLeaderboard==='function') offerDealToLeaderboard(deal);
@@ -25161,6 +25172,7 @@ async function setDealStep(dealId, next) {
       }
     }
   }
+  if (justListed) setTimeout(function(){ _goLiveByDeal(dealId); }, 200);
 }
 window.setDealStep = setDealStep;
 
@@ -26650,7 +26662,7 @@ async function addToDealTracker(uid, dealType) {
   }
   var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
   var addr = dealType==='seller'
-    ? (b.listingAddress||b.propertyAddress||null)
+    ? (b.listingAddress||b.propertyAddress||b.mailingAddress||null)
     : (b.propertyAddress||null);
   // Pull dates from client contract dates
   var clientDates = dealType==='seller'
