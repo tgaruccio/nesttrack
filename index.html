@@ -25316,6 +25316,153 @@ async function sendDealDocs(dealId) {
 }
 window.sendDealDocs = sendDealDocs;
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  NESTTALK — goal-aware client-message drafting (the AI TC "communication" layer)
+//  Source playbook: The Garuccio Decision Framework. Rides claudeAPI()+CLAUDE_MODEL.
+//  Drafts a client-ready message + a PRIVATE agent-only note (never sent, never stored).
+// ═══════════════════════════════════════════════════════════════════════════
+var NT_GOAL_LABELS = {
+  highest_price:  'the highest sale price',
+  highest_net:    'the highest net proceeds in their pocket at closing',
+  fastest_close:  'the fastest possible closing',
+  lowest_risk:    'the lowest risk / fewest things that can go wrong',
+  most_certainty: 'the highest certainty the deal actually closes'
+};
+var NT_COMMS_LABELS = {
+  takes_news_hard: 'takes bad news hard / can spiral — lead with solutions, not the problem',
+  wants_detail:    'wants the full picture and the numbers — be thorough, show your work',
+  wants_brief:     'wants the short version — get to the point, offer detail on request',
+  decisive:        'decisive and fast — give a clear recommendation up front',
+  prone_to_blame:  'looks for someone to blame under stress — stay future-focused, never "I told you so"'
+};
+var NT_SYSTEM_PROMPT = [
+  "You are a drafting assistant for a real estate agent. You write a client-ready message AND a private, agent-only coaching note. You do NOT send anything — the agent reads, edits into their own voice, and sends.",
+  "You follow the Garuccio Decision Framework. The agent owns the advice; the client owns the decision. Your job is to help the client understand the trade-offs and the most probable path to their stated goal.",
+  "RULES FOR THE CLIENT MESSAGE:",
+  "- Anchor everything to the client's stated GOAL. The same event should be framed differently depending on whether they're optimizing for price, net, speed, low risk, or certainty.",
+  "- Use the three-part shape where it fits: the facts, your recommendation, and the probability/odds — which path most likely accomplishes their goal.",
+  "- Sell outcomes, not concessions. Frame a cost as removing an obstacle or protecting the larger value (e.g. 'investing $X to protect the other $Y'), never as 'losing' money.",
+  "- Separate what is POSSIBLE from what is PROBABLE. Acknowledge the upside they're hoping for, then weigh its likelihood honestly against the risks.",
+  "- Stay future-focused. Never imply 'I told you so.' Solve the next problem.",
+  "- Offer real options, then give a clear recommendation. End with a low-friction next step (usually a quick call).",
+  "- Warm, plain, concise. Sound like a trusted human advisor, not a form letter. 4-8 sentences. Use their first name if given.",
+  "HARD GUARDRAILS:",
+  "- Tell the truth even when uncomfortable. Never manufacture urgency. Always surface the downside.",
+  "- Use ONLY the facts in the situation. Invent nothing. If a key fact is missing, keep it general and put 'confirm before sending' items in the private note.",
+  "- Never reference or infer a protected characteristic. Communication style only.",
+  "- Do not sign off as the agent. Leave it as a draft they'll personalize.",
+  "THE PRIVATE NOTE (agent-only, NEVER shown to the client):",
+  "- 2-4 short sentences of coaching for THIS moment, informed by the comms style. Say what to lead with, what NOT to say now, and which framework move applies. Flag any fact to confirm before sending.",
+  'OUTPUT: respond with ONLY a JSON object, no markdown, no preamble: {"clientDraft":"...","privateNote":"..."}'
+].join("\n");
+
+async function ntDraftClientMessage(o){
+  o = o || {};
+  var goalLabel  = NT_GOAL_LABELS[o.goal] || o.goal || '(not set — keep framing general and flag it in the private note)';
+  var commsLabel = o.commsTag ? (NT_COMMS_LABELS[o.commsTag] || o.commsTag) : '';
+  var situation  = (o.situation || '').trim();
+  if (!situation) return { error:'Tell it what happened first.' };
+  var userMsg = "GOAL the client is optimizing for: " + goalLabel + "\n"
+    + (commsLabel ? "Client communication style: " + commsLabel + "\n" : "")
+    + (o.clientFirst ? "Client first name: " + o.clientFirst + "\n" : "")
+    + (o.address ? "Property: " + o.address + "\n" : "")
+    + "What just happened: " + situation + "\n\nWrite the client message and the private note now.";
+  var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1024, system: NT_SYSTEM_PROMPT, messages: [{ role:'user', content: userMsg }] });
+  var txt = (d && d.content && d.content[0] && d.content[0].text) ? d.content[0].text : '';
+  txt = String(txt).replace(/```json|```/g, '').trim();
+  var p = null;
+  try { p = JSON.parse(txt); } catch(e){ var m = txt.match(/\{[\s\S]*\}/); if (m){ try { p = JSON.parse(m[0]); } catch(e2){} } }
+  if (!p || (!p.clientDraft && !p.privateNote)) return { error:'Could not parse a draft.', raw: txt };
+  return { clientDraft:String(p.clientDraft||'').trim(), privateNote:String(p.privateNote||'').trim() };
+}
+
+// Module-scope context for the open modal.
+var _ntCtx = { dealId:'', clientFirst:'', address:'' };
+
+// Build the modal DOM once (idempotent).
+function ntEnsureModal(){
+  if (document.getElementById('ntModal')) return;
+  var goalNice = { highest_price:'Highest sale price', highest_net:'Highest net proceeds', fastest_close:'Fastest closing', lowest_risk:'Lowest risk', most_certainty:'Most certainty it closes' };
+  var commsNice = { takes_news_hard:'Takes news hard', wants_detail:'Wants detail', wants_brief:'Wants it brief', decisive:'Decisive / fast', prone_to_blame:'Prone to blame' };
+  var goalOpts = Object.keys(NT_GOAL_LABELS).map(function(k){ return '<option value="'+k+'"'+(k==='highest_net'?' selected':'')+'>'+(goalNice[k]||k)+'</option>'; }).join('');
+  var commsOpts = '<option value="">— none —</option>' + Object.keys(NT_COMMS_LABELS).map(function(k){ return '<option value="'+k+'">'+(commsNice[k]||k)+'</option>'; }).join('');
+  var wrap = document.createElement('div');
+  wrap.id = 'ntModal';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.45);display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;';
+  wrap.innerHTML =
+    '<div style="background:var(--surface);border-radius:14px;max-width:520px;width:100%;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);overflow:hidden;">'
+    +  '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:0.5px solid var(--border);">'
+    +    '<div style="font-size:14px;font-weight:700;color:var(--text);">\u2709 Draft a client update</div>'
+    +    '<button type="button" onclick="closeNestTalk()" style="background:none;border:none;font-size:20px;line-height:1;color:var(--text3);cursor:pointer;">\u00d7</button>'
+    +  '</div>'
+    +  '<div style="padding:16px;">'
+    +    '<div id="ntCtxLine" style="font-size:12px;color:var(--text3);margin-bottom:12px;"></div>'
+    +    '<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">What just happened?</label>'
+    +    '<textarea id="ntSituation" rows="2" placeholder="e.g. appraisal came in $12k low" style="width:100%;font-size:14px;padding:9px 11px;border:0.5px solid var(--border);border-radius:var(--r);resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>'
+    +    '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">'
+    +      '<div style="flex:1;min-width:150px;"><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Optimizing for</label><select id="ntGoal" style="width:100%;font-size:14px;padding:8px 10px;border:0.5px solid var(--border);border-radius:var(--r);box-sizing:border-box;">'+goalOpts+'</select></div>'
+    +      '<div style="flex:1;min-width:150px;"><label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Client style <span style="font-weight:400;color:var(--text3);">(optional)</span></label><select id="ntComms" style="width:100%;font-size:14px;padding:8px 10px;border:0.5px solid var(--border);border-radius:var(--r);box-sizing:border-box;">'+commsOpts+'</select></div>'
+    +    '</div>'
+    +    '<button type="button" id="ntDraftBtn" onclick="ntRun()" style="margin-top:14px;width:100%;font-size:14px;font-weight:600;padding:11px;border:none;border-radius:var(--r);background:var(--green);color:#fff;cursor:pointer;">Draft it</button>'
+    +    '<div id="ntResult" style="display:none;margin-top:16px;">'
+    +      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><span style="font-size:12px;font-weight:600;color:var(--text2);">Client draft</span><span style="font-size:11px;color:var(--text3);">edit before sending</span></div>'
+    +      '<textarea id="ntClientDraft" rows="7" style="width:100%;font-size:14px;line-height:1.5;padding:11px;border:0.5px solid var(--border);border-radius:var(--r);resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>'
+    +      '<div style="display:flex;gap:8px;margin-top:8px;"><button type="button" onclick="ntCopy()" style="flex:1;font-size:13px;font-weight:600;padding:9px;border:0.5px solid var(--green-md);border-radius:var(--r);background:var(--green-lt);color:var(--green-dk);cursor:pointer;">\ud83d\udccb Copy draft</button><button type="button" onclick="ntRun()" style="font-size:13px;padding:9px 14px;border:0.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text2);cursor:pointer;">Redraft</button></div>'
+    +      '<div style="display:flex;align-items:center;gap:5px;margin:16px 0 6px;"><span style="font-size:13px;">\ud83d\udd12</span><span style="font-size:12px;font-weight:600;color:var(--amber-dk);">Private \u2014 agent only \u00b7 never sent</span></div>'
+    +      '<div id="ntPrivateNote" style="font-size:13px;line-height:1.5;color:var(--amber-dk);background:var(--amber-lt);border:0.5px solid var(--amber);border-radius:12px;padding:11px 13px;white-space:pre-wrap;"></div>'
+    +    '</div>'
+    +  '</div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', function(e){ if (e.target === wrap) closeNestTalk(); });
+}
+
+function openNestTalk(dealId){
+  var deal = (window._deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal){ alert('Deal not found.'); return; }
+  var client = (window.allBuyers||[]).find(function(b){ return b.uid===deal.clientUid; });
+  var clientFirst = (client && client.firstName) ? client.firstName : ((deal.clientName||'').split(' ')[0] || '');
+  _ntCtx = { dealId: dealId, clientFirst: clientFirst, address: deal.address || '' };
+  ntEnsureModal();
+  var sit = document.getElementById('ntSituation'); if (sit) sit.value = '';
+  var res = document.getElementById('ntResult'); if (res) res.style.display = 'none';
+  var ctx = document.getElementById('ntCtxLine');
+  if (ctx){ ctx.textContent = (clientFirst ? clientFirst : 'Client') + (deal.address ? ' \u00b7 ' + deal.address : ''); }
+  var btn = document.getElementById('ntDraftBtn'); if (btn){ btn.disabled = false; btn.textContent = 'Draft it'; }
+  document.getElementById('ntModal').style.display = 'flex';
+}
+
+function closeNestTalk(){ var m = document.getElementById('ntModal'); if (m) m.style.display = 'none'; }
+
+async function ntRun(){
+  var btn = document.getElementById('ntDraftBtn');
+  var situation = (document.getElementById('ntSituation').value || '').trim();
+  if (!situation){ alert('Tell it what just happened first.'); return; }
+  var goal = document.getElementById('ntGoal').value;
+  var commsTag = document.getElementById('ntComms').value;
+  if (btn){ btn.disabled = true; btn.textContent = 'Drafting\u2026'; }
+  try {
+    var r = await ntDraftClientMessage({ goal: goal, commsTag: commsTag, situation: situation, clientFirst: _ntCtx.clientFirst, address: _ntCtx.address });
+    if (r.error){ alert(r.error); return; }
+    document.getElementById('ntClientDraft').value = r.clientDraft || '';
+    document.getElementById('ntPrivateNote').textContent = r.privateNote || '(none)';
+    document.getElementById('ntResult').style.display = 'block';
+  } catch(e){
+    alert('Draft failed: ' + (e && e.message ? e.message : e));
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = 'Draft it'; }
+  }
+}
+
+function ntCopy(){
+  var ta = document.getElementById('ntClientDraft'); if (!ta) return;
+  var text = ta.value || '';
+  function done(){ alert('Draft copied.'); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(function(){ ta.select(); try { document.execCommand('copy'); } catch(e){} done(); });
+  } else { ta.select(); try { document.execCommand('copy'); } catch(e){} done(); }
+}
+
 // ─── AI Transaction Coordinator: a state-aware task board per deal ───
 // Status is DERIVED LIVE from the deal's dates + your done/skip marks on every render — never a
 // stored "ready to fire" flag. Timing uses windows (start the work, not the deadline), so nothing
@@ -25380,7 +25527,10 @@ function renderDealTC(deal){
   var on = deal.tcEnabled !== false; // default ON
   var head = '<details style="margin-bottom:8px;" '+(on?'open':'')+'>'
     + '<summary style="list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:6px 0 4px;">'
-    + '<span style="font-size:12px;font-weight:600;color:var(--text2);">\ud83e\udd16 AI Transaction Coordinator</span>'
+    + '<span style="display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap;">'
+    +   '<span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap;">\ud83e\udd16 AI Transaction Coordinator</span>'
+    +   '<button type="button" onclick="event.preventDefault();event.stopPropagation();openNestTalk(\''+deal.id+'\')" style="font-size:10px;font-weight:600;padding:3px 9px;border-radius:12px;cursor:pointer;border:0.5px solid var(--green-md);background:var(--green-lt);color:var(--green-dk);white-space:nowrap;">\u2709 Draft client update</button>'
+    + '</span>'
     + '<span onclick="event.preventDefault();event.stopPropagation();toggleDealTC(\''+deal.id+'\')" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;cursor:pointer;background:'+(on?'#ECFDF5':'#F3F4F6')+';color:'+(on?'#065F46':'#6B7280')+';">'+(on?'On':'Off')+'</span>'
     + '</summary>';
   if (!on) return head + '<div style="padding:6px 0;font-size:11px;color:var(--text3);">AI TC is off for this deal \u2014 tasks and the weekly digest skip it.</div></details>';
