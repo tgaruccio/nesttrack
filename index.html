@@ -15186,6 +15186,104 @@ async function saveTitleCo(uid) {
 }
 window.saveTitleCo = saveTitleCo;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GO LIVE -> listing address + Offer Manager hook. Mirrors the existing
+// Offer-Manager -> Deal auto-link in the opposite direction so the seller flow
+// connects from all angles. Fires at seller step 6 (Go Live). Purely additive:
+// only offers to create/link a listing when the deal isn't already linked.
+// ─────────────────────────────────────────────────────────────────────────────
+var _goLiveCtx = { uid:'', dealId:'', existingListingId:'' };
+
+function _goLiveEnsureModal(){
+  if (document.getElementById('goLiveModal')) return;
+  var wrap = document.createElement('div');
+  wrap.id = 'goLiveModal';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,0.45);display:none;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;';
+  wrap.innerHTML =
+    '<div style="background:var(--surface);border-radius:14px;max-width:460px;width:100%;margin:auto;box-shadow:0 12px 40px rgba(0,0,0,0.25);overflow:hidden;">'
+    +  '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:0.5px solid var(--border);">'
+    +    '<div style="font-size:14px;font-weight:700;color:var(--text);">\ud83d\ude80 Going live</div>'
+    +    '<button type="button" onclick="_goLiveSkip()" style="background:none;border:none;font-size:20px;line-height:1;color:var(--text3);cursor:pointer;">\u00d7</button>'
+    +  '</div>'
+    +  '<div style="padding:16px;">'
+    +    '<label style="font-size:12px;font-weight:600;color:var(--text2);display:block;margin-bottom:4px;">Listing address</label>'
+    +    '<input id="goLiveAddr" type="text" placeholder="123 Main St, Westlake, OH 44145" style="width:100%;font-size:14px;padding:9px 11px;border:0.5px solid var(--border);border-radius:var(--r);box-sizing:border-box;font-family:inherit;"/>'
+    +    '<label id="goLiveMakeRow" style="display:flex;align-items:center;gap:8px;margin-top:14px;cursor:pointer;">'
+    +      '<input id="goLiveMake" type="checkbox" checked style="width:18px;height:18px;cursor:pointer;flex-shrink:0;"/>'
+    +      '<span id="goLiveMakeLbl" style="font-size:13px;color:var(--text);">Also create the Offer Manager listing</span>'
+    +    '</label>'
+    +    '<div style="display:flex;gap:8px;margin-top:18px;">'
+    +      '<button type="button" onclick="_goLiveSave()" style="flex:1;font-size:14px;font-weight:600;padding:11px;border:none;border-radius:var(--r);background:var(--green);color:#fff;cursor:pointer;">Save</button>'
+    +      '<button type="button" onclick="_goLiveSkip()" style="font-size:14px;padding:11px 16px;border:0.5px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text2);cursor:pointer;">Skip</button>'
+    +    '</div>'
+    +  '</div>'
+    + '</div>';
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', function(e){ if (e.target === wrap) _goLiveSkip(); });
+}
+
+function _goLiveListingPrompt(uid){
+  var deal = (window._deals||[]).find(function(d){ return d.clientUid===uid && d.dealType==='seller'; });
+  if (!deal) return;                 // no seller deal -> nothing to attach to
+  if (deal.offerListingId) return;   // already linked -> stay silent (no duplicates)
+  var b = (window.allBuyers||[]).find(function(x){ return x.uid===uid; });
+  var addr = deal.address || (b && (b.listingAddress || b.propertyAddress)) || '';
+  var existing = (window._listings||[]).find(function(l){ return l.clientUid===uid && l.active!==false; });
+  _goLiveCtx = { uid:uid, dealId:deal.id, existingListingId: existing ? existing.id : '' };
+  _goLiveEnsureModal();
+  var ai = document.getElementById('goLiveAddr'); if (ai) ai.value = addr;
+  var lbl = document.getElementById('goLiveMakeLbl');
+  if (lbl) lbl.textContent = existing ? 'Link this deal to the existing Offer Manager listing' : 'Also create the Offer Manager listing';
+  var mk = document.getElementById('goLiveMake'); if (mk) mk.checked = true;
+  document.getElementById('goLiveModal').style.display = 'flex';
+}
+
+function _goLiveSkip(){ var m=document.getElementById('goLiveModal'); if (m) m.style.display='none'; }
+
+async function _goLiveSave(){
+  var addr = (document.getElementById('goLiveAddr').value||'').trim();
+  var make = !!(document.getElementById('goLiveMake') && document.getElementById('goLiveMake').checked);
+  var uid = _goLiveCtx.uid, dealId = _goLiveCtx.dealId;
+  _goLiveSkip();
+  try {
+    // 1) Save the address onto the deal AND the client card (connect from all angles).
+    if (addr) {
+      try { await fb.updateDoc(_dealDoc(dealId), { address: addr }); } catch(e){ console.log('goLive deal addr:', e && e.message); }
+      try {
+        await fb.updateDoc(fb.doc(fb.db,'users',uid), { listingAddress: addr });
+        var b = (window.allBuyers||[]).find(function(x){ return x.uid===uid; }); if (b) b.listingAddress = addr;
+      } catch(e){ console.log('goLive client addr:', e && e.message); }
+    }
+    // 2) Create or link the Offer Manager listing.
+    if (make) {
+      if (_goLiveCtx.existingListingId) {
+        await fb.updateDoc(_dealDoc(dealId), { offerListingId: _goLiveCtx.existingListingId });
+      } else {
+        var b2 = (window.allBuyers||[]).find(function(x){ return x.uid===uid; });
+        var cname = b2 ? (((b2.firstName||'')+' '+(b2.lastName||'')).trim() || b2.email || '') : '';
+        var listingData = {
+          address: addr || null, clientUid: uid || null, clientName: cname,
+          agentId: userProfile.agentId || '',
+          code: Math.random().toString(36).substring(2,8).toUpperCase(),
+          customFields: [], active: true, offerCount: 0, autoSend: false,
+          listPrice: null, photoUrl: null, listDate: null,
+          createdAt: fb.serverTimestamp()
+        };
+        var ref = await fb.addDoc(fb.collection(fb.db,'offer_listings'), listingData);
+        await fb.updateDoc(_dealDoc(dealId), { offerListingId: ref.id });
+      }
+      if (typeof renderOfferManager === 'function') { try { await renderOfferManager(); } catch(e){} }
+    }
+    // 3) Refresh the deal tracker so the new address / link shows.
+    if (typeof loadDeals === 'function') { try { await loadDeals(); } catch(e){} }
+    if (typeof renderDealTracker === 'function') renderDealTracker();
+    if (make && typeof showDealToast === 'function') {
+      showDealToast('Listing ready \u2014 add price, photos & details', 'Offer Manager', function(){ if (typeof switchAgentTab==='function') switchAgentTab('offers'); });
+    }
+  } catch(e){ alert('Could not finish going live: ' + (e && e.message ? e.message : e)); }
+}
+window._goLiveListingPrompt = _goLiveListingPrompt;
+
 async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   if (newStep !== 0 && newStep !== 9) {
@@ -15214,6 +15312,7 @@ async function setSellerStep(uid) {
     await loadBuyersForAgent();
     renderBuyers();
     if (_dealsLoaded) syncDealStatusFromStep(uid);
+    if (newStep === 6) { setTimeout(function(){ _goLiveListingPrompt(uid); }, 250); }
     if (newStep === 9) {
       var buyer = allBuyers.find(function(b){ return b.uid === uid; });
       var existingDates = _prefillDates(uid, 'seller');
