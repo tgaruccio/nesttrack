@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Is It Time to Move Up?</title>
+<style>
+  :root{ --accent:#2A6EF4; --ink:#0F1B33; --muted:#5b6472; --line:#e8ebf1; --bg:#ffffff; --good:#1D9E75; --warn:#E08A1E; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px;}
+  a{color:var(--accent);}
+
+  .hero{background:linear-gradient(158deg,var(--accent) 0%,#0e1830 140%);color:#fff;padding:22px 0 40px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-90px;top:-90px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,255,0.06);}
+  .achip{display:flex;align-items:center;gap:11px;margin-bottom:26px;position:relative;z-index:1;}
+  .achip img{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.35);background:#33415a;}
+  .achip .n{font-size:14px;font-weight:700;line-height:1.15;}
+  .achip .b{font-size:11.5px;opacity:0.82;}
+  .eyebrow{display:inline-block;font-size:11px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;background:rgba(255,255,255,0.16);padding:6px 13px;border-radius:30px;margin-bottom:14px;position:relative;z-index:1;}
+  h1{font-size:33px;line-height:1.13;margin:0 0 12px;font-weight:800;letter-spacing:-0.7px;position:relative;z-index:1;}
+  .sub{font-size:16px;opacity:0.93;position:relative;z-index:1;}
+
+  .tool{max-width:680px;margin:-22px auto 0;padding:0 20px;position:relative;z-index:5;}
+  .toolcard{background:#fff;border-radius:20px;box-shadow:0 22px 55px rgba(15,27,51,0.16);overflow:hidden;}
+  .thead{padding:20px 22px 0;}
+  .tbadge{display:inline-flex;align-items:center;gap:6px;background:rgba(42,110,244,0.1);color:var(--accent);font-size:12.5px;font-weight:800;padding:6px 12px;border-radius:30px;margin-bottom:14px;}
+  .p-title{font-size:21px;font-weight:800;letter-spacing:-0.3px;margin-bottom:3px;}
+  .p-tag{font-size:13.5px;color:var(--muted);margin-bottom:4px;}
+  .panel{padding:14px 22px 26px;}
+
+  /* readiness checklist */
+  .cg{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .cc{display:flex;gap:10px;align-items:flex-start;text-align:left;background:#f7f9fc;border:1.5px solid var(--line);border-radius:13px;padding:12px 13px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);transition:all .15s;line-height:1.35;}
+  .cc .e{font-size:19px;flex-shrink:0;line-height:1;}
+  .cc:hover{border-color:var(--accent);}
+  .cc.on{background:#fff;border-color:var(--accent);box-shadow:0 6px 16px rgba(42,110,244,0.14);}
+  .cc .ck{margin-left:auto;width:19px;height:19px;border-radius:50%;border:1.5px solid var(--line);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;}
+  .cc.on .ck{background:var(--accent);border-color:var(--accent);}
+
+  .meters{display:flex;flex-direction:column;gap:11px;margin-bottom:22px;}
+  .meter .ml{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px;}
+  .meter .ml span:last-child{color:var(--muted);font-weight:600;}
+  .bar{height:9px;background:#eef2f9;border-radius:6px;overflow:hidden;}
+  .bar i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--accent),#5b9bff);transition:width .7s cubic-bezier(.3,1,.4,1);}
+
+  .blk{margin-bottom:18px;}
+  .blk h3{font-size:12px;font-weight:800;letter-spacing:0.6px;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .steps{counter-reset:s;}
+  .steps .st{display:flex;gap:11px;margin-bottom:9px;font-size:14.5px;}
+  .steps .st::before{counter-increment:s;content:counter(s);flex-shrink:0;width:23px;height:23px;border-radius:50%;background:rgba(42,110,244,0.12);color:var(--accent);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{background:#f3f6fc;border:1px solid var(--line);border-radius:30px;padding:7px 13px;font-size:13px;font-weight:600;}
+  .pc{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .pc .col h4{font-size:12.5px;font-weight:800;margin-bottom:9px;}
+  .pc .pros h4{color:var(--good);} .pc .cons h4{color:var(--warn);}
+  .pc li{list-style:none;font-size:13.5px;line-height:1.5;margin-bottom:8px;display:flex;gap:7px;align-items:flex-start;}
+  .pc .pros li::before{content:"\2713";color:var(--good);font-weight:800;flex-shrink:0;}
+  .pc .cons li::before{content:"\2022";color:var(--warn);font-weight:800;flex-shrink:0;}
+  .bottom{margin-top:20px;background:#f7f9fc;border-radius:12px;padding:14px 16px;font-size:14px;}
+  .bottom b{color:var(--accent);}
+
+  .seg{display:flex;background:#eef2f9;padding:6px;margin:0 0 18px;border-radius:14px;}
+  .seg button{flex:1;background:none;border:none;padding:13px 8px;font-size:14.5px;font-weight:800;color:var(--muted);border-radius:10px;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px;}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 3px 10px rgba(15,27,51,0.1);}
+
+  section{padding:48px 0;}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s,transform .7s;}
+  .reveal.in{opacity:1;transform:none;}
+  .kicker{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+  h2.sec{font-size:25px;font-weight:800;letter-spacing:-0.4px;margin-bottom:8px;}
+  .lead{font-size:15px;color:var(--muted);margin-bottom:20px;}
+
+  .scen{display:flex;flex-wrap:wrap;gap:9px;}
+  .scen button{background:#fff;border:1.5px solid var(--line);border-radius:30px;padding:10px 15px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);transition:all .15s;}
+  .scen button:hover{border-color:var(--accent);}
+  .scen button.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .rec{display:none;margin-top:18px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:16px 18px;font-size:15px;box-shadow:0 6px 20px rgba(15,27,51,0.06);}
+  .rec b{color:var(--accent);}
+
+  .hybrid{background:linear-gradient(158deg,#0e1830,#1a2c52);color:#fff;border-radius:18px;padding:26px 24px;}
+  .hybrid .k{font-size:11px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:#8fb4ff;margin-bottom:8px;}
+  .hybrid h3{font-size:20px;font-weight:800;margin-bottom:10px;}
+  .hybrid p{font-size:14.5px;opacity:0.9;}
+
+  .cta-card{background:#fff;border-radius:22px;padding:28px 24px;box-shadow:0 22px 55px rgba(15,27,51,0.14);border:1px solid var(--line);}
+  .ways{display:none;flex-direction:column;gap:10px;margin-bottom:4px;}
+  .way{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;text-decoration:none;border-radius:13px;padding:15px;font-size:15.5px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .15s;}
+  .way-primary{background:var(--accent);color:#fff;box-shadow:0 8px 20px rgba(42,110,244,0.26);}
+  .way-primary:hover{filter:brightness(1.05);}
+  .way-ghost{background:#f7f9fc;color:var(--ink);border:1.5px solid var(--line);}
+  .way-ghost:hover{border-color:var(--accent);}
+  .ordiv{display:none;align-items:center;text-align:center;color:var(--muted);font-size:11.5px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;margin:18px 0 6px;gap:12px;}
+  .ordiv::before,.ordiv::after{content:"";flex:1;height:1px;background:var(--line);}
+  .intent{display:flex;flex-direction:column;gap:10px;margin-bottom:6px;}
+  .intent button{display:flex;align-items:center;gap:13px;width:100%;text-align:left;background:#f7f9fc;border:1.5px solid var(--line);border-radius:14px;padding:16px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink);transition:all .15s;}
+  .intent button:hover,.intent button.on{border-color:var(--accent);background:#fff;box-shadow:0 6px 18px rgba(42,110,244,0.12);}
+  .intent button .ic{font-size:22px;}
+  .intent button .sm{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-top:2px;}
+  .form{display:none;margin-top:18px;}
+  .form.show{display:block;}
+  label{display:block;font-size:12px;font-weight:700;margin:12px 0 5px;}
+  input{width:100%;font-size:16px;padding:13px;border:1.5px solid var(--line);border-radius:11px;font-family:inherit;outline:none;background:#fbfcfe;}
+  input:focus{border-color:var(--accent);background:#fff;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .submit{width:100%;margin-top:18px;background:var(--accent);color:#fff;border:none;border-radius:13px;padding:16px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 20px rgba(42,110,244,0.26);}
+  .submit:disabled{opacity:0.6;}
+  .fine{font-size:11.5px;color:var(--muted);text-align:center;margin-top:11px;}
+  .err{display:none;background:#fdecec;color:#b3261e;font-size:13px;border-radius:9px;padding:10px 12px;margin-top:12px;}
+  .thanks{display:none;text-align:center;padding:30px 6px;}
+  .thanks .big{font-size:52px;margin-bottom:10px;}
+  .thanks h3{font-size:23px;margin-bottom:8px;}
+  .thanks p{color:var(--muted);}
+
+  footer{background:#0e1830;color:rgba(255,255,255,0.8);padding:34px 22px;text-align:center;font-size:13px;}
+  footer .fa{font-size:16px;font-weight:700;color:#fff;margin-bottom:4px;}
+  footer a{color:#8fb4ff;}
+  footer .tag{margin-top:10px;font-size:12px;opacity:0.7;font-style:italic;}
+
+  @media(max-width:560px){ h1{font-size:28px;} .pc{grid-template-columns:1fr;gap:10px;} .cg{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="hero">
+  <div class="wrap">
+    <div class="achip"><img id="a-photo" src="" alt="" style="display:none;"/><div><div class="n" id="a-name">Your Agent</div><div class="b" id="a-brok"></div></div></div>
+    <span class="eyebrow" id="eyebrow">Thinking About More Space?</span>
+    <h1 id="headline">Is it time to move up?<br>Let&rsquo;s find out together.</h1>
+    <p class="sub" id="subhead">You bought your first home when life looked different. If it&rsquo;s starting to feel tight, the question isn&rsquo;t just <em>where</em> to move &mdash; it&rsquo;s <em>whether</em> now is the right time, and how to buy and sell without the chaos. Start with the quick check below.</p>
+  </div>
+</div>
+
+<div class="tool">
+  <div class="toolcard">
+    <div class="thead">
+      <div class="tbadge">&#127968; Move-Up Readiness Check</div>
+      <div class="p-title">Does any of this sound like your house?</div>
+      <div class="p-tag">Tap everything that feels true &mdash; no email needed. You&rsquo;ll see where your family lands in a few seconds.</div>
+    </div>
+    <div class="panel">
+      <div class="cg" id="cg"></div>
+      <div class="meter" style="margin:20px 0 0;"><div class="ml"><span>Move-up readiness</span><span id="ready-label">Tap a few above</span></div><div class="bar"><i id="ready-bar"></i></div></div>
+      <div class="rec" id="ready-rec" style="position:static;"></div>
+    </div>
+  </div>
+</div>
+
+<section><div class="wrap reveal">
+  <div class="kicker">The part that stresses families out</div>
+  <h2 class="sec">Sell first, or buy first?</h2>
+  <p class="lead">It&rsquo;s the question that keeps most move-up families stuck. There&rsquo;s no single right answer &mdash; here&rsquo;s the honest tradeoff on each so you can see which fits.</p>
+  <div class="seg"><button id="seg-sell" class="on" onclick="setPath('sell')">&#129517; Sell First</button><button id="seg-buy" onclick="setPath('buy')">&#127969; Buy First</button></div>
+  <div class="panel" id="panel" style="padding:0;"></div>
+</div></section>
+
+<section style="background:#f7f9fc;"><div class="wrap reveal">
+  <div class="hybrid">
+    <div class="k">The third path most families don&rsquo;t know about</div>
+    <h3>You may not have to choose at all</h3>
+    <p>Between &ldquo;sell first&rdquo; and &ldquo;buy first&rdquo; there&rsquo;s a middle path: tools like a sale contingency, a rent-back, or bridge financing can let you line up both sides so you&rsquo;re never stuck with two mortgages &mdash; or nowhere to land. Whether it fits comes down to your equity and timing, and that&rsquo;s exactly what a quick plan sorts out.</p>
+  </div>
+</div></section>
+
+<section><div class="wrap reveal">
+  <div class="kicker">What&rsquo;s really driving it?</div>
+  <h2 class="sec">Tell me what you&rsquo;re after</h2>
+  <p class="lead">Tap what matters most for your family&rsquo;s next home &mdash; I&rsquo;ll point you toward what to think through first.</p>
+  <div class="scen" id="scen"></div>
+  <div class="rec" id="rec"></div>
+</div></section>
+
+<section style="background:#f7f9fc;"><div class="wrap reveal" style="max-width:600px;">
+  <div class="kicker">Why families get stuck</div>
+  <h2 class="sec">The plan comes before the search</h2>
+  <p class="lead" style="margin-bottom:0;">The families who move up smoothly all do one thing first: they get clear on their equity, their real budget, and their timing <em>before</em> they fall in love with a listing. Start with the plan and the search gets easy &mdash; and a lot less stressful. That&rsquo;s the whole point of a quick strategy session.</p>
+</div></section>
+
+<section class="mu-video-sec" id="mu-video-sec" style="display:none;"><div class="wrap reveal" style="max-width:600px;">
+  <div class="kicker">Meet me</div>
+  <h2 class="sec" id="mu-video-head">A quick hello</h2>
+  <div style="position:relative;padding-top:56.25%;border-radius:16px;overflow:hidden;background:#0e1830;box-shadow:0 18px 50px rgba(15,27,51,0.16);"><div id="mu-vframe" style="position:absolute;inset:0;"></div></div>
+</div></section>
+
+<section><div class="wrap reveal" style="max-width:560px;">
+  <div class="cta-card">
+    <div id="cta-body">
+      <div class="ways" id="ways">
+        <a class="way way-primary" id="way-book" href="#" target="_blank" rel="noopener">&#128197; <span id="way-book-label">Schedule a time to talk</span></a>
+        <a class="way way-ghost" id="way-call" href="#">&#128222; <span id="way-call-label">Call or text me</span></a>
+      </div>
+      <div class="ordiv" id="ordiv">or send your info</div>
+      <div class="kicker">Let&rsquo;s map it out</div>
+      <h2 class="sec" style="margin-bottom:6px;">What would help most right now?</h2>
+      <p class="lead" style="margin-bottom:18px;">Pick one &mdash; no pressure, no obligation. Just honest answers for your situation.</p>
+      <div class="intent">
+        <button data-intent="plan" onclick="pickIntent(this)"><span class="ic">&#128506;</span><span>Map out my move-up plan<span class="sm">Equity, timing, and next-home budget in one sitting</span></span></button>
+        <button data-intent="value" onclick="pickIntent(this)"><span class="ic">&#127991;</span><span>What&rsquo;s my home worth?<span class="sm">A real value range for the home you have now</span></span></button>
+        <button data-intent="decide" onclick="pickIntent(this)"><span class="ic">&#129300;</span><span>Help me decide if it&rsquo;s time<span class="sm">Talk through whether now&rsquo;s the right move</span></span></button>
+      </div>
+      <div class="form" id="form">
+        <div class="row2"><div><label>First name</label><input id="f-first" autocomplete="given-name"/></div><div><label>Last name</label><input id="f-last" autocomplete="family-name"/></div></div>
+        <label>Your current address <span style="opacity:0.6;font-weight:400;">(optional)</span></label><input id="f-address" autocomplete="street-address" placeholder="The home you&rsquo;re thinking of moving from"/>
+        <label>Email</label><input id="f-email" type="email" autocomplete="email"/>
+        <label>Phone</label><input id="f-phone" type="tel" autocomplete="tel"/>
+        <div class="err" id="err"></div>
+        <button class="submit" id="submit-btn" onclick="submitLead()">Send My Request</button>
+        <div class="fine">&#128274; Goes straight to me &mdash; never sold or shared.</div>
+      </div>
+    </div>
+    <div class="thanks" id="thanks"><div class="big">&#127881;</div><h3>Got it &mdash; talk soon!</h3><p id="thanks-msg">Thanks! I&rsquo;ll reach out shortly with your numbers and next steps.</p></div>
+  </div>
+</div></section>
+
+<footer><div class="fa" id="f-name2"></div><div id="f-contact"></div><div class="tag" id="f-tag">&ldquo;Helping growing families find their next home.&rdquo;</div><div style="margin-top:10px;opacity:0.55;font-size:11px;">Equal Housing Opportunity.</div></footer>
+
+<script>
+  var WORKER_URL='https://app.tom-b52.workers.dev';
+  var FB_PROJECT='buyers-880bc';
+  var FB_KEY='AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY';
+  var params=new URLSearchParams(location.search);
+  var AGENT=(params.get('a')||'tom').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var TEMPLATE=(params.get('t')||'familymoveup').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var CFG={}, PATH='sell', INTENT='';
+
+  var CHECKS=[
+    ['\uD83E\uDDF8','Toys have taken over every room'],
+    ['\uD83D\uDE97','The garage is full \u2014 cars live in the driveway'],
+    ['\uD83D\uDECF\uFE0F','The kids share a room and it isn\u2019t working'],
+    ['\uD83D\uDCDA','Homework happens at the kitchen table'],
+    ['\uD83D\uDECB\uFE0F','There\u2019s nowhere left to actually relax'],
+    ['\uD83C\uDFE1','You\u2019ve outgrown the neighborhood, not just the house'],
+    ['\uD83C\uDF33','You want a real yard for the kids'],
+    ['\uD83D\uDCB0','You have equity but aren\u2019t sure how to use it'],
+    ['\uD83D\uDD00','You worry about selling and buying at the same time']
+  ];
+  var picked={};
+
+  var DATA={
+    sell:{ title:'Sell your current home first', tag:'Clarity and buying power before you shop.',
+      meters:[['Certainty',92,'You know your exact numbers'],['Buying power',90,'Cash in hand, stronger offers'],['Convenience',55,'May need a short interim move']],
+      steps:['Prep and sell the home you have now','Lock in your real equity and budget','Shop and buy with a clean, strong offer'],
+      best:['Equity-dependent moves','Competitive buyer markets','Anyone who wants certainty first'],
+      pros:['You know exactly what you can spend','Non-contingent offers win more often','No risk of carrying two mortgages','Far less financial pressure'],
+      cons:['May need a rent-back or short-term rental','Possible double move','Finding the next home can feel tight on timing'],
+      timeline:'\uD83E\uDDED Best when budget certainty matters most',
+      bottom:'<b>Bottom line:</b> selling first trades a little convenience for a lot of certainty \u2014 and usually the strongest position when you go to buy.' },
+    buy:{ title:'Buy your next home first', tag:'Comfort and one smooth move.',
+      meters:[['Convenience',92,'Move once, on your schedule'],['Comfort',88,'No interim housing'],['Certainty',58,'Your sale is still ahead of you']],
+      steps:['Get fully pre-approved and set your budget','Find and secure your next home','Sell your current home on a coordinated timeline'],
+      best:['Strong income or savings','Tight inventory in your range','Families who can\u2019t do a double move'],
+      pros:['One move, far less disruption','Take your time finding the right home','No temporary housing or storage'],
+      cons:['Risk of two mortgages for a stretch','May need bridge financing or a contingency','A bit less leverage on the home you\u2019re buying'],
+      timeline:'\uD83C\uDFE0 Best when a smooth single move matters most',
+      bottom:'<b>Bottom line:</b> buying first is the most comfortable path when your finances can cover the overlap \u2014 the key is a coordinated plan that keeps the gap short.' }
+  };
+
+  var SCEN=[['We just need more space','space'],['Better schools','schools'],['A bigger yard','yard'],['A shorter commute','commute'],['Make the money work','money'],['Honestly, not sure yet','unsure']];
+  var SCEN_REC={
+    space:'More space is the most common reason families move up \u2014 and the easiest to plan around. The real question is whether you stretch the home you have or trade up. Start with your equity and budget, and the answer usually becomes obvious.',
+    schools:'Moving for schools is one of the best long-term decisions a family can make. The key is timing it before the kids age into the years that matter most \u2014 so it\u2019s worth mapping your move sooner rather than later.',
+    yard:'Wanting room for the kids to actually play outside is a great reason to move. Yard, lot size, and street all factor into value too \u2014 I can help you weigh what you\u2019d gain against what your current home would sell for.',
+    commute:'A shorter commute gives you back hours every week. Trading location for time changes which areas make sense and what your budget buys \u2014 a quick plan lines all of that up.',
+    money:'Smart \u2014 the families who move up without stress always start with the numbers. Let\u2019s look at your equity, your next payment, and a comfortable budget so the move actually makes financial sense.',
+    unsure:'Totally fair \u2014 most families aren\u2019t sure at first. The fastest way to clarity is a quick, no-pressure conversation. Pick \u201CHelp me decide if it\u2019s time\u201D below and we\u2019ll talk it through.'
+  };
+  var DRIVER='';
+
+  function fsVal(v){ if(!v)return''; if(v.stringValue!==undefined)return v.stringValue; if(v.integerValue!==undefined)return v.integerValue; if(v.booleanValue!==undefined)return v.booleanValue; if(v.arrayValue!==undefined)return(v.arrayValue.values||[]).map(fsVal); return ''; }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function _videoEmbed(url){ if(!url) return ''; var u=String(url).trim(); var yt=u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]{11})/); if(yt) return '<iframe src="https://www.youtube.com/embed/'+yt[1]+'" style="position:absolute;inset:0;width:100%;height:100%;border:0;" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>'; var vm=u.match(/vimeo\.com\/(?:video\/)?(\d+)/); if(vm) return '<iframe src="https://player.vimeo.com/video/'+vm[1]+'" style="position:absolute;inset:0;width:100%;height:100%;border:0;" allow="autoplay;fullscreen;picture-in-picture" allowfullscreen></iframe>'; if(/\.(mp4|webm|mov)(\?|$)/i.test(u)) return '<video src="'+esc(u)+'" controls playsinline style="position:absolute;inset:0;width:100%;height:100%;"></video>'; return '<iframe src="'+esc(u)+'" style="position:absolute;inset:0;width:100%;height:100%;border:0;" allowfullscreen></iframe>'; }
+  function setT(id,v){ var e=document.getElementById(id); if(e&&v) e.textContent=v; }
+
+  function renderChecks(){
+    document.getElementById('cg').innerHTML=CHECKS.map(function(c,i){
+      return '<button class="cc" data-i="'+i+'" onclick="toggleCheck('+i+',this)"><span class="e">'+c[0]+'</span><span>'+c[1]+'</span><span class="ck">\u2713</span></button>';
+    }).join('');
+  }
+  function readyCount(){ var n=0; for(var k in picked){ if(picked[k]) n++; } return n; }
+  function toggleCheck(i,el){
+    picked[i]=!picked[i];
+    el.classList.toggle('on',!!picked[i]);
+    updateReady();
+  }
+  window.toggleCheck=toggleCheck;
+  function updateReady(){
+    var n=readyCount();
+    var pct=Math.min(100,Math.round(n*(100/7)));
+    document.getElementById('ready-bar').style.width=pct+'%';
+    var lbl=document.getElementById('ready-label'), rec=document.getElementById('ready-rec');
+    if(n===0){ lbl.textContent='Tap a few above'; rec.style.display='none'; return; }
+    var msg,tag;
+    if(n<=2){ tag='Worth keeping an eye on'; msg='A couple of these add up over time. You may have a little runway left \u2014 but it\u2019s smart to know your equity and options now, so you\u2019re ready when it\u2019s time. Grab a quick plan below whenever you want one.'; }
+    else if(n<=5){ tag='Time to start planning'; msg='You\u2019ve hit the point most families reach right before they move. The good news: with a clear plan for equity, timing, and budget, this is very doable. Let\u2019s map out what your move-up could look like \u2014 see the options below.'; }
+    else { tag='You\u2019ve outgrown it'; msg='That\u2019s a lot of daily friction \u2014 your family has clearly outgrown this house. The move will feel far less stressful with the right plan and timing. Let\u2019s talk through the cleanest path forward below.'; }
+    lbl.textContent=tag;
+    rec.innerHTML='<b>'+tag+'.</b> '+msg;
+    rec.style.display='block';
+  }
+
+  function renderPanel(){
+    var d=DATA[PATH];
+    var html='<div class="p-title">'+d.title+'</div><div class="p-tag" style="margin-bottom:16px;">'+d.tag+'</div>'
+      +'<div class="meters">'+d.meters.map(function(m){ return '<div class="meter"><div class="ml"><span>'+m[0]+'</span><span>'+m[2]+'</span></div><div class="bar"><i data-w="'+m[1]+'"></i></div></div>'; }).join('')+'</div>'
+      +'<div class="tbadge">'+d.timeline+'</div>'
+      +'<div class="blk"><h3>How it works</h3><div class="steps">'+d.steps.map(function(s){ return '<div class="st">'+s+'</div>'; }).join('')+'</div></div>'
+      +'<div class="blk"><h3>Best for</h3><div class="chips">'+d.best.map(function(b){ return '<span class="chip">'+b+'</span>'; }).join('')+'</div></div>'
+      +'<div class="pc"><div class="col pros"><h4>The upside</h4><ul>'+d.pros.map(function(p){ return '<li>'+p+'</li>'; }).join('')+'</ul></div>'
+      +'<div class="col cons"><h4>The tradeoffs</h4><ul>'+d.cons.map(function(c){ return '<li>'+c+'</li>'; }).join('')+'</ul></div></div>'
+      +'<div class="bottom">'+d.bottom+'</div>';
+    document.getElementById('panel').innerHTML=html;
+    setTimeout(function(){ document.querySelectorAll('#panel .bar i').forEach(function(b){ b.style.width=b.getAttribute('data-w')+'%'; }); },60);
+  }
+  function setPath(p){ PATH=p; document.getElementById('seg-sell').classList.toggle('on',p==='sell'); document.getElementById('seg-buy').classList.toggle('on',p==='buy'); renderPanel(); }
+  window.setPath=setPath;
+
+  function renderScen(){
+    document.getElementById('scen').innerHTML=SCEN.map(function(s,i){ return '<button data-rec="'+s[1]+'" onclick="pickScen('+i+',this)">'+s[0]+'</button>'; }).join('');
+  }
+  function pickScen(i,el){
+    document.querySelectorAll('#scen button').forEach(function(b){ b.classList.remove('sel'); });
+    el.classList.add('sel');
+    DRIVER=SCEN[i][1];
+    var box=document.getElementById('rec');
+    box.innerHTML=SCEN_REC[DRIVER]||'';
+    box.style.display='block';
+  }
+  window.pickScen=pickScen;
+
+  function pickIntent(el){
+    INTENT=el.getAttribute('data-intent');
+    document.querySelectorAll('.intent button').forEach(function(b){ b.classList.remove('on'); });
+    el.classList.add('on');
+    document.getElementById('form').classList.add('show');
+    var btn=document.getElementById('submit-btn');
+    btn.textContent = INTENT==='plan'?'Map Out My Move':(INTENT==='value'?'Get My Home Value':'Let\u2019s Talk It Through');
+    setTimeout(function(){ document.getElementById('f-first').focus(); },150);
+  }
+  window.pickIntent=pickIntent;
+
+  function applyConfig(c){
+    CFG=c;
+    if(c.accent) document.documentElement.style.setProperty('--accent',c.accent);
+    setT('a-name',c.agentName); setT('a-brok',c.brokerage);
+    if(c.agentPhoto){ var p=document.getElementById('a-photo'); p.src=c.agentPhoto; p.style.display='block'; }
+    setT('eyebrow',c.eyebrow); setT('headline',c.headline); setT('subhead',c.subhead);
+    if(c.headline) document.title=c.headline;
+    if(c.tagline) setT('f-tag','\u201C'+c.tagline+'\u201D');
+    if(c.videoUrl){ document.getElementById('mu-vframe').innerHTML=_videoEmbed(c.videoUrl); document.getElementById('mu-video-sec').style.display='block'; if(c.videoHead) setT('mu-video-head',c.videoHead); }
+    setT('f-name2',c.agentName);
+    var fc=[]; if(c.agentPhone)fc.push('<a href="tel:'+String(c.agentPhone).replace(/[^0-9+]/g,'')+'">'+esc(c.agentPhone)+'</a>'); if(c.agentEmail)fc.push('<a href="mailto:'+esc(c.agentEmail)+'">'+esc(c.agentEmail)+'</a>');
+    document.getElementById('f-contact').innerHTML=fc.join(' &middot; ');
+    var anyWay=false;
+    var bookUrl=c.calendlyUrl||c.bookingUrl||'';
+    if(bookUrl){ var wb=document.getElementById('way-book'); wb.href=bookUrl; if(c.bookLabel) setT('way-book-label',c.bookLabel); document.getElementById('ways').style.display='flex'; anyWay=true; }
+    else { document.getElementById('way-book').style.display='none'; }
+    if(c.agentPhone){ var wc=document.getElementById('way-call'); wc.href='tel:'+String(c.agentPhone).replace(/[^0-9+]/g,''); if(c.callLabel) setT('way-call-label',c.callLabel); document.getElementById('ways').style.display='flex'; anyWay=true; }
+    else { document.getElementById('way-call').style.display='none'; }
+    if(anyWay) document.getElementById('ordiv').style.display='flex';
+  }
+  function load(){
+    var docId=AGENT+'_'+TEMPLATE;
+    fetch('https://firestore.googleapis.com/v1/projects/'+FB_PROJECT+'/databases/(default)/documents/landing_pages/'+docId+'?key='+FB_KEY)
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(d){ if(d&&d.fields){ var c={}; Object.keys(d.fields).forEach(function(k){ c[k]=fsVal(d.fields[k]); }); applyConfig(c); } })
+      .catch(function(){});
+  }
+
+  function cErr(m){ var e=document.getElementById('err'); e.textContent=m; e.style.display='block'; }
+  function val(id){ var e=document.getElementById(id); return e?e.value.trim():''; }
+  function submitLead(){
+    if(!INTENT){ cErr('Pick an option above first.'); return; }
+    var first=val('f-first'),last=val('f-last'),email=val('f-email'),phone=val('f-phone'),address=val('f-address');
+    document.getElementById('err').style.display='none';
+    if(!first){ cErr('Please enter your first name.'); return; }
+    if(!email&&!phone){ cErr('Please add an email or phone so I can reach you.'); return; }
+    var btn=document.getElementById('submit-btn'); btn.disabled=true; btn.textContent='Sending\u2026';
+    var srcMap={plan:'Move-Up Strategy Session',value:'Home Value Request',decide:'Move-Up Consult \u2014 Exploring'};
+    var n=readyCount();
+    var drivers=[]; for(var k in picked){ if(picked[k]) drivers.push(CHECKS[k][1]); }
+    var noteParts=['Family Move-Up page \u2014 chose: '+(srcMap[INTENT]||INTENT)];
+    noteParts.push('Readiness: '+n+'/'+CHECKS.length+' signs');
+    if(DRIVER) noteParts.push('Driver: '+DRIVER);
+    if(drivers.length) noteParts.push('Flagged: '+drivers.join('; '));
+    if(address) noteParts.push('Address: '+address);
+    var payload={ firstName:first,lastName:last,email:email,phone:phone,address:address,agentId:AGENT,
+      source:(CFG.source||srcMap[INTENT]||'Move-Up Lead'),
+      notes:noteParts.join(' \u2014 '),
+      leadStatus:(CFG.leadStatus||'pipeline'),leadSegment:(CFG.leadSegment||''),smartPlanId:(CFG.smartPlanId||''),smartPlanName:(CFG.smartPlanName||'') };
+    fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'inbound-lead'},body:JSON.stringify(payload)})
+      .then(function(r){ return r.json().catch(function(){return{};}); })
+      .then(function(){ if(CFG.thanksMsg)document.getElementById('thanks-msg').textContent=CFG.thanksMsg; document.getElementById('cta-body').style.display='none'; document.getElementById('thanks').style.display='block'; window.scrollTo({top:document.getElementById('thanks').getBoundingClientRect().top+window.scrollY-120,behavior:'smooth'}); })
+      .catch(function(){ btn.disabled=false; btn.textContent='Send My Request'; cErr('Something went wrong. Please try again or call me directly.'); });
+  }
+  window.submitLead=submitLead;
+
+  function initReveal(){ var o=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); o.unobserve(e.target); } }); },{threshold:0.12}); document.querySelectorAll('.reveal').forEach(function(el){ o.observe(el); }); }
+
+  renderChecks(); renderPanel(); renderScen(); initReveal(); load();
+</script>
+</body>
+</html>
