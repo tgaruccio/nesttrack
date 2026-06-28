@@ -1200,7 +1200,6 @@ textarea{resize:vertical;min-height:68px;}
     <div style="flex:1;"><div style="font-weight:500;font-size:13.5px;">Want AI feedback on a room?</div><div style="font-size:12px;color:var(--text2);margin-top:2px;">Upload a photo and Claude tells you exactly what to fix.</div></div>
     <button class="btn btn-sm btn-g" onclick="go('homeprep',document.querySelector('[data-pg=homeprep]'))">Open</button>
   </div>
-  <a href="https://drive.google.com/file/d/1HNXaUZ0mUDgh0E7Z2URwfoqwb64XgwpV/view?usp=sharing" target="_blank" class="btn btn-w" style="justify-content:center;font-size:13px;">📥 Full Listing Prep Checklist PDF</a>
 </div>
 
 <!-- COMPARE -->
@@ -1772,41 +1771,10 @@ textarea{resize:vertical;min-height:68px;}
 
 <!-- MOVING CHECKLIST -->
 <div class="page" id="page-movinglist">
-  <div class="ph"><div class="pt">Moving Checklist</div><span class="pill pill-p">✦ Personalized</span></div>
-  <div class="notice">Generate a personalized moving checklist based on your situation — from closing day through your first month in the new home.</div>
-  <div class="card" style="display:flex;flex-direction:column;gap:13px;">
-    <div class="fg2">
-      <div><label class="flabel">Closing / Move-In Date</label><input type="date" id="mv-date"/></div>
-      <div><label class="flabel">Current Living Situation</label>
-        <select id="mv-from">
-          <option value="">Select</option>
-          <option>Renting an apartment</option>
-          <option>Renting a house</option>
-          <option>Selling my current home</option>
-          <option>Living with family</option>
-        </select>
-      </div>
-      <div><label class="flabel">Household Size</label>
-        <select id="mv-size">
-          <option value="">Select</option>
-          <option>Just me</option>
-          <option>Couple</option>
-          <option>Family with kids</option>
-          <option>Multi-generational</option>
-        </select>
-      </div>
-      <div><label class="flabel">Pets?</label>
-        <select id="mv-pets">
-          <option value="no">No pets</option>
-          <option value="yes">Yes — has pets</option>
-        </select>
-      </div>
-    </div>
-    <div><label class="flabel">New Home Address</label><input type="text" id="mv-addr" autocomplete="street-address" placeholder="123 Maple St, Avon Lake, OH"/></div>
-    <div><label class="flabel">Anything else we should know?</label><textarea id="mv-notes" placeholder="e.g. Kids starting new school, working from home, have large furniture items..."></textarea></div>
-    <button class="btn btn-g" onclick="runMovingList()">Generate My Checklist ✦</button>
-    <div id="mv-result" style="display:none;"></div>
-  </div>
+  <div class="ph"><div class="pt">Moving Checklist</div></div>
+  <div class="notice">Your complete move, phase by phase. Check items off as you go — your progress saves automatically on this device.</div>
+  <div style="display:flex;flex-direction:column;gap:10px;" id="moving-checklist-list"></div>
+  <button class="btn btn-w" onclick="resetMovingChecklist()" style="font-size:13px;">↺ Reset All</button>
 </div>
 
 <!-- SCHOOL DISTRICT LOOKUP -->
@@ -1972,7 +1940,7 @@ textarea{resize:vertical;min-height:68px;}
   <div class="card" style="display:flex;flex-direction:column;gap:10px;">
     <div style="font-weight:500;font-size:14px;">Complete Listing Prep Checklist</div>
     <div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Our full room-by-room checklist to prepare your home for photos and showings.</div>
-    <a href="https://drive.google.com/file/d/1HNXaUZ0mUDgh0E7Z2URwfoqwb64XgwpV/view?usp=sharing" target="_blank" class="btn btn-g btn-w">Open Listing Prep Checklist</a>
+    <button onclick="go('photochecklist',document.querySelector('[data-pg=photochecklist]'))" class="btn btn-g btn-w">Open Listing Prep Checklist</button>
   </div>
 </div>
 
@@ -7799,7 +7767,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId|| '').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(typeof _loadManagedSegments==='function')_loadManagedSegments();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); }
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(typeof _loadManagedSegments==='function')_loadManagedSegments();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); } _handlePageDeepLink();
   await loadAgentPartners(userProfile.agentId|| '');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
@@ -8107,7 +8075,7 @@ function go(page, el) {
   if (page === 'agent' && isAgent) { renderAgentProfileEditor(); renderBuyers(); }
   if (page === 'offer') { document.getElementById('offer-result').style.display='none'; }
   if (page === 'neighborhood') { document.getElementById('nbhd-result').style.display='none'; }
-  if (page === 'movinglist') { document.getElementById('mv-result').style.display='none'; }
+  if (page === 'movinglist') { renderMovingChecklist(); }
   if (page === 'idx') { renderIdxRecent(); }
   if (page === 'guide') {
     // Home Buyers Trail page always shows the buyer trail map
@@ -9125,7 +9093,7 @@ var SELLER_STEP_EMAILS = {
         + '<div style=\"background:#f0fdf4;border-left:3px solid #1D9E75;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#065F46;\">💡 Buyers notice smell before anything else. If you have pets or smoke inside, address it.</div>'
         + '<div style=\"margin:16px 0;display:flex;gap:10px;flex-wrap:wrap;\">'
         + '<a href=\"' + APP_LINK + '\" target=\"_blank\" style=\"display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;\">🏡 Open Home Prep Analyzer →</a>'
-        + '<a href=\"https://drive.google.com/file/d/1HNXaUZ0mUDgh0E7Z2URwfoqwb64XgwpV/view?usp=sharing\" target=\"_blank\" style=\"display:inline-block;background:#fff;color:#1D9E75;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;border:1.5px solid #1D9E75;\">📥 Full Prep Checklist PDF</a>'
+        + '<a href=\"https://app.nesttrack.io/?go=photochecklist\" target=\"_blank\" style=\"display:inline-block;background:#fff;color:#1D9E75;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;border:1.5px solid #1D9E75;\">📋 Open Listing Photos Checklist →</a>'
         + '</div>';
     }},
   3: { subject: 'Step 3: Your pricing strategy is ready',
@@ -9141,7 +9109,8 @@ var SELLER_STEP_EMAILS = {
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">Professional photos are the most important marketing investment in selling a home. Over 95% of buyers search online first — your photos determine whether they schedule a showing or scroll past.</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 8px;\">Before the photographer arrives:</p>'
         + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Every room clean, decluttered, and staged</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">All lights on, blinds open</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Cars out of the driveway</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Pets and personal items out of sight</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Lawn mowed, exterior tidy</li></ul>'
-        + '<div style=\"background:#f0fdf4;border-left:3px solid #1D9E75;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#065F46;\">💡 This is also when video/Matterport tours and drone footage are shot if applicable.</div>';
+        + '<div style=\"background:#f0fdf4;border-left:3px solid #1D9E75;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#065F46;\">💡 This is also when video/Matterport tours and drone footage are shot if applicable.</div>'
+        + '<div style=\"margin:16px 0 0;\"><a href=\"https://app.nesttrack.io/?go=photochecklist\" target=\"_blank\" style=\"display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:13px;font-weight:600;\">📋 Open Your Photo-Day Checklist →</a></div>';
     }},
   5: { subject: 'Step 5: Your listing is being built',
     body: function(first, agentName) {
@@ -18132,26 +18101,63 @@ async function runNeighborhood() {
 }
 window.runNeighborhood = runNeighborhood;
 
-// ─── MOVING CHECKLIST ───
-async function runMovingList() {
-  var date = document.getElementById('mv-date').value;
-  var from = document.getElementById('mv-from').value;
-  var size = document.getElementById('mv-size').value;
-  var pets = document.getElementById('mv-pets').value;
-  var addr = document.getElementById('mv-addr').value;
-  var notes = document.getElementById('mv-notes').value;
-  var out = document.getElementById('mv-result'); think(out);
-  try {
-    var prompt = 'You are a moving coordinator for Northeast Ohio / Greater Cleveland. Create a personalized moving checklist.\n\nClosing/Move-in date: '+(date||'not specified')+'\nMoving from: '+(from||'not specified')+'\nHousehold: '+(size||'not specified')+'\nPets: '+(pets==='yes'?'Yes':'No')+'\nNew address: '+(addr||'not specified')+'\nNotes: '+(notes||'none')+'\n\nCreate a checklist organized by timeframe:\n\nBEFORE CLOSING (2-4 weeks): Key tasks to complete before closing day.\n\nCLOSING WEEK: Wire transfer safety, final walkthrough, etc.\n\nCLOSING DAY: What to bring, what to expect, first steps with keys.\n\nMOVING DAY: Practical checklist for the actual move.\n\nFIRST WEEK: Utilities, address changes, security setup.\n\nFIRST MONTH: Longer-term tasks including Ohio-specific items (license, car registration, voter registration, school enrollment).\n\n'+(pets==='yes'?'PET TIPS: Specific tasks for moving with pets.\n\n':'')+'Be practical and specific.';
-    var d = await claudeAPI({model:CLAUDE_MODEL,max_tokens:1000,messages:[{role:'user',content:prompt}]});
-    out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>';
-    out.style.display = 'block';
-  } catch(e) {
-    out.innerHTML = '<div class="ai-resp" style="color:var(--red-dk);">Failed: '+e.message+'</div>';
-    out.style.display = 'block';
-  }
+// ─── MOVING CHECKLIST (static, saves locally) ───
+const MOVING_CHECKLIST = [
+  { section:"\ud83d\udccb Once your move is confirmed", items:["Create a moving binder/folder for documents, receipts, and contracts", "Get quotes from 2\u20133 moving companies (or reserve a rental truck)", "Confirm any mover's licensing, insurance, and reviews", "Decide what to keep, donate, sell, or toss \u2014 declutter room by room", "Photograph/inventory valuables for insurance", "Measure large furniture against the new home's doorways and rooms", "Start using up freezer/pantry food and cleaning supplies"] },
+  { section:"\ud83d\udd0c Setting up the logistics", items:["Order moving supplies (boxes, tape, bubble wrap, markers)", "Begin packing low-use rooms and seasonal items; label every box by room + contents", "Schedule disconnect/transfer of utilities at the old home (gas, electric, water, internet, trash)", "Schedule connection of utilities at the new home for move-in day", "Submit a change of address with the postal service", "Update address with bank, credit cards, insurance, employer, and subscriptions", "Set up homeowners insurance on the new home (your lender requires proof before closing)", "Notify schools and request records if you're changing districts", "Arrange time off work, plus childcare/pet care, for moving day"] },
+  { section:"\ud83d\udce6 The final stretch", items:["Finish packing; set aside an \"essentials\" box (chargers, meds, toiletries, snacks, tools, toilet paper)", "Confirm wire instructions for closing funds by calling your title company at a known number \u2014 never trust wire details sent by email (wire fraud is the #1 closing scam)", "Confirm your final cash-to-close amount with your lender/title", "Complete the final walkthrough (test outlets, faucets, appliances, HVAC; confirm agreed repairs are done; confirm it's empty and clean)", "Confirm who hands off keys and when", "Refill prescriptions; back up computers and files", "Empty and defrost the fridge/freezer; drain hoses at the old home"] },
+  { section:"\ud83d\udd11 Closing day", items:["Bring a valid government photo ID and any required documents", "Review and sign closing documents; ask about anything unclear", "Collect all keys, garage remotes, mailbox keys, and any gate/alarm codes", "Save digital + paper copies of your closing disclosure and deed paperwork"] },
+  { section:"\ud83d\ude9a Moving day", items:["Be present (or send a representative) to direct the movers", "Do a final sweep of the old home \u2014 closets, cabinets, attic, garage", "Take final meter readings/photos at the old home", "Keep valuables, documents, and the essentials box with you, not on the truck", "Confirm the new address and directions with the crew", "Check boxes off against your inventory as they're unloaded"] },
+  { section:"\ud83c\udfe1 First days in the new home", items:["Change or re-key all exterior locks", "Locate the main water shutoff, electrical panel, and gas shutoff", "Test smoke and carbon monoxide detectors; replace batteries", "Confirm all utilities and internet are active", "Set up or transfer your home security system", "Find the HVAC filter, note its size, and replace if needed", "Deep clean before unpacking the kitchen and bathrooms", "Note the trash/recycling pickup day and any local requirements"] },
+  { section:"\ud83c\udfe0 Settling in", items:["Update your driver's license with your new address (many areas require this within a set window \u2014 check your local deadline)", "Update your vehicle registration with your new address", "Register to vote at your new address", "Complete school enrollment with proof of residency if you've changed districts", "Establish care with a local doctor, dentist, and vet if you've moved areas", "Find your nearest urgent care, library, and polling location", "Look into property taxes and any homeowner exemptions you may qualify for", "Introduce yourself to the neighbors"] },
+  { section:"\ud83d\udc3e If you have pets", items:["Update microchip and ID tags with the new address", "Transfer vet records and find a local vet", "Update any required pet license/registration", "Keep pets in a quiet, closed room on moving day", "Update your address on pet insurance"] },
+  { section:"\ud83e\uddd2 If you have kids", items:["Tour the new school before the first day if possible", "Pack a \"first night\" bag of comfort items and favorite toys", "Transfer pediatric and dental records", "Update emergency contacts and pickup authorizations at the new school"] },
+];
+
+function renderMovingChecklist() {
+  var list = document.getElementById('moving-checklist-list'); if (!list) return;
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem('movingChecklist') || '{}'); } catch(e){}
+  var total = 0, done = 0;
+  MOVING_CHECKLIST.forEach(function(s,si){ s.items.forEach(function(_,ii){ total++; if(saved[si+'_'+ii]) done++; }); });
+  list.innerHTML = MOVING_CHECKLIST.map(function(section, si) {
+    var secDone = section.items.filter(function(_,ii){ return saved[si+'_'+ii]; }).length;
+    return '<div class="card" style="padding:14px 16px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+      + '<div style="font-weight:500;font-size:14px;">' + section.section + '</div>'
+      + '<span style="font-size:11px;font-weight:500;color:' + (secDone===section.items.length?'var(--green-dk)':'var(--text3)') + ';">' + secDone + '/' + section.items.length + '</span>'
+      + '</div>'
+      + section.items.map(function(item, ii) {
+          var key = si + '_' + ii;
+          var chk = saved[key] || false;
+          return '<label style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent;">'
+            + '<input type="checkbox" data-key="' + key + '" ' + (chk?'checked':'') + ' onchange="toggleMovingItem(this)" style="margin-top:2px;width:17px;height:17px;accent-color:#1D9E75;flex-shrink:0;"/>'
+            + '<span style="font-size:13px;color:var(--text2);line-height:1.5;' + (chk?'text-decoration:line-through;opacity:0.5;':'') + '">' + item + '</span>'
+            + '</label>';
+        }).join('')
+      + '</div>';
+  }).join('');
+  var ph = document.querySelector('#page-movinglist .ph .pt');
+  if (ph) ph.textContent = 'Moving Checklist (' + done + '/' + total + ')';
 }
-window.runMovingList = runMovingList;
+window.renderMovingChecklist = renderMovingChecklist;
+
+function toggleMovingItem(el) {
+  var key = el.getAttribute('data-key'); if (!key) return;
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem('movingChecklist') || '{}'); } catch(e){}
+  saved[key] = el.checked;
+  localStorage.setItem('movingChecklist', JSON.stringify(saved));
+  renderMovingChecklist();
+}
+window.toggleMovingItem = toggleMovingItem;
+
+function resetMovingChecklist() {
+  if (!confirm('Reset all moving checklist items?')) return;
+  localStorage.removeItem('movingChecklist');
+  renderMovingChecklist();
+}
+window.resetMovingChecklist = resetMovingChecklist;
 
 // HOME PREP ANALYZER
 var homePrepB64 = '', homePrepMime = 'image/jpeg';
@@ -26199,6 +26205,17 @@ function _handleLeadDeepLink(){
   } catch(e){}
 }
 window._handleLeadDeepLink = _handleLeadDeepLink;
+
+// Open a specific app page when arriving via an email/deep link (?go={pageId}).
+function _handlePageDeepLink(){
+  try {
+    var pg = new URLSearchParams(window.location.search).get('go');
+    if (!pg || !/^[a-z0-9-]+$/i.test(pg)) return;
+    try { history.replaceState(null, '', window.location.pathname); } catch(e){}
+    setTimeout(function(){ try { if (document.getElementById('page-'+pg)) go(pg); } catch(e){} }, 700);
+  } catch(e){}
+}
+window._handlePageDeepLink = _handlePageDeepLink;
 
 // ── New deal modal ──
 function openNewDealModal() {
