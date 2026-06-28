@@ -27881,6 +27881,42 @@ var LP_TEMPLATES = {
       accent:'#2A6EF4',
       thanksMsg:'Thanks! I\u2019ll reach out shortly with your numbers and next steps.'
     }
+  },
+  firstbuyer: {
+    name:'First-Time Buyer', icon:'\uD83D\uDD11', tag:'Turn renters into buyers', file:'firstbuyer.html',
+    defaults:{
+      eyebrow:'Thinking About Your First Home?',
+      headline:'Ready to Stop Renting? You May Be Closer Than You Think.',
+      subhead:'Buying your first home feels huge \u2014 the down payment, the budget, the whole process. Most first-timers are more ready than they realize.',
+      ctaText:'Send My Request',
+      source:'First-Time Buyer Lead',
+      accent:'#2A6EF4',
+      thanksMsg:'Thanks! I\u2019ll reach out shortly with your numbers and next steps.'
+    }
+  },
+  expired: {
+    name:'Expired Listing', icon:'\uD83D\uDD04', tag:'High-intent seller magnet', file:'expired.html',
+    defaults:{
+      eyebrow:'Your Listing Expired?',
+      headline:'Your Home Didn\u2019t Sell. That\u2019s a Problem We Can Fix.',
+      subhead:'A home that doesn\u2019t sell almost always comes down to one of a few fixable things \u2014 not bad luck. Let\u2019s find out which one, and what a fresh approach looks like.',
+      ctaText:'Send My Request',
+      source:'Expired Lead',
+      accent:'#2A6EF4',
+      thanksMsg:'Thanks \u2014 I\u2019ll reach out shortly with an honest read and a plan.'
+    }
+  },
+  marketreport: {
+    name:'Market Report', icon:'\uD83D\uDCCA', tag:'Evergreen sphere magnet', file:'marketreport.html',
+    defaults:{
+      eyebrow:'Your Neighborhood Market',
+      headline:'What\u2019s Really Happening in Your Neighborhood?',
+      subhead:'Online estimates are generic and usually wrong. Get a real market report for your specific area \u2014 what homes are actually selling for, how fast, and whether it\u2019s a buyer\u2019s or seller\u2019s market right now.',
+      ctaText:'Send My Report',
+      source:'Market Report Lead',
+      accent:'#2A6EF4',
+      thanksMsg:'Thanks! I\u2019ll put together your report and reach out shortly.'
+    }
   }
 };
 function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)|| '')); }
@@ -27929,6 +27965,7 @@ function lpShowTemplateList(){
         +'</button>';
       }).join('')
     + '<button onclick="lpListingsHome()" style="width:100%;text-align:left;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:16px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:14px;"><span style="font-size:30px;">\uD83C\uDFE1</span><div style="flex:1;"><div style="font-size:15px;font-weight:600;color:#1D4ED8;">Listing Showcase</div><div style="font-size:12px;color:#1D4ED8;opacity:0.8;">Per-property page \u2014 photos, 3D tour, tour requests</div></div><span style="color:#1D4ED8;font-size:18px;">\u203A</span></button>'
+    + '<button onclick="lpOpenWidget()" style="width:100%;text-align:left;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--r);padding:16px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:14px;"><span style="font-size:30px;">\uD83E\uDDE9</span><div style="flex:1;"><div style="font-size:15px;font-weight:600;color:#047857;">Contact Widget</div><div style="font-size:12px;color:#047857;opacity:0.85;">Drop-in code for any website \u2014 leads flow into NestTrack</div></div><span style="color:#047857;font-size:18px;">\u203A</span></button>'
     + '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;">More templates coming.</div>';
 }
 window.lpShowTemplateList = lpShowTemplateList;
@@ -27980,6 +28017,10 @@ async function lpEditTemplate(t){
     +_lpField('Subheadline','lp-subhead',cfg.subhead,true)
     +_lpField('Intro video URL \u2014 optional (YouTube, Vimeo, or .mp4)','lp-video',cfg.videoUrl)
     +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">A 30-sec \u201Chi, I\u2019m [you]\u201D video lifts conversion \u2014 it plays right on the page.</div>'
+    +(t==='marketreport'?(
+        _lpField('This month\u2019s snapshot stats','lp-mrstats',cfg.mrStats,true)
+        +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">One per line as <b>Label | Value</b> \u2014 e.g. Median price | $385,000. Refresh monthly. Leave blank to show a \u201Ccustom report\u201D message instead.</div>'
+      ):'')
     +(t==='buyer'?(
         '<div style="font-size:13px;font-weight:700;color:var(--text2);margin:6px 0 4px;">Areas / cities buyers can pick</div>'
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Each becomes a tappable chip. Add your market\u2019s cities (leave empty to hide this question).</div>'
@@ -27998,7 +28039,7 @@ async function lpEditTemplate(t){
         +'<div id="steps-rows"></div>'
         +'<button type="button" class="btn btn-sm" id="steps-add" onclick="lpAddStep()">+ Add step</button>'
       ):'')
-    +((t!=='cashoffer'&&t!=='familymoveup'&&t!=='downsizer')?(
+    +((t==='valuation'||t==='buyer')?(
         _lpField('Credibility stats (separate with commas)','lp-stats',cfg.stats)
         +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold, West Side specialist, 4.9 \u2605</div>'
       ):'')
@@ -28050,6 +28091,7 @@ async function lpSaveTemplate(t){
     agentPhoto:(userProfile&&(userProfile.emailSignaturePhoto||userProfile.photoUrl))||'',
     agentPhone:v('lp-phone'),
     calendlyUrl:(userProfile&&userProfile.calendly)||'',
+    mrStats:v('lp-mrstats'),
     agentId:agentId,
     updatedAt:Date.now()
   };
@@ -28068,6 +28110,102 @@ async function lpSaveTemplate(t){
   }catch(e){ alert('Save failed: '+e.message); }
 }
 window.lpSaveTemplate = lpSaveTemplate;
+
+async function lpOpenWidget(){
+  var agentId=_lpAgentId();
+  var cfg={};
+  try{ var snap=await fb.getDoc(fb.doc(fb.db,'landing_pages',agentId+'_widget')); if(snap.exists()){ cfg=snap.data(); } }catch(e){}
+  if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
+  var _segSet={}; (allBuyers||myBuyers||[]).forEach(function(x){ if(x&&x.segment) _segSet[x.segment]=1; });
+  var _segList=Object.keys(_segSet).sort();
+  var _statusList=[['pipeline','Pipeline'],['nurture','Nurture'],['active','Active'],['cold','Cold'],['contact','Contact Only']];
+  var fields=String(cfg.fields||'name,email,phone,address,message').toLowerCase();
+  function fChk(k,label,locked){
+    var on=fields.indexOf(k)>=0;
+    return '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;padding:7px 0;cursor:'+(locked?'default':'pointer')+';">'
+      +'<input type="checkbox" id="lpw-f-'+k+'"'+((on||locked)?' checked':'')+(locked?' disabled':'')+' style="width:17px;height:17px;"/> '+label+(locked?' <span style="font-size:11px;color:var(--text3);font-weight:400;">(always on)</span>':'')+'</label>';
+  }
+  var b=document.getElementById('lp-body'); if(!b) return; b.scrollTop=0;
+  b.innerHTML=
+    '<button class="btn btn-sm" onclick="lpShowTemplateList()" style="margin-bottom:14px;">\u2190 Templates</button>'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83E\uDDE9 Contact Widget</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">A contact form you can paste into any website \u2014 your own site, a Carrd/Wix/Squarespace page, anywhere. Leads flow straight into NestTrack.</div>'
+    +'<div style="background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:14px;margin-bottom:20px;">'
+      +'<div style="font-size:13px;font-weight:800;color:#1D4ED8;margin-bottom:2px;">\u2699\uFE0F When a lead comes in</div>'
+      +'<div style="font-size:11px;color:#1D4ED8;opacity:0.85;margin-bottom:10px;">Where widget leads land \u2014 and what happens next.</div>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:8px 0 5px;">Category</label>'
+      +'<select id="lp-leadstatus" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +_statusList.map(function(sx){ return '<option value="'+sx[0]+'"'+((cfg.leadStatus||'pipeline')===sx[0]?' selected':'')+'>'+sx[1]+'</option>'; }).join('')
+      +'</select>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:11px 0 5px;">Segment / tag</label>'
+      +'<input id="lp-leadseg" list="lp-seg-options" value="'+partnerEsc(cfg.leadSegment||'')+'" placeholder="e.g. Website Leads (type a new one or pick existing)" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;"/>'
+      +'<datalist id="lp-seg-options">'+_segList.map(function(sg){ return '<option value="'+partnerEsc(sg)+'"></option>'; }).join('')+'</datalist>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#1D4ED8;margin:11px 0 5px;">Auto-enroll in smart plan</label>'
+      +'<select id="lp-leadplan" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #B9D2FF;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +'<option value="">\u2014 None \u2014</option>'
+        +_smartPlans.map(function(p){ return '<option value="'+p.id+'"'+(cfg.smartPlanId===p.id?' selected':'')+'>'+partnerEsc(p.name||'Untitled')+'</option>'; }).join('')
+      +'</select>'
+      +'<div style="font-size:11px;color:#1D4ED8;opacity:0.8;margin-top:6px;">Enrolled leads start getting this plan\u2019s emails/texts automatically.</div>'
+    +'</div>'
+    +_lpField('Heading','lpw-title',cfg.title||'Get in touch')
+    +_lpField('Subtext','lpw-subtitle',cfg.subtitle||'Tell me a bit about what you need and I\u2019ll reach out personally.',true)
+    +_lpField('Button text','lpw-button',cfg.button||'Send')
+    +_lpField('Lead source label','lpw-source',cfg.source||'Website Contact')
+    +'<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin:12px 0 5px;">Fields to collect</label>'
+    +'<div style="background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:4px 12px;">'
+      +fChk('name','Name',true)+fChk('email','Email')+fChk('phone','Phone')+fChk('address','Address')+fChk('message','Message')
+    +'</div>'
+    +'<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin:14px 0 5px;">Accent color</label>'
+    +'<input type="color" id="lpw-accent" value="'+(cfg.accent||'#2A6EF4')+'" style="width:54px;height:38px;border:1px solid var(--border);border-radius:8px;padding:2px;cursor:pointer;"/>'
+    +'<button class="btn btn-g" style="width:100%;margin-top:18px;" onclick="lpSaveWidget()">Save &amp; Get Code</button>'
+    +'<div id="lpw-out" style="display:none;margin-top:18px;"></div>';
+}
+window.lpOpenWidget = lpOpenWidget;
+
+async function lpSaveWidget(){
+  var agentId=_lpAgentId();
+  var v=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
+  var chk=function(k){ var el=document.getElementById('lpw-f-'+k); return el?el.checked:false; };
+  var fl=['name']; ['email','phone','address','message'].forEach(function(k){ if(chk(k)) fl.push(k); });
+  var _planId=(document.getElementById('lp-leadplan')||{}).value||'';
+  var _planObj=(_smartPlans||[]).find(function(p){return p.id===_planId;});
+  var docData={
+    template:'widget',
+    title:v('lpw-title')||'Get in touch',
+    subtitle:v('lpw-subtitle'),
+    button:v('lpw-button')||'Send',
+    source:v('lpw-source')||'Website Contact',
+    fields:fl.join(','),
+    accent:(document.getElementById('lpw-accent')||{}).value||'#2A6EF4',
+    leadStatus:(document.getElementById('lp-leadstatus')||{}).value||'pipeline',
+    leadSegment:v('lp-leadseg'),
+    smartPlanId:_planId,
+    smartPlanName:_planObj?(_planObj.name||'Plan'):'',
+    agentId:agentId,
+    updatedAt:Date.now()
+  };
+  try{
+    await fb.setDoc(fb.doc(fb.db,'landing_pages',agentId+'_widget'), docData);
+    var srcAttr=String(docData.source).replace(/"/g,'&quot;');
+    var code='<div id="nesttrack-form"></div>\n<script src="https://app.nesttrack.io/widget.js" data-agent="'+agentId+'" data-source="'+srcAttr+'"><\/script>';
+    var disp=code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var out=document.getElementById('lpw-out'); out.style.display='block';
+    out.innerHTML='<div style="font-size:12px;font-weight:700;color:#047857;margin-bottom:6px;">\u2705 Saved! Paste this into any page:</div>'
+      +'<pre id="lpw-code" style="white-space:pre-wrap;word-break:break-all;font-size:12px;background:#0F1B33;color:#cfe3ff;border-radius:10px;padding:12px;margin:0 0 8px;font-family:ui-monospace,Menlo,monospace;">'+disp+'</pre>'
+      +'<button class="btn btn-sm" onclick="lpCopyWidgetCode()">\uD83D\uDCCB Copy code</button>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:8px;">Styling, fields, and lead routing are saved to your account \u2014 change them here anytime without touching the embedded page.</div>';
+    if(typeof showDealToast==='function') showDealToast('Widget saved!',null,null);
+  }catch(e){ alert('Save failed: '+e.message); }
+}
+window.lpSaveWidget = lpSaveWidget;
+
+function lpCopyWidgetCode(){
+  var el=document.getElementById('lpw-code'); if(!el) return;
+  var txt=el.textContent||el.innerText||'';
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ if(typeof showDealToast==='function') showDealToast('Code copied!',null,null); }); }
+  else { try{ var ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); if(typeof showDealToast==='function') showDealToast('Code copied!',null,null); }catch(e){} }
+}
+window.lpCopyWidgetCode = lpCopyWidgetCode;
 
 // ── Structured row editor (value props / steps) ──
 var _lpVProps=[], _lpSteps=[];
