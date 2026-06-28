@@ -27857,6 +27857,18 @@ var LP_TEMPLATES = {
       accent:'#2A6EF4',
       thanksMsg:'Thanks! I\u2019ll line up homes that match and reach out shortly.'
     }
+  },
+  familymoveup: {
+    name:'Family Move-Up', icon:'\uD83C\uDFD8\uFE0F', tag:'Move-up family magnet', file:'familymoveup.html',
+    defaults:{
+      eyebrow:'Thinking About More Space?',
+      headline:'Is It Time to Move Up? Let\u2019s Find Out Together.',
+      subhead:'You bought your first home when life looked different. If it\u2019s starting to feel tight, the real question isn\u2019t just where to move \u2014 it\u2019s whether now is the right time, and how to buy and sell without the chaos.',
+      ctaText:'Send My Request',
+      source:'Move-Up Lead',
+      accent:'#2A6EF4',
+      thanksMsg:'Thanks! I\u2019ll reach out shortly with your numbers and next steps.'
+    }
   }
 };
 function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)|| '')); }
@@ -27974,7 +27986,7 @@ async function lpEditTemplate(t){
         +'<div id="steps-rows"></div>'
         +'<button type="button" class="btn btn-sm" id="steps-add" onclick="lpAddStep()">+ Add step</button>'
       ):'')
-    +(t!=='cashoffer'?(
+    +((t!=='cashoffer'&&t!=='familymoveup')?(
         _lpField('Credibility stats (separate with commas)','lp-stats',cfg.stats)
         +'<div style="font-size:11px;color:var(--text3);margin-top:-2px;">e.g. 450+ homes sold, West Side specialist, 4.9 \u2605</div>'
       ):'')
@@ -28025,6 +28037,7 @@ async function lpSaveTemplate(t){
     brokerage:(userProfile&&userProfile.brokerage)||'',
     agentPhoto:(userProfile&&(userProfile.emailSignaturePhoto||userProfile.photoUrl))||'',
     agentPhone:v('lp-phone'),
+    calendlyUrl:(userProfile&&userProfile.calendly)||'',
     agentId:agentId,
     updatedAt:Date.now()
   };
