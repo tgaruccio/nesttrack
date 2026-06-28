@@ -13520,6 +13520,29 @@ async function sendNewsletter() {
   if (btn) btn.disabled = true;
   if (status) { status.style.display = 'block'; status.textContent = 'Sending...'; }
 
+  // ── Per-tenant send cap: ask the worker how many we're allowed to send right now ──
+  var _capAgent = (userProfile && userProfile.agentId) || '';
+  if (_capAgent) {
+    try {
+      var _gr = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'bulk-email-gate'}, body: JSON.stringify({ agentId:_capAgent, requested: recipients.length }) });
+      var _gate = await _gr.json();
+      if (_gate && typeof _gate.allowed === 'number' && _gate.allowed < recipients.length) {
+        if (_gate.allowed <= 0) {
+          if (status) status.textContent = '';
+          if (btn) btn.disabled = false;
+          alert('You\'ve hit your sending limit (' + (_gate.dailyCap||'?') + '/day, ' + (_gate.monthlyCap||'?') + '/month). Try again later.');
+          return;
+        }
+        if (!confirm('You can send ' + _gate.allowed + ' of ' + recipients.length + ' right now (sending limit reached). Send the first ' + _gate.allowed + '?')) {
+          if (status) status.textContent = '';
+          if (btn) btn.disabled = false;
+          return;
+        }
+        recipients = recipients.slice(0, _gate.allowed);
+      }
+    } catch(_e) { /* gate unavailable -> fail open so a worker hiccup never blocks a legit send */ }
+  }
+
   var agentName = ((userProfile && userProfile.firstName)||'') + ' ' + ((userProfile && userProfile.lastName)||'');
   agentName = agentName.trim() || (userProfile && userProfile.name) || 'Your Agent';
   var sent = 0, failed = 0;
