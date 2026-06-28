@@ -17135,9 +17135,10 @@ function renderTxnTimeline() {
   // ── BUYER timeline ──
   var buyerCard = document.getElementById('txn-buyer-card');
   var buyerList = document.getElementById('txn-buyer-list');
-  var buyerDates = (typeof _activeBuyerDeal!=='undefined' && _dealDatesObj(_activeBuyerDeal))
-    || (userProfile && userProfile.buyerContractDates)
-    || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType !== 'seller' ? userProfile.contractDates : null);
+  var buyerDates = _activeBuyerDeal
+    ? _dealDatesObj(_activeBuyerDeal)
+    : ((userProfile && userProfile.buyerContractDates)
+       || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType !== 'seller' ? userProfile.contractDates : null));
   var buyerHasDates = buyerDates && Object.keys(buyerDates).some(function(k){ return buyerDates[k]; });
   if (buyerCard) {
     if (buyerHasDates) {
@@ -17180,9 +17181,10 @@ function renderTxnTimeline() {
   // ── SELLER timeline ──
   var sellerCard = document.getElementById('txn-seller-card');
   var sellerList = document.getElementById('txn-seller-list');
-  var sellerDates = (typeof _activeSellerDeal!=='undefined' && _dealDatesObj(_activeSellerDeal))
-    || (userProfile && userProfile.sellerContractDates)
-    || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType === 'seller' ? userProfile.contractDates : null);
+  var sellerDates = _activeSellerDeal
+    ? _dealDatesObj(_activeSellerDeal)
+    : ((userProfile && userProfile.sellerContractDates)
+       || (userProfile && userProfile.contractDates && userProfile.contractDates.contractType === 'seller' ? userProfile.contractDates : null));
   var sellerHasDates = sellerDates && Object.keys(sellerDates).some(function(k){ return sellerDates[k]; });
   if (sellerCard) {
     if (sellerHasDates) {
@@ -17207,8 +17209,8 @@ window.renderTxnTimeline = renderTxnTimeline;
 // ICS calendar export
 function downloadICS(type) {
   var dates = type === 'seller'
-    ? ((userProfile && userProfile.sellerContractDates) || {})
-    : ((userProfile && userProfile.buyerContractDates) || {});
+    ? (_activeSellerDeal ? (_dealDatesObj(_activeSellerDeal) || {}) : ((userProfile && userProfile.sellerContractDates) || {}))
+    : (_activeBuyerDeal ? (_dealDatesObj(_activeBuyerDeal) || {}) : ((userProfile && userProfile.buyerContractDates) || {}));
   var fields = type === 'seller' ? SELLER_CONTRACT_FIELDS : BUYER_CONTRACT_FIELDS;
   var name = ((userProfile&&userProfile.firstName)||'Your') + (type==='seller'?' Sale':' Purchase');
   var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//Transaction//EN','CALSCALE:GREGORIAN'];
