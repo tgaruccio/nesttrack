@@ -2819,6 +2819,22 @@ textarea{resize:vertical;min-height:68px;}
       </div>
     </div>
 
+    <!-- CARD: ACCOUNT / SECURITY -->
+    <div class="card" id="profile-card-account" style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:36px;height:36px;border-radius:9px;background:#EEF2FF;border:1px solid #C7D2FE;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">&#128274;</div>
+          <div>
+          <div style="font-size:15px;font-weight:600;">Account</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Change your password.</div>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px;line-height:1.5;">We&rsquo;ll email a secure link to set a new password. It goes to your login email.</div>
+      <div><button class="btn btn-sm btn-g" onclick="changePassword()">Send password reset link</button></div>
+      <div id="ap-pw-status" style="font-size:12px;color:var(--text3);margin-top:8px;"></div>
+    </div>
+
     <!-- CARD: NET SHEET DEFAULTS -->
     <div class="card" id="profile-card-netsheet" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
@@ -4443,6 +4459,20 @@ async function resetPassword() {
 async function signOut() {
   await fb.fbSignOut(fb.auth);
 }
+
+async function changePassword(){
+  var status = document.getElementById('ap-pw-status');
+  var em = (fb.auth.currentUser && fb.auth.currentUser.email) || (userProfile && userProfile.email) || '';
+  if(!em){ if(status){ status.textContent='No login email on file for your account.'; status.style.color='var(--red-dk)'; } return; }
+  if(status){ status.textContent='Sending\u2026'; status.style.color='var(--text3)'; }
+  try{
+    await fb.sendPasswordResetEmail(fb.auth, em);
+    if(status){ status.textContent='Reset link sent to '+em+'. Check your inbox (and spam).'; status.style.color='var(--green-dk)'; }
+  }catch(e){
+    if(status){ status.textContent='Could not send: '+((e&&e.message)||'try again'); status.style.color='var(--red-dk)'; }
+  }
+}
+window.changePassword = changePassword;
 
 async function loadTeamAgents() {
   try {
