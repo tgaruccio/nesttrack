@@ -16193,7 +16193,7 @@ function _teamRowHtml(a, lbFlags, nested) {
              : _tr==='leader' ? '<span class="pill" style="background:#7C3AED;color:#fff;">Team Leader</span>'
              : '<span class="pill" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">Member</span>';
   var isSelf = a.id === ((userProfile && userProfile.agentId) || '');
-  var _pending = (a.joined !== true) && !isSelf;
+  var _pending = !isSelf && !((window._joinedAgentSet||{})[a.id]);
   var _canResend = (typeof isOwner==='function') && isOwner();
   var _pendPill = _pending ? ' <span class="pill" style="background:#FEF3C7;color:#92400E;">\uD83D\uDCE8 Pending</span>' : '';
   return '<div style="display:flex;justify-content:space-between;align-items:center;background:'+(nested?'var(--surface)':'var(--surface2)')+';padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;'+(nested?'border:1px solid var(--border);':'')+'">'
@@ -16229,10 +16229,22 @@ async function _loadAgentInviteMap(){
 }
 window._loadAgentInviteMap = _loadAgentInviteMap;
 
+async function _loadJoinedAgentSet(){
+  var s = {};
+  try{
+    var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('teamId','==',myTeam)));
+    snap.forEach(function(d){ var x=d.data()||{}; if(x.agentId && (x.role==='agent'||x.role==='lender')) s[x.agentId]=true; });
+  }catch(e){ console.log('joinedSet load skipped:', e&&e.message); }
+  window._joinedAgentSet = s;
+  return s;
+}
+window._loadJoinedAgentSet = _loadJoinedAgentSet;
+
 async function resendAgentInvite(agentId){
   var inv = (window._agentInviteMap||{})[agentId];
   var a = (DEFAULT_AGENTS||[]).find(function(x){ return x.id===agentId; }) || {};
-  if((inv && inv.joined) || a.joined===true){ alert('This agent has already created their account.'); return; }
+  if((inv && inv.joined) || a.joined===true || (window._joinedAgentSet||{})[agentId]){ alert('This agent has already created their account.'); return; }
   var name = (inv && inv.name) || a.name || '';
   var email = (inv && inv.email) || a.email || '';
   if(!email){ alert('No email on file for this agent.'); return; }
@@ -16631,7 +16643,7 @@ window._applyMemberGate = _applyMemberGate;
 function renderTeam() {
   var myId = (userProfile && userProfile.agentId) || '';
   var owner = (typeof isOwner==='function') && isOwner();
-  Promise.all([fb.getDoc(_tsSettingsRef()), _loadAgentInviteMap()]).then(function(_res){
+  Promise.all([fb.getDoc(_tsSettingsRef()), _loadAgentInviteMap(), _loadJoinedAgentSet()]).then(function(_res){
     var snap = _res[0];
     var lbFlags = (snap.exists() && snap.data().leaderboard) || {};
     var agents = DEFAULT_AGENTS;
