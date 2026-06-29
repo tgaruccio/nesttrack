@@ -2130,10 +2130,14 @@ textarea{resize:vertical;min-height:68px;}
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="past" onchange="updateNlCount()"> Past Client</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="buyers" onchange="updateNlCount()"> Buyers only</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="sellers" onchange="updateNlCount()"> Sellers only</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="segment" onchange="updateNlCount()"> 🏷️ Segment</label>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="nl-audience" value="one" onchange="updateNlCount();document.getElementById('nl-one-client').style.display='block'"> One client</label>
     </div>
     <div id="nl-one-client" style="display:none;margin-top:6px;">
       <div id="nl-one-client-search"></div>
+    </div>
+    <div id="nl-segment-pick" style="display:none;margin-top:6px;">
+      <select id="nl-segment-select" onchange="updateNlCount()" style="font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);min-width:200px;"><option value="">— Choose a segment —</option></select>
     </div>
     <div id="nl-count" style="font-size:12px;color:var(--text2);">— recipients</div>
   </div>
@@ -13304,10 +13308,29 @@ function updateNlCount() {
     return filtered;
   }
 
+  // Segment audience: show picker + populate from contact segments + managed segments
+  var segDiv = document.getElementById('nl-segment-pick');
+  if (segDiv) segDiv.style.display = val === 'segment' ? 'block' : 'none';
+  var _selSeg = '';
+  if (val === 'segment') {
+    var segSel = document.getElementById('nl-segment-select');
+    if (segSel) {
+      var _segs = {};
+      (window._nlAllClients || allBuyers || myBuyers || []).forEach(function(b){ if(b.segment) _segs[b.segment]=true; });
+      if (typeof _allSegments==='function') _allSegments().forEach(function(s){ if(s) _segs[s]=true; });
+      var _segList = Object.keys(_segs).sort();
+      var _cur = segSel.value;
+      segSel.innerHTML = '<option value="">\u2014 Choose a segment \u2014</option>' + _segList.map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"'+(s===_cur?' selected':'')+'>'+s+'</option>'; }).join('');
+      if (_cur) segSel.value = _cur;
+      _selSeg = segSel.value;
+    }
+  }
+
   var filtered = buyers.filter(function(b) {
     if (b.pending) return false;
     if (!b.email) return false;
     if (val === 'all') return true;
+    if (val === 'segment') return _selSeg ? ((b.segment||'') === _selSeg) : false;
     if (val === 'buyers') return b.journeyType !== 'seller-only';
     if (val === 'sellers') return b.journeyType === 'seller-only' || b.journeyType === 'both';
     return (b.crmStatus || 'pipeline') === val;
