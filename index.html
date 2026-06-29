@@ -29385,10 +29385,10 @@ function getVideoMeta(url) {
   return { type: 'other', thumb: '' };
 }
 
-function videoThumbnailHtml(url, title) {
+function videoThumbnailHtml(url, title, customThumb) {
   var meta = getVideoMeta(url);
-  if (!meta) return '';
-  var thumb = meta.thumb;
+  if (!meta && !customThumb) return '';
+  var thumb = customThumb || (meta ? meta.thumb : '');
   if (thumb) {
     return '<a href="'+url+'" target="_blank" style="display:block;position:relative;border-radius:8px;overflow:hidden;text-decoration:none;max-width:100%;">'
       +'<img src="'+thumb+'" style="width:100%;max-height:160px;object-fit:cover;display:block;" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"/>'
@@ -29543,6 +29543,7 @@ async function avUploadThumb(event, videoId) {
         preview.style.display = 'block';
         preview.innerHTML = '<img src="'+url+'" style="width:100%;max-height:100px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"/>';
       }
+      if (typeof previewAddVideo === 'function') previewAddVideo();  // refresh main preview so the custom thumb wins, any order
     }
   } catch(e) {
     if (status) status.textContent = 'Upload failed';
@@ -29554,7 +29555,8 @@ function previewAddVideo() {
   var prev = document.getElementById('av-preview');
   if (!prev) return;
   if (!url.trim()) { prev.style.display='none'; prev.innerHTML=''; return; }
-  var html = videoThumbnailHtml(url, document.getElementById('av-title').value||'Preview');
+  var _avCustom = (document.getElementById('av-thumb-url')||{}).value||'';
+  var html = videoThumbnailHtml(url, document.getElementById('av-title').value||'Preview', _avCustom);
   if (html) { prev.innerHTML = html; prev.style.display = 'block'; }
   // Auto-fill title for YouTube
   var meta = getVideoMeta(url);
