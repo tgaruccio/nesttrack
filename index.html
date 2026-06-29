@@ -16093,13 +16093,15 @@ async function addLenderAndInvite() {
 window.addLenderAndInvite = addLenderAndInvite;
 
 // ── Admin: provision an OWNER-LENDER (heads their own team; agents join them) ──
-function adminInviteOwnerLender(){
+async function adminInviteOwnerLender(){
+  await _loadBillTiers();
+  var noTiers = !(window._billTiers && window._billTiers.length);
   var leaders=(DEFAULT_AGENTS||[]).filter(function(a){return agentTeamRole(a)==='leader';});
   var myId=(userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
   var opts='<option value="'+myId+'">Your team</option>'+leaders.map(function(L){return '<option value="'+L.id+'">'+partnerEsc(L.name||L.id)+'\u2019s team</option>';}).join('');
   _adminModal('\uD83C\uDFE6 Add Lender',
     '<label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;background:#EAF2FB;border:1px solid #B9D4EE;border-radius:12px;padding:10px 12px;cursor:pointer;">'
-      +'<input type="checkbox" id="aflm-owner" checked onchange="var r=document.getElementById(\'aflm-teamrow\'); if(r) r.style.display=this.checked?\'none\':\'block\';" style="width:18px;height:18px;margin-top:1px;cursor:pointer;"/>'
+      +'<input type="checkbox" id="aflm-owner" checked onchange="var r=document.getElementById(\'aflm-teamrow\'); if(r) r.style.display=this.checked?\'none\':\'block\'; var tr=document.getElementById(\'aflm-tierrow\'); if(tr) tr.style.display=this.checked?\'block\':\'none\';" style="width:18px;height:18px;margin-top:1px;cursor:pointer;"/>'
       +'<div><div style="font-size:13px;font-weight:600;color:#185FA5;">Owns their own team (sponsors agents)</div>'
       +'<div style="font-size:11px;color:#185FA5;opacity:0.85;">Uncheck to add them as a lender on an existing team instead.</div></div>'
     +'</label>'
@@ -16111,6 +16113,11 @@ function adminInviteOwnerLender(){
     +_adminField('Email','aflm-email','email')
     +_adminField('Phone (optional)','aflm-phone','tel')
     +_adminField('Apply / Pre-Approval Link (optional)','aflm-applylink','url')
+    +'<div id="aflm-tierrow" style="display:block;">'
+      +'<label style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;">Pricing tier</label>'
+      +'<select id="aflm-tier" style="width:100%;box-sizing:border-box;font-size:13px;padding:11px;border:1px solid var(--border);border-radius:10px;font-family:inherit;margin:4px 0 '+(noTiers?'4px':'12px')+';background:var(--surface);">'+_tierOpts('')+'</select>'
+      +(noTiers?'<div style="font-size:11px;color:var(--red-dk);margin:0 0 12px;line-height:1.4;">No tiers yet \u2014 add them in Billing \u2192 Pricing Tiers first.</div>':'')
+    +'</div>'
     +'<button class="apx-btn apx-btn-blue" style="width:100%;margin-top:6px;" onclick="adminSubmitOwnerLender()">Send Lender Invite \u2192</button>'
   );
 }
@@ -16127,7 +16134,10 @@ async function adminSubmitOwnerLender(){
   var owns = !_ownChk || _ownChk.checked;
   var teamId = owns ? id : (((document.getElementById('aflm-team')||{}).value) || ((userProfile&&(userProfile.teamId||userProfile.agentId))|| ''));
   var teamRole = owns ? 'owner' : 'member';
-  var lenderData={ id:id, name:name, role:'Licensed Mortgage Professional', phone:phone, email:email, applyLink:applyLink, teamId:teamId, teamRole:teamRole, addedAt:new Date().toISOString() };
+  var tierKey = owns ? (((document.getElementById('aflm-tier')||{}).value)||'') : '';
+  var tier = tierKey ? _tierByKey(tierKey) : null;
+  var comped = !!(tier && tier.comp);
+  var lenderData={ id:id, name:name, role:'Licensed Mortgage Professional', phone:phone, email:email, applyLink:applyLink, teamId:teamId, teamRole:teamRole, billingTier:tierKey, comped:comped, addedAt:new Date().toISOString() };
   try { await fb.setDoc(fb.doc(fb.db,'team_lenders',id), lenderData); }
   catch(e){ alert('Failed to save lender: '+e.message); return; }
   if(typeof DEFAULT_LENDERS!=='undefined') DEFAULT_LENDERS.push(lenderData);
@@ -16136,7 +16146,7 @@ async function adminSubmitOwnerLender(){
   try {
     await fb.setDoc(fb.doc(fb.db,'agentInvites',code), {
       name:name, email:email.toLowerCase(), code:code, role:'lender', lenderId:id,
-      teamRole:teamRole, teamId:teamId, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false
+      teamRole:teamRole, teamId:teamId, billingTier:tierKey, comped:comped, invitedBy:currentUser.uid, invitedAt:fb.serverTimestamp(), used:false
     });
   } catch(e){ console.log('ownerLenderInvite store failed:', e.message); }
   var first=name.split(' ')[0];
@@ -16246,9 +16256,11 @@ window._loadStripePrices = _loadStripePrices;
 function _ownerTierKey(){
   var id = userProfile && userProfile.agentId;
   var ag = id && (DEFAULT_AGENTS||[]).find(function(a){ return a.id===id; });
+  var lid = userProfile && userProfile.lenderId;
+  var ld = lid && (typeof DEFAULT_LENDERS!=='undefined') && (DEFAULT_LENDERS||[]).find(function(l){ return l.id===lid; });
   // Self-serve signups with no explicitly assigned tier inherit the tier marked "Public signup".
   var pub = (userProfile && userProfile.selfServe && window._publicTierKey) ? window._publicTierKey : '';
-  return (ag && ag.billingTier) || (userProfile && userProfile.billingTier) || pub || '';
+  return (ag && ag.billingTier) || (ld && ld.billingTier) || (userProfile && userProfile.billingTier) || pub || '';
 }
 window._ownerTierKey = _ownerTierKey;
 function _tierOpts(selectedKey){
