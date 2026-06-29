@@ -12480,9 +12480,11 @@ async function renderPricingTiers(){
   var rows = ts.length ? ts.map(function(t){
     var amt = t.comp ? '<span style="color:var(--green-dk);font-weight:700;">Free</span>'
       : '$'+((t.leadAmount||0)/100).toFixed(2)+' lead \u00b7 $'+((t.memberAmount||0)/100).toFixed(2)+' member';
-    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--surface2);border-radius:8px;">'
-      +'<div style="min-width:0;"><div style="font-weight:600;font-size:13px;">'+partnerEsc(t.label)+'</div><div style="font-size:11.5px;color:var(--text3);">'+amt+'</div></div>'
-      +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+    var isPub = (t.key === (window._publicTierKey||''));
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--surface2);border-radius:8px;'+(isPub?'box-shadow:inset 0 0 0 1.5px var(--green);':'')+'">'
+      +'<div style="min-width:0;"><div style="font-weight:600;font-size:13px;">'+partnerEsc(t.label)+(isPub?' <span style="font-size:9.5px;font-weight:700;color:var(--green-dk);background:var(--green-lt);padding:1px 6px;border-radius:8px;vertical-align:middle;letter-spacing:.04em;">PUBLIC</span>':'')+'</div><div style="font-size:11.5px;color:var(--text3);">'+amt+'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">'
+        +'<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;white-space:nowrap;color:'+(isPub?'var(--green-dk)':'var(--text3)')+';font-weight:'+(isPub?'700':'400')+';"><input type="checkbox" '+(isPub?'checked':'')+' onchange="pricingSetPublic(\''+partnerEsc(t.key)+'\')" style="cursor:pointer;"/>Public signup</label>'
         +'<button class="btn btn-sm" onclick="pricingEditTier(\''+partnerEsc(t.key)+'\')">Edit</button>'
         +'<button class="btn btn-sm" style="color:var(--red-dk);" onclick="pricingDeleteTier(\''+partnerEsc(t.key)+'\')">Delete</button>'
       +'</div></div>';
@@ -12490,7 +12492,7 @@ async function renderPricingTiers(){
   box.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
     +'<div style="font-size:14px;font-weight:700;">\uD83C\uDFF7\uFE0F Pricing Tiers</div>'
     +'<button class="btn btn-sm btn-g" onclick="pricingAddTier()">+ Add tier</button></div>'
-    +'<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">These power the tier dropdown when you invite a team leader. Amounts come live from Stripe \u2014 to change a price, create a new one in Stripe, then point the tier at it here.</div>'
+    +'<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">These power the tier dropdown when you invite a team leader. Amounts come live from Stripe \u2014 to change a price, create a new one in Stripe, then point the tier at it here.<br><strong style="color:var(--text2);">Check \u201cPublic signup\u201d</strong> on one tier and that becomes the price new self-serve signups from your website get \u2014 switch it anytime, no code.</div>'
     +'<div style="display:flex;flex-direction:column;gap:8px;">'+rows+'</div>';
 }
 window.renderPricingTiers=renderPricingTiers;
@@ -12554,6 +12556,17 @@ async function pricingDeleteTier(key){
   }catch(e){ alert('Could not delete tier: '+(e&&e.message||'')); }
 }
 window.pricingDeleteTier=pricingDeleteTier;
+
+async function pricingSetPublic(key){
+  var cur = window._publicTierKey||'';
+  var next = (cur===key) ? '' : key;   // re-checking the active one turns it off
+  try{
+    await fb.setDoc(fb.doc(fb.db,'billing_config','tiers'), { publicTierKey: next, updatedAt: Date.now() }, {merge:true});
+    window._publicTierKey = next;
+    renderPricingTiers();
+  }catch(e){ alert('Could not update public pricing: '+(e&&e.message||'')); }
+}
+window.pricingSetPublic=pricingSetPublic;
 
 // ── HELP CONTENT ADMIN ──
 // Sections an agent might get stuck on. Keys must match the helpDot('key') calls placed in the UI.
@@ -16215,7 +16228,7 @@ window._billTiers = null;     // [{key,label,leadPriceId,leadAmount,memberPriceI
 window._stripePrices = null;  // [{id,amount,product,interval}]
 async function _loadBillTiers(force){
   if (window._billTiers && !force) return window._billTiers;
-  try { var snap = await fb.getDoc(fb.doc(fb.db,'billing_config','tiers')); window._billTiers = (snap.exists() && snap.data().tiers) || []; }
+  try { var snap = await fb.getDoc(fb.doc(fb.db,'billing_config','tiers')); window._billTiers = (snap.exists() && snap.data().tiers) || []; window._publicTierKey = (snap.exists() && snap.data().publicTierKey) || ''; }
   catch(e){ window._billTiers = window._billTiers || []; }
   return window._billTiers;
 }
@@ -16233,7 +16246,9 @@ window._loadStripePrices = _loadStripePrices;
 function _ownerTierKey(){
   var id = userProfile && userProfile.agentId;
   var ag = id && (DEFAULT_AGENTS||[]).find(function(a){ return a.id===id; });
-  return (ag && ag.billingTier) || (userProfile && userProfile.billingTier) || '';
+  // Self-serve signups with no explicitly assigned tier inherit the tier marked "Public signup".
+  var pub = (userProfile && userProfile.selfServe && window._publicTierKey) ? window._publicTierKey : '';
+  return (ag && ag.billingTier) || (userProfile && userProfile.billingTier) || pub || '';
 }
 window._ownerTierKey = _ownerTierKey;
 function _tierOpts(selectedKey){
