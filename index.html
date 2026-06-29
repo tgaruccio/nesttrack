@@ -4382,6 +4382,14 @@ async function signUp() {
 
     await fb.setDoc(fb.doc(fb.db, 'users', cred.user.uid), newProfile);
 
+    // Mark agent invite used + flag the team member joined (clears Pending for owner AND team leaders)
+    if (window._agentInviteCode) {
+      try { await fb.updateDoc(fb.doc(fb.db,'agentInvites',window._agentInviteCode), { used:true, usedBy:cred.user.uid, usedAt:fb.serverTimestamp() }); } catch(x){ console.log('agentInvite mark used:', x); }
+    }
+    if (newProfile.role==='agent' && newProfile.agentId) {
+      try { await fb.setDoc(fb.doc(fb.db,'team_agents', newProfile.agentId), { joined:true }, {merge:true}); } catch(x){ console.log('joined flag:', x); }
+    }
+
     // Mark invite as used
     if (invite && inviteData) {
       try {
@@ -16186,7 +16194,10 @@ function _teamRowHtml(a, lbFlags, nested) {
              : '<span class="pill" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">Member</span>';
   var isSelf = a.id === ((userProfile && userProfile.agentId) || '');
   var _inv = (window._agentInviteMap||{})[a.id];
-  var _pending = !!(_inv && !_inv.joined && _inv.code) && !isSelf;
+  var _ownerPending = !!(_inv && !_inv.joined && _inv.code) && (a.joined !== true);
+  var _teamPending  = !!(a.inviteCode && a.joined !== true);
+  var _pending = (_ownerPending || _teamPending) && !isSelf;
+  var _canResend = (typeof isOwner==='function') && isOwner();
   var _pendPill = _pending ? ' <span class="pill" style="background:#FEF3C7;color:#92400E;">\uD83D\uDCE8 Pending</span>' : '';
   return '<div style="display:flex;justify-content:space-between;align-items:center;background:'+(nested?'var(--surface)':'var(--surface2)')+';padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;'+(nested?'border:1px solid var(--border);':'')+'">'
     +'<div style="flex:1;min-width:0;">'
@@ -16197,7 +16208,7 @@ function _teamRowHtml(a, lbFlags, nested) {
     +'<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text3);cursor:pointer;">'
     +'<input type="checkbox" '+(onLB?'checked':'')+' onchange="toggleLeaderboard(\''+a.id+'\',this.checked)" style="cursor:pointer;"/> 🏆 Leaderboard'
     +'</label>'
-    +(_pending ? '<button class="btn btn-sm" onclick="resendAgentInvite(\''+a.id+'\')" style="font-size:11px;color:#92400E;border-color:#D97706;">\u21BA Resend Invite</button>' : '')
+    +((_pending && _canResend) ? '<button class="btn btn-sm" onclick="resendAgentInvite(\''+a.id+'\')" style="font-size:11px;color:#92400E;border-color:#D97706;">\u21BA Resend Invite</button>' : '')
     +(!isSelf ? '<button class="btn btn-sm" onclick="assignOnboarding(\''+a.id+'\',\''+a.name+'\')" style="font-size:11px;color:var(--green-dk);border-color:var(--green-md);">🎓 Onboarding</button>' : '')
     +(!isSelf ? '<button class="btn btn-sm" onclick="removeAgent(\''+a.id+'\')" style="color:var(--red-dk);">Remove</button>' : '<span style="font-size:10px;color:var(--text3);">You</span>')
     +'</div>'
