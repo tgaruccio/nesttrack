@@ -6569,7 +6569,7 @@ function renderTeamStatsFinancials() {
 
 
 function exportTeamStatsCSV() {
-  var agents = (DEFAULT_AGENTS||[]).filter(function(a){ return a.id && a.name; });
+  var agents = (DEFAULT_AGENTS||[]).filter(function(a){ return a.id && a.name && (typeof agentTeamId!=='function' || agentTeamId(a) === _teamStatsTeamId()); });
   var rows = [['Agent','Units','Volume','Net Pay']];
   agents.forEach(function(a){
     var row = _teamStatsData[a.id]||{};
@@ -6669,6 +6669,7 @@ function previewTeamSend() {
   var hasAnySettings = Object.keys(_lbSettings).length > 0;
   var agents = (DEFAULT_AGENTS||[]).filter(function(a){
     if (!a.id || !a.name) return false;
+    if (typeof agentTeamId==='function' && agentTeamId(a) !== _teamStatsTeamId()) return false; // team-scoped — never send to other teams
     if (!hasAnySettings) return true;
     return _lbSettings[a.id] !== false;
   }).sort(function(a,b){
@@ -23613,9 +23614,11 @@ function teamChatInit() {
 
     // Populate member names
     var hasAnySettings = Object.keys(_lbSettings).length > 0;
+    var _myTeamCC = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
     var members = (DEFAULT_AGENTS||[]).filter(function(a){
       if (!a.id || !a.name) return false;
       if (!hasAnySettings) return false;
+      if (typeof agentTeamId==='function' && agentTeamId(a) !== _myTeamCC) return false; // same team only
       return _lbSettings[a.id] !== false;
     });
     var membersEl = document.getElementById('team-chat-members');
