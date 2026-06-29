@@ -16193,10 +16193,7 @@ function _teamRowHtml(a, lbFlags, nested) {
              : _tr==='leader' ? '<span class="pill" style="background:#7C3AED;color:#fff;">Team Leader</span>'
              : '<span class="pill" style="background:var(--surface);color:var(--text2);border:1px solid var(--border);">Member</span>';
   var isSelf = a.id === ((userProfile && userProfile.agentId) || '');
-  var _inv = (window._agentInviteMap||{})[a.id];
-  var _ownerPending = !!(_inv && !_inv.joined && _inv.code) && (a.joined !== true);
-  var _teamPending  = !!(a.inviteCode && a.joined !== true);
-  var _pending = (_ownerPending || _teamPending) && !isSelf;
+  var _pending = (a.joined !== true) && !isSelf;
   var _canResend = (typeof isOwner==='function') && isOwner();
   var _pendPill = _pending ? ' <span class="pill" style="background:#FEF3C7;color:#92400E;">\uD83D\uDCE8 Pending</span>' : '';
   return '<div style="display:flex;justify-content:space-between;align-items:center;background:'+(nested?'var(--surface)':'var(--surface2)')+';padding:10px 12px;border-radius:6px;gap:8px;flex-wrap:wrap;'+(nested?'border:1px solid var(--border);':'')+'">'
@@ -16234,16 +16231,23 @@ window._loadAgentInviteMap = _loadAgentInviteMap;
 
 async function resendAgentInvite(agentId){
   var inv = (window._agentInviteMap||{})[agentId];
-  if(inv && inv.joined){ alert('This agent has already created their account.'); return; }
   var a = (DEFAULT_AGENTS||[]).find(function(x){ return x.id===agentId; }) || {};
-  var code = (inv && inv.code) || a.inviteCode;
-  if(!code){ alert('No invite code on file for this agent. Re-invite them from Add Agent instead.'); return; }
+  if((inv && inv.joined) || a.joined===true){ alert('This agent has already created their account.'); return; }
   var name = (inv && inv.name) || a.name || '';
   var email = (inv && inv.email) || a.email || '';
   if(!email){ alert('No email on file for this agent.'); return; }
+  var teamRole = (inv && inv.teamRole) || ((typeof agentTeamRole==='function')?agentTeamRole(a):'member') || 'member';
+  var code = (inv && inv.code) || a.inviteCode;
+  if(!code){
+    code='AGT'+Math.random().toString(36).substr(2,8).toUpperCase();
+    try{
+      await fb.setDoc(fb.doc(fb.db,'agentInvites',code), { name:name, email:email.toLowerCase(), code:code, agentId:agentId, invitedBy:(currentUser&&currentUser.uid)||'', invitedAt:fb.serverTimestamp(), used:false, onboardingAssigned:false, mentorAgentId:null, teamRole:teamRole, teamId:(a.teamId||agentId) });
+      await fb.setDoc(fb.doc(fb.db,'team_agents',agentId), { inviteCode:code }, {merge:true});
+      a.inviteCode=code;
+    }catch(e){ alert('Could not create invite link: '+(e&&e.message||'')); return; }
+  }
   var link = _inviteLink('agent-invite', code, email, name);
   var first = (name.split(' ')[0]) || 'there';
-  var teamRole = (inv && inv.teamRole) || ((typeof agentTeamRole==='function')?agentTeamRole(a):'member') || 'member';
   var roleLine = teamRole==='leader'
     ? 'Just a reminder \u2014 you were invited to lead a team on Nest Track, your all-in-one platform for clients, deals, and your own agents. Your account is ready to set up.'
     : 'Just a reminder \u2014 you were invited to join Nest Track, your all-in-one platform for buyer & seller journeys, deals, messaging, and showings. Your account is ready to set up.';
