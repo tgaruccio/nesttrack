@@ -24620,7 +24620,9 @@ function srPreviewReport() {
 }
 window.srPreviewReport = srPreviewReport;
 
+var _srSending = false;
 async function srSendReport() {
+  if (_srSending) return;            // guard: block duplicate / rapid re-clicks
   srSaveCurrentTab();
   var l = _srCurrent.listing;
   // Find the linked seller client
@@ -24631,7 +24633,8 @@ async function srSendReport() {
   }
   var subject = _srCurrent.subject || 'Your Weekly Listing Update';
   var emailHtml = srBuildEmailHtml();
-  var btn = document.querySelector('button[onclick="srSendReport()"]');
+  var btn = document.getElementById('sr-bottom-next');   // the real Send button
+  _srSending = true;
   if (btn) { btn.disabled=true; btn.textContent='Sending...'; }
   try {
     // Send email
@@ -24648,49 +24651,57 @@ async function srSendReport() {
         content: _srCurrent.pdfAttachBase64
       }];
     }
-    await fetch(PROXY_URL, {
+    var res = await fetch(PROXY_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json','X-Action':'email'},
       body: JSON.stringify(emailPayload)
     });
+    if (!res || !res.ok) {
+      throw new Error(res ? ('email server returned ' + res.status) : 'no response from email server');
+    }
 
-    // Save report to Firestore under client record
-    var reportData = {
-      listingId: _srCurrent.listingId,
-      address: l.address||'',
-      subject: subject,
-      sentAt: fb.serverTimestamp(),
-      showingCount: _srCurrent.showings.filter(function(s){ return s.keep!==false; }).length || (_srCurrent.quickShowingCount||0),
-      reverseProspecting: _srCurrent.reverseProspecting||0,
-      agentId: userProfile.agentId|| '',
-      emailHtml: emailHtml
-    };
-    await fb.addDoc(fb.collection(fb.db,'users',client.uid,'sellerReports'), reportData);
+    // ----- Email is sent. Everything below is bookkeeping and must NOT
+    //       surface as a "failed to send" (which would trigger a re-send). -----
+    try {
+      var keptShowings = (_srCurrent.showings || []).filter(function(s){ return s.keep!==false; }).length;
+      var reportData = {
+        listingId: _srCurrent.listingId,
+        address: l.address||'',
+        subject: subject,
+        sentAt: fb.serverTimestamp(),
+        showingCount: keptShowings || (_srCurrent.quickShowingCount||0),
+        reverseProspecting: _srCurrent.reverseProspecting||0,
+        agentId: userProfile.agentId|| '',
+        emailHtml: emailHtml
+      };
+      await fb.addDoc(fb.collection(fb.db,'users',client.uid,'sellerReports'), reportData);
 
-    // Update lastReportDate on listing
-    await fb.updateDoc(fb.doc(fb.db,'offer_listings',_srCurrent.listingId), {
-      lastReportDate: new Date().toISOString().split('T')[0],
-      portalLinks: {
-        zillow: _srCurrent.onlineActivity.zillow.url||'',
-        realtor: _srCurrent.onlineActivity.realtor.url||'',
-        redfin: _srCurrent.onlineActivity.redfin.url||'',
-        homes: _srCurrent.onlineActivity.homes.url||'',
-        social: _srCurrent.onlineActivity.social.url||''
-      }
-    });
+      await fb.updateDoc(fb.doc(fb.db,'offer_listings',_srCurrent.listingId), {
+        lastReportDate: new Date().toISOString().split('T')[0],
+        portalLinks: {
+          zillow: (_srCurrent.onlineActivity&&_srCurrent.onlineActivity.zillow&&_srCurrent.onlineActivity.zillow.url)||'',
+          realtor: (_srCurrent.onlineActivity&&_srCurrent.onlineActivity.realtor&&_srCurrent.onlineActivity.realtor.url)||'',
+          redfin: (_srCurrent.onlineActivity&&_srCurrent.onlineActivity.redfin&&_srCurrent.onlineActivity.redfin.url)||'',
+          homes: (_srCurrent.onlineActivity&&_srCurrent.onlineActivity.homes&&_srCurrent.onlineActivity.homes.url)||'',
+          social: (_srCurrent.onlineActivity&&_srCurrent.onlineActivity.social&&_srCurrent.onlineActivity.social.url)||''
+        }
+      });
 
-    // Push notification — links to listing-updates page in app
-    sendPushToUser(client.uid, '📊 Your Listing Report is Ready', 'Your weekly update for '+l.address+' is ready to view in the app.');
-    // Log email activity on client record
-    logEmailActivity(client.uid, subject, 'seller-report');
+      sendPushToUser(client.uid, '📊 Your Listing Report is Ready', 'Your weekly update for '+l.address+' is ready to view in the app.');
+      logEmailActivity(client.uid, subject, 'seller-report');
+    } catch(bookErr) {
+      console.error('Seller report email sent, but saving the record failed:', bookErr);
+    }
 
-    if (btn) { btn.disabled=false; btn.textContent='📤 Send Report'; }
     alert('Report sent to '+client.firstName+'!');
-    document.getElementById('sr-builder-overlay').remove();
+    var ov = document.getElementById('sr-builder-overlay');
+    if (ov) ov.remove();
     renderSellerReports();
   } catch(e) {
+    alert('Failed to send: '+(e && e.message ? e.message : e));
+  } finally {
+    _srSending = false;
     if (btn) { btn.disabled=false; btn.textContent='📤 Send Report'; }
-    alert('Failed to send: '+e.message);
   }
 }
 async function srUploadVideoThumb(event) {
