@@ -12456,7 +12456,7 @@ async function _createAgentInvite(opts){
     +'</div></div>';
   var subject=first+', your Nest Track account is ready';
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue){
-    try{ var payload={to:email,subject:subject,html:finalHtml||emailHtml}; var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc; await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)}); alert(name+' added and invite sent to '+email+'!'); }catch(e){ alert('Added, but invite email failed: '+e.message); }
+    try{ var payload={to:email,subject:subject,html:finalHtml||emailHtml,from:agentFromField(),reply_to:agentReplyTo()}; var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc; await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify(payload)}); alert(name+' added and invite sent to '+email+'!'); }catch(e){ alert('Added, but invite email failed: '+e.message); }
   });
   return true;
 }
@@ -16094,7 +16094,7 @@ async function addLenderAndInvite() {
   closeM('team-modal');
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue) {
     try {
-      var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
+      var payload = { to: email, subject: subject, html: finalHtml || emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
       var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       alert(name + ' added and lender invite sent to ' + email + '!');
@@ -16177,7 +16177,7 @@ async function adminSubmitOwnerLender(){
   _adminCloseModal();
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue){
     try {
-      var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
+      var payload = { to: email, subject: subject, html: finalHtml || emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
       var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       alert(name + (owns?' invited as an owner-lender.':' invited as a team lender.') + ' Sign-up link sent to ' + email + '!');
@@ -16276,7 +16276,7 @@ async function resendAgentInvite(agentId){
     +'</div></div>';
   var subject = first+', a reminder \u2014 your Nest Track account is ready';
   try{
-    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:email,subject:subject,html:emailHtml})});
+    await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},body:JSON.stringify({to:email,subject:subject,html:emailHtml,from:agentFromField(),reply_to:agentReplyTo()})});
     alert('Invite resent to '+email+'!');
   }catch(e){ alert('Failed to resend: '+(e&&e.message||'')); }
 }
@@ -16861,7 +16861,7 @@ async function addAgentAndInvite() {
   closeM('team-modal');
   showEmailPreview(email, subject, emailHtml, async function(finalHtml, ccValue) {
     try {
-      var payload = { to: email, subject: subject, html: finalHtml || emailHtml };
+      var payload = { to: email, subject: subject, html: finalHtml || emailHtml, from: agentFromField(), reply_to: agentReplyTo() };
       var _cc=_ccArray(ccValue,[],email); if(_cc.length)payload.cc=_cc;
       await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       alert(name + ' added and invite sent to ' + email + '!');
