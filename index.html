@@ -15783,6 +15783,8 @@ function openInviteModal() {
   var invLenderSel = document.getElementById('inv-lender');
   if (invLenderSel) invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){ return '<option value="'+l.id+'" selected>'+l.name+(l.role?' — '+l.role:'')+'</option>'; }).join('');
   document.getElementById('invite-result').style.display = 'none';
+  var _invSegDl2 = document.getElementById('inv-segment-options');
+  if (_invSegDl2) _invSegDl2.innerHTML = (typeof _allSegments==='function'?_allSegments():[]).map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>'; }).join('');
   _invJourneyType = 'buyer';
   setTimeout(function(){ invSetJourney('buyer'); }, 50);
   document.getElementById('invite-modal').style.display = 'flex';
@@ -29029,7 +29031,7 @@ function openAddContactModal() {
     var el = document.getElementById(id); if (el) el.value = '';
   });
   var _invSegDl = document.getElementById('inv-segment-options');
-  if (_invSegDl) _invSegDl.innerHTML = _agentSegments().map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>'; }).join('');
+  if (_invSegDl) _invSegDl.innerHTML = (typeof _allSegments==='function'?_allSegments():_agentSegments()).map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>'; }).join('');
   var crmSel = document.getElementById('inv-crm-status');
   if (crmSel) crmSel.value = 'pipeline';
   // Default journey type — mortgage for lender-only logins
