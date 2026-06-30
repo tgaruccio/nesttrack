@@ -25135,7 +25135,10 @@ function offerDealToLeaderboard(deal){
     +'<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">Sale price</label>'
     +'<input type="text" id="dlb-amount" placeholder="350000" style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);margin-bottom:10px;box-sizing:border-box;" />'
     +'<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">Address</label>'
-    +'<input type="text" id="dlb-address" placeholder="Address" style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);margin-bottom:14px;box-sizing:border-box;" />'
+    +'<input type="text" id="dlb-address" placeholder="Address" style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);margin-bottom:10px;box-sizing:border-box;" />'
+    +'<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px;">Your commission</label>'
+    +'<input type="text" id="dlb-comm" placeholder="0" style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);margin-bottom:10px;box-sizing:border-box;" />'
+    +'<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);margin-bottom:14px;cursor:pointer;"><input type="checkbox" id="dlb-comm-fin" checked style="transform:scale(1.1);"> Add this commission to my finance sheet</label>'
     +'<div style="display:flex;gap:8px;">'
     +'<button class="btn" style="flex:1;" onclick="dismissDealToLeaderboard(\''+deal.id+'\')">Not now</button>'
     +'<button class="btn btn-g" style="flex:1;" onclick="confirmDealToLeaderboard(\''+deal.id+'\')">Add to leaderboard</button>'
@@ -25144,6 +25147,7 @@ function offerDealToLeaderboard(deal){
   var amount = parseFloat(deal.salePrice) || 0;
   var aEl = document.getElementById('dlb-amount'); if (aEl) aEl.value = amount ? String(amount) : '';
   var adEl = document.getElementById('dlb-address'); if (adEl) adEl.value = deal.address || '';
+  var cEl = document.getElementById('dlb-comm'); if (cEl) { var _dc = parseFloat(deal.commission)||0; cEl.value = _dc ? String(_dc) : ''; }
 }
 window.offerDealToLeaderboard = offerDealToLeaderboard;
 
@@ -25178,6 +25182,21 @@ async function confirmDealToLeaderboard(dealId){
   catch(e){ alert('Could not add to leaderboard: ' + (e && e.message)); return; }
   deal.lbExported = true;
   try { await fb.updateDoc(_dealDoc(dealId), { lbExported: true }); } catch(e){}
+  // Also log the agent's commission to their personal finance sheet (income), if confirmed.
+  try {
+    var _wantFin = !!((document.getElementById('dlb-comm-fin')||{}).checked);
+    var _commRaw = (document.getElementById('dlb-comm')||{}).value || '';
+    var _commAmt = parseFloat(String(_commRaw).replace(/[^0-9.]/g,'')) || 0;
+    if (_wantFin && _commAmt > 0 && !deal.commExported && currentUser && currentUser.uid) {
+      var _fd = new Date(); if (deal.closingDate){ var _cd2 = new Date(deal.closingDate); if(!isNaN(_cd2.getTime())) _fd=_cd2; }
+      var _finDateStr = _fd.getFullYear()+'-'+String(_fd.getMonth()+1).padStart(2,'0')+'-'+String(_fd.getDate()).padStart(2,'0');
+      var _finRef = fb.collection(fb.db,'finances', currentUser.uid, 'entries');
+      await fb.addDoc(_finRef, { section:'income', lineKey:'Commission', lineLabel:'Commission', amount:_commAmt, date:_finDateStr, note:('Commission \u2014 '+(address||deal.address||'deal')), createdAt:fb.serverTimestamp() });
+      deal.commExported = true;
+      try { await fb.updateDoc(_dealDoc(dealId), { commExported: true }); } catch(e){}
+      if (typeof loadFinances==='function' && document.getElementById(_finPfx+'finance-body')) { try { loadFinances(); } catch(e){} }
+    }
+  } catch(e){}
   if (String(year) === String(_teamStatsYear)) { _teamStatsData = data; if (typeof renderTeamStats==='function') renderTeamStats(); }
   closeM('deal-lb-modal');
   try { showDealToast('Added to the leaderboard — nice close!', null, null); } catch(e){}
