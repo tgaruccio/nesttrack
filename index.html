@@ -3171,8 +3171,7 @@ textarea{resize:vertical;min-height:68px;}
       </select>
     </div>
     <div><label class="flabel">Segment / Source <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
-      <input type="text" id="inv-segment" list="inv-segment-options" placeholder="Type a new segment or pick an existing one"/>
-      <datalist id="inv-segment-options"></datalist>
+      <select id="inv-segment" onchange="onInvSegmentChange()" style="width:100%;box-sizing:border-box;font-size:13px;"><option value="">— No segment —</option></select>
     </div>
     <div><label class="flabel">Assign to Agent</label><select id="inv-agent"></select></div>
     <div><label class="flabel">Assign to Lender</label><select id="inv-lender"></select></div>
@@ -15603,6 +15602,28 @@ function onClientSegmentChange(uid){
 }
 window.onClientSegmentChange = onClientSegmentChange;
 
+// Add Contact form: styled segment <select> with "+ Add new segment…" (mirrors the client card)
+function _fillInvSegmentSelect(selected){
+  var sel=document.getElementById('inv-segment'); if(!sel) return;
+  var cur=(selected!=null)?selected:(sel.value||'');
+  var segs=(typeof _allSegments==='function')?_allSegments():[];
+  if(cur && cur!=='__add__' && segs.indexOf(cur)===-1) segs=segs.concat([cur]);
+  sel.innerHTML='<option value="">— No segment —</option>'+segs.map(function(s){return '<option value="'+s.replace(/"/g,'&quot;')+'"'+(s===cur?' selected':'')+'>'+s+'</option>';}).join('')+'<option value="__add__">+ Add new segment…</option>';
+  if(cur && cur!=='__add__') sel.value=cur;
+}
+window._fillInvSegmentSelect=_fillInvSegmentSelect;
+function onInvSegmentChange(){
+  var sel=document.getElementById('inv-segment'); if(!sel) return;
+  if(sel.value==='__add__'){
+    var name=prompt('Name the new segment (e.g. FSBO, Expired, Past Clients):');
+    name=(name===null)?'':name.trim();
+    if(!name){ sel.value=''; return; }
+    if(typeof _registerSegment==='function') _registerSegment(name);
+    _fillInvSegmentSelect(name);
+  }
+}
+window.onInvSegmentChange=onInvSegmentChange;
+
 async function saveContactSegment(uid){
   var inp=document.getElementById('bd-segment-in');
   var status=document.getElementById('bd-segment-status');
@@ -15783,8 +15804,7 @@ function openInviteModal() {
   var invLenderSel = document.getElementById('inv-lender');
   if (invLenderSel) invLenderSel.innerHTML = '<option value="none">— No Lender —</option>' + DEFAULT_LENDERS.map(function(l){ return '<option value="'+l.id+'" selected>'+l.name+(l.role?' — '+l.role:'')+'</option>'; }).join('');
   document.getElementById('invite-result').style.display = 'none';
-  var _invSegDl2 = document.getElementById('inv-segment-options');
-  if (_invSegDl2) _invSegDl2.innerHTML = (typeof _allSegments==='function'?_allSegments():[]).map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>'; }).join('');
+  if (typeof _fillInvSegmentSelect==='function') _fillInvSegmentSelect('');
   _invJourneyType = 'buyer';
   setTimeout(function(){ invSetJourney('buyer'); }, 50);
   document.getElementById('invite-modal').style.display = 'flex';
@@ -29030,8 +29050,7 @@ function openAddContactModal() {
   ['inv-first','inv-last','inv-email','inv-phone','inv-address','inv-segment','inv-notes'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.value = '';
   });
-  var _invSegDl = document.getElementById('inv-segment-options');
-  if (_invSegDl) _invSegDl.innerHTML = (typeof _allSegments==='function'?_allSegments():_agentSegments()).map(function(s){ return '<option value="'+s.replace(/"/g,'&quot;')+'"></option>'; }).join('');
+  if (typeof _fillInvSegmentSelect==='function') _fillInvSegmentSelect('');
   var crmSel = document.getElementById('inv-crm-status');
   if (crmSel) crmSel.value = 'pipeline';
   // Default journey type — mortgage for lender-only logins
@@ -29102,7 +29121,8 @@ async function createContact() {
   var _routeTeam = !!((document.getElementById('lr-team')||{}).checked) && isTeamLeader();
   if (_routeTeam) {
     var _mode = ((document.getElementById('lr-mode-rr')||{}).checked) ? 'roundrobin' : 'blast';
-    var _src = ((document.getElementById('inv-segment')||{}).value||'').trim() || 'Manual';
+    var _seg0 = ((document.getElementById('inv-segment')||{}).value||'').trim(); if(_seg0==='__add__') _seg0='';
+    var _src = _seg0 || 'Manual';
     try {
       var _r = await fetch(PROXY_URL, {
         method:'POST',
@@ -29141,7 +29161,7 @@ async function createContact() {
     role: isContactOnly ? 'contact' : (isSeller && !isBuyer ? 'seller' : 'buyer'),
     journeyType: journeyType,
     crmStatus: crmStatus,
-    segment: ((document.getElementById('inv-segment')||{}).value||'').trim(),
+    segment: (function(){var v=((document.getElementById('inv-segment')||{}).value||'').trim();return v==='__add__'?'':v;})(),
     agentNotes: notes || null,
     notesUpdatedAt: notes ? Date.now() : null,
     currentStep: 0, currentSellerStep: 0,
