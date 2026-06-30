@@ -16005,7 +16005,7 @@ async function resendInvite(uid) {
     + (agentEmail ? '<div style="font-size:13px;color:#1D9E75;">' + agentEmail + '</div>' : '')
     + '</div></div>';
   try {
-    var payload = { to: buyer.email, subject: subjectLine, html: emailHtml };
+    var payload = { to: clientToList(buyer), subject: subjectLine, html: emailHtml };
     if (agentEmail && agentEmail !== buyer.email) payload.cc = agentEmail;
     await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
     alert('Invite resent to ' + buyer.email + '!');
@@ -21454,7 +21454,7 @@ async function assignShowing(idx) {
       +'</div></div>';
 
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml()})});
+      body:JSON.stringify({to:clientToList(buyer), subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml()})});
     sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
 
     // 4. Save assignment to Firestore so inbox remembers
@@ -21574,7 +21574,7 @@ async function assignShowingToBuyer(evKey) {
       +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
       +'</div></div>';
     fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:buyer.email, subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
+      body:JSON.stringify({to:clientToList(buyer), subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
 
     // 4. Push to client
     sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
@@ -21729,11 +21729,11 @@ async function saveManualShowing() {
         +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
         +(agentEmail?'<div style="font-size:13px;color:#1D9E75;">'+agentEmail+'</div>':'')
         +'</div></div>';
-      var payload = { to: buyer.email, subject: 'Showing Confirmed: '+address, html: emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
+      var payload = { to: clientToList(buyer), subject: 'Showing Confirmed: '+address, html: emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
       if (agentEmail) payload.cc = agentEmail;
       showEmailPreview(buyer.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
         payload.html = finalHtml || payload.html;
-        payload.cc=_ccArray(ccValue,[agentEmail,buyer.email2],buyer.email); if(!payload.cc.length)delete payload.cc;
+        payload.cc=_ccArray(ccValue,[agentEmail],buyer.email); if(!payload.cc.length)delete payload.cc;
         await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'email'}, body:JSON.stringify(payload) });
       });
     }
@@ -26205,9 +26205,11 @@ async function openLeadDistModal(){
   if (!modal) return;
   try {
     var snap = await fb.getDoc(fb.doc(fb.db,'agent_config','leadDist_'+_leadDistTeamId()));
-    _leadDistCfg = (snap && snap.exists()) ? snap.data() : { enabled:false, mode:'blast', rotation:[] };
-  } catch(e) { _leadDistCfg = { enabled:false, mode:'blast', rotation:[] }; }
+    _leadDistCfg = (snap && snap.exists()) ? snap.data() : { enabled:false, mode:'blast', rotation:[], scope:'all', segments:[] };
+  } catch(e) { _leadDistCfg = { enabled:false, mode:'blast', rotation:[], scope:'all', segments:[] }; }
   if (!Array.isArray(_leadDistCfg.rotation)) _leadDistCfg.rotation = [];
+  if (!_leadDistCfg.scope) _leadDistCfg.scope = 'all';
+  if (!Array.isArray(_leadDistCfg.segments)) _leadDistCfg.segments = [];
   renderLeadDistModal();
   modal.style.display = 'flex';
 }
@@ -26229,6 +26231,28 @@ function renderLeadDistModal(){
       +'<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer;"><input type="radio" name="ld-mode" '+(cfg.mode!=='roundrobin'?'checked':'')+' onchange="_leadDistCfg.mode=\'blast\';" style="margin-top:2px;"><span style="font-size:13px;"><b>Blast</b> \u2014 push to everyone at once, first to claim wins</span></label>'
       +'<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;"><input type="radio" name="ld-mode" '+(cfg.mode==='roundrobin'?'checked':'')+' onchange="_leadDistCfg.mode=\'roundrobin\';" style="margin-top:2px;"><span style="font-size:13px;"><b>Round-robin</b> \u2014 one agent at a time, 1 minute each, in turn</span></label>'
       +'</div>';
+    html += '<div style="padding:14px 0;border-bottom:1px solid var(--border);">'
+      +'<div style="font-size:13px;font-weight:600;margin-bottom:10px;">Which incoming leads auto-distribute?</div>'
+      +'<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;cursor:pointer;"><input type="radio" name="ld-scope" '+(cfg.scope!=='segments'?'checked':'')+' onchange="_leadDistCfg.scope=\'all\';renderLeadDistModal();" style="margin-top:2px;"><span style="font-size:13px;"><b>All incoming leads</b> \u2014 every new team lead auto-distributes</span></label>'
+      +'<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;"><input type="radio" name="ld-scope" '+(cfg.scope==='segments'?'checked':'')+' onchange="_leadDistCfg.scope=\'segments\';renderLeadDistModal();" style="margin-top:2px;"><span style="font-size:13px;"><b>Only leads in these segments</b> \u2014 anything else stays with you</span></label>';
+    if (cfg.scope === 'segments') {
+      var _ldSegs = _leadDistSegmentOptions();
+      var _ldPicked = Array.isArray(cfg.segments) ? cfg.segments : [];
+      html += '<div style="margin-top:10px;padding-left:24px;">';
+      if (!_ldSegs.length) {
+        html += '<div style="font-size:12px;color:var(--text3);">No segments yet \u2014 add a segment to a contact first, then it\u2019ll appear here.</div>';
+      } else {
+        _ldSegs.forEach(function(s){
+          var on = _ldPicked.indexOf(s) !== -1;
+          html += '<label style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
+            +'<span style="font-size:13px;">'+partnerEsc(s)+'</span>'
+            +'<input type="checkbox" '+(on?'checked':'')+' data-seg="'+partnerEsc(s)+'" onchange="_toggleLeadSegment(this.getAttribute(\'data-seg\'),this.checked)" style="transform:scale(1.2);">'
+            +'</label>';
+        });
+      }
+      html += '</div>';
+    }
+    html += '</div>';
   }
   // Rotation is ALWAYS shown — it defines who receives leads whether auto is on OR you push manually.
   html += '<div style="padding:14px 0;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;">Who\u2019s on the team to receive leads?</div>'
@@ -26255,10 +26279,30 @@ function _toggleRotation(aid, on){
   if (!on && i !== -1) r.splice(i,1);
   _leadDistCfg.rotation = r;
 }
+function _leadDistSegmentOptions(){
+  var s = {};
+  (window._nlAllClients || allBuyers || myBuyers || []).forEach(function(b){ if(b && b.segment) s[b.segment]=true; });
+  if (typeof _allSegments==='function') _allSegments().forEach(function(x){ if(x) s[x]=true; });
+  return Object.keys(s).sort();
+}
+function _toggleLeadSegment(seg, on){
+  if (!_leadDistCfg) return;
+  var arr = Array.isArray(_leadDistCfg.segments) ? _leadDistCfg.segments.slice() : [];
+  var i = arr.indexOf(seg);
+  if (on && i === -1) arr.push(seg);
+  if (!on && i !== -1) arr.splice(i,1);
+  _leadDistCfg.segments = arr;
+}
+window._toggleLeadSegment = _toggleLeadSegment;
+
 async function saveLeadDist(){
   if (!isTeamLeader() || !_leadDistCfg) return;
   if (_leadDistCfg.enabled && (!Array.isArray(_leadDistCfg.rotation) || !_leadDistCfg.rotation.length)) {
     alert('Pick at least one agent for the rotation, or turn auto-distribute off.');
+    return;
+  }
+  if (_leadDistCfg.enabled && _leadDistCfg.scope === 'segments' && (!Array.isArray(_leadDistCfg.segments) || !_leadDistCfg.segments.length)) {
+    alert('Pick at least one segment to auto-distribute, or switch to "All incoming leads".');
     return;
   }
   var btn = document.getElementById('ld-save-btn');
@@ -26266,6 +26310,8 @@ async function saveLeadDist(){
   var payload = {
     enabled: !!_leadDistCfg.enabled,
     mode: (_leadDistCfg.mode === 'roundrobin') ? 'roundrobin' : 'blast',
+    scope: (_leadDistCfg.scope === 'segments') ? 'segments' : 'all',
+    segments: Array.isArray(_leadDistCfg.segments) ? _leadDistCfg.segments : [],
     rotation: Array.isArray(_leadDistCfg.rotation) ? _leadDistCfg.rotation : [],
     teamId: _leadDistTeamId(),
     updatedAt: fb.serverTimestamp()
@@ -29244,7 +29290,7 @@ async function sendPortalInvite() {
     +agentFooter
     +'</div></div>';
 
-  var payload = { to: b.email, subject: agentName + ' has invited you to your Nest Track portal 🏠', html: emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
+  var payload = { to: clientToList(b), subject: agentName + ' has invited you to your Nest Track portal 🏠', html: emailHtml, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
   if (agentObj && agentObj.email) payload.cc = agentObj.email;
 
   showEmailPreview(b.email, payload.subject, emailHtml, async function(finalHtml, ccValue) {
