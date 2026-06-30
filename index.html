@@ -29118,18 +29118,30 @@ async function createContact() {
 
   // ── SEND TO TEAM: hand the lead to the distribution engine instead of creating a client. ──
   // The agent who CLAIMS it becomes the owner and the client doc is created then.
-  var _routeTeam = !!((document.getElementById('lr-team')||{}).checked) && isTeamLeader();
+  // Segment-driven team routing: a contact whose segment is on the team's routing allowlist
+  // is pushed to the team automatically (same rule as inbound leads) — "added to a routed
+  // segment = goes to the team," in any form. The explicit "Send to team" radio still works too.
+  var _segVal = ((document.getElementById('inv-segment')||{}).value||'').trim(); if(_segVal==='__add__') _segVal='';
+  var _segRoutes = false;
+  if (isTeamLeader() && _segVal) {
+    try {
+      var _rcfg = _leadDistCfg;
+      if (!_rcfg) { var _rs = await fb.getDoc(fb.doc(fb.db,'agent_config','leadDist_'+((userProfile&&(userProfile.teamId||userProfile.agentId))||''))); _rcfg = (_rs&&_rs.exists())?_rs.data():null; }
+      if (_rcfg && _rcfg.enabled && Array.isArray(_rcfg.rotation) && _rcfg.rotation.length && _rcfg.scope==='segments' && Array.isArray(_rcfg.segments) && _rcfg.segments.indexOf(_segVal)!==-1) _segRoutes = true;
+    } catch(e){}
+  }
+  var _explicitTeam = !!((document.getElementById('lr-team')||{}).checked);
+  var _routeTeam = (_explicitTeam || _segRoutes) && isTeamLeader();
   if (_routeTeam) {
-    var _mode = ((document.getElementById('lr-mode-rr')||{}).checked) ? 'roundrobin' : 'blast';
-    var _seg0 = ((document.getElementById('inv-segment')||{}).value||'').trim(); if(_seg0==='__add__') _seg0='';
-    var _src = _seg0 || 'Manual';
+    var _mode = _explicitTeam ? (((document.getElementById('lr-mode-rr')||{}).checked) ? 'roundrobin' : 'blast') : '';
+    var _src = _segVal || 'Manual';
     try {
       var _r = await fetch(PROXY_URL, {
         method:'POST',
         headers:{'Content-Type':'application/json','X-Action':'distribute-lead'},
         body: JSON.stringify({
           firstName:first, lastName:last, email:email, phone:phone, address:address,
-          source:_src, notes:notes,
+          source:_src, notes:notes, segment:_segVal,
           teamId:(userProfile&&(userProfile.teamId||userProfile.agentId))|| '',
           mode:_mode
         })
@@ -29137,7 +29149,7 @@ async function createContact() {
       var _j = await _r.json().catch(function(){ return {}; });
       if (_r.ok && _j.ok) {
         closeM('invite-modal');
-        alert('Lead sent to the team (' + (_mode==='roundrobin'?'round-robin':'blast') + '). First to claim wins.');
+        alert('Lead sent to the team' + (_mode ? ' (' + (_mode==='roundrobin'?'round-robin':'blast') + ')' : '') + '. First to claim wins.');
       } else if ((_j.error||'').indexOf('rotation') !== -1) {
         alert('No rotation set yet. Open Team \u2192 \u26A1 Lead Routing and pick which agents receive leads, then try again.');
       } else {
