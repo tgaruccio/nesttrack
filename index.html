@@ -6042,7 +6042,8 @@ var HELP_DEFAULTS = {
   zapierstep:  { title:'How to add a Zapier action to a Smart Plan', body:'<strong>What it’s for:</strong> firing anything Zapier can do (OpenPhone texts, AI calls, letters, Facebook audiences) at an exact point in your plan. Each step gets its own unique <strong>Trigger ID</strong>, so each can do something different.<br><br><strong>To set it up:</strong><br>1. Add a <strong>Zapier</strong> step and name it (e.g. “FSBO Text 1”).<br>2. Tap <strong>⚡ Send test to Zapier</strong> — this gives Zapier sample info to work with.<br>3. Copy the Trigger ID.<br>4. In Zapier, create a Zap → trigger <em>NestTrack → Smart Plan Step Reached</em> → paste the Trigger ID.<br>5. Click <strong>Test trigger</strong> — your sample info appears to map.<br>6. Add your action (e.g. OpenPhone → Send Text), map the fields, turn the Zap on.<br><br><strong>Where it connects:</strong> when a real contact reaches that step in a live plan, NestTrack sends their real info to your Zap automatically.' },
   slybroadcast:{ title:'How to connect Slybroadcast', body:'<strong>To set it up:</strong> connect your Slybroadcast account so NestTrack can drop ringless voicemails through your Smart Plans. <strong>What it’s for:</strong> sending pre-recorded voicemail drops to contacts without ringing their phone — great for FSBO/expired outreach at scale. <strong>Where it connects:</strong> once connected, a Smart Plan voicemail step sends your recording to the contact automatically when they reach that step.' },
   thanksio:    { title:'How to connect Thanks.io', body:'<strong>To set it up:</strong> connect your Thanks.io account so NestTrack can send physical mail — handwritten cards, postcards, letters — from your Smart Plans. <strong>What it’s for:</strong> automated direct mail touches (just-listed/just-sold, holiday cards, past-client mailers) without going to the post office. <strong>Where it connects:</strong> a Smart Plan letter step hands the contact’s name and address to Thanks.io, which prints and mails it for you.' },
-  homebot:     { title:'How to connect Homebot', body:'<strong>What it is:</strong> Homebot sends your clients an automated monthly home-value digest in your name &mdash; a proven way to stay top-of-mind and earn repeat and referral business. <strong>One-time setup (required first):</strong> the &ldquo;Add to Homebot&rdquo; button sends the client through <strong>Zapier</strong> into your Homebot account &mdash; so you have to connect that Zap once before the button does anything.<br><br>1. In <strong>Zapier</strong>, create a Zap. For the trigger, pick <strong>NestTrack &rarr; Client Added to Homebot</strong>.<br>2. For the action, add <strong>Homebot &rarr; Create Client</strong> (map name + email), then <strong>Homebot &rarr; Create Home</strong> (map street + zip &mdash; NestTrack sends them already split, no formatting needed).<br>3. Turn the Zap on.<br><br><strong>Then, day to day:</strong> open any client and tap <strong>&#127968; Add to Homebot</strong> in the Marketing &amp; Nurture section. They start getting the digest, and the card shows an <strong>On Homebot</strong> badge.<br><br><strong>To stop the digest</strong> for someone, remove them inside Homebot (NestTrack can add them but can&rsquo;t remove them).' }
+  homebot:     { title:'How to connect Homebot', body:'<strong>What it is:</strong> Homebot sends your clients an automated monthly home-value digest in your name &mdash; a proven way to stay top-of-mind and earn repeat and referral business. <strong>One-time setup (required first):</strong> the &ldquo;Add to Homebot&rdquo; button sends the client through <strong>Zapier</strong> into your Homebot account &mdash; so you have to connect that Zap once before the button does anything.<br><br>1. In <strong>Zapier</strong>, create a Zap. For the trigger, pick <strong>NestTrack &rarr; Client Added to Homebot</strong>.<br>2. For the action, add <strong>Homebot &rarr; Create Client</strong> (map name + email), then <strong>Homebot &rarr; Create Home</strong> (map street + zip &mdash; NestTrack sends them already split, no formatting needed).<br>3. Turn the Zap on.<br><br><strong>Then, day to day:</strong> open any client and tap <strong>&#127968; Add to Homebot</strong> in the Marketing &amp; Nurture section. They start getting the digest, and the card shows an <strong>On Homebot</strong> badge.<br><br><strong>To stop the digest</strong> for someone, remove them inside Homebot (NestTrack can add them but can&rsquo;t remove them).' },
+  nesttracker: { title:'How NestTracker works', body:'<strong>What it is:</strong> NestTracker sends your enrolled homeowners a quarterly, branded home-value report in your name &mdash; current value, estimated equity, recent neighborhood sales, and an interactive &ldquo;what if I sold&rdquo; tool. It&rsquo;s your own native version of Homebot: no Zapier, no outside subscription.<br><br><strong>To enroll someone:</strong> open any client that has a property address and tap <strong>&#127968; Add to NestTracker</strong> in the Marketing &amp; Nurture section. It values their home instantly and starts the quarterly report. The card then shows an <strong>On NestTracker</strong> badge with the current value and a link to their live report.<br><br><strong>Cost &amp; cadence:</strong> the value refreshes automatically once a quarter. You can enroll up to 50 homes. Tap <strong>Remove</strong> anytime to stop the report and free the slot.' }
 };
 
 window._helpContent = null;
@@ -14924,7 +14925,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128226;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Marketing &amp; Nurture</div></div>
       <div id="sp-contact-row-${uid}">${spContactRowHtml(b)}</div>
-      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.homebotEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On Homebot</span> <span style="font-size:11px;color:var(--text3);">&mdash; getting the monthly digest</span> <span onclick="homebotEnroll('${uid}',this,true)" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Re-send</span> <span onclick="homebotRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('homebot')" title="How Homebot works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button class="btn btn-sm" onclick="homebotEnroll('${uid}',this)">&#127968; Add to Homebot</button> <span style="font-size:11px;color:var(--text3);">&mdash; monthly home-value digest</span><span onclick="showHelp('homebot')" title="How Homebot works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
+      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.ntEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On NestTracker</span>${b.ntValue?` <span style="font-size:11px;color:var(--text2);font-weight:600;">&mdash; est. $${Number(b.ntValue).toLocaleString()}</span>`:''} <a href="https://app.nesttrack.io/report.html?t=${b.ntToken||''}" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:underline;margin-left:6px;">View report</a> <span onclick="ntEnroll('${uid}',this,true)" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Refresh value</span> <span onclick="ntRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button class="btn btn-sm" onclick="ntEnroll('${uid}',this)">&#127968; Add to NestTracker</button> <span style="font-size:11px;color:var(--text3);">&mdash; quarterly home-value report</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128202;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Activity</div></div>
@@ -28954,6 +28955,80 @@ async function homebotRemove(uid){
   try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
 }
 window.homebotRemove = homebotRemove;
+
+// ── NestTracker: native quarterly home-value report (replaces the old Homebot/Zapier bridge). ──
+// Enroll values the home once via the worker (ATTOM), stores the snapshot + a per-home token,
+// and flips the card to "On NestTracker" with the current value + a link to the live report.
+// isRefresh=true re-pulls an already-enrolled home (doesn't count against the 50-home cap).
+async function ntEnroll(uid, btn, isRefresh){
+  if(!uid) return;
+  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
+  if(!b){ if(typeof showToast==='function') showToast('Could not find that contact.'); return; }
+  var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'').trim();
+  if(!addr){ if(typeof showToast==='function') showToast('Add a property address for this contact first — NestTracker values that home.'); else alert('NestTracker needs a property address.'); return; }
+  // Purchase price/date power the (free) equity estimate. Use what's on file; else offer a quick optional prompt.
+  var purchasePrice = String(b.purchasePrice||b.salePrice||'').replace(/[^0-9.]/g,'');
+  var purchaseDate  = String(b.purchaseDate||b.closingDate||'').trim();
+  if(!isRefresh && !purchasePrice){
+    var pp = prompt('Optional — purchase price (powers the equity estimate). Leave blank to skip.','');
+    if(pp){ purchasePrice = String(pp).replace(/[^0-9.]/g,''); var py = prompt('Year purchased? (e.g. 2019 — optional)',''); if(py){ purchaseDate = String(py).replace(/[^0-9\-\/]/g,''); } }
+  }
+  var orig = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled=true; btn.innerHTML = isRefresh ? 'Refreshing…' : 'Valuing…'; }
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if(!apiKey){ if(btn){ btn.disabled=false; btn.innerHTML=orig; } if(typeof showToast==='function') showToast('Connect your API key first (Profile → Integrations).'); return; }
+    var url = PROXY_URL + '/api/v1/nesttracker-enroll?api_key=' + encodeURIComponent(apiKey);
+    var r = await fetch(url, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ contact: {
+        firstName:b.firstName||'', lastName:b.lastName||'', email:b.email||'',
+        mailingAddress:addr, street:b.mailingStreet||'', city:b.mailingCity||'', state:b.mailingState||'', zip:b.mailingZip||'',
+        purchasePrice:purchasePrice, purchaseDate:purchaseDate, ntToken:(isRefresh ? (b.ntToken||'') : ''), uid:uid
+      }})
+    });
+    var j = await r.json();
+    if(j && j.ok){
+      try { await saveClientField(uid, 'ntEnrolled', true); } catch(e){}
+      try { await saveClientField(uid, 'ntToken', j.token||''); } catch(e){}
+      try { await saveClientField(uid, 'ntValue', j.value||0); } catch(e){}
+      if(b){ b.ntEnrolled=true; b.ntToken=j.token||''; b.ntValue=j.value||0; }
+      var msg = isRefresh ? 'Value refreshed' : 'Added to NestTracker';
+      if(j.value) msg += ' — est. $'+Number(j.value).toLocaleString();
+      if(j.lowConfidence) msg += ' (low-confidence AVM — worth a manual check)';
+      if(typeof showToast==='function') showToast(msg+'.');
+      if(btn){ btn.disabled=false; btn.innerHTML=orig; }
+      try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
+    } else {
+      if(btn){ btn.disabled=false; btn.innerHTML=orig; }
+      var rs = (j&&j.reason)||'unknown error';
+      if(typeof showToast==='function') showToast('Could not enroll: '+rs); else alert('Could not enroll: '+rs);
+    }
+  } catch(e){
+    if(btn){ btn.disabled=false; btn.innerHTML=orig; }
+    if(typeof showToast==='function') showToast('NestTracker failed: '+(e&&e.message||'network error'));
+  }
+}
+window.ntEnroll = ntEnroll;
+
+// Remove a home from NestTracker: deactivates it in the worker (frees a cap slot) and clears the card flag.
+async function ntRemove(uid){
+  if(!uid) return;
+  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
+  var ok = confirm('Remove this home from NestTracker?\n\nThey stop getting the quarterly value report and the slot frees up under your cap.');
+  if(!ok) return;
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if(apiKey && b && b.ntToken){
+      try { await fetch(PROXY_URL + '/api/v1/nesttracker-remove?api_key=' + encodeURIComponent(apiKey), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token:b.ntToken }) }); } catch(e){}
+    }
+  } catch(e){}
+  try { await saveClientField(uid, 'ntEnrolled', false); } catch(e){}
+  if(b){ b.ntEnrolled=false; }
+  if(typeof showToast==='function') showToast('Removed from NestTracker.');
+  try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
+}
+window.ntRemove = ntRemove;
 
 async function spOpenAssign(uid){
   if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
