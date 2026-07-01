@@ -4487,7 +4487,7 @@ window.changePassword = changePassword;
 async function loadTeamAgents() {
   try {
     var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
-    var _agentsSnapOwnerAll = (typeof isOwner==='function' && isOwner());
+    var _agentsSnapOwnerAll = (typeof isPlatformOwner==='function' && isPlatformOwner());
     const snap = _agentsSnapOwnerAll
       ? await fb.getDocs(fb.collection(fb.db, 'team_agents'))
       : await fb.getDocs(fb.query(fb.collection(fb.db, 'team_agents'), fb.where('teamId','==', myTeam)));
@@ -16649,6 +16649,7 @@ async function _refreshBillingFromStripe(){
     if (!_uid) return;
     var _r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-confirm'}, body: JSON.stringify({ ownerUid:_uid, email:_em, customerId: p.stripeCustomerId||'' }) });
     var _j = await _r.json().catch(function(){ return null; });
+    try { if (window._billDebug) alert('BILLING DEBUG\nuid: '+_uid+'\nemail: '+_em+'\nHTTP: '+_r.status+'\nresponse: '+JSON.stringify(_j)); } catch(_e){}
     if (_j && _j.ok && _j.subStatus && userProfile) {
       userProfile.subStatus = _j.subStatus;
       if (_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId;
