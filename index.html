@@ -7845,6 +7845,24 @@ async function showApp() {
       watchThreadsInbox();
       setTimeout(renderAgentDashboard, 1500);
     }, 100);
+    setTimeout(function(){
+      if (typeof _loadBillTiers==='function') _loadBillTiers();
+      if (typeof isPlatformOwner==='function' && isPlatformOwner() && userProfile && !userProfile.platformOwner && currentUser && currentUser.uid){
+        userProfile.platformOwner = true;
+        try { fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { platformOwner: true }, {merge:true}); } catch(e){}
+      }
+      if (typeof _ensureTrialStarted==='function') {
+        Promise.resolve(_ensureTrialStarted()).then(function(){
+          if (typeof _applyBillingGate==='function') _applyBillingGate();
+          if (typeof _writeTeamBilling==='function') _writeTeamBilling();
+          if (typeof _applyMemberGate==='function') _applyMemberGate();
+        });
+      } else {
+        if (typeof _applyBillingGate==='function') _applyBillingGate();
+        if (typeof _writeTeamBilling==='function') _writeTeamBilling();
+        if (typeof _applyMemberGate==='function') _applyMemberGate();
+      }
+    }, 900);
     setTimeout(oneSignalRegister, 4000);
   } else if (isLender) {
     var agentBtn2 = document.getElementById('agent-nav');
