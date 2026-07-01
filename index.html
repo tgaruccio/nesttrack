@@ -2837,6 +2837,13 @@ textarea{resize:vertical;min-height:68px;}
       <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px;line-height:1.5;">We&rsquo;ll email a secure link to set a new password. It goes to your login email.</div>
       <div><button class="btn btn-sm btn-g" onclick="changePassword()">Send password reset link</button></div>
       <div id="ap-pw-status" style="font-size:12px;color:var(--text3);margin-top:8px;"></div>
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Client reply-to email</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;line-height:1.5;">Where replies go when clients answer your offers, updates, and appointment emails. Set this if it should differ from your login email &mdash; for example, if you changed brokerages. Leave blank to use your login email.</div>
+        <input type="email" id="ap-replyto" placeholder="you@yourbrokerage.com" style="width:100%;box-sizing:border-box;font-size:13px;"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;">Login email: <span id="ap-login-email" style="font-weight:600;color:var(--text2);"></span> <span>(permanent &mdash; can&rsquo;t be changed)</span></div>
+        <div style="margin-top:10px;"><button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save reply-to email</button></div>
+      </div>
     </div>
 
     <!-- CARD: NET SHEET DEFAULTS -->
@@ -4773,7 +4780,7 @@ window._agentBrokerage = _agentBrokerage;
 // The person SENDING an invite (the logged-in team leader/owner) — for invite emails.
 // Never hardcoded; each inviter's own info appears in the invites they send.
 function _inviterName(){ return (((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim() || (userProfile&&userProfile.name) || ''; }
-function _inviterEmail(){ return (userProfile && userProfile.email) || (fb.auth.currentUser && fb.auth.currentUser.email) || ''; }
+function _inviterEmail(){ return (userProfile && (userProfile.replyToEmail || userProfile.email)) || (fb.auth.currentUser && fb.auth.currentUser.email) || ''; }
 window._inviterName = _inviterName; window._inviterEmail = _inviterEmail;
 // Effective team a person's shared content belongs to:
 //  owner/leader -> themselves; member -> their leader (teamId). For Tom this is always 'tom'.
@@ -5797,6 +5804,9 @@ function renderAgentProfileEditor() {
       if(tg && d.emailTagline) tg.value=d.emailTagline;
       var li=document.getElementById('ap-license');
       if(li && d.licenseNumber) li.value=d.licenseNumber;
+      var rte=document.getElementById('ap-replyto'); if(rte) rte.value=d.replyToEmail||'';
+      var lem=document.getElementById('ap-login-email'); if(lem) lem.textContent=((fb.auth&&fb.auth.currentUser&&fb.auth.currentUser.email)|| d.email || (userProfile&&userProfile.email) || '');
+      if(userProfile) userProfile.replyToEmail = d.replyToEmail||'';
       var pa=document.getElementById('ap-preapproval');
       if(pa) pa.value=d.preApprovalLink||'';
       if(userProfile) userProfile.preApprovalLink = d.preApprovalLink||'';
@@ -5966,6 +5976,7 @@ async function saveAgentProfile() {
     emailSignatureMode: document.getElementById('ap-sig-mode') ? (document.getElementById('ap-sig-mode').value||'simple') : 'simple',
     emailSignatureHtmlRaw: document.getElementById('ap-sig-html') ? document.getElementById('ap-sig-html').value : '',
     tcDigestOff: document.getElementById('ap-digest') ? !document.getElementById('ap-digest').checked : false,
+    replyToEmail: document.getElementById('ap-replyto') ? document.getElementById('ap-replyto').value.trim() : (userProfile.replyToEmail||''),
     updatedAt: fb.serverTimestamp()
   };
   const status = document.getElementById('ap-status');
@@ -8910,7 +8921,7 @@ function agentFromField() {
   return name + ' <' + slug + '@' + MAIL_DOMAIN + '>';
 }
 function agentReplyTo() {
-  return (userProfile&&userProfile.email) || null;
+  return (userProfile&&(userProfile.replyToEmail||userProfile.email)) || null;
 }
 // ── White-label resolvers: resolve branding for the active/assigned agent, never hardcoded to Tom. ──
 // The team's default lender. Tom's original team keeps Tom in-house; other teams resolve to their own
