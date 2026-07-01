@@ -85,6 +85,7 @@
     </div>
     <label>Email</label>
     <input id="f-email" type="email" autocomplete="email"/>
+    <div class="hint" style="color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-top:6px;line-height:1.45;">Use your real work email. It's the address you'll <b>log in</b> with <b>and</b> the one your <b>clients reply to</b> on offers, updates, and appointment confirmations — and it can't be changed later, so pick one you actively check.</div>
     <label>Phone <span class="opt">(optional)</span></label>
     <input id="f-phone" type="tel" autocomplete="tel"/>
     <label>Create a password</label>
@@ -103,7 +104,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY",
@@ -163,6 +164,7 @@ async function doSignup(){
     let cred;
     try {
       cred = await createUserWithEmailAndPassword(auth, email, pass);
+      try { await sendEmailVerification(cred.user); } catch(_e){}
     } catch(e){
       if (e && e.code === 'auth/email-already-in-use'){
         try {
