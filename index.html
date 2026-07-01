@@ -7852,11 +7852,13 @@ async function showApp() {
         try { fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { platformOwner: true }, {merge:true}); } catch(e){}
       }
       if (typeof _ensureTrialStarted==='function') {
-        Promise.resolve(_ensureTrialStarted()).then(function(){
+        Promise.resolve(_ensureTrialStarted())
+          .then(function(){ return (typeof _refreshBillingFromStripe==='function') ? _refreshBillingFromStripe() : null; })
+          .then(function(){
           if (typeof _applyBillingGate==='function') _applyBillingGate();
           if (typeof _writeTeamBilling==='function') _writeTeamBilling();
           if (typeof _applyMemberGate==='function') _applyMemberGate();
-        });
+          });
       } else {
         if (typeof _applyBillingGate==='function') _applyBillingGate();
         if (typeof _writeTeamBilling==='function') _writeTeamBilling();
@@ -7890,11 +7892,13 @@ async function showApp() {
         try { fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { platformOwner: true }, {merge:true}); } catch(e){}
       }
       if (typeof _ensureTrialStarted==='function') {
-        Promise.resolve(_ensureTrialStarted()).then(function(){
+        Promise.resolve(_ensureTrialStarted())
+          .then(function(){ return (typeof _refreshBillingFromStripe==='function') ? _refreshBillingFromStripe() : null; })
+          .then(function(){
           if (typeof _applyBillingGate==='function') _applyBillingGate();
           if (typeof _writeTeamBilling==='function') _writeTeamBilling();
           if (typeof _applyMemberGate==='function') _applyMemberGate();
-        });
+          });
       } else {
         if (typeof _applyBillingGate==='function') _applyBillingGate();
         if (typeof _writeTeamBilling==='function') _writeTeamBilling();
@@ -16627,6 +16631,27 @@ async function _ensureTrialStarted(){
   }catch(e){ console.log('ensureTrialStarted:', e && e.message); }
 }
 window._ensureTrialStarted = _ensureTrialStarted;
+
+// On login, re-check a subscribed owner's CURRENT status with Stripe (catches cancellations,
+// lapses, and paid-but-not-synced) — replaces what the webhook was supposed to do.
+async function _refreshBillingFromStripe(){
+  try {
+    if (typeof isPlatformOwner==='function' && isPlatformOwner()) return;
+    if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return;
+    var p = userProfile || {};
+    if (!p.stripeCustomerId && !p.stripeSubscriptionId) return;   // never subscribed → nothing to check
+    var _uid = (currentUser && currentUser.uid) || (userProfile && userProfile.portalUid) || '';
+    var _em = (userProfile && userProfile.email) || (currentUser && currentUser.email) || '';
+    if (!_uid) return;
+    var _r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-confirm'}, body: JSON.stringify({ ownerUid:_uid, email:_em, customerId: p.stripeCustomerId||'' }) });
+    var _j = await _r.json().catch(function(){ return null; });
+    if (_j && _j.ok && _j.subStatus && userProfile) {
+      userProfile.subStatus = _j.subStatus;
+      if (_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId;
+    }
+  } catch(e){}
+}
+window._refreshBillingFromStripe = _refreshBillingFromStripe;
 function _billTier(){
   if (typeof isPlatformOwner==='function' && isPlatformOwner()) return 'ok';   // platform owner: never trialed, walled, or locked
   if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return 'ok';
