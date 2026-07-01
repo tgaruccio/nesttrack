@@ -16639,7 +16639,11 @@ async function _refreshBillingFromStripe(){
     if (typeof isPlatformOwner==='function' && isPlatformOwner()) return;
     if (!(typeof _isBillingOwner==='function' && _isBillingOwner())) return;
     var p = userProfile || {};
-    if (!p.stripeCustomerId && !p.stripeSubscriptionId) return;   // never subscribed → nothing to check
+    var _te = (typeof _trialEndMs==='function') ? _trialEndMs() : 0;
+    var _trialActive = _te && Date.now() < _te;
+    // Skip only for pure trial users still inside their trial. If trial ended (they'd be walled) or
+    // they have ids, check Stripe by email/customer — catches "paid but the doc never got the ids".
+    if (!p.stripeCustomerId && !p.stripeSubscriptionId && _trialActive) return;
     var _uid = (currentUser && currentUser.uid) || (userProfile && userProfile.portalUid) || '';
     var _em = (userProfile && userProfile.email) || (currentUser && currentUser.email) || '';
     if (!_uid) return;
