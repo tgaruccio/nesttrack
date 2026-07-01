@@ -16648,6 +16648,7 @@ async function _refreshBillingFromStripe(){
     if (_j && _j.ok && _j.subStatus && userProfile) {
       userProfile.subStatus = _j.subStatus;
       if (_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId;
+      if (_j.subRenewsAt) userProfile.subRenewsAt = _j.subRenewsAt;
     }
   } catch(e){}
 }
@@ -16660,7 +16661,7 @@ function _billTier(){
   var subId = p.stripeSubscriptionId || '', st = p.subStatus || '';
   if (subId) {
     if (st === 'active' || st === 'trialing') return 'ok';
-    if (st === 'canceled' || st === 'unpaid') return 'lockout';
+    if (st === 'canceled' || st === 'unpaid' || st === 'incomplete' || st === 'incomplete_expired') return 'lockout';
     if (st === 'past_due') {
       var due = p.subRenewsAt ? new Date(p.subRenewsAt).getTime() : 0;   // for past_due this is the lapse date
       if (!due) return 'grace';
@@ -16791,7 +16792,7 @@ window._applyMemberGate = _applyMemberGate;
             if (_uid) {
               var _r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-confirm'}, body: JSON.stringify({ ownerUid:_uid, email:_em }) });
               var _j = await _r.json().catch(function(){ return null; });
-              if (_j && _j.ok && _j.subStatus && userProfile) { userProfile.subStatus = _j.subStatus; if(_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId; }
+              if (_j && _j.ok && _j.subStatus && userProfile) { userProfile.subStatus = _j.subStatus; if(_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId; if(_j.subRenewsAt) userProfile.subRenewsAt = _j.subRenewsAt; }
             }
           } catch(e){}
           try { if(typeof _applyBillingGate==='function') _applyBillingGate(); } catch(e){}
