@@ -16753,20 +16753,27 @@ window._applyMemberGate = _applyMemberGate;
   try {
     var q = new URLSearchParams(location.search);
     if (q.get('billing')==='success') {
-      // Confirm the subscription directly with Stripe (no webhook needed), write it to the user doc, then unlock.
-      (async function(){
-        try {
-          var _uid = (currentUser && currentUser.uid) || (userProfile && userProfile.portalUid) || '';
-          var _em = (userProfile && userProfile.email) || (currentUser && currentUser.email) || '';
-          if (_uid) {
-            var _r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-confirm'}, body: JSON.stringify({ ownerUid:_uid, email:_em }) });
-            var _j = await _r.json().catch(function(){ return null; });
-            if (_j && _j.ok && _j.subStatus && userProfile) { userProfile.subStatus = _j.subStatus; if(_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId; }
-          }
-        } catch(e){}
-        try { if(typeof _applyBillingGate==='function') _applyBillingGate(); } catch(e){}
-        setTimeout(function(){ alert('\uD83C\uDF89 You\u2019re all set \u2014 your subscription is active. Your first charge lands when your free trial ends.'); }, 400);
-      })();
+      // Confirm the subscription directly with Stripe. IMPORTANT: this block runs before Firebase
+      // restores the session, so wait until currentUser is populated before calling — otherwise the
+      // owner uid is empty and the call is skipped (the app never reaches the worker).
+      var _cfTries = 0;
+      var _confirmWhenReady = function(){
+        var _uid = (currentUser && currentUser.uid) || (userProfile && userProfile.portalUid) || '';
+        if (!_uid && _cfTries < 40) { _cfTries++; setTimeout(_confirmWhenReady, 500); return; }   // wait up to ~20s for login
+        (async function(){
+          try {
+            var _em = (userProfile && userProfile.email) || (currentUser && currentUser.email) || '';
+            if (_uid) {
+              var _r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-confirm'}, body: JSON.stringify({ ownerUid:_uid, email:_em }) });
+              var _j = await _r.json().catch(function(){ return null; });
+              if (_j && _j.ok && _j.subStatus && userProfile) { userProfile.subStatus = _j.subStatus; if(_j.subscriptionId) userProfile.stripeSubscriptionId = _j.subscriptionId; }
+            }
+          } catch(e){}
+          try { if(typeof _applyBillingGate==='function') _applyBillingGate(); } catch(e){}
+          setTimeout(function(){ alert('\uD83C\uDF89 You\u2019re all set \u2014 your subscription is active. Your first charge lands when your free trial ends.'); }, 400);
+        })();
+      };
+      _confirmWhenReady();
     }
     if (q.get('billing')) { history.replaceState(null,'',location.pathname); setTimeout(function(){ if(typeof _applyBillingGate==='function') _applyBillingGate(); if(typeof _writeTeamBilling==='function') _writeTeamBilling(); }, 1200); }
   } catch(e){}
