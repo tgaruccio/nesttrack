@@ -143,21 +143,21 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
     <div class="brandbar">
       <div class="brand"><span class="dot">N</span> NestTracker</div>
       <div class="agent">
-        <img src="https://ui-avatars.com/api/?name=Tom+Garuccio&background=C6A15B&color=0E3B2E&bold=true" alt="">
-        <div><div class="a-name">Tom Garuccio</div><div class="a-role">The Garuccio Group · Real</div></div>
+        <img id="agentPhoto" src="https://ui-avatars.com/api/?name=Tom+Garuccio&background=C6A15B&color=0E3B2E&bold=true" alt="">
+        <div><div class="a-name" id="agentName">Tom Garuccio</div><div class="a-role" id="agentRole">The Garuccio Group · Real</div></div>
       </div>
     </div>
-    <div class="addr">YOUR HOME · 543 KENILWORTH RD, BAY VILLAGE, OH 44140</div>
+    <div class="addr" id="heroAddr">Loading your home…</div>
     <div class="valwrap">
       <div class="value num" id="heroValue">$0</div>
       <div class="deltapill">▲ <span id="qtrDelta">+2.3%</span> this quarter</div>
     </div>
     <div class="hero-sub">
       <span class="conf">Confidence
-        <span class="bar"><span class="fill" style="width:93%"></span></span><b>93%</b>
+        <span class="bar"><span class="fill" id="confFill" style="width:93%"></span></span><b id="confPct">93%</b>
       </span>
-      <span>Est. range <b>$424K–$484K</b></span>
-      <span>Updated <b>Jul 2026</b></span>
+      <span>Est. range <b id="estRange">$424K–$484K</b></span>
+      <span>Updated <b id="updated">Jul 2026</b></span>
     </div>
   </div>
 </header>
@@ -228,7 +228,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
     <div class="rates" style="margin-top:16px">
       <div class="rate"><div class="r-t">30-yr fixed</div><div class="r-v num">6.70%</div></div>
       <div class="rate"><div class="r-t">15-yr fixed</div><div class="r-v num">5.92%</div></div>
-      <div class="rate"><div class="r-t">Your est. rate</div><div class="r-v num" style="color:var(--brass-d)">3.94%</div></div>
+      <div class="rate"><div class="r-t">Your est. rate</div><div class="r-v num" id="yourRate" style="color:var(--brass-d)">3.94%</div></div>
     </div>
     <p class="muted" style="font-size:13px;margin-top:14px">You're sitting on a rate below today's market — a strong reason to <b>keep this mortgage and tap equity another way</b> (HELOC or move-up) rather than refinance. That's the kind of call Tom and a lender can walk through with you.</p>
     <div class="assump">Rates shown are current national averages (Freddie Mac, rounded conservatively). Your estimated rate is based on your purchase year.</div>
@@ -238,7 +238,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
   <div class="section-label"><span class="n">05</span><span class="t">Recent Sales Near You</span><span class="hr"></span></div>
   <div class="card">
     <h2>What your neighbors sold for</h2>
-    <div style="margin-top:14px">
+    <div style="margin-top:14px" id="compsList">
       <div class="comp"><div><div class="c-addr">533 Kenilworth Rd</div><div class="c-sub">2 doors down</div></div><div class="c-price num">$314,000</div></div>
       <div class="comp"><div><div class="c-addr">559 Kenilworth Rd</div><div class="c-sub">Same street</div></div><div class="c-price num">$255,000</div></div>
       <div class="comp"><div><div class="c-addr">513 Kenilworth Rd</div><div class="c-sub">Same street</div></div><div class="c-price num">$320,000</div></div>
@@ -266,78 +266,112 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
     </div>
     <div style="margin-top:22px">
       <a class="btn" href="#" onclick="return contactAgent()">Get my exact net sheet</a>
-      <a class="btn ghost" href="tel:0000000000">Call Tom</a>
+      <a class="btn ghost" id="callBtn" href="tel:0000000000">Call Tom</a>
     </div>
   </div>
 
   <div class="foot">
-    Prepared for you by Tom Garuccio · The Garuccio Group at Real.<br>
+    Prepared for you by <span id="footAgent">Tom Garuccio · The Garuccio Group at Real</span>.<br>
     Estimates are for informational purposes only and are not an appraisal or offer. Powered by NestTracker.
   </div>
 </div>
 
 <script>
-// ---- test data (this will come from the worker's getHomeReport per home) ----
-var DATA = {
-  value: 454220,
-  equity: 290000,
-  owed: 164220,
-  sellCostPct: 0.07,
-  qtrDelta: 2.3
-};
-var fmt = function(n){ return '$' + Math.round(n).toLocaleString(); };
-var fmtK = function(n){ return n>=1e6 ? '$'+(n/1e6).toFixed(2)+'M' : '$'+Math.round(n/1000)+'K'; };
-
-// count-up hero value
-(function(){
-  var el = document.getElementById('heroValue'), target = DATA.value, start=null, dur=1100;
-  function step(ts){ if(!start) start=ts; var p=Math.min((ts-start)/dur,1); var e=1-Math.pow(1-p,3);
-    el.textContent = fmt(DATA.value*e); if(p<1) requestAnimationFrame(step); }
-  requestAnimationFrame(step);
-})();
-
-// sell calculator
+// ---- live data: pulled per-home from the worker by ?t=TOKEN (zero AVM cost per view) ----
+var WORKER = 'https://app.tom-b52.workers.dev';
+var DATA = { value:0, equity:0, owed:0, sellCostPct:0.07, qtrDelta:0 };
+var fmt  = function(n){ return '$' + Math.round(n||0).toLocaleString(); };
+var fmtK = function(n){ n=n||0; return n>=1e6 ? '$'+(n/1e6).toFixed(2)+'M' : '$'+Math.round(n/1000)+'K'; };
 var slider = document.getElementById('sellSlider');
+function setTxt(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+function getToken(){ try{ return (new URLSearchParams(location.search)).get('t')||''; }catch(e){ return ''; } }
+
+function hydrate(d){
+  if(d.address) setTxt('heroAddr', 'YOUR HOME · ' + String(d.address).toUpperCase());
+  DATA.value = d.value||0;
+  DATA.owed  = (d.owed!=null? d.owed : 0);
+  DATA.equity= (d.equity!=null? d.equity : Math.max(0, DATA.value-DATA.owed));
+  DATA.qtrDelta = d.qtrDelta||0;
+
+  var qd = Math.round((d.qtrDelta||0)*10)/10;
+  setTxt('qtrDelta', (qd>=0?'+':'') + qd + '%');
+  var dp = document.querySelector('.deltapill'); if(dp && dp.firstChild) dp.firstChild.textContent = (qd<0?'▼ ':'▲ ');
+
+  if(d.confidence!=null){ setTxt('confPct', Math.round(d.confidence)+'%'); var cf=document.getElementById('confFill'); if(cf) cf.style.width=Math.round(d.confidence)+'%'; }
+  if(d.low && d.high) setTxt('estRange', fmtK(d.low)+'–'+fmtK(d.high));
+  if(d.updated) setTxt('updated', d.updated);
+
+  if(d.equity!=null) setTxt('equityVal', fmt(d.equity));
+  if(d.owed!=null)   setTxt('owedVal', fmt(d.owed));
+  var ownPct = (d.equityPct!=null)? d.equityPct : (DATA.value? Math.round(DATA.equity/DATA.value*100):64);
+  var ownBar=document.getElementById('ownBar'), owedBar=document.getElementById('owedBar');
+  if(ownBar) ownBar.style.width=ownPct+'%'; if(owedBar) owedBar.style.width=Math.max(0,100-ownPct)+'%';
+
+  if(DATA.value){ slider.min=Math.round(DATA.value*0.85/1000)*1000; slider.max=Math.round(DATA.value*1.15/1000)*1000; slider.value=Math.round(DATA.value/1000)*1000; }
+  if(d.yourRate!=null) setTxt('yourRate', d.yourRate.toFixed(2)+'%');
+
+  if(Array.isArray(d.comps) && d.comps.length){
+    var box=document.getElementById('compsList');
+    if(box){ box.innerHTML = d.comps.map(function(c){
+      return '<div class="comp"><div><div class="c-addr">'+(c.address||'')+'</div><div class="c-sub">'+(c.sub||'')+'</div></div><div class="c-price num">'+fmt(c.price)+'</div></div>';
+    }).join(''); }
+  }
+
+  var ag = d.agent||{};
+  window._agentFirst = ag.firstName || (ag.name||'').split(' ')[0] || 'your agent';
+  if(ag.name) setTxt('agentName', ag.name);
+  setTxt('agentRole', ag.role||'');
+  var im=document.getElementById('agentPhoto');
+  if(im){ im.src = ag.photo || ('https://ui-avatars.com/api/?name='+encodeURIComponent(ag.name||'Agent')+'&background=C6A15B&color=0E3B2E&bold=true'); }
+  var call=document.getElementById('callBtn');
+  if(call){ if(ag.phone){ call.href='tel:'+String(ag.phone).replace(/[^0-9+]/g,''); call.textContent='Call '+window._agentFirst; } else { call.style.display='none'; } }
+  setTxt('footAgent', (ag.name||'') + (ag.role? ' · '+ag.role : ''));
+
+  countUp(); calcSell();
+}
+
+function countUp(){
+  var el=document.getElementById('heroValue'); if(!el||!DATA.value) return;
+  var start=null, dur=1100;
+  function step(ts){ if(!start) start=ts; var p=Math.min((ts-start)/dur,1); var e=1-Math.pow(1-p,3);
+    el.textContent=fmt(DATA.value*e); if(p<1) requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
 function calcSell(){
-  var price = +slider.value;
-  var payoff = DATA.owed;
-  var costs = price * DATA.sellCostPct;
-  var net = price - payoff - costs;
-  document.getElementById('sellPriceLbl').textContent = fmt(price);
-  document.getElementById('rPayoff').textContent = '–'+fmt(payoff);
-  document.getElementById('rCosts').textContent = '–'+fmt(costs);
-  document.getElementById('rNet').textContent = fmt(net);
-  document.getElementById('ppEquity').textContent = fmt(Math.max(0,net));
+  var price=+slider.value, payoff=DATA.owed, costs=price*DATA.sellCostPct, net=price-payoff-costs;
+  setTxt('sellPriceLbl',fmt(price)); setTxt('rPayoff','–'+fmt(payoff)); setTxt('rCosts','–'+fmt(costs));
+  setTxt('rNet',fmt(net)); setTxt('ppEquity',fmt(Math.max(0,net)));
   calcPower(net);
 }
 slider.addEventListener('input', calcSell);
-
-// purchasing power
-var downPct = 20;
+var downPct=20;
 function calcPower(net){
-  net = (net==null) ? (+slider.value - DATA.owed - (+slider.value*DATA.sellCostPct)) : net;
-  var target = net / (downPct/100);
-  document.getElementById('ppTarget').textContent = fmtK(target);
-  document.querySelector('#downToggles [data-down="'+downPct+'"] ~ .rcell');
-  var lbl = document.querySelector('.rcell .k'); // no-op guard
+  net=(net==null)?(+slider.value-DATA.owed-(+slider.value*DATA.sellCostPct)):net;
+  setTxt('ppTarget', fmtK(net/(downPct/100)));
 }
 document.querySelectorAll('#downToggles .chip').forEach(function(c){
   c.addEventListener('click', function(){
     document.querySelectorAll('#downToggles .chip').forEach(function(x){x.setAttribute('aria-pressed','false');});
-    c.setAttribute('aria-pressed','true'); downPct = +c.dataset.down; calcPower();
+    c.setAttribute('aria-pressed','true'); downPct=+c.dataset.down; calcPower();
   });
 });
 
-// check-in → this will POST to the worker (engagement + intent → agent pipeline/segment)
 function checkin(v){
   document.querySelectorAll('.checkins .ci').forEach(function(b){b.style.opacity=.5;});
   event.target.style.opacity=1; event.target.style.background='var(--brass)'; event.target.style.color='var(--pine)';
-  event.target.textContent = 'Got it — Tom will reach out ✓';
-  // TODO wire: fetch(WORKER, {X-Action:'nesttracker-checkin', body:{token, intent:v}})
+  event.target.textContent='Got it — '+(window._agentFirst||'your agent')+' will reach out ✓';
+  var t=getToken(); if(t){ fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:v})}).catch(function(){}); }
 }
-function contactAgent(){ alert('This will open your agent contact / net-sheet request.'); return false; }
+function contactAgent(){ checkin('Wants net sheet'); alert('Thanks — '+(window._agentFirst||'your agent')+' will be in touch with your net sheet.'); return false; }
 
-calcSell();
+(function init(){
+  var t=getToken();
+  if(!t){ setTxt('heroAddr','No report link token'); return; }
+  fetch(WORKER+'/api/v1/nesttracker-report?t='+encodeURIComponent(t))
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(d&&d.ok){ hydrate(d); } else { setTxt('heroAddr','Report not found'); } })
+    .catch(function(){ setTxt('heroAddr','Could not load this report'); });
+})();
 </script>
 </body>
 </html>
