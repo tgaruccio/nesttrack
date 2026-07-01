@@ -2449,8 +2449,8 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
         <div>
-          <label class="flabel">Client *</label>
-          <input type="text" id="appt-client-search" placeholder="Search by name..." autocomplete="off" oninput="apptClientSearch(this.value)" onfocus="apptClientSearch(this.value)" style="width:100%;font-size:13px;"/>
+          <label class="flabel">Client <span style="font-weight:400;color:var(--text3);">(optional — leave blank for a personal/internal appointment)</span></label>
+          <input type="text" id="appt-client-search" placeholder="Search by name, or leave blank..." autocomplete="off" oninput="apptClientSearch(this.value)" onfocus="apptClientSearch(this.value)" style="width:100%;font-size:13px;"/>
           <input type="hidden" id="appt-client"/>
           <div id="appt-client-results" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);z-index:100;width:calc(100% - 40px);max-height:180px;overflow-y:auto;box-shadow:var(--shadow);"></div>
         </div>
@@ -21100,7 +21100,6 @@ async function saveAppt() {
   var sendEmail  = (document.getElementById('appt-send-email')||{}).checked !== false;
   var errEl      = document.getElementById('appt-error');
 
-  if (!clientUid) { if(errEl){errEl.textContent='Please select a client.';errEl.style.display='block';} return; }
   if (!dateVal)   { if(errEl){errEl.textContent='Please select a date.';errEl.style.display='block';} return; }
   if (!timeVal)   { if(errEl){errEl.textContent='Please select a time.';errEl.style.display='block';} return; }
   if (errEl) errEl.style.display = 'none';
@@ -21114,7 +21113,7 @@ async function saveAppt() {
   var agentName = (userProfile.firstName||'')+' '+(userProfile.lastName||'');
   var agentEmail = agentObj ? agentObj.email : '';
   var clientFirst = buyer ? (buyer.firstName||'there') : 'there';
-  var clientName = buyer ? (((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email) : 'Client';
+  var clientName = buyer ? (((buyer.firstName||'')+' '+(buyer.lastName||'')).trim()||buyer.email) : '';
   var clientEmail = buyer ? buyer.email : '';
   var clientEmail2 = buyer ? (buyer.email2||'') : '';
 
@@ -21237,7 +21236,7 @@ async function _commitAppt(appt, sendEmail) {
 
   // 2. Add to To-Do list
   try {
-    var todoText = appt.type+' — '+appt.clientName+(appt.address?' @ '+appt.address:'')+'  '+appt.timeStr;
+    var todoText = appt.type+(appt.clientName?' — '+appt.clientName:'')+(appt.address?' @ '+appt.address:'')+'  '+appt.timeStr;
     _todos.unshift({
       id: 'appt-'+ref.id,
       text: todoText,
@@ -21262,7 +21261,7 @@ async function _commitAppt(appt, sendEmail) {
       'DTSTAMP:'+icsDate(new Date()),
       'DTSTART:'+icsDate(dt),
       'DTEND:'+icsDate(dtEnd),
-      'SUMMARY:'+appt.type+' - '+appt.clientName,
+      'SUMMARY:'+appt.type+(appt.clientName?' - '+appt.clientName:''),
       appt.address ? 'LOCATION:'+appt.address : '',
       'END:VEVENT','END:VCALENDAR'
     ].filter(Boolean).join('\r\n');
@@ -21270,7 +21269,7 @@ async function _commitAppt(appt, sendEmail) {
     var icsUrl = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = icsUrl;
-    a.download = (appt.type+'-'+appt.clientName).replace(/\s+/g,'-')+'.ics';
+    a.download = (appt.type+(appt.clientName?'-'+appt.clientName:'')).replace(/\s+/g,'-')+'.ics';
     document.body.appendChild(a);
     a.click();
     setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(icsUrl); }, 1000);
@@ -21366,7 +21365,7 @@ async function renderApptList() {
         +'<div style="flex:1;min-width:0;">'
         +'<div style="font-size:13px;font-weight:600;">'+emoji+' '+partnerEsc(a.type)+'</div>'
         +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(a.timeStr||'')+(a.address?' · '+partnerEsc(a.address):'')+'</div>'
-        +'<div style="font-size:12px;color:var(--purple-dk);margin-top:3px;font-weight:500;">'+partnerEsc(a.clientName||'')+'</div>'
+        +(a.clientName?'<div style="font-size:12px;color:var(--purple-dk);margin-top:3px;font-weight:500;">'+partnerEsc(a.clientName)+'</div>':'')
         +(a.notes?'<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic;">'+partnerEsc(a.notes)+'</div>':'')
         +'<button onclick="deleteAppt(\''+a.id+'\',\''+partnerEsc(a.clientName||'')+'\',\'appt-'+a.id+'\')" style="margin-top:7px;background:none;border:none;font-size:11px;color:#E24B4A;cursor:pointer;padding:0;">Remove</button>'
         +'</div></div></div>';
