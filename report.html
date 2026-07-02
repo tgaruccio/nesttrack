@@ -8453,15 +8453,24 @@ window.renderSaved = renderSaved;
 var currentRates={rate30:6.75,rate15:6.0,date:''};
 async function fetchMortgageRates(){
   try{
-    var r=await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US',{mode:'cors'});
-    if(r.ok){var t=await r.text();var l=t.trim().split('\n');var last=l[l.length-1].split(',');var v=parseFloat(last[1]);if(!isNaN(v)){currentRates.rate30=v;currentRates.date=last[0];}}
-    var r2=await fetch('https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE15US',{mode:'cors'});
-    if(r2.ok){var t2=await r2.text();var l2=t2.trim().split('\n');var last2=l2[l2.length-1].split(',');var v2=parseFloat(last2[1]);if(!isNaN(v2))currentRates.rate15=v2;}
+    // Route through the worker — it fetches FRED server-side with the API key (no browser CORS)
+    // and caches once per day, so this is fast and free of per-call cost.
+    var r=await fetch(PROXY_URL+'/api/v1/nesttracker-rates');
+    if(r.ok){
+      var j=await r.json();
+      var rt=(j&&j.rates)||{};
+      if(rt.rate30!=null && !isNaN(rt.rate30)) currentRates.rate30=Number(rt.rate30);
+      if(rt.rate15!=null && !isNaN(rt.rate15)) currentRates.rate15=Number(rt.rate15);
+      if(rt.asOf) currentRates.date=rt.asOf;
+    }
   }catch(e){console.log('rates:',e.message);}
   var e30=document.getElementById('rate-30');var e15=document.getElementById('rate-15');var ed=document.getElementById('rate-date');
   if(e30)e30.textContent=currentRates.rate30.toFixed(2)+'%';
   if(e15)e15.textContent=currentRates.rate15.toFixed(2)+'%';
   if(ed&&currentRates.date){var d=new Date(currentRates.date+'T12:00:00');ed.textContent='Week of '+d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+  // Auto-apply the live 30-yr into the calculator input if the user hasn't changed it off the default.
+  var ri=document.getElementById('mort-rate');
+  if(ri && (ri.value==='' || ri.value==='6.75' || ri.value==='6.750') && currentRates.rate30){ ri.value=currentRates.rate30.toFixed(3); if(typeof calcMort==='function') calcMort(); }
 }
 function applyRateToCalc(){var ri=document.getElementById('mort-rate');if(ri&&currentRates.rate30){ri.value=currentRates.rate30.toFixed(3);calcMort();}}
 window.applyRateToCalc=applyRateToCalc;
