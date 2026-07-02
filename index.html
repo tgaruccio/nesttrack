@@ -16836,14 +16836,22 @@ window._applyMemberGate = _applyMemberGate;
     if (q.get('billing')) { history.replaceState(null,'',location.pathname); setTimeout(function(){ if(typeof _applyBillingGate==='function') _applyBillingGate(); if(typeof _writeTeamBilling==='function') _writeTeamBilling(); }, 1200); }
     // Returning from the NestTracker +100 block checkout.
     if (q.get('ntblock')==='success') {
+      var _ntSess = q.get('session_id')||'';
       history.replaceState(null,'',location.pathname);
-      var _nbTries = 0;
+      var _nbTries = 0, _nbDone = false;
       var _nbWhenReady = function(){
         var _uid = (currentUser && currentUser.uid) || (userProfile && userProfile.portalUid) || '';
         if (!_uid && _nbTries < 40) { _nbTries++; setTimeout(_nbWhenReady, 500); return; }
         (async function(){
-          try { if (typeof ntBlockRefresh==='function') await ntBlockRefresh(); } catch(e){}
-          setTimeout(function(){ alert('\uD83C\uDF89 Your +100 NestTracker homes are unlocked. Any paused homes are now active again.'); }, 400);
+          try {
+            var res = await ntBlockRefresh(_ntSess);
+            // The API key / profile may not be ready on the first tries, or Stripe may take a beat to
+            // reflect the new sub — retry until we actually see the block, then confirm.
+            if ((!res || !res.ok || !res.blocks) && _nbTries < 12) { _nbTries++; setTimeout(_nbWhenReady, 800); return; }
+            if (_nbDone) return; _nbDone = true;
+            if (res && res.ok && res.blocks) { setTimeout(function(){ alert('\uD83C\uDF89 Your +100 NestTracker homes are unlocked \u2014 your cap is now '+(res.cap||140)+'. Any paused homes are active again.'); }, 300); }
+            else { setTimeout(function(){ alert('Your payment went through. If your cap still shows 40, open the NestTracker dashboard in a moment to finish syncing.'); }, 300); }
+          } catch(e){}
         })();
       };
       _nbWhenReady();
@@ -27645,9 +27653,9 @@ async function openNestTrackerDash(){
     var j = await r.json();
     if(!j || !j.ok){ body.innerHTML = '<div style="padding:20px;color:#B91C1C;font-size:13px;">Could not load: '+((j&&j.reason)||'error')+'</div>'; return; }
     body.innerHTML = _ntDashHtml(j);
-    // Only agents who hold a block (or have paused homes) need a live Stripe sync — everyone else is
-    // capped at the base 40 and can't be over. This keeps the dashboard fast for the common case.
-    if (j.blocksStatus || j.locked) {
+    // Agents who hold a block, have paused homes, OR are at/over the base 40 need a live Stripe sync
+    // (the last case catches someone who just purchased but whose block fields aren't written yet).
+    if (j.blocksStatus || j.locked || (j.active >= (j.baseCap||40))) {
       ntBlockRefresh().then(function(){
         fetch(PROXY_URL + '/api/v1/nesttracker-dashboard?api_key=' + encodeURIComponent(apiKey))
           .then(function(rr){ return rr.json(); })
@@ -27773,10 +27781,12 @@ async function ntBlockCheckout(btn){
       uid: (currentUser&&currentUser.uid)||(userProfile&&userProfile.portalUid)||'',
       email: (userProfile&&userProfile.email)||(currentUser&&currentUser.email)||'',
       qty: 1,
-      successUrl: _billUrl('?ntblock=success'),
+      successUrl: _billUrl('?ntblock=success&session_id={CHECKOUT_SESSION_ID}'),
       cancelUrl: _billUrl('?ntblock=cancel')
     };
-    if (userProfile && userProfile.ntBlockCustomerId) body.customerId = userProfile.ntBlockCustomerId;
+    // Reuse the agent's existing Stripe customer so the block doesn't create a duplicate customer
+    // under the same email (which is what breaks the status lookup).
+    if (userProfile && (userProfile.ntBlockCustomerId || userProfile.stripeCustomerId)) body.customerId = userProfile.ntBlockCustomerId || userProfile.stripeCustomerId;
     var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'nesttracker-block-checkout','X-Api-Key':apiKey}, body: JSON.stringify(body) });
     var d = await r.json();
     if (d && d.url) location.href = d.url;
@@ -27786,11 +27796,11 @@ async function ntBlockCheckout(btn){
 window.ntBlockCheckout = ntBlockCheckout;
 
 // Pull the block's live status from Stripe and reconcile locks (no webhook). Safe to call anytime.
-async function ntBlockRefresh(){
+async function ntBlockRefresh(sessionId){
   try {
     var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
     if(!apiKey) return null;
-    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'nesttracker-block-refresh','X-Api-Key':apiKey}, body: JSON.stringify({ uid:(currentUser&&currentUser.uid)||(userProfile&&userProfile.portalUid)||'', email:(userProfile&&userProfile.email)||'' }) });
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'nesttracker-block-refresh','X-Api-Key':apiKey}, body: JSON.stringify({ uid:(currentUser&&currentUser.uid)||(userProfile&&userProfile.portalUid)||'', email:(userProfile&&userProfile.email)||'', sessionId: sessionId||'' }) });
     return await r.json().catch(function(){ return null; });
   } catch(e){ return null; }
 }
