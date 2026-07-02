@@ -28975,15 +28975,14 @@ async function ntEnroll(uid, btn, isRefresh){
   if(!b){ if(typeof showToast==='function') showToast('Could not find that contact.'); return; }
   var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'').trim();
   if(!addr){ if(typeof showToast==='function') showToast('Add a property address for this contact first — NestTracker values that home.'); else alert('NestTracker needs a property address.'); return; }
-  // Purchase price/date power the (free) equity estimate. Use what's on file; else offer a quick optional prompt.
   var purchasePrice = String(b.purchasePrice||b.salePrice||'').replace(/[^0-9.]/g,'');
   var purchaseDate  = String(b.purchaseDate||b.closingDate||'').trim();
-  if(!isRefresh && !purchasePrice){
+  if(!purchasePrice){
     var pp = prompt('Optional — purchase price (powers the equity estimate). Leave blank to skip.','');
     if(pp){ purchasePrice = String(pp).replace(/[^0-9.]/g,''); var py = prompt('Year purchased? (e.g. 2019 — optional)',''); if(py){ purchaseDate = String(py).replace(/[^0-9\-\/]/g,''); } }
   }
   var orig = btn ? btn.innerHTML : '';
-  if(btn){ btn.disabled=true; btn.innerHTML = isRefresh ? 'Refreshing…' : 'Valuing…'; }
+  if(btn){ btn.disabled=true; btn.innerHTML = 'Valuing…'; }
   try {
     var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
     if(!apiKey){ if(btn){ btn.disabled=false; btn.innerHTML=orig; } if(typeof showToast==='function') showToast('Connect your API key first (Profile → Integrations).'); return; }
@@ -28993,25 +28992,17 @@ async function ntEnroll(uid, btn, isRefresh){
       body: JSON.stringify({ contact: {
         firstName:b.firstName||'', lastName:b.lastName||'', email:b.email||'',
         mailingAddress:addr, street:b.mailingStreet||'', city:b.mailingCity||'', state:b.mailingState||'', zip:b.mailingZip||'',
-        purchasePrice:purchasePrice, purchaseDate:purchaseDate, ntToken:(isRefresh ? (b.ntToken||'') : ''), uid:uid
+        purchasePrice:purchasePrice, purchaseDate:purchaseDate, uid:uid
       }})
     });
     var j = await r.json();
+    if(btn){ btn.disabled=false; btn.innerHTML=orig; }
     if(j && j.ok){
-      try { await saveClientField(uid, 'ntEnrolled', true); } catch(e){}
-      try { await saveClientField(uid, 'ntToken', j.token||''); } catch(e){}
-      try { await saveClientField(uid, 'ntValue', j.value||0); } catch(e){}
-      if(b){ b.ntEnrolled=true; b.ntToken=j.token||''; b.ntValue=j.value||0; }
-      var msg = isRefresh ? 'Value refreshed' : 'Added to NestTracker';
-      if(j.value) msg += ' — est. $'+Number(j.value).toLocaleString();
-      if(j.lowConfidence) msg += ' (low-confidence AVM — worth a manual check)';
-      if(typeof showToast==='function') showToast(msg+'.');
-      if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-      try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
+      if(j.preview){ _ntShowPreview(uid, j); }               // NEW: agent reviews before it goes live
+      else { await _ntFinalizeCard(uid, j); if(typeof showToast==='function') showToast('Added to NestTracker.'); } // legacy path
     } else {
-      if(btn){ btn.disabled=false; btn.innerHTML=orig; }
       var rs = (j&&j.reason)||'unknown error';
-      if(typeof showToast==='function') showToast('Could not enroll: '+rs); else alert('Could not enroll: '+rs);
+      if(typeof showToast==='function') showToast('Could not value: '+rs); else alert('Could not value: '+rs);
     }
   } catch(e){
     if(btn){ btn.disabled=false; btn.innerHTML=orig; }
@@ -29019,6 +29010,87 @@ async function ntEnroll(uid, btn, isRefresh){
   }
 }
 window.ntEnroll = ntEnroll;
+
+// Save the card flags once a home is live.
+async function _ntFinalizeCard(uid, j){
+  try { await saveClientField(uid, 'ntEnrolled', true); } catch(e){}
+  try { await saveClientField(uid, 'ntToken', j.token||''); } catch(e){}
+  try { await saveClientField(uid, 'ntValue', j.value||0); } catch(e){}
+  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
+  if(b){ b.ntEnrolled=true; b.ntToken=j.token||''; b.ntValue=j.value||0; }
+  try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
+}
+
+// Preview modal — agent sees the AVM value/confidence/range and decides: enroll, adjust, or cancel.
+function _ntShowPreview(uid, j){
+  window._ntPreview = { uid:uid, token:j.token, value:j.value, low:j.low, high:j.high };
+  var fmt = function(n){ return '$'+Number(n||0).toLocaleString(); };
+  var low = j.low||Math.round(j.value*0.91), high = j.high||Math.round(j.value*1.09);
+  var conf = j.lowConfidence
+    ? '<span style="display:inline-block;background:#FDECCB;color:#8A5A00;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;">Lower confidence — double-check this</span>'
+    : '<span style="display:inline-block;background:#DDF3E7;color:#0F7A52;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;">Confidence '+(j.confidence||'—')+'%</span>';
+  var equityLine = (j.equity!=null) ? '<div style="font-size:13px;color:var(--text2);margin-top:8px;">Est. equity: <b style="color:var(--text);">'+fmt(j.equity)+'</b>'+(j.equityPct!=null?' ('+j.equityPct+'%)':'')+'</div>' : '';
+  var compsLine = (j.compsCount!=null) ? '<div style="font-size:12px;color:var(--text3);margin-top:4px;">'+(j.compsCount>0? j.compsCount+' recent nearby sales found' : 'No nearby comps found for this address')+'</div>' : '';
+  var reportUrl = j.reportUrl || ('https://app.nesttrack.io/report.html?t='+j.token);
+  var html = '<div id="nt-preview-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;">'
+    + '<div style="background:var(--surface,#fff);border-radius:16px;max-width:420px;width:100%;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.35);font-family:inherit;">'
+    + '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);">Review before enrolling</div>'
+    + '<div style="font-size:13px;color:var(--text2);margin-top:6px;">'+(j.matchedAddress||'')+'</div>'
+    + '<div style="font-size:34px;font-weight:800;color:var(--text,#111);margin-top:10px;line-height:1;">'+fmt(j.value)+'</div>'
+    + '<div style="margin-top:10px;">'+conf+'</div>'
+    + '<div style="font-size:13px;color:var(--text2);margin-top:10px;">Est. range: <b style="color:var(--text);">'+fmt(low)+' – '+fmt(high)+'</b></div>'
+    + equityLine + compsLine
+    + '<div style="font-size:12.5px;color:var(--text3);margin-top:14px;line-height:1.5;">This is the value your client will see. If it looks off, adjust it or cancel — nothing is sent until you enroll. <a href="'+reportUrl+'" target="_blank" style="color:#185FA5;text-decoration:underline;">Preview the full report</a></div>'
+    + '<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;">'
+    + '<button onclick="ntCancelPreview()" style="flex:1;min-width:90px;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface2,#f4f4f4);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>'
+    + '<button onclick="ntAdjustPreview()" style="flex:1;min-width:90px;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface,#fff);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Adjust value</button>'
+    + '<button onclick="ntConfirmPreview()" style="flex:1.4;min-width:110px;padding:11px;border-radius:10px;border:none;background:#0F7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Enroll client</button>'
+    + '</div></div></div>';
+  var wrap = document.createElement('div'); wrap.innerHTML = html; document.body.appendChild(wrap.firstChild);
+}
+function _ntClosePreview(){ var o=document.getElementById('nt-preview-overlay'); if(o) o.remove(); }
+
+async function ntConfirmPreview(overrideValue){
+  var p = window._ntPreview; if(!p) return;
+  var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+  if(!apiKey){ if(typeof showToast==='function') showToast('Connect your API key first.'); return; }
+  _ntClosePreview();
+  try {
+    var body = { token: p.token };
+    if(overrideValue && overrideValue>0) body.overrideValue = overrideValue;
+    var r = await fetch(PROXY_URL + '/api/v1/nesttracker-confirm?api_key=' + encodeURIComponent(apiKey), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    var j = await r.json();
+    if(j && j.ok){
+      await _ntFinalizeCard(p.uid, { token:p.token, value:j.value });
+      if(typeof showToast==='function') showToast('Enrolled — est. $'+Number(j.value||0).toLocaleString()+'. Quarterly report is live.');
+    } else {
+      if(typeof showToast==='function') showToast('Could not enroll: '+((j&&j.reason)||'error'));
+    }
+  } catch(e){ if(typeof showToast==='function') showToast('Enroll failed: '+(e&&e.message||'network')); }
+  window._ntPreview = null;
+}
+window.ntConfirmPreview = ntConfirmPreview;
+
+function ntAdjustPreview(){
+  var p = window._ntPreview; if(!p) return;
+  var v = prompt('Enter the corrected home value (what your client should see):', String(p.value||''));
+  if(v==null) return;
+  var n = Number(String(v).replace(/[^0-9.]/g,''));
+  if(!(n>0)){ if(typeof showToast==='function') showToast('Enter a valid dollar amount.'); return; }
+  ntConfirmPreview(Math.round(n));
+}
+window.ntAdjustPreview = ntAdjustPreview;
+
+async function ntCancelPreview(){
+  var p = window._ntPreview; _ntClosePreview(); window._ntPreview = null;
+  if(!p) return;
+  // Deactivate the pending home so it doesn't linger.
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if(apiKey && p.token){ fetch(PROXY_URL + '/api/v1/nesttracker-remove?api_key=' + encodeURIComponent(apiKey), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token:p.token }) }).catch(function(){}); }
+  } catch(e){}
+}
+window.ntCancelPreview = ntCancelPreview;
 
 // Remove a home from NestTracker: deactivates it in the worker (frees a cap slot) and clears the card flag.
 async function ntRemove(uid){
