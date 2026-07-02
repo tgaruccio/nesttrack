@@ -185,6 +185,11 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
         </div>
       </div>
     </div>
+    <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--ink-soft)">Know your exact balance?</span>
+      <input id="owedInput" inputmode="numeric" placeholder="Update your loan balance" style="flex:1;min-width:170px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
+    </div>
+    <div class="muted" id="owedEditNote" style="font-size:12px;margin-top:6px;display:none">Updated — your equity, net sheet, and budget now use this balance.</div>
   </div>
 
   <!-- SELL CALCULATOR -->
@@ -204,21 +209,34 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
     <div class="assump">Estimate only. Assumes ~7% total selling costs (commissions, transfer taxes, typical fees) and your estimated loan payoff. Your actual numbers depend on timing, condition, and terms — <b>ask Tom for a precise net sheet.</b></div>
   </div>
 
-  <!-- MOVE-UP / PURCHASING POWER -->
-  <div class="section-label"><span class="n">03</span><span class="t">Your Next Move</span><span class="hr"></span></div>
+  <!-- AFFORDABILITY -->
+  <div class="section-label"><span class="n">03</span><span class="t">What You Could Afford</span><span class="hr"></span></div>
   <div class="card">
-    <h2>What your equity could buy</h2>
-    <p class="muted" style="font-size:14px;margin-top:4px">Put your equity to work as a down payment on your next home.</p>
-    <div class="toggle-row" id="downToggles">
-      <button class="chip" data-down="10">10% down</button>
-      <button class="chip" aria-pressed="true" data-down="20">20% down</button>
-      <button class="chip" data-down="25">25% down</button>
+    <h2>Your real move-up budget</h2>
+    <p class="muted" style="font-size:14px;margin-top:4px">A few quick numbers give you a realistic target — closer than any rule of thumb, though still not a pre-approval.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Annual household income</label>
+        <input id="afIncome" inputmode="numeric" placeholder="$120,000" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Monthly debts (cars, cards, loans)</label>
+        <input id="afDebts" inputmode="numeric" placeholder="$600" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Down payment (your equity)</label>
+        <input id="afDown" inputmode="numeric" placeholder="$250,000" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Interest rate</label>
+        <input id="afRate" inputmode="decimal" placeholder="6.75%" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
     </div>
-    <div class="result-grid">
-      <div class="rcell"><div class="k">Equity available</div><div class="v num" id="ppEquity">$258,220</div></div>
-      <div class="rcell"><div class="k">At 20% down, you could target</div><div class="v num" id="ppTarget">$1.29M</div></div>
+    <div class="result-grid" style="margin-top:20px">
+      <div class="rcell hero-cell"><div class="k">You could target a home around</div><div class="v num" id="afPrice">—</div></div>
+      <div class="rcell"><div class="k">Est. monthly payment (PITI)</div><div class="v num" id="afPayment">—</div></div>
     </div>
-    <div class="assump">A rough guide, not a pre-approval. Real buying power depends on income, debts, and rates — <b>Tom can connect you with a lender to run real numbers.</b></div>
+    <div class="assump" id="afNote">Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>Tom can connect you with a lender for exact numbers.</b></div>
   </div>
 
   <!-- REFINANCE -->
@@ -226,33 +244,25 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
   <div class="card">
     <h2>Today's rates vs. yours</h2>
     <div class="rates" style="margin-top:16px">
-      <div class="rate"><div class="r-t">30-yr fixed</div><div class="r-v num">6.70%</div></div>
-      <div class="rate"><div class="r-t">15-yr fixed</div><div class="r-v num">5.92%</div></div>
-      <div class="rate"><div class="r-t">Your est. rate</div><div class="r-v num" id="yourRate" style="color:var(--brass-d)">3.94%</div></div>
+      <div class="rate"><div class="r-t">30-yr fixed</div><div class="r-v num" id="rate30">—</div></div>
+      <div class="rate"><div class="r-t">15-yr fixed</div><div class="r-v num" id="rate15">—</div></div>
+      <div class="rate" id="yourRateTile"><div class="r-t">Your rate</div><div class="r-v num" id="yourRate" style="color:var(--brass-d)">—</div></div>
     </div>
-    <p class="muted" style="font-size:13px;margin-top:14px">You're sitting on a rate below today's market — a strong reason to <b>keep this mortgage and tap equity another way</b> (HELOC or move-up) rather than refinance. That's the kind of call Tom and a lender can walk through with you.</p>
-    <div class="assump">Rates shown are current national averages (Freddie Mac, rounded conservatively). Your estimated rate is based on your purchase year.</div>
+    <div id="rateAsOf" class="muted" style="font-size:11px;margin-top:8px"></div>
+    <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--ink-soft)" id="ownerRatePrompt">Add your current rate to tailor this:</span>
+      <input id="ownerRateInput" inputmode="decimal" placeholder="e.g. 3.9" style="width:110px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
+      <button class="btn ghost" id="ownerRateSave" onclick="saveOwnerRate()" style="padding:9px 16px;font-size:13px">Save my rate</button>
+    </div>
+    <p class="muted" id="rateNote" style="font-size:13px;margin-top:14px;display:none"></p>
+    <div class="assump">30- and 15-year rates are current national averages (Freddie Mac). Your rate is what you enter here — it's used to tailor your move-up and refinance guidance.</div>
   </div>
 
   <!-- COMPS -->
-  <div class="section-label"><span class="n">05</span><span class="t">Recent Sales Near You</span><span class="hr"></span></div>
-  <div class="card">
+  <div class="section-label" id="compsLabel"><span class="n">05</span><span class="t">Recent Sales Near You</span><span class="hr"></span></div>
+  <div class="card" id="compsCard">
     <h2>What your neighbors sold for</h2>
-    <div style="margin-top:14px" id="compsList">
-      <div class="comp"><div><div class="c-addr">533 Kenilworth Rd</div><div class="c-sub">2 doors down</div></div><div class="c-price num">$314,000</div></div>
-      <div class="comp"><div><div class="c-addr">559 Kenilworth Rd</div><div class="c-sub">Same street</div></div><div class="c-price num">$255,000</div></div>
-      <div class="comp"><div><div class="c-addr">513 Kenilworth Rd</div><div class="c-sub">Same street</div></div><div class="c-price num">$320,000</div></div>
-      <div class="comp"><div><div class="c-addr">555 Parkside Dr</div><div class="c-sub">Around the corner</div></div><div class="c-price num">$330,000</div></div>
-    </div>
-  </div>
-
-  <!-- MARKET TEMP -->
-  <div class="section-label"><span class="n">06</span><span class="t">Market Temperature</span><span class="hr"></span></div>
-  <div class="card">
-    <h2>Bay Village right now</h2>
-    <p class="muted" style="font-size:14px;margin:4px 0 18px">Leaning toward sellers — homes are moving, inventory is tight.</p>
-    <div class="temp"><div class="gauge"><div class="pin" style="left:72%"></div></div></div>
-    <div class="temp-labels"><span>Buyer's market</span><span>Balanced</span><span>Seller's market</span></div>
+    <div style="margin-top:14px" id="compsList"></div>
   </div>
 
   <!-- CHECK-IN / CTA -->
@@ -310,12 +320,26 @@ function hydrate(d){
   if(DATA.value){ slider.min=Math.round(DATA.value*0.85/1000)*1000; slider.max=Math.round(DATA.value*1.15/1000)*1000; slider.value=Math.round(DATA.value/1000)*1000; }
   if(d.yourRate!=null) setTxt('yourRate', d.yourRate.toFixed(2)+'%');
 
-  if(Array.isArray(d.comps) && d.comps.length){
+  // Comps: show only if we actually have recent sales; otherwise hide the whole section.
+  var haveComps = Array.isArray(d.comps) && d.comps.length;
+  if(haveComps){
     var box=document.getElementById('compsList');
     if(box){ box.innerHTML = d.comps.map(function(c){
       return '<div class="comp"><div><div class="c-addr">'+(c.address||'')+'</div><div class="c-sub">'+(c.sub||'')+'</div></div><div class="c-price num">'+fmt(c.price)+'</div></div>';
     }).join(''); }
+  } else {
+    ['compsLabel','compsCard'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
   }
+
+  // Live market rates (Freddie Mac via FRED). If unavailable, tiles stay "—".
+  if(d.rate30!=null) setTxt('rate30', d.rate30.toFixed(2)+'%');
+  if(d.rate15!=null) setTxt('rate15', d.rate15.toFixed(2)+'%');
+  if(d.ratesAsOf) setTxt('rateAsOf', 'National averages as of '+d.ratesAsOf);
+  window._mktRate = (d.rate30!=null)? d.rate30 : null;
+
+  // Homeowner's own rate (persisted). If set → show it + comparison; else prompt for it.
+  window._ownerRate = (d.yourRate!=null)? d.yourRate : null;
+  renderOwnerRate();
 
   var ag = d.agent||{};
   window._agentFirst = ag.firstName || (ag.name||'').split(' ')[0] || 'your agent';
@@ -327,7 +351,46 @@ function hydrate(d){
   if(call){ if(ag.phone){ call.href='tel:'+String(ag.phone).replace(/[^0-9+]/g,''); call.textContent='Call '+window._agentFirst; } else { call.style.display='none'; } }
   setTxt('footAgent', (ag.name||'') + (ag.role? ' · '+ag.role : ''));
 
-  countUp(); calcSell();
+  // Prefill: loan-balance placeholder + affordability down payment = equity, rate = live market rate.
+  var oi=document.getElementById('owedInput'); if(oi && DATA.owed) oi.placeholder = 'Currently est. '+fmt(DATA.owed);
+  var afDown=document.getElementById('afDown'); if(afDown && DATA.equity>0) afDown.value = fmt(DATA.equity);
+  var afRate=document.getElementById('afRate'); if(afRate && !afRate.value) afRate.value = (window._mktRate!=null? window._mktRate.toFixed(2) : '6.75')+'%';
+
+  countUp(); calcSell(); calcAfford();
+}
+
+// Render the homeowner's rate tile, prompt, and the honest below/above-market note.
+function renderOwnerRate(){
+  var r = window._ownerRate, mkt = window._mktRate;
+  var tile=document.getElementById('yourRateTile'), note=document.getElementById('rateNote'), prompt=document.getElementById('ownerRatePrompt'), input=document.getElementById('ownerRateInput');
+  if(r!=null){
+    setTxt('yourRate', r.toFixed(2)+'%');
+    if(input && !input.value) input.value = r.toFixed(2);
+    if(prompt) prompt.textContent = 'Your rate is saved — update it anytime:';
+    if(note && mkt!=null){
+      note.style.display='block';
+      if(r < mkt - 0.25){
+        note.innerHTML = 'You\'re sitting on a rate <b>below today\'s market</b> — a strong reason to keep this mortgage and tap equity another way (HELOC or a move-up) rather than refinance. '+(window._agentFirst||'Your agent')+' and a lender can walk through the options.';
+      } else if(r > mkt + 0.25){
+        note.innerHTML = 'Your rate is <b>above today\'s market</b> — it may be worth exploring a refinance. '+(window._agentFirst||'Your agent')+' can connect you with a lender to run the numbers.';
+      } else {
+        note.innerHTML = 'Your rate is right around today\'s market. '+(window._agentFirst||'Your agent')+' can help you weigh a refinance vs. a move-up.';
+      }
+    } else if(note){ note.style.display='none'; }
+  } else {
+    setTxt('yourRate', '—');
+    if(note) note.style.display='none';
+  }
+}
+
+// Save the homeowner's rate → persists on the home + tailors the comparison.
+function saveOwnerRate(){
+  var input=document.getElementById('ownerRateInput'); if(!input) return;
+  var v=pn(input.value); if(v<=0 || v>25){ input.style.borderColor='#c0392b'; return; }
+  input.style.borderColor='var(--line)';
+  window._ownerRate = v; renderOwnerRate();
+  var btn=document.getElementById('ownerRateSave'); if(btn){ btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Save my rate'; },1800); }
+  var t=getToken(); if(t){ fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ownerRate:v})}).catch(function(){}); }
 }
 
 function countUp(){
@@ -340,29 +403,69 @@ function countUp(){
 function calcSell(){
   var price=+slider.value, payoff=DATA.owed, costs=price*DATA.sellCostPct, net=price-payoff-costs;
   setTxt('sellPriceLbl',fmt(price)); setTxt('rPayoff','–'+fmt(payoff)); setTxt('rCosts','–'+fmt(costs));
-  setTxt('rNet',fmt(net)); setTxt('ppEquity',fmt(Math.max(0,net)));
-  calcPower(net);
+  setTxt('rNet',fmt(net));
 }
 slider.addEventListener('input', calcSell);
-var downPct=20;
-function calcPower(net){
-  net=(net==null)?(+slider.value-DATA.owed-(+slider.value*DATA.sellCostPct)):net;
-  setTxt('ppTarget', fmtK(net/(downPct/100)));
+
+// ---- Real affordability: back-end DTI (43%), reserve ~20% of budget for taxes/ins/PMI ----
+function pn(v){ return Number(String(v==null?'':v).replace(/[^0-9.]/g,''))||0; }
+function afEl(id){ var e=document.getElementById(id); return e? e.value : ''; }
+function calcAfford(){
+  var income=pn(afEl('afIncome')), debts=pn(afEl('afDebts')), down=pn(afEl('afDown')), rate=pn(afEl('afRate'))||(window._mktRate!=null?window._mktRate:6.75);
+  var note=document.getElementById('afNote');
+  if(!income){ setTxt('afPrice','—'); setTxt('afPayment','—'); return; }
+  var grossMonthly=income/12;
+  var maxPITI=grossMonthly*0.43 - debts;
+  if(maxPITI<=0){
+    setTxt('afPrice','—'); setTxt('afPayment','—');
+    if(note) note.innerHTML='With that income and debt load, a lender likely couldn\'t qualify a move-up right now. <b>'+(window._agentFirst||'Your agent')+' can help map a path.</b>';
+    return;
+  }
+  var pi=maxPITI*0.80;                 // reserve ~20% for taxes, insurance, PMI
+  var r=rate/100/12, n=360;
+  var loan = r>0 ? pi*(1-Math.pow(1+r,-n))/r : pi*n;
+  var price=Math.max(0, loan+down);
+  setTxt('afPrice', fmtK(price));
+  setTxt('afPayment', fmt(maxPITI)+'/mo');
+  if(note) note.innerHTML='Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>'+(window._agentFirst||'Your agent')+' can connect you with a lender for exact numbers.</b>';
 }
-document.querySelectorAll('#downToggles .chip').forEach(function(c){
-  c.addEventListener('click', function(){
-    document.querySelectorAll('#downToggles .chip').forEach(function(x){x.setAttribute('aria-pressed','false');});
-    c.setAttribute('aria-pressed','true'); downPct=+c.dataset.down; calcPower();
-  });
+['afIncome','afDebts','afDown','afRate'].forEach(function(id){
+  var el=document.getElementById(id); if(el) el.addEventListener('input', calcAfford);
 });
 
+// ---- Editable loan balance: correct equity, bars, net sheet, and budget ----
+var owedInput=document.getElementById('owedInput');
+if(owedInput){ owedInput.addEventListener('change', function(){
+  var v=pn(owedInput.value); if(v<=0) return;
+  DATA.owed=v; DATA.equity=Math.max(0, DATA.value-v);
+  setTxt('owedVal',fmt(v)); setTxt('equityVal',fmt(DATA.equity));
+  var op=DATA.value?Math.round(DATA.equity/DATA.value*100):50;
+  var ob=document.getElementById('ownBar'), wb=document.getElementById('owedBar');
+  if(ob)ob.style.width=op+'%'; if(wb)wb.style.width=Math.max(0,100-op)+'%';
+  var afDown=document.getElementById('afDown'); if(afDown) afDown.value=fmt(DATA.equity);
+  var ed=document.getElementById('owedEditNote'); if(ed)ed.style.display='block';
+  calcSell(); calcAfford();
+}); }
+
 function checkin(v){
-  document.querySelectorAll('.checkins .ci').forEach(function(b){b.style.opacity=.5;});
-  event.target.style.opacity=1; event.target.style.background='var(--brass)'; event.target.style.color='var(--pine)';
-  event.target.textContent='Got it — '+(window._agentFirst||'your agent')+' will reach out ✓';
-  var t=getToken(); if(t){ fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:v})}).catch(function(){}); }
+  var btn = (typeof event!=='undefined' && event.target) ? event.target : null;
+  document.querySelectorAll('.checkins .ci').forEach(function(b){b.style.opacity=.5;b.disabled=true;});
+  if(btn){ btn.style.opacity=1; btn.style.background='var(--brass)'; btn.style.color='var(--pine)'; btn.textContent='Sending…'; }
+  var who = window._agentFirst||'your agent';
+  var t=getToken();
+  var done=function(ok){ if(btn) btn.textContent = ok ? ('✓ '+who+' has been notified') : ('✓ Noted — '+who+' will follow up'); };
+  if(t){
+    fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:v})})
+      .then(function(r){ return r.json(); }).then(function(j){ done(j&&j.ok); }).catch(function(){ done(false); });
+  } else { done(false); }
 }
-function contactAgent(){ checkin('Wants net sheet'); alert('Thanks — '+(window._agentFirst||'your agent')+' will be in touch with your net sheet.'); return false; }
+function contactAgent(){
+  var who=window._agentFirst||'your agent';
+  var t=getToken();
+  if(t){ fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:'Requested a net sheet'})}).catch(function(){}); }
+  alert(who+' has been notified and will reach out with your net sheet.');
+  return false;
+}
 
 (function init(){
   var t=getToken();
