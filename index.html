@@ -16834,6 +16834,20 @@ window._applyMemberGate = _applyMemberGate;
       _confirmWhenReady();
     }
     if (q.get('billing')) { history.replaceState(null,'',location.pathname); setTimeout(function(){ if(typeof _applyBillingGate==='function') _applyBillingGate(); if(typeof _writeTeamBilling==='function') _writeTeamBilling(); }, 1200); }
+    // Returning from the NestTracker +100 block checkout.
+    if (q.get('ntblock')==='success') {
+      history.replaceState(null,'',location.pathname);
+      var _nbTries = 0;
+      var _nbWhenReady = function(){
+        var _uid = (currentUser && currentUser.uid) || (userProfile && userProfile.portalUid) || '';
+        if (!_uid && _nbTries < 40) { _nbTries++; setTimeout(_nbWhenReady, 500); return; }
+        (async function(){
+          try { if (typeof ntBlockRefresh==='function') await ntBlockRefresh(); } catch(e){}
+          setTimeout(function(){ alert('\uD83C\uDF89 Your +100 NestTracker homes are unlocked. Any paused homes are now active again.'); }, 400);
+        })();
+      };
+      _nbWhenReady();
+    } else if (q.get('ntblock')) { history.replaceState(null,'',location.pathname); }
   } catch(e){}
 })();
 
@@ -27631,6 +27645,16 @@ async function openNestTrackerDash(){
     var j = await r.json();
     if(!j || !j.ok){ body.innerHTML = '<div style="padding:20px;color:#B91C1C;font-size:13px;">Could not load: '+((j&&j.reason)||'error')+'</div>'; return; }
     body.innerHTML = _ntDashHtml(j);
+    // Only agents who hold a block (or have paused homes) need a live Stripe sync — everyone else is
+    // capped at the base 40 and can't be over. This keeps the dashboard fast for the common case.
+    if (j.blocksStatus || j.locked) {
+      ntBlockRefresh().then(function(){
+        fetch(PROXY_URL + '/api/v1/nesttracker-dashboard?api_key=' + encodeURIComponent(apiKey))
+          .then(function(rr){ return rr.json(); })
+          .then(function(jj){ if(jj && jj.ok){ body.innerHTML = _ntDashHtml(jj); } })
+          .catch(function(){});
+      });
+    }
   } catch(e){
     body.innerHTML = '<div style="padding:20px;color:#B91C1C;font-size:13px;">Failed to load: '+(e&&e.message||'network')+'</div>';
   }
@@ -27655,20 +27679,41 @@ function _ntDashHtml(j){
     + stat('Refreshed today', j.processedToday, 'this run')
     + stat('Check-ins', j.checkins, 'client engagement', '#0F7A52')
     + stat('Agent-corrected', j.overridden, 'value overrides')
+    + (j.locked ? stat('Paused', j.locked, 'over cap / unpaid', '#B91C1C') : '')
     + '</div>';
 
-  // Cap usage / upsell
-  var capBlock;
-  if (j.capRequest && j.capRequest.status==='requested'){
-    capBlock = '<div style="background:#FEF9EC;border:1px solid #F5E2B0;border-radius:12px;padding:12px 14px;margin:12px 0;font-size:12.5px;color:#8A5A00;">✓ More-homes request received — we\'ll review pricing and follow up.</div>';
-  } else if (j.active >= j.cap){
-    capBlock = '<div style="background:#0E3B2E;border-radius:12px;padding:14px;margin:12px 0;color:#fff;">'
-      + '<div style="font-size:13px;font-weight:700;">You\'re at your '+j.cap+'-home cap.</div>'
-      + '<div style="font-size:12px;color:#C6D8CF;margin-top:3px;">Want to track more? Request a higher cap and we\'ll get you set up.</div>'
-      + '<button onclick="ntRequestCap(this)" style="margin-top:10px;background:#C6A15B;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;color:#0E3B2E;cursor:pointer;font-family:inherit;">Request more homes</button>'
+  // ── Cap / upgrade / block status (honest, transparent pricing) ──
+  var blocks = Number(j.blocks)||0;
+  var bStatus = (j.blocksStatus||'').toLowerCase();
+  var disclaimer = '<div style="font-size:11px;color:#C6D8CF;margin-top:8px;line-height:1.5;">Each home pulls a live valuation and market data every quarter \u2014 a real per-home cost for the data, delivery, and support. We price additions close to that cost, not as a markup.</div>';
+  var capBlock = '';
+
+  // If a block is lapsing/past-due, surface it (homes may be paused).
+  if (blocks>0 && (bStatus==='past_due'||bStatus==='unpaid'||bStatus==='canceled'||bStatus==='incomplete'||bStatus==='incomplete_expired')){
+    capBlock += '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;padding:12px 14px;margin:12px 0;font-size:12.5px;color:#991B1B;">'
+      + '<b>Your +100 block payment needs attention</b> ('+bStatus.replace('_',' ')+'). '
+      + (j.locked? j.locked+' home'+(j.locked===1?' is':'s are')+' paused until it\u2019s resolved. ' : '')
+      + 'Your first 40 homes always stay active.'
+      + '<div style="margin-top:8px;"><button onclick="ntBlockCheckout(this)" style="background:#B91C1C;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;">Update payment</button></div>'
       + '</div>';
-  } else {
-    capBlock = '<div style="text-align:right;margin:8px 2px 12px;"><button onclick="ntRequestCap(this)" style="background:none;border:none;color:#185FA5;font-size:11.5px;text-decoration:underline;cursor:pointer;font-family:inherit;">Need to track more than '+j.cap+' homes?</button></div>';
+  } else if (blocks>0){
+    // Active block(s): show what they have + a manage note.
+    capBlock += '<div style="background:#DDF3E7;border:1px solid #A7DDC4;border-radius:12px;padding:12px 14px;margin:12px 0;font-size:12.5px;color:#0F5A3C;">'
+      + '\u2713 <b>+'+(blocks*100)+' homes unlocked</b> \u2014 your cap is '+j.cap+'. Billed $'+(19*blocks)+'/mo.'
+      + '</div>';
+  }
+
+  // At/over cap → offer the +100 unlock (the honest way).
+  if (j.active >= j.cap){
+    capBlock += '<div style="background:#0E3B2E;border-radius:12px;padding:14px;margin:12px 0;color:#fff;">'
+      + '<div style="font-size:13px;font-weight:700;">You\u2019re at your '+j.cap+'-home cap.</div>'
+      + '<div style="font-size:12px;color:#C6D8CF;margin-top:3px;">Unlock 100 more homes for $19/mo. Cancel anytime \u2014 your first 40 always stay active.</div>'
+      + '<div style="margin-top:10px;"><button onclick="ntBlockCheckout(this)" style="background:#C6A15B;border:none;border-radius:8px;padding:10px 18px;font-size:12.5px;font-weight:700;color:#0E3B2E;cursor:pointer;font-family:inherit;">Unlock +100 homes \u2014 $19/mo</button></div>'
+      + disclaimer
+      + '<div style="font-size:11px;color:#9FBEB2;margin-top:10px;border-top:1px solid #23503F;padding-top:8px;">Or free up space by removing homes below \u2014 no charge.</div>'
+      + '</div>';
+  } else if (blocks===0){
+    capBlock += '<div style="text-align:right;margin:8px 2px 12px;"><button onclick="ntBlockCheckout(this)" style="background:none;border:none;color:#185FA5;font-size:11.5px;text-decoration:underline;cursor:pointer;font-family:inherit;">Need more than '+j.cap+' homes? Unlock +100 for $19/mo</button></div>';
   }
 
   // Homes list
@@ -27676,10 +27721,13 @@ function _ntDashHtml(j){
   (j.homes||[]).forEach(function(h){
     var badge = h.status==='pending'
       ? '<span style="font-size:10px;font-weight:700;color:#8A5A00;background:#FDECCB;padding:2px 7px;border-radius:999px;">Pending</span>'
-      : '<span style="font-size:10px;font-weight:700;color:#0F7A52;background:#DDF3E7;padding:2px 7px;border-radius:999px;">Active</span>';
+      : (h.status==='locked' || h.locked)
+        ? '<span style="font-size:10px;font-weight:700;color:#991B1B;background:#FEE2E2;padding:2px 7px;border-radius:999px;">Paused</span>'
+        : '<span style="font-size:10px;font-weight:700;color:#0F7A52;background:#DDF3E7;padding:2px 7px;border-radius:999px;">Active</span>';
     var over = h.overridden ? ' <span style="font-size:10px;color:#6D28D9;background:#EDE9FE;padding:2px 6px;border-radius:999px;">Corrected</span>' : '';
     var checkin = h.lastCheckinAt ? '<span title="Last check-in" style="font-size:10.5px;color:#0F7A52;">● checked in</span>' : '<span style="font-size:10.5px;color:var(--text3);">—</span>';
     rows += '<tr style="border-bottom:1px solid var(--border);">'
+      + '<td style="padding:9px 8px;text-align:center;"><input type="checkbox" class="nt-rm-box" data-token="'+(h.token||'')+'" style="cursor:pointer;"></td>'
       + '<td style="padding:9px 8px;"><div style="font-size:13px;font-weight:600;color:var(--text);">'+(h.name||'Client')+'</div><div style="font-size:11px;color:var(--text3);">'+(h.address||'')+'</div></td>'
       + '<td style="padding:9px 8px;font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;">'+fmt(h.value)+'</td>'
       + '<td style="padding:9px 8px;white-space:nowrap;">'+badge+over+'</td>'
@@ -27690,12 +27738,14 @@ function _ntDashHtml(j){
   });
   var list = (j.homes && j.homes.length)
     ? '<div style="overflow:auto;border:1px solid var(--border);border-radius:12px;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:var(--surface2,#f6f6f6);">'
+      + '<th style="text-align:center;padding:9px 8px;font-size:10.5px;color:var(--text3);"><input type="checkbox" onclick="ntToggleAllRm(this)" title="Select all" style="cursor:pointer;"></th>'
       + '<th style="text-align:left;padding:9px 8px;font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;">Home</th>'
       + '<th style="text-align:left;padding:9px 8px;font-size:10.5px;color:var(--text3);text-transform:uppercase;">Value</th>'
       + '<th style="text-align:left;padding:9px 8px;font-size:10.5px;color:var(--text3);text-transform:uppercase;">Status</th>'
       + '<th style="text-align:left;padding:9px 8px;font-size:10.5px;color:var(--text3);text-transform:uppercase;">Engaged</th>'
       + '<th style="text-align:left;padding:9px 8px;font-size:10.5px;color:var(--text3);text-transform:uppercase;">Links</th>'
       + '</tr></thead><tbody>'+rows+'</tbody></table></div>'
+      + '<div style="display:flex;justify-content:flex-end;margin-top:8px;"><button onclick="ntBulkRemove()" style="background:#fff;border:1.5px solid #FCA5A5;color:#B91C1C;border-radius:8px;padding:7px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;">Remove selected</button></div>'
     : '<div style="text-align:center;color:var(--text3);font-size:13px;padding:24px;border:1px dashed var(--border);border-radius:12px;">No homes enrolled yet. Add one from a client\'s card.</div>';
 
   return stats + capBlock + '<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin:14px 2px 8px;">Your homes ('+((j.homes||[]).length)+')</div>' + list;
@@ -27712,6 +27762,59 @@ async function ntRequestCap(btn){
   } catch(e){ if(btn){ btn.disabled=false; btn.textContent='Request more homes'; } if(typeof showToast==='function') showToast('Request failed.'); }
 }
 window.ntRequestCap = ntRequestCap;
+
+// ─── NestTracker +100 block: checkout / status refresh / bulk remove ───
+async function ntBlockCheckout(btn){
+  var _orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='Opening checkout…'; }
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    var body = {
+      uid: (currentUser&&currentUser.uid)||(userProfile&&userProfile.portalUid)||'',
+      email: (userProfile&&userProfile.email)||(currentUser&&currentUser.email)||'',
+      qty: 1,
+      successUrl: _billUrl('?ntblock=success'),
+      cancelUrl: _billUrl('?ntblock=cancel')
+    };
+    if (userProfile && userProfile.ntBlockCustomerId) body.customerId = userProfile.ntBlockCustomerId;
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'nesttracker-block-checkout','X-Api-Key':apiKey}, body: JSON.stringify(body) });
+    var d = await r.json();
+    if (d && d.url) location.href = d.url;
+    else { if(btn){ btn.disabled=false; btn.textContent=_orig; } alert('Could not start checkout: '+((d&&d.error)||'unknown error')); }
+  } catch(e){ if(btn){ btn.disabled=false; btn.textContent=_orig; } alert('Could not start checkout \u2014 check your connection and try again.'); }
+}
+window.ntBlockCheckout = ntBlockCheckout;
+
+// Pull the block's live status from Stripe and reconcile locks (no webhook). Safe to call anytime.
+async function ntBlockRefresh(){
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if(!apiKey) return null;
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'nesttracker-block-refresh','X-Api-Key':apiKey}, body: JSON.stringify({ uid:(currentUser&&currentUser.uid)||(userProfile&&userProfile.portalUid)||'', email:(userProfile&&userProfile.email)||'' }) });
+    return await r.json().catch(function(){ return null; });
+  } catch(e){ return null; }
+}
+window.ntBlockRefresh = ntBlockRefresh;
+
+async function ntBulkRemove(){
+  var boxes = document.querySelectorAll('.nt-rm-box:checked');
+  var tokens = Array.prototype.map.call(boxes, function(b){ return b.getAttribute('data-token'); }).filter(Boolean);
+  if(!tokens.length){ if(typeof showToast==='function') showToast('Select homes to remove first.'); return; }
+  if(!confirm('Remove '+tokens.length+' home'+(tokens.length>1?'s':'')+' from NestTracker? Their reports stop updating and this frees up slots. Nothing is deleted from the client\u2019s card.')) return;
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    var r = await fetch(PROXY_URL + '/api/v1/nesttracker-bulk-remove?api_key=' + encodeURIComponent(apiKey), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tokens: tokens }) });
+    var j = await r.json();
+    if(j && j.ok){ if(typeof showToast==='function') showToast('Removed '+j.removed+' home'+(j.removed===1?'':'s')+'.'); openNestTrackerDash(); }
+    else { if(typeof showToast==='function') showToast('Could not remove homes.'); }
+  } catch(e){ if(typeof showToast==='function') showToast('Remove failed \u2014 check your connection.'); }
+}
+window.ntBulkRemove = ntBulkRemove;
+function ntToggleAllRm(master){
+  var boxes = document.querySelectorAll('.nt-rm-box');
+  Array.prototype.forEach.call(boxes, function(b){ b.checked = !!master.checked; });
+}
+window.ntToggleAllRm = ntToggleAllRm;
 
 // ─── Sending connections (Slybroadcast + thanks.io) ───
 var _connectCreds = { slyEmail:'', slyCallerId:'', hasSlyPass:false, hasThanksio:false };
