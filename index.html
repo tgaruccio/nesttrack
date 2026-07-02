@@ -2861,6 +2861,11 @@ textarea{resize:vertical;min-height:68px;}
         <div style="font-size:11px;color:var(--text3);margin-top:6px;">Login email: <span id="ap-login-email" style="font-weight:600;color:var(--text2);"></span> <span>(permanent &mdash; can&rsquo;t be changed)</span></div>
         <div style="margin-top:10px;"><button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save reply-to email</button></div>
       </div>
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Billing &amp; payment</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:8px;line-height:1.5;">Update your card, view invoices, or manage your subscription and any NestTracker add-ons. Opens a secure Stripe page &mdash; you&rsquo;ll only see what&rsquo;s on your own account.</div>
+        <div><button class="btn btn-sm btn-g" onclick="openBillingPortal()">Manage billing</button></div>
+      </div>
     </div>
 
     <!-- CARD: NET SHEET DEFAULTS -->
@@ -16602,8 +16607,8 @@ window.startSubscribe = startSubscribe;
 
 async function openBillingPortal(){
   try {
-    var custId = userProfile && userProfile.stripeCustomerId;
-    if (!custId) { alert('No billing account yet \u2014 start your subscription first.'); return; }
+    var custId = (userProfile && (userProfile.stripeCustomerId || userProfile.ntBlockCustomerId)) || '';
+    if (!custId) { alert('No billing account yet \u2014 start a subscription or add NestTracker homes first.'); return; }
     var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'stripe-portal'}, body: JSON.stringify({ customerId: custId, returnUrl: _billUrl('?billing=return') }) });
     var d = await r.json();
     if (d.url) location.href = d.url;
