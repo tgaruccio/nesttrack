@@ -187,8 +187,12 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
     </div>
     <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:13px;color:var(--ink-soft)">Know your exact balance?</span>
-      <input id="owedInput" inputmode="numeric" placeholder="Update your loan balance" style="flex:1;min-width:170px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
+      <input id="owedInput" inputmode="numeric" placeholder="Update your loan balance" style="flex:1;min-width:150px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
+      <button class="btn ghost" id="owedSave" onclick="saveOwed()" style="padding:9px 16px;font-size:13px">Update</button>
     </div>
+    <label style="margin-top:10px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);cursor:pointer">
+      <input type="checkbox" id="paidOffChk" onchange="togglePaidOff()" style="width:16px;height:16px;accent-color:var(--pine)"> My home is paid off (no mortgage)
+    </label>
     <div class="muted" id="owedEditNote" style="font-size:12px;margin-top:6px;display:none">Updated — your equity, net sheet, and budget now use this balance.</div>
   </div>
 
@@ -433,19 +437,42 @@ function calcAfford(){
   var el=document.getElementById(id); if(el) el.addEventListener('input', calcAfford);
 });
 
-// ---- Editable loan balance: correct equity, bars, net sheet, and budget ----
-var owedInput=document.getElementById('owedInput');
-if(owedInput){ owedInput.addEventListener('change', function(){
-  var v=pn(owedInput.value); if(v<=0) return;
-  DATA.owed=v; DATA.equity=Math.max(0, DATA.value-v);
-  setTxt('owedVal',fmt(v)); setTxt('equityVal',fmt(DATA.equity));
+// ---- Editable loan balance: correct equity, bars, net sheet, budget — and persist it ----
+// applyOwed(v) updates the whole page for a given balance (0 allowed = paid off).
+function applyOwed(v){
+  DATA.owed=Math.max(0,v); DATA.equity=Math.max(0, DATA.value-DATA.owed);
+  setTxt('owedVal',fmt(DATA.owed)); setTxt('equityVal',fmt(DATA.equity));
   var op=DATA.value?Math.round(DATA.equity/DATA.value*100):50;
   var ob=document.getElementById('ownBar'), wb=document.getElementById('owedBar');
   if(ob)ob.style.width=op+'%'; if(wb)wb.style.width=Math.max(0,100-op)+'%';
   var afDown=document.getElementById('afDown'); if(afDown) afDown.value=fmt(DATA.equity);
   var ed=document.getElementById('owedEditNote'); if(ed)ed.style.display='block';
   calcSell(); calcAfford();
-}); }
+}
+function persistOwed(v){
+  var t=getToken(); if(!t) return;
+  fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ownerOwed:v})}).catch(function(){});
+}
+function saveOwed(){
+  var inp=document.getElementById('owedInput'); if(!inp) return;
+  var raw=String(inp.value).trim();
+  if(raw===''){ return; }               // nothing typed
+  var v=pn(raw);                         // pn('0') === 0, allowed
+  var chk=document.getElementById('paidOffChk'); if(chk) chk.checked=(v===0);
+  applyOwed(v); persistOwed(v);
+  var btn=document.getElementById('owedSave'); if(btn){ btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Update'; },1600); }
+}
+function togglePaidOff(){
+  var chk=document.getElementById('paidOffChk'), inp=document.getElementById('owedInput');
+  if(chk && chk.checked){
+    if(inp){ inp.value='$0'; inp.disabled=true; inp.style.opacity=.5; }
+    applyOwed(0); persistOwed(0);
+  } else {
+    if(inp){ inp.disabled=false; inp.style.opacity=1; inp.value=''; }
+  }
+}
+var owedInput=document.getElementById('owedInput');
+if(owedInput){ owedInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); saveOwed(); } }); }
 
 function checkin(v){
   var btn = (typeof event!=='undefined' && event.target) ? event.target : null;
