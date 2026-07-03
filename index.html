@@ -8972,6 +8972,7 @@ function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
 
 
 var MAIL_DOMAIN = 'mail.nesttrack.io';
+var HI_DOMAIN = 'hi.nesttrack.io';
 function agentFromField() {
   var first = (userProfile&&userProfile.firstName)||'';
   var last = (userProfile&&userProfile.lastName)||'';
@@ -8981,6 +8982,17 @@ function agentFromField() {
   if(!slug) slug = (name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   if(!slug) slug = 'agent';
   return name + ' <' + slug + '@' + MAIL_DOMAIN + '>';
+}
+// Email-builder broadcasts send from the isolated hi.nesttrack.io domain (same per-agent name +
+// reply-to as everything else — only the domain differs, to quarantine bulk-send complaint risk).
+function agentHiFromField() {
+  var first = (userProfile&&userProfile.firstName)||'';
+  var last = (userProfile&&userProfile.lastName)||'';
+  var name = (first+' '+last).trim() || (userProfile&&userProfile.name) || 'Nest Track';
+  var slug = (first+last).toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(!slug) slug = (name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(!slug) slug = 'agent';
+  return name + ' <' + slug + '@' + HI_DOMAIN + '>';
 }
 function agentReplyTo() {
   return (userProfile&&(userProfile.replyToEmail||userProfile.email)) || null;
@@ -13681,7 +13693,7 @@ async function sendNewsletter() {
     var first = client.firstName || 'there';
     var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + body;
     var html = nsEmailWrap(agentName, subject, personalBody, userProfile);
-    var payload = { to: clientToList(client), subject: subject, html: html, from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
+    var payload = { to: clientToList(client), subject: subject, html: html, from: agentHiFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
     if (ccList.length) payload.cc = ccList;
     try {
       await fetch(PROXY_URL, {
