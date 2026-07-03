@@ -29382,16 +29382,38 @@ async function _ntFinalizeCard(uid, j){
 }
 
 // Preview modal — agent sees the AVM value/confidence/range and decides: enroll, adjust, or cancel.
+// When ATTOM has no automated value (needsManualValue), the modal instead asks the agent/lender to
+// enter the value directly (duplexes, 2-4 unit, new construction, unusual properties).
 function _ntShowPreview(uid, j){
-  window._ntPreview = { uid:uid, token:j.token, value:j.value, low:j.low, high:j.high };
+  window._ntPreview = { uid:uid, token:j.token, value:j.value, low:j.low, high:j.high, manual:!!j.needsManualValue };
   var fmt = function(n){ return '$'+Number(n||0).toLocaleString(); };
+  var reportUrl = j.reportUrl || ('https://app.nesttrack.io/report.html?t='+j.token);
+
+  if (j.needsManualValue){
+    var htmlM = '<div id="nt-preview-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;">'
+      + '<div style="background:var(--surface,#fff);border-radius:16px;max-width:420px;width:100%;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.35);font-family:inherit;">'
+      + '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);">Enter the home value</div>'
+      + '<div style="font-size:13px;color:var(--text2);margin-top:6px;">'+(j.matchedAddress||document.getElementById('nt-en-address')&&document.getElementById('nt-en-address').value||'')+'</div>'
+      + '<div style="background:#FDECCB;color:#8A5A00;font-size:12.5px;font-weight:600;padding:10px 12px;border-radius:10px;margin-top:12px;line-height:1.5;">We couldn\'t get an automated value for this property — common for duplexes, multi-unit, or newer builds. Enter your best value and NestTracker tracks it from here (adjusting each quarter by local market trend).</div>'
+      + '<label class="flabel" style="font-weight:600;margin-top:14px;display:block;">Home value</label>'
+      + '<input type="text" id="nt-manual-value" inputmode="decimal" placeholder="$425,000" style="width:100%;box-sizing:border-box;font-size:18px;padding:12px;" />'
+      + '<div style="font-size:12px;color:var(--text3);margin-top:8px;line-height:1.5;">Your estimate, a recent appraisal, or a CMA all work. You can update it anytime.</div>'
+      + '<div id="nt-manual-err" style="display:none;font-size:12.5px;color:#B91C1C;margin-top:10px;"></div>'
+      + '<div style="display:flex;gap:8px;margin-top:20px;">'
+      + '<button onclick="ntCancelPreview()" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface2,#f4f4f4);color:var(--text2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Cancel</button>'
+      + '<button onclick="ntConfirmManual()" style="flex:1.5;padding:11px;border-radius:10px;border:none;background:#0F7A52;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">Enroll with this value</button>'
+      + '</div></div></div>';
+    var wrapM = document.createElement('div'); wrapM.innerHTML = htmlM; document.body.appendChild(wrapM.firstChild);
+    setTimeout(function(){ var mi=document.getElementById('nt-manual-value'); if(mi) mi.focus(); },50);
+    return;
+  }
+
   var low = j.low||Math.round(j.value*0.91), high = j.high||Math.round(j.value*1.09);
   var conf = j.lowConfidence
     ? '<span style="display:inline-block;background:#FDECCB;color:#8A5A00;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;">Lower confidence — double-check this</span>'
     : '<span style="display:inline-block;background:#DDF3E7;color:#0F7A52;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;">Confidence '+(j.confidence||'—')+'%</span>';
   var equityLine = (j.equity!=null) ? '<div style="font-size:13px;color:var(--text2);margin-top:8px;">Est. equity: <b style="color:var(--text);">'+fmt(j.equity)+'</b>'+(j.equityPct!=null?' ('+j.equityPct+'%)':'')+'</div>' : '';
   var compsLine = (j.compsCount!=null) ? '<div style="font-size:12px;color:var(--text3);margin-top:4px;">'+(j.compsCount>0? j.compsCount+' recent nearby sales found' : 'No nearby comps found for this address')+'</div>' : '';
-  var reportUrl = j.reportUrl || ('https://app.nesttrack.io/report.html?t='+j.token);
   var html = '<div id="nt-preview-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;">'
     + '<div style="background:var(--surface,#fff);border-radius:16px;max-width:420px;width:100%;padding:24px;box-shadow:0 24px 70px rgba(0,0,0,.35);font-family:inherit;">'
     + '<div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);">Review before enrolling</div>'
@@ -29409,6 +29431,16 @@ function _ntShowPreview(uid, j){
   var wrap = document.createElement('div'); wrap.innerHTML = html; document.body.appendChild(wrap.firstChild);
 }
 function _ntClosePreview(){ var o=document.getElementById('nt-preview-overlay'); if(o) o.remove(); }
+
+// Manual-value enroll: agent entered the value for a property ATTOM couldn't auto-value.
+async function ntConfirmManual(){
+  var mi=document.getElementById('nt-manual-value');
+  var errEl=document.getElementById('nt-manual-err');
+  var v = mi ? Number(String(mi.value||'').replace(/[^0-9.]/g,'')) : 0;
+  if(!v || v<=0){ if(errEl){ errEl.textContent='Enter a home value to continue.'; errEl.style.display='block'; } return; }
+  ntConfirmPreview(v);
+}
+window.ntConfirmManual = ntConfirmManual;
 
 async function ntConfirmPreview(overrideValue){
   var p = window._ntPreview; if(!p) return;
