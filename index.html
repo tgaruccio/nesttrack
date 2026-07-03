@@ -27973,12 +27973,23 @@ async function ntBulkRemove(){
   var boxes = document.querySelectorAll('.nt-rm-box:checked');
   var tokens = Array.prototype.map.call(boxes, function(b){ return b.getAttribute('data-token'); }).filter(Boolean);
   if(!tokens.length){ if(typeof showToast==='function') showToast('Select homes to remove first.'); return; }
-  if(!confirm('Remove '+tokens.length+' home'+(tokens.length>1?'s':'')+' from NestTracker? Their reports stop updating and this frees up slots. Nothing is deleted from the client\u2019s card.')) return;
+  if(!confirm('Remove '+tokens.length+' home'+(tokens.length>1?'s':'')+' from NestTracker? Their reports stop updating and this frees up slots. The client stays in your contacts.')) return;
   try {
     var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
     var r = await fetch(PROXY_URL + '/api/v1/nesttracker-bulk-remove?api_key=' + encodeURIComponent(apiKey), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tokens: tokens }) });
     var j = await r.json();
-    if(j && j.ok){ if(typeof showToast==='function') showToast('Removed '+j.removed+' home'+(j.removed===1?'':'s')+'.'); openNestTrackerDash(); }
+    if(j && j.ok){
+      // Clear the "On NestTracker" flag on each removed client's card so the two views stay in sync.
+      var uids = Array.isArray(j.removedUids) ? j.removedUids : [];
+      for(var i=0;i<uids.length;i++){
+        var uid = uids[i]; if(!uid) continue;
+        try { await saveClientField(uid, 'ntEnrolled', false); } catch(e){}
+        var cb = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
+        if(cb){ cb.ntEnrolled=false; }
+      }
+      if(typeof showToast==='function') showToast('Removed '+j.removed+' home'+(j.removed===1?'':'s')+'.');
+      openNestTrackerDash();
+    }
     else { if(typeof showToast==='function') showToast('Could not remove homes.'); }
   } catch(e){ if(typeof showToast==='function') showToast('Remove failed \u2014 check your connection.'); }
 }
