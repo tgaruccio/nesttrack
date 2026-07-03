@@ -29361,6 +29361,7 @@ async function ntEnroll(uid, btn, isRefresh){
   if(!uid) return;
   var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
   if(!b){ if(typeof showToast==='function') showToast('Could not find that contact.'); return; }
+  window._ntPreview = null;   // clear any leftover preview state from a prior enroll
   // Open the enroll modal, prefilled from the client card. Everything is editable.
   window._ntEnrollUid = uid;
   var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'').trim();
@@ -29369,6 +29370,10 @@ async function ntEnroll(uid, btn, isRefresh){
   var who = ((b.firstName||'')+' '+(b.lastName||'')).trim();
   var setV = function(id,v){ var el=document.getElementById(id); if(el) el.value=v||''; };
   setV('nt-en-address', addr);
+  // Clear any address parts stashed by the previous client's Google autocomplete selection —
+  // otherwise the submit would send the LAST client's street/city/state/zip to ATTOM.
+  var aEl0=document.getElementById('nt-en-address');
+  if(aEl0){ delete aEl0.dataset.addrStreet; delete aEl0.dataset.addrCity; delete aEl0.dataset.addrState; delete aEl0.dataset.addrZip; delete aEl0.dataset.addrFromGoogle; }
   setV('nt-en-price', price ? ('$'+Number(price).toLocaleString()) : '');
   setV('nt-en-year', year);
   setV('nt-en-loan',''); setV('nt-en-owed',''); setV('nt-en-rate','');
@@ -29399,10 +29404,13 @@ async function ntSubmitEnroll(){
   var addr = gv('nt-en-address');
   var errEl=document.getElementById('nt-enroll-err');
   if(!addr){ if(errEl){ errEl.textContent='Enter the property address to value.'; errEl.style.display='block'; } return; }
-  // Prefer exact parts from Google autocomplete; fall back to heuristic split for typed addresses.
+  // Prefer exact parts from Google autocomplete — but ONLY if they match the address currently in the
+  // box (guards against stale parts from a prior client). Otherwise heuristic-split the typed address.
   var aEl=document.getElementById('nt-en-address');
   var parts;
-  if(aEl && aEl.dataset && aEl.dataset.addrFromGoogle==='1' && aEl.dataset.addrStreet){
+  var stashOk = aEl && aEl.dataset && aEl.dataset.addrFromGoogle==='1' && aEl.dataset.addrStreet
+                && addr.toLowerCase().indexOf(String(aEl.dataset.addrStreet).toLowerCase()) !== -1;
+  if(stashOk){
     parts={ street:aEl.dataset.addrStreet||'', city:aEl.dataset.addrCity||'', state:aEl.dataset.addrState||'', zip:aEl.dataset.addrZip||'' };
   } else {
     parts=(typeof _splitAddress==='function')? _splitAddress(addr) : { street:'', city:'', state:'', zip:'' };
