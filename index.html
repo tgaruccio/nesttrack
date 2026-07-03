@@ -29312,6 +29312,8 @@ async function ntEnroll(uid, btn, isRefresh){
   // clients page, but the modal markup sits under page-marketing — a hidden parent would hide it).
   if(m && m.parentNode !== document.body){ document.body.appendChild(m); }
   if(m) m.style.display='flex';
+  // Google Places autocomplete on the address field → clean street/city/state/zip for ATTOM.
+  try { setTimeout(function(){ setupPlacesAC('nt-en-address'); }, 60); } catch(e){}
 }
 window.ntEnroll = ntEnroll;
 
@@ -29327,9 +29329,17 @@ async function ntSubmitEnroll(){
   var addr = gv('nt-en-address');
   var errEl=document.getElementById('nt-enroll-err');
   if(!addr){ if(errEl){ errEl.textContent='Enter the property address to value.'; errEl.style.display='block'; } return; }
+  // Prefer exact parts from Google autocomplete; fall back to heuristic split for typed addresses.
+  var aEl=document.getElementById('nt-en-address');
+  var parts;
+  if(aEl && aEl.dataset && aEl.dataset.addrFromGoogle==='1' && aEl.dataset.addrStreet){
+    parts={ street:aEl.dataset.addrStreet||'', city:aEl.dataset.addrCity||'', state:aEl.dataset.addrState||'', zip:aEl.dataset.addrZip||'' };
+  } else {
+    parts=(typeof _splitAddress==='function')? _splitAddress(addr) : { street:'', city:'', state:'', zip:'' };
+  }
   var payload = {
     firstName:(b&&b.firstName)||'', lastName:(b&&b.lastName)||'', email:(b&&b.email)||'',
-    mailingAddress:addr, street:'', city:'', state:'', zip:'',
+    mailingAddress:addr, street:parts.street||'', city:parts.city||'', state:parts.state||'', zip:parts.zip||'',
     purchasePrice:num(gv('nt-en-price')), purchaseDate:gv('nt-en-year'),
     loanAmount:num(gv('nt-en-loan')), ownerOwed:num(gv('nt-en-owed')),
     ownerRate:num(gv('nt-en-rate')), loanTerm:(gv('nt-en-term')==='15'?'15':'30'),
