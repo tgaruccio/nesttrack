@@ -2690,6 +2690,11 @@ textarea{resize:vertical;min-height:68px;}
           <label class="flabel" style="color:var(--text2);font-weight:600;">License Number <span style="font-weight:400;color:var(--text3);">(email footer)</span></label>
           <input type="text" id="ap-license" placeholder="e.g. 2019003560"/>
         </div>
+        <div style="grid-column:1 / -1;">
+          <label class="flabel" style="color:var(--text2);font-weight:600;">Business Mailing Address <span style="font-weight:400;color:var(--text3);">(NestTracker email footer)</span></label>
+          <input type="text" id="ap-mailaddress" placeholder="123 Main St, Suite 100, Westlake, OH 44145"/>
+          <div style="font-size:12px;color:var(--text3);margin-top:5px;line-height:1.5;">Anti-spam law requires a physical mailing address on marketing emails, so this appears at the bottom of the home-value updates NestTracker sends for you. A P.O. Box or your brokerage office address works &mdash; you don't have to use your home address.</div>
+        </div>
       </div>
 
     </div>
@@ -5826,6 +5831,8 @@ function renderAgentProfileEditor() {
       if(tg && d.emailTagline) tg.value=d.emailTagline;
       var li=document.getElementById('ap-license');
       if(li && d.licenseNumber) li.value=d.licenseNumber;
+      var ma=document.getElementById('ap-mailaddress');
+      if(ma && d.mailingAddress) ma.value=d.mailingAddress;
       var rte=document.getElementById('ap-replyto'); if(rte) rte.value=d.replyToEmail||'';
       var lem=document.getElementById('ap-login-email'); if(lem) lem.textContent=((fb.auth&&fb.auth.currentUser&&fb.auth.currentUser.email)|| d.email || (userProfile&&userProfile.email) || '');
       if(userProfile) userProfile.replyToEmail = d.replyToEmail||'';
@@ -5993,6 +6000,7 @@ async function saveAgentProfile() {
     brokerage: document.getElementById('ap-brokerage') ? document.getElementById('ap-brokerage').value.trim() : '',
     emailTagline: document.getElementById('ap-tagline') ? document.getElementById('ap-tagline').value.trim() : '',
     licenseNumber: document.getElementById('ap-license') ? document.getElementById('ap-license').value.trim() : '',
+    mailingAddress: document.getElementById('ap-mailaddress') ? document.getElementById('ap-mailaddress').value.trim() : '',
     emailSignature: document.getElementById('ap-signature') ? document.getElementById('ap-signature').value : '',
     emailSignaturePhoto: document.getElementById('ap-sig-photo') ? document.getElementById('ap-sig-photo').value : '',
     emailSignatureMode: document.getElementById('ap-sig-mode') ? (document.getElementById('ap-sig-mode').value||'simple') : 'simple',
