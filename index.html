@@ -27783,6 +27783,9 @@ function _ntDashHtml(j){
     + (j.locked ? stat('Paused', j.locked, 'over cap / unpaid', '#B91C1C') : '')
     + '</div>';
 
+  // Add-a-home entry point (opens a client picker → enroll modal)
+  var addBar = '<div style="display:flex;justify-content:flex-end;margin:4px 2px 10px;"><button onclick="ntOpenAddPicker()" style="background:#0F7A52;border:none;border-radius:10px;padding:9px 16px;font-size:12.5px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;">+ Add a home</button></div>';
+
   // ── Cap / upgrade / block status (honest, transparent pricing) ──
   var blocks = Number(j.blocks)||0;
   var bStatus = (j.blocksStatus||'').toLowerCase();
@@ -27847,10 +27850,77 @@ function _ntDashHtml(j){
       + '<th style="text-align:left;padding:9px 8px;font-size:10.5px;color:var(--text3);text-transform:uppercase;">Links</th>'
       + '</tr></thead><tbody>'+rows+'</tbody></table></div>'
       + '<div style="display:flex;justify-content:flex-end;margin-top:8px;"><button onclick="ntBulkRemove()" style="background:#fff;border:1.5px solid #FCA5A5;color:#B91C1C;border-radius:8px;padding:7px 14px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;">Remove selected</button></div>'
-    : '<div style="text-align:center;color:var(--text3);font-size:13px;padding:24px;border:1px dashed var(--border);border-radius:12px;">No homes enrolled yet. Add one from a client\'s card.</div>';
+    : '<div style="text-align:center;color:var(--text3);font-size:13px;padding:24px;border:1px dashed var(--border);border-radius:12px;">No homes enrolled yet. Tap <b>+ Add a home</b> above to enroll a client.</div>';
 
-  return stats + capBlock + '<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin:14px 2px 8px;">Your homes ('+((j.homes||[]).length)+')</div>' + list;
+  return stats + addBar + capBlock + '<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin:14px 2px 8px;">Your homes ('+((j.homes||[]).length)+')</div>' + list;
 }
+
+// ── Add-a-home client picker: search existing clients, pick one → opens the enroll modal ──
+function ntOpenAddPicker(){
+  // Build once, reuse.
+  var existing = document.getElementById('nt-add-picker');
+  if(existing) existing.remove();
+  var html = '<div id="nt-add-picker" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1100;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow:auto;">'
+    + '<div style="background:var(--surface,#fff);border-radius:16px;max-width:460px;width:100%;padding:22px;margin:20px 0;box-shadow:0 24px 70px rgba(0,0,0,.35);font-family:inherit;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+    + '<div style="font-size:16px;font-weight:800;color:var(--text);">Add a home</div>'
+    + '<button onclick="ntCloseAddPicker()" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text3);">&times;</button></div>'
+    + '<div style="font-size:12.5px;color:var(--text2);margin-bottom:12px;">Pick a client to enroll in NestTracker.</div>'
+    + '<input type="text" id="nt-add-search" placeholder="🔍 Search your clients by name…" autocomplete="off" oninput="ntAddPickerSearch(this.value)" style="width:100%;box-sizing:border-box;font-size:14px;padding:10px 12px;margin-bottom:10px;" />'
+    + '<div id="nt-add-results" style="max-height:340px;overflow-y:auto;"></div>'
+    + '</div></div>';
+  var wrap = document.createElement('div'); wrap.innerHTML = html; document.body.appendChild(wrap.firstChild);
+  ntAddPickerSearch('');
+  setTimeout(function(){ var s=document.getElementById('nt-add-search'); if(s) s.focus(); }, 50);
+}
+window.ntOpenAddPicker = ntOpenAddPicker;
+
+function ntCloseAddPicker(){ var p=document.getElementById('nt-add-picker'); if(p) p.remove(); }
+window.ntCloseAddPicker = ntCloseAddPicker;
+
+function ntAddPickerSearch(q){
+  var box = document.getElementById('nt-add-results');
+  if(!box) return;
+  var list = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.slice() : [];
+  q = (q||'').trim().toLowerCase();
+  var rows = list.filter(function(b){
+    if(!b) return false;
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).toLowerCase();
+    var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'').toLowerCase();
+    var email = (b.email||'').toLowerCase();
+    if(!q) return true;
+    return name.indexOf(q)!==-1 || addr.indexOf(q)!==-1 || email.indexOf(q)!==-1;
+  });
+  // Sort: not-yet-enrolled first, then alphabetical.
+  rows.sort(function(a,b){
+    var ae=a.ntEnrolled?1:0, be=b.ntEnrolled?1:0;
+    if(ae!==be) return ae-be;
+    return (((a.firstName||'')+(a.lastName||'')).toLowerCase()).localeCompare(((b.firstName||'')+(b.lastName||'')).toLowerCase());
+  });
+  if(!rows.length){ box.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:24px;">No clients match. Add the client first, then enroll them.</div>'; return; }
+  box.innerHTML = rows.slice(0,60).map(function(b){
+    var name = ((b.firstName||'')+' '+(b.lastName||'')).trim() || (b.email||'Client');
+    var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'');
+    var enrolled = b.ntEnrolled;
+    var right = enrolled
+      ? '<span style="font-size:11px;font-weight:700;color:#0F7A52;background:#DDF3E7;padding:3px 9px;border-radius:999px;white-space:nowrap;">On NestTracker</span>'
+      : '<span style="font-size:12px;font-weight:700;color:#0F7A52;">Add →</span>';
+    var click = enrolled ? '' : ' onclick="ntPickClientToEnroll(\''+ (b.uid||'') +'\')" style="cursor:pointer;"';
+    return '<div'+click+' style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 10px;border-bottom:1px solid var(--border);'+(enrolled?'opacity:.6;':'cursor:pointer;')+'">'
+      + '<div style="min-width:0;"><div style="font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+name+'</div>'
+      + (addr?'<div style="font-size:11.5px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+addr+'</div>':'<div style="font-size:11.5px;color:var(--text3);">No address on file — you can add it next</div>')+'</div>'
+      + '<div style="flex-shrink:0;">'+right+'</div></div>';
+  }).join('');
+}
+window.ntAddPickerSearch = ntAddPickerSearch;
+
+function ntPickClientToEnroll(uid){
+  if(!uid) return;
+  ntCloseAddPicker();
+  var dash=document.getElementById('nt-dash-modal'); if(dash) dash.style.display='none';
+  if(typeof ntEnroll==='function') ntEnroll(uid, null);
+}
+window.ntPickClientToEnroll = ntPickClientToEnroll;
 
 async function ntRequestCap(btn){
   if(btn){ btn.disabled=true; btn.textContent='Sending…'; }
