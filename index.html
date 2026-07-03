@@ -29307,7 +29307,11 @@ async function ntEnroll(uid, btn, isRefresh){
   if(whoEl) whoEl.textContent = who ? ('Enrolling '+who+'. Confirm the property and add loan details if you have them.') : 'Confirm the property and add loan details if you have them.';
   var errEl=document.getElementById('nt-enroll-err'); if(errEl){ errEl.style.display='none'; errEl.textContent=''; }
   var goEl=document.getElementById('nt-enroll-go'); if(goEl){ goEl.disabled=false; goEl.innerHTML='Value this home →'; }
-  var m=document.getElementById('nt-enroll-modal'); if(m) m.style.display='flex';
+  var m=document.getElementById('nt-enroll-modal');
+  // Reparent to <body> so it's never trapped inside a display:none page (the button lives on the
+  // clients page, but the modal markup sits under page-marketing — a hidden parent would hide it).
+  if(m && m.parentNode !== document.body){ document.body.appendChild(m); }
+  if(m) m.style.display='flex';
 }
 window.ntEnroll = ntEnroll;
 
