@@ -6204,12 +6204,230 @@ async function _wfFinishAndActivate(){
 
 function maybeStartWelcomeFlow(){
   try {
+    // TEMP (Tier 0 testing): visit ?coachdemo=1 to run the engine demo on any device (incl. phone).
+    if(/[?&]coachdemo=1/.test(location.search)){ setTimeout(function(){ if(typeof coachDemo==='function') coachDemo(); }, 900); return; }
     if(!userProfile) return;
     if(userProfile.welcomeFlowDone === true) return;
     setTimeout(function(){ startWelcomeFlow(); }, 800);
   } catch(e){}
 }
 window.maybeStartWelcomeFlow = maybeStartWelcomeFlow;
+
+// ══ COACH-MARK ENGINE (Tier 0) ═══════════════════════════════════════════════════
+// Reusable guided-tour engine: spotlights a real element, anchors a bubble to it, waits for the
+// user's action, advances. Mobile-first, skippable, degrades gracefully when a target is missing.
+// Public API:  coachTour([step, step, ...], {onDone, onSkip})
+//   step = { target, title, body, placement, advanceOn, scrollIntoView, onBefore, onAfter, optional }
+//     target:      '#id' | '.sel' | function()->Element | null(centered, no spotlight)
+//     placement:   'auto'|'top'|'bottom'|'left'|'right'   (auto = best fit; mobile favors bottom)
+//     advanceOn:   'next' (button) | 'click:<sel>' (user clicks the thing) | 'event:<name>'
+//     scrollIntoView: default true
+//     onBefore/onAfter: hooks (e.g. open a section before spotlighting inside it)
+//     optional:    if true, a "Skip this step" appears (doesn't end whole tour)
+var _coach = { steps:[], i:0, opts:{}, cleanupFns:[], active:false, repositionBound:null };
+
+function _coachZ(){ return 2000000; }
+
+function _coachResolve(target){
+  try {
+    if(!target) return null;
+    if(typeof target === 'function') return target();
+    return document.querySelector(target);
+  } catch(e){ return null; }
+}
+
+// Poll for an element up to ~2.5s (handles late-rendering UI), then resolve or give up (null).
+function _coachWaitFor(target, cb){
+  if(!target){ cb(null); return; }
+  var tries = 0, max = 50;   // 50 * 50ms = 2.5s
+  (function poll(){
+    var el = _coachResolve(target);
+    if(el){ cb(el); return; }
+    if(++tries >= max){ cb(null); return; }
+    setTimeout(poll, 50);
+  })();
+}
+
+function _coachClear(){
+  _coach.cleanupFns.forEach(function(fn){ try{ fn(); }catch(e){} });
+  _coach.cleanupFns = [];
+  var layer = document.getElementById('coach-layer');
+  if(layer) layer.remove();
+  if(_coach.repositionBound){
+    window.removeEventListener('scroll', _coach.repositionBound, true);
+    window.removeEventListener('resize', _coach.repositionBound);
+    _coach.repositionBound = null;
+  }
+}
+
+function _coachEnd(skipped){
+  _coach.active = false;
+  _coachClear();
+  var cb = skipped ? _coach.opts.onSkip : _coach.opts.onDone;
+  if(typeof cb === 'function'){ try{ cb(); }catch(e){} }
+}
+window._coachEnd = _coachEnd;
+function coachSkip(){ _coachEnd(true); }
+window.coachSkip = coachSkip;
+
+function _coachRenderStep(){
+  _coachClear();
+  var step = _coach.steps[_coach.i];
+  if(!step){ _coachEnd(false); return; }
+  if(typeof step.onBefore === 'function'){ try{ step.onBefore(); }catch(e){} }
+
+  var wait = (step.scrollIntoView !== false);
+  _coachWaitFor(step.target, function(el){
+    // If a target was specified but not found → degrade to a centered bubble (never point at nothing).
+    var centered = !step.target || !el;
+    if(el && step.scrollIntoView !== false){
+      try { el.scrollIntoView({ behavior:'smooth', block:'center', inline:'center' }); } catch(e){}
+    }
+    // Small delay so scroll settles before we measure.
+    setTimeout(function(){
+      _coachPaint(step, (centered?null:el));
+      // Bind ONE reposition listener per step (repaint path does not re-bind → no stacking).
+      _coach.repositionBound = function(){
+        var el2 = step.target ? _coachResolve(step.target) : null;
+        var layer = document.getElementById('coach-layer');
+        if(layer) layer.remove();
+        _coachPaint(step, el2);
+      };
+      window.addEventListener('scroll', _coach.repositionBound, true);
+      window.addEventListener('resize', _coach.repositionBound);
+    }, el ? 240 : 0);
+  });
+}
+
+function _coachPaint(step, el){
+  var isMobile = window.innerWidth <= 560;
+  var z = _coachZ();
+  var pad = 6;
+  var r = el ? el.getBoundingClientRect() : null;
+
+  var layer = document.createElement('div');
+  layer.id = 'coach-layer';
+  layer.style.cssText = 'position:fixed;inset:0;z-index:'+z+';font-family:inherit;';
+
+  // Dim overlay with a "hole" over the target (via 4 panels so the target stays clickable).
+  var dim = 'rgba(15,25,20,0.62)';
+  if(r){
+    var top = Math.max(0, r.top - pad), left = Math.max(0, r.left - pad);
+    var right = Math.min(window.innerWidth, r.right + pad), bottom = Math.min(window.innerHeight, r.bottom + pad);
+    // four dim panels around the hole
+    layer.innerHTML =
+      '<div style="position:fixed;top:0;left:0;right:0;height:'+top+'px;background:'+dim+';"></div>'
+    + '<div style="position:fixed;top:'+bottom+'px;left:0;right:0;bottom:0;background:'+dim+';"></div>'
+    + '<div style="position:fixed;top:'+top+'px;left:0;width:'+left+'px;height:'+(bottom-top)+'px;background:'+dim+';"></div>'
+    + '<div style="position:fixed;top:'+top+'px;left:'+right+'px;right:0;height:'+(bottom-top)+'px;background:'+dim+';"></div>'
+    + '<div style="position:fixed;top:'+top+'px;left:'+left+'px;width:'+(right-left)+'px;height:'+(bottom-top)+'px;border:2px solid #1D9E75;border-radius:10px;box-shadow:0 0 0 3px rgba(29,158,117,.35);pointer-events:none;"></div>';
+  } else {
+    layer.innerHTML = '<div style="position:fixed;inset:0;background:'+dim+';"></div>';
+  }
+
+  // Bubble
+  var total = _coach.steps.length, idx = _coach.i;
+  var dots = '';
+  for(var i=0;i<total;i++){ dots += '<span style="width:6px;height:6px;border-radius:50%;display:inline-block;margin:0 2px;background:'+(i===idx?'#1D9E75':'rgba(255,255,255,.35)')+';"></span>'; }
+
+  var advanceOn = step.advanceOn || 'next';
+  var showNext = advanceOn === 'next';
+  var bubble = document.createElement('div');
+  var maxW = isMobile ? (window.innerWidth - 28) : 340;
+  bubble.style.cssText = 'position:fixed;z-index:'+(z+1)+';max-width:'+maxW+'px;width:'+(isMobile?(window.innerWidth-28)+'px':'340px')+';background:#fff;border-radius:14px;padding:16px 16px 14px;box-shadow:0 18px 50px rgba(0,0,0,.4);';
+  bubble.innerHTML =
+    '<div style="font-family:Georgia,serif;font-size:16px;font-weight:700;color:#123;line-height:1.3;margin-bottom:6px;">'+(step.title||'')+'</div>'
+    + '<div style="font-size:13.5px;color:#445;line-height:1.55;">'+(step.body||'')+'</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;">'
+      + '<div>'+dots+'</div>'
+      + '<div style="display:flex;gap:8px;align-items:center;">'
+        + (step.optional ? '<button onclick="_coachNext()" style="background:none;border:none;font-size:12px;color:#889;cursor:pointer;text-decoration:underline;font-family:inherit;">Skip this</button>' : '')
+        + (showNext ? '<button onclick="_coachNext()" style="background:#0F7A52;border:none;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;">'+((idx===total-1)?'Done':'Next')+'</button>' : '<span style="font-size:12px;color:#7a9;font-weight:600;">'+(step.hint||'Go ahead — tap it')+'</span>')
+      + '</div>'
+    + '</div>'
+    + '<button onclick="coachSkip()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:12px;color:#aab;cursor:pointer;font-family:inherit;">Skip tour</button>';
+
+  layer.appendChild(bubble);
+  document.body.appendChild(layer);
+
+  // Position the bubble relative to the target (or center if none).
+  _coachPositionBubble(bubble, r, step.placement || 'auto', isMobile);
+
+  // Wire advancement
+  if(advanceOn.indexOf('click:') === 0){
+    var sel = advanceOn.slice(6);
+    var clickTarget = el || document.querySelector(sel);
+    if(clickTarget){
+      var handler = function(){ clickTarget.removeEventListener('click', handler); _coachNext(); };
+      clickTarget.addEventListener('click', handler);
+      _coach.cleanupFns.push(function(){ clickTarget.removeEventListener('click', handler); });
+    }
+  } else if(advanceOn.indexOf('event:') === 0){
+    var evName = advanceOn.slice(6);
+    var evHandler = function(){ window.removeEventListener(evName, evHandler); _coachNext(); };
+    window.addEventListener(evName, evHandler);
+    _coach.cleanupFns.push(function(){ window.removeEventListener(evName, evHandler); });
+  }
+
+}
+
+function _coachPositionBubble(bubble, r, placement, isMobile){
+  var bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+  var m = 12; // margin from target/edges
+  var top, left;
+  if(!r){
+    // centered
+    top = Math.max(12, (window.innerHeight - bh)/2);
+    left = Math.max(12, (window.innerWidth - bw)/2);
+    bubble.style.top = top+'px'; bubble.style.left = left+'px';
+    return;
+  }
+  var place = placement;
+  if(place === 'auto'){
+    var spaceBelow = window.innerHeight - r.bottom, spaceAbove = r.top;
+    place = isMobile ? (spaceBelow > bh + 24 ? 'bottom' : 'top') : (spaceBelow >= spaceAbove ? 'bottom' : 'top');
+  }
+  if(place === 'bottom'){ top = r.bottom + m; left = r.left + (r.width - bw)/2; }
+  else if(place === 'top'){ top = r.top - bh - m; left = r.left + (r.width - bw)/2; }
+  else if(place === 'left'){ top = r.top + (r.height - bh)/2; left = r.left - bw - m; }
+  else { top = r.top + (r.height - bh)/2; left = r.right + m; }
+  // clamp to viewport
+  left = Math.max(12, Math.min(left, window.innerWidth - bw - 12));
+  top  = Math.max(12, Math.min(top,  window.innerHeight - bh - 12));
+  bubble.style.top = top+'px'; bubble.style.left = left+'px';
+}
+
+function _coachNext(){
+  var step = _coach.steps[_coach.i];
+  if(step && typeof step.onAfter === 'function'){ try{ step.onAfter(); }catch(e){} }
+  _coach.i++;
+  if(_coach.i >= _coach.steps.length){ _coachEnd(false); return; }
+  _coachRenderStep();
+}
+window._coachNext = _coachNext;
+
+function coachTour(steps, opts){
+  if(_coach.active) _coachClear();
+  _coach.steps = steps || [];
+  _coach.opts = opts || {};
+  _coach.i = 0;
+  _coach.active = true;
+  _coachRenderStep();
+}
+window.coachTour = coachTour;
+
+// ── Tier-0 DEMO tour (test on a real phone). Call coachDemo() from the console or a temp button. ──
+function coachDemo(){
+  coachTour([
+    { target:'#ad-sub', title:'This is a coach mark', body:'It spotlights a real thing on your screen and explains it. Tap Next.', placement:'auto', advanceOn:'next' },
+    { target: function(){ return document.querySelector('[data-pg="clients"]') || document.querySelector('.nav-item'); }, title:'It follows you around', body:'Now it is pointing at a different element, repositioned automatically. Resize or rotate your phone — it should stay put.', placement:'auto', advanceOn:'next' },
+    { target:'#___does_not_exist___', title:'Graceful fallback', body:'This step points at an element that does not exist. Instead of breaking, it degrades to this centered card. That is the safety net.', advanceOn:'next' }
+  ], { onDone:function(){ if(typeof showToast==='function') showToast('Demo tour complete ✓'); }, onSkip:function(){ if(typeof showToast==='function') showToast('Demo skipped'); } });
+}
+window.coachDemo = coachDemo;
+
+
+
 
 
 // ── HELP CENTER (data-driven, video-capable) ──
