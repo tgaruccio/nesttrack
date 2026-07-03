@@ -6154,7 +6154,8 @@ function _renderWelcomeBeat(){
     document.body.appendChild(overlay);
   }
 
-  var nextLabel = isLast ? 'Set up my first client \u2192' : 'Next \u2192';
+  var _hasClients = (typeof allBuyers!=='undefined' && allBuyers && allBuyers.length > 0);
+  var nextLabel = isLast ? (_hasClients ? 'Enroll my first home \u2192' : 'Add my first client \u2192') : 'Next \u2192';
   overlay.innerHTML =
     '<div style="background:var(--surface,#fff);border-radius:18px;max-width:520px;width:100%;margin:24px 0;padding:22px 22px 20px;box-shadow:0 24px 70px rgba(0,0,0,.4);font-family:inherit;">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
@@ -6181,6 +6182,9 @@ window._wfNext = _wfNext;
 window._wfBack = _wfBack;
 
 async function _wfSkip(){
+  // Skipping doesn't drop them into an empty app — jump to the final beat so they get the one-line
+  // context and still land in the "add your first client" hand-off.
+  if(_wfIndex < WELCOME_BEATS.length - 1){ _wfIndex = WELCOME_BEATS.length - 1; _renderWelcomeBeat(); return; }
   await _wfFinish();
   if(typeof showToast==='function') showToast('You can replay the intro anytime from Help.');
 }
@@ -6188,8 +6192,15 @@ window._wfSkip = _wfSkip;
 
 async function _wfFinishAndActivate(){
   await _wfFinish();
-  if(typeof ntOpenAddPicker==='function'){ ntOpenAddPicker(); }
-  else if(typeof go==='function'){ go('marketing', document.querySelector('[data-pg=marketing]')); }
+  // On first login they have no clients yet — the honest first action is "add your first client,"
+  // then land on the new card so they SEE where each journey starts (buyer / seller / past → NestTracker).
+  var hasClients = (typeof allBuyers!=='undefined' && allBuyers && allBuyers.length > 0);
+  window._wfOnboarding = true;   // tells createContact() to open the new card after save
+  if(!hasClients){
+    if(typeof openAddContactModal==='function'){ openAddContactModal(); return; }
+  }
+  if(typeof ntOpenAddPicker==='function'){ ntOpenAddPicker(); return; }
+  if(typeof go==='function'){ go('marketing', document.querySelector('[data-pg=marketing]')); }
 }
 
 function maybeStartWelcomeFlow(){
@@ -6234,7 +6245,7 @@ var HELP_DEFAULTS = {
   welcome_p1: { title:'Pillar 1 — Get them in the door', body:'<strong>The right way.</strong> Not thousands of cold leads you&rsquo;ll never call. Real conversations &mdash; landing pages, your virtual card, smart campaigns &mdash; every lead lands in one place, already sorted and ready for you to actually talk to them.<br><br><em>A pipeline of people you can build a relationship with, not a list you&rsquo;ll ignore.</em>' },
   welcome_p2: { title:'Pillar 2 — Wow them through the deal', body:'The deal tracker runs the transaction while your client watches their own timeline &mdash; every milestone, every date. No dropped balls. No &ldquo;any update?&rdquo; texts. They feel taken care of.<br><br><em>A client who feels handled refers you. That&rsquo;s where your next deals actually come from.</em>' },
   welcome_p3: { title:'Pillar 3 — Keep in touch', body:'Not AI blasts nobody answers. A branded home-value report in your name every quarter, plus simple, automated touches &mdash; so the people who know and trust you never fall through the cracks.<br><br><em>When they, or a friend, are ready to move, you&rsquo;re the only agent they think of.</em>' },
-  welcome_close: { title:'That&rsquo;s it — three pillars', body:'Generate. Wow. Keep in touch. Done thoroughly, in order &mdash; and all in one place, so you can get back to the part you got into this for: the people.<br><br>Let&rsquo;s set up your first one.' }
+  welcome_close: { title:'That&rsquo;s it — three pillars', body:'Generate. Wow. Keep in touch. Done thoroughly, in order &mdash; and all in one place, so you can get back to the part you got into this for: the people.<br><br>Let&rsquo;s start with the first step: getting someone into your world.' }
 };
 
 window._helpContent = null;
@@ -30074,6 +30085,15 @@ async function createContact() {
     await loadBuyersForAgent();
     renderBuyers();
     setTimeout(function(){ closeM('invite-modal'); }, 1500);
+    // Onboarding hand-off: open the brand-new client's card so they SEE where each journey starts
+    // (Start Buyer / Seller Journey, Add to NestTracker). The card teaches the flow — no bubbles needed.
+    if(window._wfOnboarding){
+      window._wfOnboarding = false;
+      setTimeout(function(){
+        try { if(typeof openBuyerDetail==='function') openBuyerDetail(contactId); } catch(e){}
+        if(typeof showToast==='function') showToast('Here\u2019s '+first+'\u2019s card \u2014 start their journey below.');
+      }, 1600);
+    }
   } catch(e) { alert('Failed: ' + e.message); }
 }
 window.createContact = createContact;
