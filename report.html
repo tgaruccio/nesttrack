@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Your Home Report · NestTracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --pine:#0E3B2E;        /* deep evergreen anchor */
+  --pine-2:#14503D;
+  --ivory:#FBF9F4;       /* warm canvas */
+  --ivory-2:#F3EEE3;
+  --brass:#C6A15B;       /* wealth accent */
+  --brass-d:#A9853F;
+  --sage:#3E9E7A;        /* positive / growth */
+  --sage-soft:#E4F1EA;
+  --ink:#1C231F;
+  --ink-soft:#5A655E;
+  --line:#E7E1D4;
+  --white:#ffffff;
+  --shadow:0 1px 2px rgba(14,59,46,.04),0 8px 30px rgba(14,59,46,.07);
+  --shadow-lg:0 20px 60px rgba(14,59,46,.14);
+  --r:20px; --r-sm:13px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ivory);color:var(--ink);font-family:'Inter',system-ui,sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:0 18px 80px}
+h1,h2,h3{margin:0;font-family:'Fraunces',Georgia,serif;font-weight:600;letter-spacing:-.01em;line-height:1.05}
+.num{font-family:'Fraunces',Georgia,serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-d)}
+.muted{color:var(--ink-soft)}
+.up{color:var(--sage);font-weight:600}
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:24px;margin-top:16px}
+.card h2{font-size:22px;margin-bottom:2px}
+.section-label{display:flex;align-items:center;gap:10px;margin:38px 4px 2px}
+.section-label .n{font-family:'Fraunces',serif;font-size:13px;color:var(--brass-d);font-weight:600}
+.section-label .t{font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+.hr{height:1px;background:var(--line);flex:1}
+
+/* ---------- HERO ---------- */
+.hero{background:linear-gradient(160deg,var(--pine) 0%,var(--pine-2) 100%);color:#EBF3EE;border-radius:0 0 30px 30px;padding:22px 18px 40px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-80px;top:-80px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(198,161,91,.22),transparent 70%)}
+.hero-inner{max-width:760px;margin:0 auto;position:relative;z-index:1}
+.brandbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+.brand .dot{width:26px;height:26px;border-radius:8px;background:var(--brass);display:grid;place-items:center;color:var(--pine);font-family:'Fraunces',serif;font-weight:700;font-size:16px}
+.agent{display:flex;align-items:center;gap:10px}
+.agent img{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.35)}
+.agent .a-name{font-size:13px;font-weight:600;line-height:1.15}
+.agent .a-role{font-size:11px;color:#A9C6B7}
+.addr{margin-top:26px;font-size:13px;color:#BFD6CA;font-weight:500;letter-spacing:.01em}
+.valwrap{margin-top:6px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.value{font-size:clamp(46px,12vw,74px);font-weight:600;color:#fff;line-height:.95}
+.deltapill{display:inline-flex;align-items:center;gap:6px;background:rgba(62,158,122,.22);color:#8FE3BE;border:1px solid rgba(62,158,122,.45);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;margin-bottom:10px}
+.hero-sub{margin-top:14px;display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:#BFD6CA}
+.hero-sub b{color:#EBF3EE}
+.conf{display:inline-flex;align-items:center;gap:7px}
+.conf .bar{width:64px;height:6px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
+.conf .fill{height:100%;background:var(--brass);border-radius:3px}
+
+/* ---------- EQUITY ---------- */
+.equity-visual{margin-top:18px}
+.stack{height:46px;border-radius:12px;overflow:hidden;display:flex;border:1px solid var(--line)}
+.stack .owed{background:repeating-linear-gradient(45deg,#EDE7DA,#EDE7DA 8px,#E7E0D0 8px,#E7E0D0 16px)}
+.stack .own{background:linear-gradient(90deg,var(--sage),#2F8A67);position:relative}
+.stack .own::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18))}
+.stack-legend{display:flex;justify-content:space-between;margin-top:12px;gap:12px}
+.leg{flex:1}
+.leg .lab{font-size:12px;color:var(--ink-soft);font-weight:600;display:flex;align-items:center;gap:6px}
+.leg .sw{width:11px;height:11px;border-radius:3px}
+.leg .v{font-size:23px;margin-top:3px}
+.big-equity{font-size:40px;color:var(--pine);margin-top:2px}
+
+/* ---------- INTERACTIVE ---------- */
+.slider-row{margin-top:20px}
+.slider-head{display:flex;justify-content:space-between;align-items:baseline}
+.slider-head .lab{font-size:13px;font-weight:600;color:var(--ink-soft)}
+.slider-head .val{font-size:26px;color:var(--pine)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:8px;background:var(--ivory-2);margin-top:12px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:28px;height:28px;border-radius:50%;background:var(--pine);border:4px solid var(--brass);cursor:pointer;box-shadow:0 3px 10px rgba(14,59,46,.3)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:var(--pine);border:4px solid var(--brass);cursor:pointer}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}
+.rcell{background:var(--ivory);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px}
+.rcell .k{font-size:12px;color:var(--ink-soft);font-weight:600}
+.rcell .v{font-size:22px;margin-top:2px}
+.rcell.hero-cell{background:var(--pine);border-color:var(--pine);grid-column:1 / -1}
+.rcell.hero-cell .k{color:#A9C6B7}
+.rcell.hero-cell .v{color:#fff;font-size:32px}
+.assump{font-size:11.5px;color:var(--ink-soft);margin-top:12px;line-height:1.5}
+.toggle-row{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--white);border-radius:999px;padding:8px 15px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:.15s}
+.chip[aria-pressed=true]{background:var(--pine);color:#fff;border-color:var(--pine)}
+
+/* ---------- COMPS ---------- */
+.comp{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.comp:last-child{border-bottom:none}
+.comp .c-addr{font-size:14px;font-weight:600}
+.comp .c-sub{font-size:12px;color:var(--ink-soft)}
+.comp .c-price{font-size:19px;color:var(--pine)}
+
+/* ---------- MARKET ---------- */
+.temp{display:flex;align-items:center;gap:16px}
+.gauge{flex:1;height:12px;border-radius:8px;background:linear-gradient(90deg,#5B8DEF 0%,#EDE7DA 50%,var(--sage) 100%);position:relative}
+.gauge .pin{position:absolute;top:-7px;width:4px;height:26px;border-radius:3px;background:var(--pine);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.temp-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-soft);margin-top:8px;font-weight:600}
+
+/* ---------- RATES ---------- */
+.rates{display:flex;gap:10px;flex-wrap:wrap}
+.rate{flex:1;min-width:120px;background:var(--ivory);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px;text-align:center}
+.rate .r-t{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.rate .r-v{font-size:26px;color:var(--pine);margin-top:2px}
+
+/* ---------- CTA ---------- */
+.cta{background:linear-gradient(160deg,var(--pine),var(--pine-2));color:#EBF3EE;border-radius:var(--r);padding:30px 26px;margin-top:22px;text-align:center;position:relative;overflow:hidden}
+.cta::after{content:"";position:absolute;left:-60px;bottom:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(198,161,91,.18),transparent 70%)}
+.cta h2{color:#fff;font-size:26px;position:relative}
+.cta p{color:#BFD6CA;font-size:14px;max-width:440px;margin:10px auto 0;position:relative}
+.btn{display:inline-block;background:var(--brass);color:var(--pine);font-weight:700;font-size:15px;padding:14px 30px;border-radius:12px;text-decoration:none;margin-top:20px;position:relative;border:none;cursor:pointer;transition:.15s}
+.btn:hover{background:#d4b473;transform:translateY(-1px)}
+.btn.ghost{background:transparent;color:#EBF3EE;border:1px solid rgba(255,255,255,.35);margin-left:8px}
+.checkins{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px;position:relative}
+.checkins .ci{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#EBF3EE;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.checkins .ci:hover{background:rgba(198,161,91,.25);border-color:var(--brass)}
+
+.foot{text-align:center;font-size:11.5px;color:var(--ink-soft);margin-top:34px;line-height:1.6}
+.foot a{color:var(--brass-d)}
+@media (max-width:520px){
+  .result-grid{grid-template-columns:1fr}
+  .value{font-size:56px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="brandbar">
+      <div class="brand"><span class="dot">N</span> NestTracker</div>
+      <div class="agent">
+        <img id="agentPhoto" src="https://ui-avatars.com/api/?name=Tom+Garuccio&background=C6A15B&color=0E3B2E&bold=true" alt="">
+        <div><div class="a-name" id="agentName">Tom Garuccio</div><div class="a-role" id="agentRole">The Garuccio Group · Real</div></div>
+      </div>
+    </div>
+    <div class="addr" id="heroAddr">Loading your home…</div>
+    <div class="valwrap">
+      <div class="value num" id="heroValue">$0</div>
+      <div class="deltapill">▲ <span id="qtrDelta">+2.3%</span> this quarter</div>
+    </div>
+    <div class="hero-sub">
+      <span class="conf">Confidence
+        <span class="bar"><span class="fill" id="confFill" style="width:93%"></span></span><b id="confPct">93%</b>
+      </span>
+      <span>Est. range <b id="estRange">$424K–$484K</b></span>
+      <span>Updated <b id="updated">Jul 2026</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- EQUITY -->
+  <div class="section-label"><span class="n">01</span><span class="t">Your Equity</span><span class="hr"></span></div>
+  <div class="card">
+    <h2>You own more than you owe</h2>
+    <p class="muted" style="font-size:14px;margin-top:4px">Estimated from your purchase and today's value.</p>
+    <div class="equity-visual">
+      <div class="stack">
+        <div class="own" id="ownBar" style="width:64%"></div>
+        <div class="owed" id="owedBar" style="width:36%"></div>
+      </div>
+      <div class="stack-legend">
+        <div class="leg">
+          <div class="lab"><span class="sw" style="background:var(--sage)"></span>Your equity</div>
+          <div class="v num up" id="equityVal">$290,000</div>
+        </div>
+        <div class="leg" style="text-align:right">
+          <div class="lab" style="justify-content:flex-end"><span class="sw" style="background:#E7E0D0"></span>Est. remaining loan</div>
+          <div class="v num" id="owedVal">$164,000</div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--ink-soft)">Know your exact balance?</span>
+      <input id="owedInput" inputmode="numeric" placeholder="Update your loan balance" style="flex:1;min-width:150px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
+      <button class="btn ghost" id="owedSave" onclick="saveOwed()" style="padding:9px 16px;font-size:13px">Update</button>
+    </div>
+    <label style="margin-top:10px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);cursor:pointer">
+      <input type="checkbox" id="paidOffChk" onchange="togglePaidOff()" style="width:16px;height:16px;accent-color:var(--pine)"> My home is paid off (no mortgage)
+    </label>
+    <div class="muted" id="owedEditNote" style="font-size:12px;margin-top:6px;display:none">Updated — your equity, net sheet, and budget now use this balance.</div>
+  </div>
+
+  <!-- SELL CALCULATOR -->
+  <div class="section-label"><span class="n">02</span><span class="t">If You Sold Today</span><span class="hr"></span></div>
+  <div class="card">
+    <h2>What you'd walk away with</h2>
+    <p class="muted" style="font-size:14px;margin-top:4px">Drag to explore your sale price. We'll estimate your net check.</p>
+    <div class="slider-row">
+      <div class="slider-head"><span class="lab">Sale price</span><span class="val num" id="sellPriceLbl">$454,000</span></div>
+      <input type="range" id="sellSlider" min="400000" max="520000" step="1000" value="454000">
+    </div>
+    <div class="result-grid">
+      <div class="rcell"><div class="k">Loan payoff</div><div class="v num" id="rPayoff">–$164,000</div></div>
+      <div class="rcell"><div class="k">Selling costs (est.)</div><div class="v num" id="rCosts">–$31,780</div></div>
+      <div class="rcell hero-cell"><div class="k">Your estimated net proceeds</div><div class="v num" id="rNet">$258,220</div></div>
+    </div>
+    <div class="assump">Estimate only. Assumes ~7% total selling costs (commissions, transfer taxes, typical fees) and your estimated loan payoff. Your actual numbers depend on timing, condition, and terms — <b>ask Tom for a precise net sheet.</b></div>
+  </div>
+
+  <!-- AFFORDABILITY -->
+  <div class="section-label"><span class="n">03</span><span class="t">What You Could Afford</span><span class="hr"></span></div>
+  <div class="card">
+    <h2>Your real move-up budget</h2>
+    <p class="muted" style="font-size:14px;margin-top:4px">A few quick numbers give you a realistic target — closer than any rule of thumb, though still not a pre-approval.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Annual household income</label>
+        <input id="afIncome" inputmode="numeric" placeholder="$120,000" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Monthly debts (cars, cards, loans)</label>
+        <input id="afDebts" inputmode="numeric" placeholder="$600" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Down payment (your equity)</label>
+        <input id="afDown" inputmode="numeric" placeholder="$250,000" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Interest rate</label>
+        <input id="afRate" inputmode="decimal" placeholder="6.75%" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+      </div>
+    </div>
+    <div class="result-grid" style="margin-top:20px">
+      <div class="rcell hero-cell"><div class="k">You could target a home around</div><div class="v num" id="afPrice">—</div></div>
+      <div class="rcell"><div class="k">Est. monthly payment (PITI)</div><div class="v num" id="afPayment">—</div></div>
+    </div>
+    <div class="assump" id="afNote">Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>Tom can connect you with a lender for exact numbers.</b></div>
+  </div>
+
+  <!-- REFINANCE -->
+  <div class="section-label"><span class="n">04</span><span class="t">Rate Check</span><span class="hr"></span></div>
+  <div class="card">
+    <h2>Today's rates vs. yours</h2>
+    <div class="rates" style="margin-top:16px">
+      <div class="rate"><div class="r-t">30-yr fixed</div><div class="r-v num" id="rate30">—</div></div>
+      <div class="rate"><div class="r-t">15-yr fixed</div><div class="r-v num" id="rate15">—</div></div>
+      <div class="rate" id="yourRateTile"><div class="r-t">Your rate</div><div class="r-v num" id="yourRate" style="color:var(--brass-d)">—</div></div>
+    </div>
+    <div id="rateAsOf" class="muted" style="font-size:11px;margin-top:8px"></div>
+    <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--ink-soft)" id="ownerRatePrompt">Add your current rate to tailor this:</span>
+      <input id="ownerRateInput" inputmode="decimal" placeholder="e.g. 3.9" style="width:110px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
+      <button class="btn ghost" id="ownerRateSave" onclick="saveOwnerRate()" style="padding:9px 16px;font-size:13px">Save my rate</button>
+    </div>
+    <p class="muted" id="rateNote" style="font-size:13px;margin-top:14px;display:none"></p>
+    <div class="assump">30- and 15-year rates are current national averages (Freddie Mac). Your rate is what you enter here — it's used to tailor your move-up and refinance guidance.</div>
+  </div>
+
+  <!-- COMPS -->
+  <div class="section-label" id="compsLabel"><span class="n">05</span><span class="t">Recent Sales Near You</span><span class="hr"></span></div>
+  <div class="card" id="compsCard">
+    <h2>What your neighbors sold for</h2>
+    <div style="margin-top:14px" id="compsList"></div>
+  </div>
+
+  <!-- CHECK-IN / CTA -->
+  <div class="cta">
+    <h2>Thinking about your next move?</h2>
+    <p>Whether it's this year or a few years out, I'll help you make the smart call on your home. Tell me where your head's at:</p>
+    <div class="checkins">
+      <button class="ci" onclick="checkin('Just curious')">Just watching my value</button>
+      <button class="ci" onclick="checkin('Maybe 1-2 yrs')">Might move in 1–2 yrs</button>
+      <button class="ci" onclick="checkin('Ready soon')">Ready to talk now</button>
+    </div>
+    <div style="margin-top:22px">
+      <a class="btn" href="#" onclick="return contactAgent()">Get my exact net sheet</a>
+      <a class="btn ghost" id="callBtn" href="tel:0000000000">Call Tom</a>
+    </div>
+  </div>
+
+  <div class="foot">
+    Prepared for you by <span id="footAgent">Tom Garuccio · The Garuccio Group at Real</span>.<br>
+    Estimates are for informational purposes only and are not an appraisal or offer. Powered by NestTracker.
+  </div>
+</div>
+
+<script>
+// ---- live data: pulled per-home from the worker by ?t=TOKEN (zero AVM cost per view) ----
+var WORKER = 'https://app.tom-b52.workers.dev';
+var DATA = { value:0, equity:0, owed:0, sellCostPct:0.07, qtrDelta:0 };
+var fmt  = function(n){ return '$' + Math.round(n||0).toLocaleString(); };
+var fmtK = function(n){ n=n||0; return n>=1e6 ? '$'+(n/1e6).toFixed(2)+'M' : '$'+Math.round(n/1000)+'K'; };
+var slider = document.getElementById('sellSlider');
+function setTxt(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
+function getToken(){ try{ return (new URLSearchParams(location.search)).get('t')||''; }catch(e){ return ''; } }
+
+function hydrate(d){
+  if(d.address) setTxt('heroAddr', 'YOUR HOME · ' + String(d.address).toUpperCase());
+  DATA.value = d.value||0;
+  DATA.owed  = (d.owed!=null? d.owed : 0);
+  DATA.equity= (d.equity!=null? d.equity : Math.max(0, DATA.value-DATA.owed));
+  DATA.qtrDelta = d.qtrDelta||0;
+
+  var qd = Math.round((d.qtrDelta||0)*10)/10;
+  setTxt('qtrDelta', (qd>=0?'+':'') + qd + '%');
+  var dp = document.querySelector('.deltapill'); if(dp && dp.firstChild) dp.firstChild.textContent = (qd<0?'▼ ':'▲ ');
+
+  if(d.confidence!=null){ setTxt('confPct', Math.round(d.confidence)+'%'); var cf=document.getElementById('confFill'); if(cf) cf.style.width=Math.round(d.confidence)+'%'; }
+  if(d.low && d.high) setTxt('estRange', fmtK(d.low)+'–'+fmtK(d.high));
+  if(d.updated) setTxt('updated', d.updated);
+
+  if(d.equity!=null) setTxt('equityVal', fmt(d.equity));
+  if(d.owed!=null)   setTxt('owedVal', fmt(d.owed));
+  var ownPct = (d.equityPct!=null)? d.equityPct : (DATA.value? Math.round(DATA.equity/DATA.value*100):64);
+  var ownBar=document.getElementById('ownBar'), owedBar=document.getElementById('owedBar');
+  if(ownBar) ownBar.style.width=ownPct+'%'; if(owedBar) owedBar.style.width=Math.max(0,100-ownPct)+'%';
+
+  if(DATA.value){ slider.min=Math.round(DATA.value*0.85/1000)*1000; slider.max=Math.round(DATA.value*1.15/1000)*1000; slider.value=Math.round(DATA.value/1000)*1000; }
+  if(d.yourRate!=null) setTxt('yourRate', d.yourRate.toFixed(2)+'%');
+
+  // Comps: show only if we actually have recent sales; otherwise hide the whole section.
+  var haveComps = Array.isArray(d.comps) && d.comps.length;
+  if(haveComps){
+    var box=document.getElementById('compsList');
+    if(box){ box.innerHTML = d.comps.map(function(c){
+      return '<div class="comp"><div><div class="c-addr">'+(c.address||'')+'</div><div class="c-sub">'+(c.sub||'')+'</div></div><div class="c-price num">'+fmt(c.price)+'</div></div>';
+    }).join(''); }
+  } else {
+    ['compsLabel','compsCard'].forEach(function(id){ var el=document.getElementById(id); if(el) el.style.display='none'; });
+  }
+
+  // Live market rates (Freddie Mac via FRED). If unavailable, tiles stay "—".
+  if(d.rate30!=null) setTxt('rate30', d.rate30.toFixed(2)+'%');
+  if(d.rate15!=null) setTxt('rate15', d.rate15.toFixed(2)+'%');
+  if(d.ratesAsOf) setTxt('rateAsOf', 'National averages as of '+d.ratesAsOf);
+  window._mktRate = (d.rate30!=null)? d.rate30 : null;
+
+  // Homeowner's own rate (persisted). If set → show it + comparison; else prompt for it.
+  window._ownerRate = (d.yourRate!=null)? d.yourRate : null;
+  renderOwnerRate();
+
+  var ag = d.agent||{};
+  window._agentFirst = ag.firstName || (ag.name||'').split(' ')[0] || 'your agent';
+  if(ag.name) setTxt('agentName', ag.name);
+  setTxt('agentRole', ag.role||'');
+  var im=document.getElementById('agentPhoto');
+  if(im){ im.src = ag.photo || ('https://ui-avatars.com/api/?name='+encodeURIComponent(ag.name||'Agent')+'&background=C6A15B&color=0E3B2E&bold=true'); }
+  var call=document.getElementById('callBtn');
+  if(call){ if(ag.phone){ call.href='tel:'+String(ag.phone).replace(/[^0-9+]/g,''); call.textContent='Call '+window._agentFirst; } else { call.style.display='none'; } }
+  setTxt('footAgent', (ag.name||'') + (ag.role? ' · '+ag.role : ''));
+
+  // Prefill: loan-balance placeholder + affordability down payment = equity, rate = live market rate.
+  var oi=document.getElementById('owedInput'); if(oi && DATA.owed) oi.placeholder = 'Currently est. '+fmt(DATA.owed);
+  var afDown=document.getElementById('afDown'); if(afDown && DATA.equity>0) afDown.value = fmt(DATA.equity);
+  var afRate=document.getElementById('afRate'); if(afRate && !afRate.value) afRate.value = (window._mktRate!=null? window._mktRate.toFixed(2) : '6.75')+'%';
+
+  countUp(); calcSell(); calcAfford();
+}
+
+// Render the homeowner's rate tile, prompt, and the honest below/above-market note.
+function renderOwnerRate(){
+  var r = window._ownerRate, mkt = window._mktRate;
+  var tile=document.getElementById('yourRateTile'), note=document.getElementById('rateNote'), prompt=document.getElementById('ownerRatePrompt'), input=document.getElementById('ownerRateInput');
+  if(r!=null){
+    setTxt('yourRate', r.toFixed(2)+'%');
+    if(input && !input.value) input.value = r.toFixed(2);
+    if(prompt) prompt.textContent = 'Your rate is saved — update it anytime:';
+    if(note && mkt!=null){
+      note.style.display='block';
+      if(r < mkt - 0.25){
+        note.innerHTML = 'You\'re sitting on a rate <b>below today\'s market</b> — a strong reason to keep this mortgage and tap equity another way (HELOC or a move-up) rather than refinance. '+(window._agentFirst||'Your agent')+' and a lender can walk through the options.';
+      } else if(r > mkt + 0.25){
+        note.innerHTML = 'Your rate is <b>above today\'s market</b> — it may be worth exploring a refinance. '+(window._agentFirst||'Your agent')+' can connect you with a lender to run the numbers.';
+      } else {
+        note.innerHTML = 'Your rate is right around today\'s market. '+(window._agentFirst||'Your agent')+' can help you weigh a refinance vs. a move-up.';
+      }
+    } else if(note){ note.style.display='none'; }
+  } else {
+    setTxt('yourRate', '—');
+    if(note) note.style.display='none';
+  }
+}
+
+// Save the homeowner's rate → persists on the home + tailors the comparison.
+function saveOwnerRate(){
+  var input=document.getElementById('ownerRateInput'); if(!input) return;
+  var v=pn(input.value); if(v<=0 || v>25){ input.style.borderColor='#c0392b'; return; }
+  input.style.borderColor='var(--line)';
+  window._ownerRate = v; renderOwnerRate();
+  var btn=document.getElementById('ownerRateSave'); if(btn){ btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Save my rate'; },1800); }
+  var t=getToken(); if(t){ fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ownerRate:v})}).catch(function(){}); }
+}
+
+function countUp(){
+  var el=document.getElementById('heroValue'); if(!el||!DATA.value) return;
+  var start=null, dur=1100;
+  function step(ts){ if(!start) start=ts; var p=Math.min((ts-start)/dur,1); var e=1-Math.pow(1-p,3);
+    el.textContent=fmt(DATA.value*e); if(p<1) requestAnimationFrame(step); }
+  requestAnimationFrame(step);
+}
+function calcSell(){
+  var price=+slider.value, payoff=DATA.owed, costs=price*DATA.sellCostPct, net=price-payoff-costs;
+  setTxt('sellPriceLbl',fmt(price)); setTxt('rPayoff','–'+fmt(payoff)); setTxt('rCosts','–'+fmt(costs));
+  setTxt('rNet',fmt(net));
+}
+slider.addEventListener('input', calcSell);
+
+// ---- Real affordability: back-end DTI (43%), reserve ~20% of budget for taxes/ins/PMI ----
+function pn(v){ return Number(String(v==null?'':v).replace(/[^0-9.]/g,''))||0; }
+function afEl(id){ var e=document.getElementById(id); return e? e.value : ''; }
+function calcAfford(){
+  var income=pn(afEl('afIncome')), debts=pn(afEl('afDebts')), down=pn(afEl('afDown')), rate=pn(afEl('afRate'))||(window._mktRate!=null?window._mktRate:6.75);
+  var note=document.getElementById('afNote');
+  if(!income){ setTxt('afPrice','—'); setTxt('afPayment','—'); return; }
+  var grossMonthly=income/12;
+  var maxPITI=grossMonthly*0.43 - debts;
+  if(maxPITI<=0){
+    setTxt('afPrice','—'); setTxt('afPayment','—');
+    if(note) note.innerHTML='With that income and debt load, a lender likely couldn\'t qualify a move-up right now. <b>'+(window._agentFirst||'Your agent')+' can help map a path.</b>';
+    return;
+  }
+  var pi=maxPITI*0.80;                 // reserve ~20% for taxes, insurance, PMI
+  var r=rate/100/12, n=360;
+  var loan = r>0 ? pi*(1-Math.pow(1+r,-n))/r : pi*n;
+  var price=Math.max(0, loan+down);
+  setTxt('afPrice', fmtK(price));
+  setTxt('afPayment', fmt(maxPITI)+'/mo');
+  if(note) note.innerHTML='Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>'+(window._agentFirst||'Your agent')+' can connect you with a lender for exact numbers.</b>';
+}
+['afIncome','afDebts','afDown','afRate'].forEach(function(id){
+  var el=document.getElementById(id); if(el) el.addEventListener('input', calcAfford);
+});
+
+// ---- Editable loan balance: correct equity, bars, net sheet, budget — and persist it ----
+// applyOwed(v) updates the whole page for a given balance (0 allowed = paid off).
+function applyOwed(v){
+  DATA.owed=Math.max(0,v); DATA.equity=Math.max(0, DATA.value-DATA.owed);
+  setTxt('owedVal',fmt(DATA.owed)); setTxt('equityVal',fmt(DATA.equity));
+  var op=DATA.value?Math.round(DATA.equity/DATA.value*100):50;
+  var ob=document.getElementById('ownBar'), wb=document.getElementById('owedBar');
+  if(ob)ob.style.width=op+'%'; if(wb)wb.style.width=Math.max(0,100-op)+'%';
+  var afDown=document.getElementById('afDown'); if(afDown) afDown.value=fmt(DATA.equity);
+  var ed=document.getElementById('owedEditNote'); if(ed)ed.style.display='block';
+  calcSell(); calcAfford();
+}
+function persistOwed(v){
+  var t=getToken(); if(!t) return;
+  fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ownerOwed:v})}).catch(function(){});
+}
+function saveOwed(){
+  var inp=document.getElementById('owedInput'); if(!inp) return;
+  var raw=String(inp.value).trim();
+  if(raw===''){ return; }               // nothing typed
+  var v=pn(raw);                         // pn('0') === 0, allowed
+  var chk=document.getElementById('paidOffChk'); if(chk) chk.checked=(v===0);
+  applyOwed(v); persistOwed(v);
+  var btn=document.getElementById('owedSave'); if(btn){ btn.textContent='Saved ✓'; setTimeout(function(){ btn.textContent='Update'; },1600); }
+}
+function togglePaidOff(){
+  var chk=document.getElementById('paidOffChk'), inp=document.getElementById('owedInput');
+  if(chk && chk.checked){
+    if(inp){ inp.value='$0'; inp.disabled=true; inp.style.opacity=.5; }
+    applyOwed(0); persistOwed(0);
+  } else {
+    if(inp){ inp.disabled=false; inp.style.opacity=1; inp.value=''; }
+  }
+}
+var owedInput=document.getElementById('owedInput');
+if(owedInput){ owedInput.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); saveOwed(); } }); }
+
+function checkin(v){
+  var btn = (typeof event!=='undefined' && event.target) ? event.target : null;
+  document.querySelectorAll('.checkins .ci').forEach(function(b){b.style.opacity=.5;b.disabled=true;});
+  if(btn){ btn.style.opacity=1; btn.style.background='var(--brass)'; btn.style.color='var(--pine)'; btn.textContent='Sending…'; }
+  var who = window._agentFirst||'your agent';
+  var t=getToken();
+  var done=function(ok){ if(btn) btn.textContent = ok ? ('✓ '+who+' has been notified') : ('✓ Noted — '+who+' will follow up'); };
+  if(t){
+    fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:v})})
+      .then(function(r){ return r.json(); }).then(function(j){ done(j&&j.ok); }).catch(function(){ done(false); });
+  } else { done(false); }
+}
+function contactAgent(){
+  var who=window._agentFirst||'your agent';
+  var t=getToken();
+  if(t){ fetch(WORKER+'/api/v1/nesttracker-checkin?t='+encodeURIComponent(t),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:'Requested a net sheet'})}).catch(function(){}); }
+  alert(who+' has been notified and will reach out with your net sheet.');
+  return false;
+}
+
+(function init(){
+  var t=getToken();
+  if(!t){ setTxt('heroAddr','No report link token'); return; }
+  fetch(WORKER+'/api/v1/nesttracker-report?t='+encodeURIComponent(t))
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if(d&&d.ok){ hydrate(d); } else { setTxt('heroAddr','Report not found'); } })
+    .catch(function(){ setTxt('heroAddr','Could not load this report'); });
+})();
+</script>
+</body>
+</html>
