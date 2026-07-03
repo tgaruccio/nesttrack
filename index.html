@@ -29454,7 +29454,12 @@ async function ntConfirmPreview(overrideValue){
     var j = await r.json();
     if(j && j.ok){
       await _ntFinalizeCard(p.uid, { token:p.token, value:j.value });
-      if(typeof showToast==='function') showToast('Enrolled — est. $'+Number(j.value||0).toLocaleString()+'. Quarterly report is live.');
+      var _msg = 'Enrolled — est. $'+Number(j.value||0).toLocaleString()+'.';
+      if(j.firstSent){ _msg += ' First report emailed.'; }
+      else if(j.firstSendReason==='no recipient email'){ _msg += ' Add an email to this client to send their report.'; }
+      else if(j.firstSendReason==='client unsubscribed'){ _msg += ' (Client is unsubscribed — no email sent.)'; }
+      else { _msg += ' Quarterly report is live.'; }
+      if(typeof showToast==='function') showToast(_msg);
     } else {
       if(typeof showToast==='function') showToast('Could not enroll: '+((j&&j.reason)||'error'));
     }
