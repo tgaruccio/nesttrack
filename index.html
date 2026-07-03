@@ -1174,6 +1174,63 @@ textarea{resize:vertical;min-height:68px;}
       </div>
     </div>
 
+    <!-- NestTracker ENROLL modal -->
+    <div id="nt-enroll-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1001;align-items:flex-start;justify-content:center;padding:20px;overflow:auto;">
+      <div style="background:var(--surface);border-radius:16px;max-width:520px;width:100%;padding:24px;margin:20px 0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <div style="font-size:17px;font-weight:800;color:var(--text);">🏠 Add to NestTracker</div>
+          <button onclick="ntCloseEnroll()" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:var(--text3);">&times;</button>
+        </div>
+        <div id="nt-enroll-who" style="font-size:12.5px;color:var(--text2);margin-bottom:16px;">Confirm the property and (optionally) loan details, then we'll value it.</div>
+
+        <label class="flabel" style="font-weight:600;">Property to track</label>
+        <input type="text" id="nt-en-address" placeholder="123 Main St, Westlake, OH 44145" style="width:100%;box-sizing:border-box;margin-bottom:3px;"/>
+        <div style="font-size:11.5px;color:var(--text3);margin-bottom:14px;">The home NestTracker values — an investment property or a different address is fine.</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label class="flabel" style="font-weight:600;">Purchase price <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+            <input type="text" id="nt-en-price" inputmode="decimal" placeholder="$450,000" style="width:100%;box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label class="flabel" style="font-weight:600;">Year purchased <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+            <input type="text" id="nt-en-year" inputmode="numeric" placeholder="2019" style="width:100%;box-sizing:border-box;"/>
+          </div>
+        </div>
+
+        <div style="margin:16px 0 8px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;">Loan details <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3);">— fill what you know; blank is fine</span></div>
+        <div style="font-size:11.5px;color:var(--text3);margin-bottom:12px;line-height:1.5;">Enter the loan and NestTracker pays it down each quarter, so equity grows from both rising value and principal paid. Leave blank and the homeowner can add it themselves on their report.</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label class="flabel" style="font-weight:600;">Original loan amount</label>
+            <input type="text" id="nt-en-loan" inputmode="decimal" placeholder="$360,000" style="width:100%;box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label class="flabel" style="font-weight:600;">Current balance <span style="font-weight:400;color:var(--text3);">(if known)</span></label>
+            <input type="text" id="nt-en-owed" inputmode="decimal" placeholder="$318,000" style="width:100%;box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label class="flabel" style="font-weight:600;">Interest rate</label>
+            <input type="text" id="nt-en-rate" inputmode="decimal" placeholder="6.5%" style="width:100%;box-sizing:border-box;"/>
+          </div>
+          <div>
+            <label class="flabel" style="font-weight:600;">Loan term</label>
+            <select id="nt-en-term" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:14px;">
+              <option value="30">30-year</option>
+              <option value="15">15-year</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="nt-enroll-err" style="display:none;font-size:12.5px;color:#B91C1C;margin-top:12px;"></div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+          <button class="btn" onclick="ntCloseEnroll()" style="flex:0 0 auto;">Cancel</button>
+          <button class="btn btn-g" id="nt-enroll-go" onclick="ntSubmitEnroll()" style="flex:1;">Value this home →</button>
+        </div>
+      </div>
+    </div>
+
     <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 12px;">Campaigns <span onclick="showHelp('campaigns')" title="What is this? How does it connect?" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;vertical-align:middle;text-transform:none;">?</span></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:13px;color:var(--text2);">Build automated multi-step campaigns (VM drops, letters, texts) and assign them to contacts.</div>
@@ -29234,43 +29291,70 @@ async function ntEnroll(uid, btn, isRefresh){
   if(!uid) return;
   var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
   if(!b){ if(typeof showToast==='function') showToast('Could not find that contact.'); return; }
+  // Open the enroll modal, prefilled from the client card. Everything is editable.
+  window._ntEnrollUid = uid;
   var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'').trim();
-  if(!addr){ if(typeof showToast==='function') showToast('Add a property address for this contact first — NestTracker values that home.'); else alert('NestTracker needs a property address.'); return; }
-  var purchasePrice = String(b.purchasePrice||b.salePrice||'').replace(/[^0-9.]/g,'');
-  var purchaseDate  = String(b.purchaseDate||b.closingDate||'').trim();
-  if(!purchasePrice){
-    var pp = prompt('Optional — purchase price (powers the equity estimate). Leave blank to skip.','');
-    if(pp){ purchasePrice = String(pp).replace(/[^0-9.]/g,''); var py = prompt('Year purchased? (e.g. 2019 — optional)',''); if(py){ purchaseDate = String(py).replace(/[^0-9\-\/]/g,''); } }
-  }
-  var orig = btn ? btn.innerHTML : '';
-  if(btn){ btn.disabled=true; btn.innerHTML = 'Valuing…'; }
-  try {
-    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
-    if(!apiKey){ if(btn){ btn.disabled=false; btn.innerHTML=orig; } if(typeof showToast==='function') showToast('Connect your API key first (Profile → Integrations).'); return; }
-    var url = PROXY_URL + '/api/v1/nesttracker-enroll?api_key=' + encodeURIComponent(apiKey);
-    var r = await fetch(url, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ contact: {
-        firstName:b.firstName||'', lastName:b.lastName||'', email:b.email||'',
-        mailingAddress:addr, street:b.mailingStreet||'', city:b.mailingCity||'', state:b.mailingState||'', zip:b.mailingZip||'',
-        purchasePrice:purchasePrice, purchaseDate:purchaseDate, uid:uid
-      }})
-    });
-    var j = await r.json();
-    if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-    if(j && j.ok){
-      if(j.preview){ _ntShowPreview(uid, j); }               // NEW: agent reviews before it goes live
-      else { await _ntFinalizeCard(uid, j); if(typeof showToast==='function') showToast('Added to NestTracker.'); } // legacy path
-    } else {
-      var rs = (j&&j.reason)||'unknown error';
-      if(typeof showToast==='function') showToast('Could not value: '+rs); else alert('Could not value: '+rs);
-    }
-  } catch(e){
-    if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-    if(typeof showToast==='function') showToast('NestTracker failed: '+(e&&e.message||'network error'));
-  }
+  var price = String(b.purchasePrice||b.salePrice||'').replace(/[^0-9.]/g,'');
+  var year  = String(b.purchaseDate||b.closingDate||'').trim();
+  var who = ((b.firstName||'')+' '+(b.lastName||'')).trim();
+  var setV = function(id,v){ var el=document.getElementById(id); if(el) el.value=v||''; };
+  setV('nt-en-address', addr);
+  setV('nt-en-price', price ? ('$'+Number(price).toLocaleString()) : '');
+  setV('nt-en-year', year);
+  setV('nt-en-loan',''); setV('nt-en-owed',''); setV('nt-en-rate','');
+  var termEl=document.getElementById('nt-en-term'); if(termEl) termEl.value='30';
+  var whoEl=document.getElementById('nt-enroll-who');
+  if(whoEl) whoEl.textContent = who ? ('Enrolling '+who+'. Confirm the property and add loan details if you have them.') : 'Confirm the property and add loan details if you have them.';
+  var errEl=document.getElementById('nt-enroll-err'); if(errEl){ errEl.style.display='none'; errEl.textContent=''; }
+  var goEl=document.getElementById('nt-enroll-go'); if(goEl){ goEl.disabled=false; goEl.innerHTML='Value this home →'; }
+  var m=document.getElementById('nt-enroll-modal'); if(m) m.style.display='flex';
 }
 window.ntEnroll = ntEnroll;
+
+function ntCloseEnroll(){ var m=document.getElementById('nt-enroll-modal'); if(m) m.style.display='none'; }
+window.ntCloseEnroll = ntCloseEnroll;
+
+async function ntSubmitEnroll(){
+  var uid = window._ntEnrollUid;
+  if(!uid){ ntCloseEnroll(); return; }
+  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
+  var gv=function(id){ var el=document.getElementById(id); return el?String(el.value||'').trim():''; };
+  var num=function(s){ return String(s||'').replace(/[^0-9.]/g,''); };
+  var addr = gv('nt-en-address');
+  var errEl=document.getElementById('nt-enroll-err');
+  if(!addr){ if(errEl){ errEl.textContent='Enter the property address to value.'; errEl.style.display='block'; } return; }
+  var payload = {
+    firstName:(b&&b.firstName)||'', lastName:(b&&b.lastName)||'', email:(b&&b.email)||'',
+    mailingAddress:addr, street:'', city:'', state:'', zip:'',
+    purchasePrice:num(gv('nt-en-price')), purchaseDate:gv('nt-en-year'),
+    loanAmount:num(gv('nt-en-loan')), ownerOwed:num(gv('nt-en-owed')),
+    ownerRate:num(gv('nt-en-rate')), loanTerm:(gv('nt-en-term')==='15'?'15':'30'),
+    uid:uid
+  };
+  var goEl=document.getElementById('nt-enroll-go');
+  if(goEl){ goEl.disabled=true; goEl.innerHTML='Valuing…'; }
+  if(errEl){ errEl.style.display='none'; }
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if(!apiKey){ if(goEl){ goEl.disabled=false; goEl.innerHTML='Value this home →'; } if(errEl){ errEl.textContent='Connect your API key first (Profile → Integrations).'; errEl.style.display='block'; } return; }
+    var url = PROXY_URL + '/api/v1/nesttracker-enroll?api_key=' + encodeURIComponent(apiKey);
+    var r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contact: payload }) });
+    var j = await r.json();
+    if(j && j.ok){
+      ntCloseEnroll();
+      if(j.preview){ _ntShowPreview(uid, j); }
+      else { await _ntFinalizeCard(uid, j); if(typeof showToast==='function') showToast('Added to NestTracker.'); }
+    } else {
+      if(goEl){ goEl.disabled=false; goEl.innerHTML='Value this home →'; }
+      var rs = (j&&j.reason)||'unknown error';
+      if(errEl){ errEl.textContent = rs; errEl.style.display='block'; }
+    }
+  } catch(e){
+    if(goEl){ goEl.disabled=false; goEl.innerHTML='Value this home →'; }
+    if(errEl){ errEl.textContent='NestTracker failed: '+(e&&e.message||'network error'); errEl.style.display='block'; }
+  }
+}
+window.ntSubmitEnroll = ntSubmitEnroll;
 
 // Save the card flags once a home is live.
 async function _ntFinalizeCard(uid, j){
