@@ -1362,7 +1362,7 @@ textarea{resize:vertical;min-height:68px;}
     <div id="ad-avatar" style="width:52px;height:52px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:20px;font-weight:300;flex-shrink:0;">T</div>
     <div style="min-width:0;flex:1;padding-right:118px;box-sizing:border-box;">
       <div style="font-family:'Fraunces',serif;font-size:19px;font-weight:300;letter-spacing:-0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="ad-greeting">Good morning</div>
-      <div style="font-size:12.5px;color:var(--text2);display:flex;align-items:center;gap:6px;"><span id="ad-sub">Here's your day at a glance</span><span onclick="showHelp('overview')" title="New here? Quick platform overview" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
+      <div style="font-size:12.5px;color:var(--text2);display:flex;align-items:center;gap:6px;"><span id="ad-sub">Here's your day at a glance</span><span onclick="startWelcomeFlow(true)" title="New here? Replay the quick intro" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
     </div>
   </div>
 
@@ -6103,6 +6103,105 @@ async function saveAgentProfile() {
     if (status) { status.textContent = 'Save failed: ' + e.message; status.style.color = 'var(--red-dk)'; status.style.display = 'block'; }
   }
 }
+// ── FIRST-RUN WELCOME FLOW (three-pillar story) ────────────────────────────────
+// Separate from the team-training "My Onboarding" trail. Fires once on first login (welcomeFlowDone
+// flag), skippable everywhere, mobile-first. Each beat pulls text + an optional founder video from the
+// help_content keys welcome_intro / welcome_p1 / welcome_p2 / welcome_p3 / welcome_close — so videos are
+// added/replaced in the existing Help admin, no code change.
+var WELCOME_BEATS = ['welcome_intro','welcome_p1','welcome_p2','welcome_p3','welcome_close'];
+var _wfIndex = 0;
+
+async function startWelcomeFlow(force){
+  _wfIndex = 0;
+  await _loadHelpContent();
+  _renderWelcomeBeat();
+}
+window.startWelcomeFlow = startWelcomeFlow;
+
+function _wfClose(){ var o = document.getElementById('wf-overlay'); if(o) o.remove(); }
+
+async function _wfFinish(){
+  _wfClose();
+  try { if(currentUser && currentUser.uid){ await fb.setDoc(fb.doc(fb.db,'users',currentUser.uid), { welcomeFlowDone:true }, {merge:true}); } } catch(e){}
+  if(userProfile) userProfile.welcomeFlowDone = true;
+}
+
+function _renderWelcomeBeat(){
+  var content = window._helpContent || {};
+  var key = WELCOME_BEATS[_wfIndex];
+  var fromFs = content[key] || {};
+  var def = (typeof HELP_DEFAULTS!=='undefined' && HELP_DEFAULTS[key]) || {};
+  var title = fromFs.title || def.title || '';
+  var body  = fromFs.body  || def.body  || '';
+  var video = (typeof _helpEmbedUrl==='function') ? _helpEmbedUrl(fromFs.video || '') : '';
+  var isLast = _wfIndex === WELCOME_BEATS.length - 1;
+  var isFirst = _wfIndex === 0;
+
+  var videoHtml = video
+    ? '<div style="position:relative;padding-bottom:56.25%;height:0;border-radius:12px;overflow:hidden;margin-bottom:16px;background:#000;"><iframe src="'+video+'" frameborder="0" allowfullscreen style="position:absolute;top:0;left:0;width:100%;height:100%;"></iframe></div>'
+    : '<div style="border-radius:12px;background:linear-gradient(135deg,#0E3B2E 0%,#1D9E75 100%);padding:34px 20px;text-align:center;margin-bottom:16px;"><div style="font-size:34px;">\uD83C\uDFE1</div><div style="color:rgba(255,255,255,.85);font-size:12px;margin-top:6px;font-weight:600;letter-spacing:.04em;">'+(isFirst?'A quick word from the founder':'NestTrack')+'</div></div>';
+
+  var dots = '';
+  for(var i=0;i<WELCOME_BEATS.length;i++){
+    dots += '<span style="width:7px;height:7px;border-radius:50%;display:inline-block;margin:0 3px;background:'+(i===_wfIndex?'#1D9E75':'var(--border)')+';"></span>';
+  }
+
+  var overlay = document.getElementById('wf-overlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'wf-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1200;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;';
+    document.body.appendChild(overlay);
+  }
+
+  var nextLabel = isLast ? 'Set up my first client \u2192' : 'Next \u2192';
+  overlay.innerHTML =
+    '<div style="background:var(--surface,#fff);border-radius:18px;max-width:520px;width:100%;margin:24px 0;padding:22px 22px 20px;box-shadow:0 24px 70px rgba(0,0,0,.4);font-family:inherit;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);">Welcome to NestTrack</div>'
+      + '<button onclick="_wfSkip()" style="background:none;border:none;font-size:12.5px;color:var(--text3);cursor:pointer;text-decoration:underline;font-family:inherit;">Skip intro</button>'
+    + '</div>'
+    + videoHtml
+    + '<div style="font-family:Georgia,serif;font-size:21px;font-weight:700;color:var(--text);line-height:1.25;margin-bottom:10px;">'+title+'</div>'
+    + '<div style="font-size:14.5px;color:var(--text2);line-height:1.65;">'+body+'</div>'
+    + '<div style="text-align:center;margin:18px 0 14px;">'+dots+'</div>'
+    + '<div style="display:flex;gap:10px;align-items:center;">'
+      + (isFirst ? '' : '<button onclick="_wfBack()" style="flex:0 0 auto;padding:12px 16px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Back</button>')
+      + '<button onclick="_wfNext()" style="flex:1;padding:13px;border-radius:11px;border:none;background:#0F7A52;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">'+nextLabel+'</button>'
+    + '</div>'
+    + '</div>';
+}
+
+function _wfNext(){
+  if(_wfIndex < WELCOME_BEATS.length - 1){ _wfIndex++; _renderWelcomeBeat(); }
+  else { _wfFinishAndActivate(); }
+}
+function _wfBack(){ if(_wfIndex>0){ _wfIndex--; _renderWelcomeBeat(); } }
+window._wfNext = _wfNext;
+window._wfBack = _wfBack;
+
+async function _wfSkip(){
+  await _wfFinish();
+  if(typeof showToast==='function') showToast('You can replay the intro anytime from Help.');
+}
+window._wfSkip = _wfSkip;
+
+async function _wfFinishAndActivate(){
+  await _wfFinish();
+  if(typeof ntOpenAddPicker==='function'){ ntOpenAddPicker(); }
+  else if(typeof go==='function'){ go('marketing', document.querySelector('[data-pg=marketing]')); }
+}
+
+function maybeStartWelcomeFlow(){
+  try {
+    if(!userProfile) return;
+    if(userProfile.welcomeFlowDone === true) return;
+    setTimeout(function(){ startWelcomeFlow(); }, 800);
+  } catch(e){}
+}
+window.maybeStartWelcomeFlow = maybeStartWelcomeFlow;
+
+
 // ── HELP CENTER (data-driven, video-capable) ──
 // Built-in defaults = fallback so dots always say something even before Tom adds Firestore content.
 var HELP_DEFAULTS = {
@@ -6130,7 +6229,12 @@ var HELP_DEFAULTS = {
   slybroadcast:{ title:'How to connect Slybroadcast', body:'<strong>To set it up:</strong> connect your Slybroadcast account so NestTrack can drop ringless voicemails through your Smart Plans. <strong>What it’s for:</strong> sending pre-recorded voicemail drops to contacts without ringing their phone — great for FSBO/expired outreach at scale. <strong>Where it connects:</strong> once connected, a Smart Plan voicemail step sends your recording to the contact automatically when they reach that step.' },
   thanksio:    { title:'How to connect Thanks.io', body:'<strong>To set it up:</strong> connect your Thanks.io account so NestTrack can send physical mail — handwritten cards, postcards, letters — from your Smart Plans. <strong>What it’s for:</strong> automated direct mail touches (just-listed/just-sold, holiday cards, past-client mailers) without going to the post office. <strong>Where it connects:</strong> a Smart Plan letter step hands the contact’s name and address to Thanks.io, which prints and mails it for you.' },
   homebot:     { title:'How to connect Homebot', body:'<strong>What it is:</strong> Homebot sends your clients an automated monthly home-value digest in your name &mdash; a proven way to stay top-of-mind and earn repeat and referral business. <strong>One-time setup (required first):</strong> the &ldquo;Add to Homebot&rdquo; button sends the client through <strong>Zapier</strong> into your Homebot account &mdash; so you have to connect that Zap once before the button does anything.<br><br>1. In <strong>Zapier</strong>, create a Zap. For the trigger, pick <strong>NestTrack &rarr; Client Added to Homebot</strong>.<br>2. For the action, add <strong>Homebot &rarr; Create Client</strong> (map name + email), then <strong>Homebot &rarr; Create Home</strong> (map street + zip &mdash; NestTrack sends them already split, no formatting needed).<br>3. Turn the Zap on.<br><br><strong>Then, day to day:</strong> open any client and tap <strong>&#127968; Add to Homebot</strong> in the Marketing &amp; Nurture section. They start getting the digest, and the card shows an <strong>On Homebot</strong> badge.<br><br><strong>To stop the digest</strong> for someone, remove them inside Homebot (NestTrack can add them but can&rsquo;t remove them).' },
-  nesttracker: { title:'How NestTracker works', body:'<strong>What it is:</strong> NestTracker sends your enrolled homeowners a quarterly, branded home-value report in your name &mdash; current value, estimated equity, recent neighborhood sales, and an interactive &ldquo;what if I sold&rdquo; tool. It&rsquo;s your own native version of Homebot: no Zapier, no outside subscription.<br><br><strong>To enroll someone:</strong> open any client that has a property address and tap <strong>&#127968; Add to NestTracker</strong> in the Marketing &amp; Nurture section. It values their home instantly and starts the quarterly report. The card then shows an <strong>On NestTracker</strong> badge with the current value and a link to their live report.<br><br><strong>Cost &amp; cadence:</strong> the value refreshes automatically once a quarter. You can enroll up to 50 homes. Tap <strong>Remove</strong> anytime to stop the report and free the slot.' }
+  nesttracker: { title:'How NestTracker works', body:'<strong>What it is:</strong> NestTracker sends your enrolled homeowners a quarterly, branded home-value report in your name &mdash; current value, estimated equity, recent neighborhood sales, and an interactive &ldquo;what if I sold&rdquo; tool. It&rsquo;s your own native version of Homebot: no Zapier, no outside subscription.<br><br><strong>To enroll someone:</strong> open any client that has a property address and tap <strong>&#127968; Add to NestTracker</strong> in the Marketing &amp; Nurture section. It values their home instantly and starts the quarterly report. The card then shows an <strong>On NestTracker</strong> badge with the current value and a link to their live report.<br><br><strong>Cost &amp; cadence:</strong> the value refreshes automatically once a quarter. You can enroll up to 50 homes. Tap <strong>Remove</strong> anytime to stop the report and free the slot.' },
+  welcome_intro: { title:'Three pillars', body:'There are three pillars to a successful real estate business. Three things to focus on &mdash; that&rsquo;s it.<br><br>I lost sight of that. I did what the industry told me to do &mdash; buy leads, cram the CRM, let AI chase everyone &mdash; and my production dropped. NestTrack is me getting back to the three things that actually work.<br><br>Let me walk you through them.' },
+  welcome_p1: { title:'Pillar 1 — Get them in the door', body:'<strong>The right way.</strong> Not thousands of cold leads you&rsquo;ll never call. Real conversations &mdash; landing pages, your virtual card, smart campaigns &mdash; every lead lands in one place, already sorted and ready for you to actually talk to them.<br><br><em>A pipeline of people you can build a relationship with, not a list you&rsquo;ll ignore.</em>' },
+  welcome_p2: { title:'Pillar 2 — Wow them through the deal', body:'The deal tracker runs the transaction while your client watches their own timeline &mdash; every milestone, every date. No dropped balls. No &ldquo;any update?&rdquo; texts. They feel taken care of.<br><br><em>A client who feels handled refers you. That&rsquo;s where your next deals actually come from.</em>' },
+  welcome_p3: { title:'Pillar 3 — Keep in touch', body:'Not AI blasts nobody answers. A branded home-value report in your name every quarter, plus simple, automated touches &mdash; so the people who know and trust you never fall through the cracks.<br><br><em>When they, or a friend, are ready to move, you&rsquo;re the only agent they think of.</em>' },
+  welcome_close: { title:'That&rsquo;s it — three pillars', body:'Generate. Wow. Keep in touch. Done thoroughly, in order &mdash; and all in one place, so you can get back to the part you got into this for: the people.<br><br>Let&rsquo;s set up your first one.' }
 };
 
 window._helpContent = null;
@@ -7908,7 +8012,7 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId|| '').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(typeof _loadManagedSegments==='function')_loadManagedSegments();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); } _handlePageDeepLink(); _handleNtDashDeepLink();
+  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();teamChatInit();if(typeof _loadManagedSegments==='function')_loadManagedSegments();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); } _handlePageDeepLink(); _handleNtDashDeepLink(); if(typeof maybeStartWelcomeFlow==='function') maybeStartWelcomeFlow();
   await loadAgentPartners(userProfile.agentId|| '');
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
@@ -12757,6 +12861,11 @@ window.pricingSetPublic=pricingSetPublic;
 // ── HELP CONTENT ADMIN ──
 // Sections an agent might get stuck on. Keys must match the helpDot('key') calls placed in the UI.
 var HELP_SECTIONS = [
+  {key:'welcome_intro', label:'🎬 Welcome Intro — "Three pillars" (founder video)'},
+  {key:'welcome_p1',    label:'🎬 Welcome — Pillar 1: Lead Gen (video)'},
+  {key:'welcome_p2',    label:'🎬 Welcome — Pillar 2: Customer Experience (video)'},
+  {key:'welcome_p3',    label:'🎬 Welcome — Pillar 3: Keep in Touch (video)'},
+  {key:'welcome_close', label:'🎬 Welcome — Close / Get Started (video)'},
   {key:'overview',    label:'Welcome / Overview (dashboard)'},
   {key:'install',     label:'Add to Home Screen (install)'},
   {key:'deals',       label:'Deal Tracker'},
@@ -29658,6 +29767,10 @@ function spToast(msg){
     setTimeout(function(){ t.style.transition='opacity 0.4s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); },400); }, 2600);
   } catch(e){}
 }
+// showToast was called in ~27 places but never defined — alias it to spToast so those notifications
+// actually appear (enroll confirmation, remove confirmations, error messages, etc.).
+if (typeof window.showToast !== 'function') { window.showToast = spToast; }
+function showToast(msg){ return spToast(msg); }
 window.spToast = spToast;
 
 // They engaged → pull out of the cold plan and move into the warm follow-up deck (due now, hot cadence)
