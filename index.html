@@ -6207,15 +6207,8 @@ async function _wfFinishAndActivate(){
         setTimeout(function(){
           if(typeof coachTour==='function'){
             coachTour([
-              { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. When you\u2019re ready, tap <b>Start Buyer Journey</b> to run them through a real deal.', placement:'auto', advanceOn:'next' }
-            ], { onDone: function(){
-                // Watch for the deal to actually open, THEN fire the next bubble on the Accepted button.
-                var jbtn = document.querySelector('#coach-journey button');
-                if(jbtn){
-                  var once = function(){ jbtn.removeEventListener('click', once); _wfWaitThenOfferStep(); };
-                  jbtn.addEventListener('click', once);
-                }
-              } });
+              { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. Tap the green <b>Start Buyer Journey</b> button to run them through a real deal.', placement:'auto', advanceOn:'click:#coach-journey button' }
+            ], { onDone: function(){ _wfWaitThenOfferStep(); } });
           }
         }, 600);
       }, 900);
@@ -6238,7 +6231,7 @@ function _wfWaitThenOfferStep(){
     if(btn){
       if(typeof coachTour!=='function') return;
       coachTour([
-        { target:'#coach-offer-accepted', title:'The offer got accepted!', body:'This is the moment the deal gets real. Tap <b>\u2705 Accepted</b> \u2014 it kicks off the transaction and lets you set the timeline your client will see.', placement:'auto', advanceOn:'next' }
+        { target:'#coach-offer-accepted', title:'The offer got accepted!', body:'This is the moment the deal gets real. Tap <b>\u2705 Accepted</b> \u2014 it kicks off the transaction and lets you set the timeline your client will see.', placement:'auto', advanceOn:'click:#coach-offer-accepted' }
       ], {});
     } else if(++tries < 40){ setTimeout(wait, 150); }
   })();
