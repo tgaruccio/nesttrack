@@ -1,4 +1,4 @@
-\<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -6208,7 +6208,14 @@ async function _wfFinishAndActivate(){
           if(typeof coachTour==='function'){
             coachTour([
               { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. When you\u2019re ready, tap <b>Start Buyer Journey</b> to run them through a real deal.', placement:'auto', advanceOn:'next' }
-            ], { onDone: function(){} });
+            ], { onDone: function(){
+                // Watch for the deal to actually open, THEN fire the next bubble on the Accepted button.
+                var jbtn = document.querySelector('#coach-journey button');
+                if(jbtn){
+                  var once = function(){ jbtn.removeEventListener('click', once); _wfWaitThenOfferStep(); };
+                  jbtn.addEventListener('click', once);
+                }
+              } });
           }
         }, 600);
       }, 900);
@@ -6222,6 +6229,22 @@ async function _wfFinishAndActivate(){
 
 // After they start the buyer journey on the practice client, land the FIRST deal-tracker bubble.
 // (Tier 2 foundation stops here — proving the card→deal hand-off. More bubbles come next.)
+function _wfWaitThenOfferStep(){
+  // Poll for the Accepted button (appears once the deal view is open). Only paint once it exists —
+  // never drop an overlay on a still-loading screen.
+  var tries = 0;
+  (function wait(){
+    var btn = document.getElementById('coach-offer-accepted');
+    if(btn){
+      if(typeof coachTour!=='function') return;
+      coachTour([
+        { target:'#coach-offer-accepted', title:'The offer got accepted!', body:'This is the moment the deal gets real. Tap <b>\u2705 Accepted</b> \u2014 it kicks off the transaction and lets you set the timeline your client will see.', placement:'auto', advanceOn:'next' }
+      ], {});
+    } else if(++tries < 40){ setTimeout(wait, 150); }
+  })();
+}
+window._wfWaitThenOfferStep = _wfWaitThenOfferStep;
+
 function _wfAfterJourneyStart(){
   var tries = 0;
   (function waitForDeal(){
@@ -25690,7 +25713,7 @@ function renderDealCards(deals) {
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 14px;background:#FEF9C3;border-bottom:1px solid #FDE047;">'
         +'<span style="font-size:12px;font-weight:600;color:#854D0E;min-width:0;overflow:hidden;text-overflow:ellipsis;">📤 Offer out on '+partnerEsc(deal.address)+'</span>'
         +'<span style="display:flex;gap:6px;flex-shrink:0;">'
-        +'<button class="btn btn-sm" style="background:#16A34A;color:#fff;font-size:11px;" onclick="markOfferAccepted(\''+deal.id+'\')">✅ Accepted</button>'
+        +'<button id="coach-offer-accepted" class="btn btn-sm" style="background:#16A34A;color:#fff;font-size:11px;" onclick="markOfferAccepted(\''+deal.id+'\')">✅ Accepted</button>'
         +'<button class="btn btn-sm" style="background:#DC2626;color:#fff;font-size:11px;" onclick="markOfferRejected(\''+deal.id+'\')">✕ Rejected</button>'
         +'</span></div>' : '')
       +'<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.55);border-bottom:1px solid '+tileBdr+';">'
