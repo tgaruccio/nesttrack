@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+\<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
@@ -26066,6 +26066,17 @@ async function setDealStep(dealId, next) {
   var justListed = (isSeller && next===6 && cur<6);
   if (justClosed) _activeFilter = 'closed';
   filterDeals(_activeFilter);
+  // Follow the deal to its new tab — scroll to it + highlight, so it's never lost in the list.
+  if (justUC || justClosed || justListed) {
+    setTimeout(function(){
+      var el = document.getElementById('deal-card-'+dealId);
+      if (el) {
+        el.scrollIntoView({behavior:'smooth', block:'center'});
+        el.style.transition='box-shadow .3s'; el.style.boxShadow='0 0 0 3px var(--green)';
+        setTimeout(function(){ el.style.boxShadow=''; }, 1800);
+      }
+    }, 250);
+  }
   if (justClosed && !deal.lbExported && typeof offerDealToLeaderboard==='function') offerDealToLeaderboard(deal);
   // Loop the lender in on key milestones — under contract is their cue to move the loan.
   if ((justUC || justClosed) && client && client.lenderId && client.lenderId !== 'none' && typeof sendPushToAgentByShortId==='function') {
