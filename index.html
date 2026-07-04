@@ -6154,7 +6154,7 @@ function _renderWelcomeBeat(){
     document.body.appendChild(overlay);
   }
 
-  var nextLabel = isLast ? 'Add my first client \u2192' : 'Next \u2192';
+  var nextLabel = isLast ? 'Show me how it works \u2192' : 'Next \u2192';
   var ctaStyle = isLast
     ? 'flex:1;padding:16px;border-radius:12px;border:none;background:linear-gradient(135deg,#0F7A52 0%,#1D9E75 100%);color:#fff;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 24px rgba(15,122,82,.35);'
     : 'flex:1;padding:13px;border-radius:11px;border:none;background:#0F7A52;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;';
@@ -6194,23 +6194,46 @@ window._wfSkip = _wfSkip;
 
 async function _wfFinishAndActivate(){
   await _wfFinish();
-  // Onboarding teaches the arc IN ORDER: Step 1 = get them in (add a client). No client-check, no
-  // NestTracker pitch here — NestTracker is Pillar 3, the END, shown in a later step.
-  window._wfOnboarding = true;
-  if(typeof openAddContactModal==='function'){
-    openAddContactModal();
-    // Tier 1 coach mark: spotlight the add-client form so they know exactly what to do first.
-    setTimeout(function(){
-      if(typeof coachTour==='function'){
-        coachTour([
-          { target:null, title:'Add your first client', body:'Every relationship starts here. Pop in their name and contact info, then tap Save Contact \u2014 I\u2019ll meet you on the other side.', advanceOn:'next' }
-        ], {});
-      }
-    }, 500);
-    return;
+  // Tier 2 foundation: instead of pushing them to add a REAL client (risk of real emails), create a
+  // safe PRACTICE client (no email) and walk them through the whole arc on it. Nothing can email a
+  // real person during the tutorial.
+  if(typeof _wfCreatePracticeClient==='function'){
+    if(typeof showToast==='function') showToast('Setting up a sample client to practice on…');
+    var pid = await _wfCreatePracticeClient();
+    if(pid){
+      window._wfPracticeUid = pid;
+      setTimeout(function(){
+        try { if(typeof openBuyerDetail==='function') openBuyerDetail(pid); } catch(e){}
+        setTimeout(function(){
+          if(typeof coachTour==='function'){
+            coachTour([
+              { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. Let\u2019s run them through a real deal. Tap Start Buyer Journey.', placement:'auto', advanceOn:'click:#coach-journey button', hint:'Tap Start Buyer Journey' }
+            ], { onDone: _wfAfterJourneyStart });
+          }
+        }, 700);
+      }, 900);
+      return;
+    }
   }
-  if(typeof go==='function'){ go('clients', document.querySelector('[data-pg=clients]')); }
+  // Fallback if practice client couldn't be created: old add-contact path.
+  window._wfOnboarding = true;
+  if(typeof openAddContactModal==='function'){ openAddContactModal(); return; }
 }
+
+// After they start the buyer journey on the practice client, land the FIRST deal-tracker bubble.
+// (Tier 2 foundation stops here — proving the card→deal hand-off. More bubbles come next.)
+function _wfAfterJourneyStart(){
+  setTimeout(function(){
+    if(typeof coachTour!=='function') return;
+    coachTour([
+      { target:function(){ return document.querySelector('[id^="deal-card-"]'); },
+        title:'This is the deal tracker',
+        body:'Every stage of the transaction lives here \u2014 touring, offer, under contract, closing. Your client sees their own version updating in real time. (More of the walkthrough is coming soon.)',
+        placement:'auto', advanceOn:'next' }
+    ], { onDone:function(){ if(typeof showToast==='function') showToast('That\u2019s the foundation \u2014 more of the guided tour is on the way. Explore anytime; replay from the ? on your dashboard.'); } });
+  }, 1200);
+}
+window._wfAfterJourneyStart = _wfAfterJourneyStart;
 
 function maybeStartWelcomeFlow(){
   try {
@@ -6222,6 +6245,39 @@ function maybeStartWelcomeFlow(){
   } catch(e){}
 }
 window.maybeStartWelcomeFlow = maybeStartWelcomeFlow;
+
+// ── ONBOARDING PRACTICE CLIENT (Tier 2 foundation) ──────────────────────────────
+// Creates a clearly-labeled sample client with NO email, so the guided walkthrough can start a deal,
+// advance steps, and enroll in NestTracker WITHOUT ever sending a real person an email. The agent
+// learns the whole flow risk-free, then does it for real.
+async function _wfCreatePracticeClient(){
+  try {
+    if(!currentUser || !userProfile) return null;
+    var agentId = userProfile.agentId || '';
+    var contactId = 'practice_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
+    var data = {
+      firstName: 'Practice', lastName: 'Client',
+      email: '',                       // NO email → deal-step + NestTracker sends simply skip (nothing sends)
+      phone: '',
+      agentId: agentId,
+      role: 'buyer', journeyType: 'buyer',
+      crmStatus: 'active',
+      agentNotes: 'This is a sample client for the walkthrough. Delete anytime — nothing here emails a real person.',
+      currentStep: 0, currentSellerStep: 0,
+      portalAccess: false, isContact: true,
+      isPracticeClient: true,          // flag → easy to spot + offer deletion after the tour
+      propertyAddress: '1 Sample St, Anytown, OH 44000',   // lets the NestTracker step value a home
+      mailingAddress: '1 Sample St, Anytown, OH 44000',
+      createdAt: fb.serverTimestamp(), lastActive: fb.serverTimestamp(),
+    };
+    await fb.setDoc(fb.doc(fb.db, 'users', contactId), data);
+    await loadBuyersForAgent();
+    if(typeof renderBuyers==='function') renderBuyers();
+    return contactId;
+  } catch(e){ return null; }
+}
+window._wfCreatePracticeClient = _wfCreatePracticeClient;
+
 
 // ══ COACH-MARK ENGINE (Tier 0) ═══════════════════════════════════════════════════
 // Reusable guided-tour engine: spotlights a real element, anchors a bubble to it, waits for the
