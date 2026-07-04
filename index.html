@@ -6207,8 +6207,16 @@ async function _wfFinishAndActivate(){
         setTimeout(function(){
           if(typeof coachTour==='function'){
             coachTour([
-              { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. Let\u2019s run them through a real deal. Tap Start Buyer Journey.', placement:'auto', advanceOn:'click:#coach-journey button', hint:'Tap Start Buyer Journey' }
-            ], { onDone: _wfAfterJourneyStart });
+              { target:null, title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. Take a look at their card, then tap the green <b>Start Buyer Journey</b> button to run them through a real deal.', advanceOn:'next' }
+            ], { onDone: function(){
+                // After the bubble is dismissed, watch for them to click the real journey button.
+                // When they do, the deal opens → then we fire the deal-tracker bubble.
+                var jbtn = document.querySelector('#coach-journey button');
+                if(jbtn){
+                  var once = function(){ jbtn.removeEventListener('click', once); _wfAfterJourneyStart(); };
+                  jbtn.addEventListener('click', once);
+                }
+              } });
           }
         }, 700);
       }, 900);
@@ -6231,7 +6239,7 @@ function _wfAfterJourneyStart(){
         body:'Every stage of the transaction lives here \u2014 touring, offer, under contract, closing. Your client sees their own version updating in real time. (More of the walkthrough is coming soon.)',
         placement:'auto', advanceOn:'next' }
     ], { onDone:function(){ if(typeof showToast==='function') showToast('That\u2019s the foundation \u2014 more of the guided tour is on the way. Explore anytime; replay from the ? on your dashboard.'); } });
-  }, 1200);
+  }, 1800);
 }
 window._wfAfterJourneyStart = _wfAfterJourneyStart;
 
