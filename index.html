@@ -6370,7 +6370,7 @@ async function _wfCreatePracticeClient(){
     var contactId = 'practice_' + Date.now() + '_' + Math.random().toString(36).substring(2,7);
     var data = {
       firstName: 'Practice', lastName: 'Client',
-      email: '',                       // NO email → deal-step + NestTracker sends simply skip (nothing sends)
+      email: 'practice@example.com',   // placeholder so email PREVIEWS render; the actual send is suppressed for practice clients (see sendStepEmail / NestTracker) — nothing ever leaves
       phone: '',
       agentId: agentId,
       role: 'buyer', journeyType: 'buyer',
@@ -10076,6 +10076,13 @@ async function sendStepEmail(uid, stepNum, type, pushInfo) {
         if (ccForMain.length > 1) stepPayload.cc2 = ccForMain[1];
         if (ccForMain.length > 2) stepPayload.cc3 = ccForMain[2];
 
+        // Practice/onboarding client: the preview above already showed them the email — do NOT actually
+        // send (saves Resend quota, and it's a fake client anyway). Nothing leaves.
+        if (client.isPracticeClient) {
+          if (typeof showToast==='function') showToast('That\u2019s the email your client would get \u2014 nothing sent (practice mode).');
+          return;
+        }
+
         await fetch(PROXY_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
@@ -10176,6 +10183,7 @@ async function sendContractDatesEmail(uid, type, dates) {
     if (!snap.exists()) return;
     var client = snap.data();
     if (!client.email) return;
+    if (client.isPracticeClient) return;   // practice/onboarding client — never actually send
     var first = client.firstName || 'there';
     var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
     var agentName = agentObj ? agentObj.name : '';
@@ -10246,6 +10254,8 @@ async function showUnderContractEmailPreview(uid, dates, type) {
   // Use standard email preview — full video, edit, CC support
   showEmailPreview(buyer.email, subject, fullHtml, async function(finalHtml, ccValue) {
     try {
+      // Practice/onboarding client: preview already shown — don't actually send (saves Resend, fake client).
+      if (buyer.isPracticeClient) { showDealToast('That\u2019s the email your client would get \u2014 nothing sent (practice mode)', null, null); return; }
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
         body:JSON.stringify({to:clientToList(buyer),subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),signature:agentSignatureHtml(),cc:_ccArray(ccValue,[],buyer.email)})});
       showDealToast('Under Contract email sent!', null, null);
