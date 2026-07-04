@@ -6252,32 +6252,58 @@ function _wfSendStep(){
 window._wfSendStep = _wfSendStep;
 
 function _wfAnyModalOpen(){
-  // True if any -modal element is visible (contract-dates modal, email preview, etc.).
-  var mods = document.querySelectorAll('[id$="-modal"]');
-  for(var i=0;i<mods.length;i++){
-    var el = mods[i];
-    if(el && el.style && el.style.display && el.style.display !== 'none') return true;
-    // also catch modals shown via computed style
-    try { if(getComputedStyle(el).display !== 'none' && el.offsetParent !== null) return true; } catch(e){}
+  // True if any modal/overlay is visible on top of the deal — so the coach never covers it.
+  // Checks -modal ids AND any fixed full-screen overlay (the email preview may not be a -modal).
+  var sels = document.querySelectorAll('[id$="-modal"], [id*="preview"], [id*="email"]');
+  for(var i=0;i<sels.length;i++){
+    var el = sels[i];
+    if(!el) continue;
+    try {
+      var cs = getComputedStyle(el);
+      if(cs.display !== 'none' && cs.visibility !== 'hidden' && el.offsetParent !== null){
+        var r = el.getBoundingClientRect();
+        if(r.width > 200 && r.height > 150) return true;   // a real visible panel
+      }
+    } catch(e){}
+  }
+  // Also scan for any high z-index fixed overlay covering most of the screen.
+  var all = document.querySelectorAll('div');
+  for(var j=0;j<all.length;j++){
+    var d = all[j];
+    try {
+      var s = getComputedStyle(d);
+      if(s.position==='fixed' && parseInt(s.zIndex||'0',10) >= 1000 && d.id!=='coach-layer'){
+        var rr = d.getBoundingClientRect();
+        if(rr.width > window.innerWidth*0.6 && rr.height > window.innerHeight*0.4 && s.display!=='none') return true;
+      }
+    } catch(e){}
   }
   return false;
 }
 
 function _wfClosingStep(){
-  // Wait until (a) no modal is open (email preview closed) AND (b) the stage dropdown is visible.
-  // This prevents the coach bubble from covering the email review popup.
+  // Find the PRACTICE deal specifically (by client uid) so we never touch a real deal's dropdown.
+  var practiceDeal = (typeof _deals!=='undefined' && _deals || []).find(function(d){ return d.clientUid===window._wfPracticeUid && d.dealType==='buyer'; });
+  var dealId = practiceDeal && practiceDeal.id;
+  if(!dealId){ return; }   // no practice deal → don't fire (never grab a real one)
+  window._wfPracticeDealId = dealId;
+  var selId = '#coach-stage-' + dealId;
+
   var tries = 0;
   (function wait(){
-    var sel = document.querySelector('[data-coach-stage="1"]');
+    var sel = document.querySelector(selId);
     var visible = sel && sel.getBoundingClientRect && sel.getBoundingClientRect().width > 0;
+    // Also require the deal to actually be visible on screen (top ~of viewport, not behind a popup).
     if(visible && !_wfAnyModalOpen()){
       try { sel.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
       setTimeout(function(){
+        // Re-check nothing popped up during the scroll delay.
+        if(_wfAnyModalOpen()){ setTimeout(wait, 300); return; }
         coachTour([
-          { target:'[data-coach-stage="1"]', title:'Take it all the way to closing', body:'Use this dropdown to move the deal through the stages \u2014 click around and watch the timeline update. When you\u2019re ready, pick <b>\uD83C\uDFC1 Closing</b> to finish the journey.', placement:'auto', advanceOn:'event:nt-deal-closed', noDim:true, hint:'Pick \uD83C\uDFC1 Closing when ready' }
+          { target:selId, title:'Take it all the way to closing', body:'Use this dropdown to move the deal through the stages \u2014 click around and watch the timeline update. When you\u2019re ready, pick <b>Closing</b> (the last stage) to finish the journey.', placement:'auto', advanceOn:'event:nt-deal-closed', noDim:true, hint:'Pick the last stage when ready' }
         ], { onDone:function(){ if(typeof showToast==='function') showToast('Deal closed \u2014 now let\u2019s keep them for life. That\u2019s Pillar 3.'); } });
-      }, 400);
-    } else if(++tries < 80){ setTimeout(wait, 150); }   // up to ~12s (email review can take a bit)
+      }, 500);
+    } else if(++tries < 80){ setTimeout(wait, 200); }
   })();
 }
 window._wfClosingStep = _wfClosingStep;
