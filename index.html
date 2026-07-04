@@ -6208,16 +6208,7 @@ async function _wfFinishAndActivate(){
           if(typeof coachTour==='function'){
             coachTour([
               { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. When you\u2019re ready, tap <b>Start Buyer Journey</b> to run them through a real deal.', placement:'auto', advanceOn:'next' }
-            ], { onDone: function(){
-                // The coach overlay is fully removed by _coachEnd BEFORE this runs. We only attach a
-                // passive listener — no new overlay — so the button behaves 100% normally. The next
-                // bubble is fired from inside the click handler, AFTER the deal opens.
-                var jbtn = document.querySelector('#coach-journey button');
-                if(jbtn){
-                  var once = function(){ jbtn.removeEventListener('click', once); };
-                  jbtn.addEventListener('click', once);
-                }
-              } });
+            ], { onDone: function(){} });
           }
         }, 600);
       }, 900);
