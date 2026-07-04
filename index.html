@@ -6207,10 +6207,10 @@ async function _wfFinishAndActivate(){
         setTimeout(function(){
           if(typeof coachTour==='function'){
             coachTour([
-              { target:null, title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. Take a look at their card, then tap the green <b>Start Buyer Journey</b> button to run them through a real deal.', advanceOn:'next' }
+              { target:'#coach-journey', title:'Meet your practice client', body:'I\u2019ve added a sample client so you can try everything safely \u2014 nothing here emails a real person. When you\u2019re ready, tap <b>Start Buyer Journey</b> to run them through a real deal.', placement:'auto', advanceOn:'next' }
             ], { onDone: function(){
-                // After the bubble is dismissed, watch for them to click the real journey button.
-                // When they do, the deal opens → then we fire the deal-tracker bubble.
+                // Coach mark is gone now — the button works normally. Watch for the real click to
+                // continue the tour once the deal opens.
                 var jbtn = document.querySelector('#coach-journey button');
                 if(jbtn){
                   var once = function(){ jbtn.removeEventListener('click', once); _wfAfterJourneyStart(); };
@@ -6384,7 +6384,7 @@ function _coachPaint(step, el){
   layer.style.cssText = 'position:fixed;inset:0;z-index:'+z+';font-family:inherit;pointer-events:none;';
 
   // Dim overlay with a "hole" over the target (via 4 panels so the target stays clickable).
-  var dim = 'rgba(15,25,20,0.62)';
+  var dim = 'rgba(15,25,20,0.42)';
   if(r){
     var top = Math.max(0, r.top - pad), left = Math.max(0, r.left - pad);
     var right = Math.min(window.innerWidth, r.right + pad), bottom = Math.min(window.innerHeight, r.bottom + pad);
