@@ -27575,10 +27575,12 @@ async function addToDealTracker(uid, dealType) {
 window.addToDealTracker = addToDealTracker;
 
 function _gotoDeal(dealId) {
-  console.log('[GOTODEAL] called with', dealId, '| _deals has it?', (_deals||[]).some(function(x){return x.id===dealId;}));
   var d = (_deals||[]).find(function(x){ return x.id===dealId; });
   closeM('buyer-modal');
-  if (typeof switchAgentTab==='function') { switchAgentTab('deals'); console.log('[GOTODEAL] switched to deals tab'); }
+  // Ensure we're on the agent page BEFORE switching tabs (during onboarding the app may be on the
+  // dashboard page, so switchAgentTab alone doesn't show — same pattern the working buttons use).
+  try { if(typeof go==='function') go('agent', document.querySelector('[data-pg=agent]')); } catch(e){}
+  if (typeof switchAgentTab==='function') switchAgentTab('deals');
   if (d && typeof dealStatusFromStep==='function') {
     var st = dealStatusFromStep(d);
     _activeFilter = (st==='Closed')?'closed':(st==='Under Contract')?'contract':(st==='Listed')?'active':'pipeline';
