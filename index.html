@@ -6223,17 +6223,22 @@ async function _wfFinishAndActivate(){
 // After they start the buyer journey on the practice client, land the FIRST deal-tracker bubble.
 // (Tier 2 foundation stops here — proving the card→deal hand-off. More bubbles come next.)
 function _wfWaitThenOfferStep(){
-  // Poll for the Accepted button (appears once the deal view is open). Only paint once it exists —
-  // never drop an overlay on a still-loading screen.
+  // Poll for the Accepted button AND make sure it's actually visible (has real dimensions) before
+  // painting — otherwise the spotlight can't measure it and falls back to full-screen dim (no hole).
   var tries = 0;
   (function wait(){
     var btn = document.getElementById('coach-offer-accepted');
-    if(btn){
+    var visible = btn && btn.getBoundingClientRect && btn.getBoundingClientRect().width > 0;
+    if(visible){
       if(typeof coachTour!=='function') return;
-      coachTour([
-        { target:'#coach-offer-accepted', title:'The offer got accepted!', body:'This is the moment the deal gets real. Tap <b>\u2705 Accepted</b> \u2014 it kicks off the transaction and lets you set the timeline your client will see.', placement:'auto', advanceOn:'click:#coach-offer-accepted' }
-      ], {});
-    } else if(++tries < 40){ setTimeout(wait, 150); }
+      // Scroll it into view first, then fire the tour once it's settled on screen.
+      try { btn.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
+      setTimeout(function(){
+        coachTour([
+          { target:'#coach-offer-accepted', title:'The offer got accepted!', body:'This is the moment the deal gets real. Tap <b>\u2705 Accepted</b> \u2014 it kicks off the transaction and lets you set the timeline your client will see.', placement:'auto', advanceOn:'click:#coach-offer-accepted' }
+        ], {});
+      }, 400);
+    } else if(++tries < 50){ setTimeout(wait, 150); }
   })();
 }
 window._wfWaitThenOfferStep = _wfWaitThenOfferStep;
@@ -6424,7 +6429,7 @@ function _coachPaint(step, el){
     + '<div style="position:fixed;top:'+top+'px;left:'+right+'px;right:0;height:'+(bottom-top)+'px;background:'+dim+';pointer-events:auto;"></div>'
     + '<div style="position:fixed;top:'+top+'px;left:'+left+'px;width:'+(right-left)+'px;height:'+(bottom-top)+'px;border:2px solid #1D9E75;border-radius:10px;box-shadow:0 0 0 3px rgba(29,158,117,.35);pointer-events:none;"></div>';
   } else {
-    layer.innerHTML = '<div style="position:fixed;inset:0;background:'+dim+';pointer-events:auto;"></div>';
+    layer.innerHTML = '<div style="position:fixed;inset:0;background:'+dim+';pointer-events:none;"></div>';
   }
 
   // Bubble
