@@ -6245,11 +6245,30 @@ function _wfSendStep(){
     if(visible){
       coachTour([
         { target:'#coach-cdm-send', title:'This is the magic moment', body:'One tap fills your client\u2019s live timeline AND emails them the update \u2014 so they always know exactly where things stand. This is Pillar 2. Tap <b>Save &amp; Send to Client</b>.', placement:'auto', advanceOn:'click:#coach-cdm-send', noDim:true }
-      ], { onDone:function(){ if(typeof showToast==='function') showToast('That\u2019s Pillar 2 \u2014 they\u2019ll never wonder what\u2019s happening. More coming.'); } });
+      ], { onDone:function(){ setTimeout(_wfClosingStep, 1400); } });
     } else if(++tries < 50){ setTimeout(wait, 150); }
   })();
 }
 window._wfSendStep = _wfSendStep;
+
+function _wfClosingStep(){
+  // After the email preview is dealt with and the deal is back in view (now Under Contract), point at
+  // the stage dropdown to move it to the final/closing stage. Uses noDim — screen stays clickable.
+  var tries = 0;
+  (function wait(){
+    var sel = document.querySelector('[data-coach-stage="1"]');
+    var visible = sel && sel.getBoundingClientRect && sel.getBoundingClientRect().width > 0;
+    if(visible){
+      try { sel.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
+      setTimeout(function(){
+        coachTour([
+          { target:'[data-coach-stage="1"]', title:'Take it all the way to closing', body:'Use this dropdown to move the deal through each stage. Pick the <b>final / closing</b> stage so you can see the full journey \u2014 your client\u2019s timeline updates the whole way.', placement:'auto', advanceOn:'event:nt-deal-closed', noDim:true, hint:'Pick the closing stage \u2191' }
+        ], { onDone:function(){ if(typeof showToast==='function') showToast('Once it\u2019s closed, we\u2019ll keep them for life \u2014 that\u2019s Pillar 3.'); } });
+      }, 400);
+    } else if(++tries < 50){ setTimeout(wait, 150); }
+  })();
+}
+window._wfClosingStep = _wfClosingStep;
 
 function _wfWaitThenOfferStep(){
   // Poll for the Accepted button AND make sure it's actually visible (has real dimensions) before
@@ -25750,7 +25769,7 @@ function renderDealCards(deals) {
         +'</span></div>' : '')
       +'<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(255,255,255,0.55);border-bottom:1px solid '+tileBdr+';">'
       +'<span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase;flex-shrink:0;">Stage</span>'
-      +'<select onchange="setDealStep(\''+deal.id+'\',parseInt(this.value))" style="flex:1;min-width:0;font-size:12px;padding:4px 6px;border:1px solid '+tileBdr+';border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'+_stepOpts+'</select>'
+      +'<select id="coach-stage-'+deal.id+'" data-coach-stage="1" onchange="setDealStep(\''+deal.id+'\',parseInt(this.value))" style="flex:1;min-width:0;font-size:12px;padding:4px 6px;border:1px solid '+tileBdr+';border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;">'+_stepOpts+'</select>'
       +'</div>'
       +'<div style="display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;border-bottom:1px solid var(--border);background:var(--surface2);scrollbar-width:thin;">'
       +[['Contract','contractDate'],['Earnest','earnestDate'],['Closing','closingDate'],['Inspection','inspectionDate'],['Appraisal','appraisalDate'],['Walkthrough','walkthroughDate'],['Financing','financingDate']].map(function(pair,i){
@@ -26120,6 +26139,7 @@ async function setDealStep(dealId, next) {
   var justClosed = (!isSeller && next>=11 && cur<11) || (isSeller && next>=13 && cur<13);
   var justListed = (isSeller && next===6 && cur<6);
   if (justClosed) _activeFilter = 'closed';
+  if (justClosed) { try { window.dispatchEvent(new CustomEvent('nt-deal-closed', {detail:{dealId:dealId}})); } catch(e){} }
   filterDeals(_activeFilter);
   // Follow the deal to its new tab — scroll to it + highlight, so it's never lost in the list.
   if (justUC || justClosed || justListed) {
@@ -27589,6 +27609,9 @@ async function addToDealTracker(uid, dealType) {
     step: (dealType==='seller' ? (b.currentSellerStep||0) : (b.currentStep||0)) || 1,
     checklist: [], notes: '', agentId: agentId,
   };
+  // Practice/onboarding deal: pre-fill a sample sale price so the close popup needs no typing, and flag
+  // it so it can be excluded from real leaderboard/stats.
+  if (b.isPracticeClient) { data.salePrice = 350000; data.isPracticeDeal = true; }
   if (typeof dealStatusFromStep === 'function') { data.status = dealStatusFromStep(data); }
   data._storedStatus = data.status;
   try {
