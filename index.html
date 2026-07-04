@@ -6279,7 +6279,21 @@ async function _wfCreatePracticeClient(){
       createdAt: fb.serverTimestamp(), lastActive: fb.serverTimestamp(),
     };
     await fb.setDoc(fb.doc(fb.db, 'users', contactId), data);
-    await loadBuyersForAgent();
+    // Guarantee it's in allBuyers immediately (don't rely on the role/agentId query round-trip, which
+    // was silently excluding it → addToDealTracker's `if(!b) return` made the button do nothing).
+    try {
+      if (typeof allBuyers !== 'undefined') {
+        allBuyers = (allBuyers||[]).filter(function(x){ return x.uid !== contactId; });
+        allBuyers.push(Object.assign({ uid: contactId }, data));
+      }
+    } catch(e){}
+    try { await loadBuyersForAgent(); } catch(e){}
+    // Re-ensure after the reload (in case the query dropped it).
+    try {
+      if (typeof allBuyers !== 'undefined' && !allBuyers.find(function(x){ return x.uid===contactId; })) {
+        allBuyers.push(Object.assign({ uid: contactId }, data));
+      }
+    } catch(e){}
     if(typeof renderBuyers==='function') renderBuyers();
     return contactId;
   } catch(e){ return null; }
