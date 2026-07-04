@@ -6300,7 +6300,7 @@ function _wfClosingStep(){
         // Re-check nothing popped up during the scroll delay.
         if(_wfAnyModalOpen()){ setTimeout(wait, 300); return; }
         coachTour([
-          { target:selId, title:'Take it all the way to closing', body:'Use this dropdown to move the deal through the stages \u2014 click around and watch the timeline update. When you\u2019re ready, pick <b>Closing</b> (the last stage) to finish the journey.', placement:'auto', advanceOn:'event:nt-deal-closed', noDim:true, hint:'Pick the last stage when ready' }
+          { target:selId, title:'Take it all the way to closing', body:'Open this dropdown and pick the very last stage \u2014 <b>Closing</b>. That completes the journey and shows you how a deal wraps up. (You can skip the email prompt with \u201cSave Only\u201d.)', placement:'auto', advanceOn:'event:nt-deal-closed', noDim:true, hint:'Open the dropdown \u2192 pick Closing' }
         ], { onDone:function(){ if(typeof showToast==='function') showToast('Deal closed \u2014 now let\u2019s keep them for life. That\u2019s Pillar 3.'); } });
       }, 500);
     } else if(++tries < 80){ setTimeout(wait, 200); }
@@ -6494,10 +6494,18 @@ function _coachRenderStep(){
       // rebuilds the deal card), re-attach the bubble to the new element instead of getting stuck.
       if(step.target){
         _coach._tick = setInterval(function(){
+          // If a popup/modal is covering the screen, hide the coach layer so they don't compete;
+          // restore it once the popup closes.
+          var layerNow = document.getElementById('coach-layer');
+          if(typeof _wfAnyModalOpen==='function' && _wfAnyModalOpen()){
+            if(layerNow) layerNow.style.display = 'none';
+            return;
+          } else if(layerNow && layerNow.style.display==='none'){
+            layerNow.style.display = '';
+          }
           var cur = _coachResolve(step.target);
           if(cur){
             var r = cur.getBoundingClientRect();
-            // Only repaint if the anchor moved meaningfully (avoids constant flicker).
             if(!_coach._lastRect || Math.abs(r.top-_coach._lastRect.top)>4 || Math.abs(r.left-_coach._lastRect.left)>4){
               _coach._lastRect = {top:r.top,left:r.left};
               var layer = document.getElementById('coach-layer'); if(layer) layer.remove();
