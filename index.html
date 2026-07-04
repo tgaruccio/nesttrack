@@ -6214,7 +6214,7 @@ async function _wfFinishAndActivate(){
                 // bubble is fired from inside the click handler, AFTER the deal opens.
                 var jbtn = document.querySelector('#coach-journey button');
                 if(jbtn){
-                  var once = function(){ jbtn.removeEventListener('click', once); _wfAfterJourneyStart(); };
+                  var once = function(){ jbtn.removeEventListener('click', once); };
                   jbtn.addEventListener('click', once);
                 }
               } });
@@ -27584,9 +27584,10 @@ async function addToDealTracker(uid, dealType) {
 window.addToDealTracker = addToDealTracker;
 
 function _gotoDeal(dealId) {
+  console.log('[GOTODEAL] called with', dealId, '| _deals has it?', (_deals||[]).some(function(x){return x.id===dealId;}));
   var d = (_deals||[]).find(function(x){ return x.id===dealId; });
   closeM('buyer-modal');
-  if (typeof switchAgentTab==='function') switchAgentTab('deals');
+  if (typeof switchAgentTab==='function') { switchAgentTab('deals'); console.log('[GOTODEAL] switched to deals tab'); }
   if (d && typeof dealStatusFromStep==='function') {
     var st = dealStatusFromStep(d);
     _activeFilter = (st==='Closed')?'closed':(st==='Under Contract')?'contract':(st==='Listed')?'active':'pipeline';
