@@ -6195,10 +6195,20 @@ window._wfSkip = _wfSkip;
 async function _wfFinishAndActivate(){
   await _wfFinish();
   // Onboarding teaches the arc IN ORDER: Step 1 = get them in (add a client). No client-check, no
-  // NestTracker pitch here — NestTracker is Pillar 3, the END of the journey, shown in a later step.
-  // Everyone follows the same path: add a client → land on their card → start their journey.
+  // NestTracker pitch here — NestTracker is Pillar 3, the END, shown in a later step.
   window._wfOnboarding = true;
-  if(typeof openAddContactModal==='function'){ openAddContactModal(); return; }
+  if(typeof openAddContactModal==='function'){
+    openAddContactModal();
+    // Tier 1 coach mark: spotlight the add-client form so they know exactly what to do first.
+    setTimeout(function(){
+      if(typeof coachTour==='function'){
+        coachTour([
+          { target:null, title:'Add your first client', body:'Every relationship starts here. Pop in their name and contact info, then tap Save Contact \u2014 I\u2019ll meet you on the other side.', advanceOn:'next' }
+        ], {});
+      }
+    }, 500);
+    return;
+  }
   if(typeof go==='function'){ go('clients', document.querySelector('[data-pg=clients]')); }
 }
 
@@ -15336,7 +15346,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128196;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Transactions</div></div>
     ${renderClientDealsSection(uid)}
-    ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`}
+    ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';})) ? '' : `<div id="coach-journey" data-coach="journey" style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`}
     ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','seller')" style="width:100%;font-size:13px;background:#D97706;color:#fff;border-color:#D97706;">🏡 Start Seller Journey</button></div>`}
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
@@ -30307,7 +30317,14 @@ async function createContact() {
       window._wfOnboarding = false;
       setTimeout(function(){
         try { if(typeof openBuyerDetail==='function') openBuyerDetail(contactId); } catch(e){}
-        if(typeof showToast==='function') showToast('Here\u2019s '+first+'\u2019s card \u2014 start their journey below.');
+        // Tier 1 coach mark: one bubble on the journey section so they see where every path begins.
+        setTimeout(function(){
+          if(typeof coachTour==='function'){
+            coachTour([
+              { target:'#coach-journey', title:'This is where it all begins', body:'Now choose their path. Start a Buyer or Seller Journey to run the deal, or scroll down to add them to NestTracker to keep in touch for life. Every pillar starts right here on the client\u2019s card.', placement:'auto', advanceOn:'next' }
+            ], { onDone:function(){ if(typeof showToast==='function') showToast('You\u2019re all set \u2014 explore anytime. Replay the intro from the ? on your dashboard.'); } });
+          }
+        }, 700);
       }, 1600);
     }
   } catch(e) { alert('Failed: ' + e.message); }
