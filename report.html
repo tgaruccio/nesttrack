@@ -137,6 +137,23 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
 </style>
 </head>
 <body>
+<div id="demo-back" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--pine);color:#fff;padding:11px 16px;font-family:'Inter',system-ui,sans-serif;font-size:14px;font-weight:600;align-items:center;gap:8px;box-shadow:0 2px 10px rgba(0,0,0,.2);">
+  <a href="#" onclick="_demoBack();return false;" style="color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:7px;">&larr; Back to NestTrack</a>
+  <span id="demo-back-tag" style="margin-left:auto;font-size:11px;color:#BFD6CA;font-weight:500;"></span>
+</div>
+<script>
+  function _demoBack(){ try{ if(window.history.length>1){ window.history.back(); return; } }catch(e){} try{ window.close(); }catch(e){} setTimeout(function(){ location.href='https://app.nesttrack.io'; }, 150); }
+  (function(){
+    // Back bar shows ONLY when the agent is previewing (?demo=1 or ?preview=1). A real client opening
+    // their own report (?t=TOKEN) never sees it — their report stays clean.
+    var isPreview = /[?&]demo=1/.test(location.search) || /[?&]preview=1/.test(location.search);
+    if(isPreview){
+      var db=document.getElementById('demo-back');
+      if(db){ db.style.display='flex'; document.body.style.paddingTop='46px'; }
+      if(/[?&]demo=1/.test(location.search)){ var tag=document.getElementById('demo-back-tag'); if(tag) tag.textContent='Sample report'; }
+    }
+  })();
+</script>
 
 <!-- HERO -->
 <header class="hero">
