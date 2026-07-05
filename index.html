@@ -4360,6 +4360,25 @@ function initAuthScreen(){
 }
 window.initAuthScreen = initAuthScreen;
 document.addEventListener('DOMContentLoaded', initAuthScreen);
+// Reset the native app-icon badge to 0. Works via the Median bridge (native app); no-op on web.
+// Called when the app opens and whenever it returns to the foreground.
+function clearAppBadge(){
+  try {
+    if (typeof median !== 'undefined' && median) {
+      // Median exposes badge control under notifications; guard each shape.
+      if (median.notifications && typeof median.notifications.setAppIconBadge === 'function') {
+        median.notifications.setAppIconBadge({ number: 0 });
+      } else if (median.onesignal && typeof median.onesignal.setBadgeCount === 'function') {
+        median.onesignal.setBadgeCount({ count: 0 });
+      }
+    }
+  } catch(e){ /* web / bridge unavailable — nothing to clear */ }
+}
+window.clearAppBadge = clearAppBadge;
+// Clear the badge each time the app is brought back to the foreground.
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') { try { clearAppBadge(); } catch(e){} }
+});
 
 async function signIn() {
   const email = document.getElementById('si-email').value.trim();
@@ -19750,6 +19769,10 @@ async function oneSignalRegister() {
       if (typeof median.onReady === 'function') { median.onReady(_medianLogin); } else { _medianLogin(); }
     }
   } catch(e){ dbg('median bridge check err: ' + (e&&e.message)); }
+  // Clear the home-screen app-icon badge now that the app is open, and again whenever it returns
+  // to the foreground. Pushes increment the badge (+1 each); opening the app resets it to 0 so the
+  // number reflects "missed since you last opened the app."
+  try { clearAppBadge(); } catch(e){}
   // --- WEB (PWA / browser): use the OneSignal web SDK ---
   try {
     window.OneSignalDeferred = window.OneSignalDeferred || [];
