@@ -6310,13 +6310,18 @@ window._wfClosingStep = _wfClosingStep;
 
 // ── PILLAR 3 FINALE: after the deal closes, keep them for life via NestTracker ──────────────
 function _wfNestTrackerFinale(){
-  // Wait for the commission popup (deal-lb-modal) to be gone, then open the practice client's card
-  // and spotlight "Add to NestTracker" — the keep-in-touch finale.
+  // Wait until BOTH the "Deal closed" leaderboard popup AND the email preview are gone before
+  // spotlighting Add to NestTracker. Check display directly (offsetParent is null for fixed elements).
+  function _popupsOpen(){
+    var lb = document.getElementById('deal-lb-modal');
+    if(lb && getComputedStyle(lb).display !== 'none') return true;
+    var ep = document.getElementById('email-preview-overlay');
+    if(ep && getComputedStyle(ep).display !== 'none') return true;
+    return false;
+  }
   var tries = 0;
   (function wait(){
-    var lb = document.getElementById('deal-lb-modal');
-    var lbOpen = lb && getComputedStyle(lb).display !== 'none';
-    if(!lbOpen){
+    if(!_popupsOpen()){
       // Open the practice client's card.
       try { if(typeof openBuyerDetail==='function' && window._wfPracticeUid) openBuyerDetail(window._wfPracticeUid); } catch(e){}
       // Wait for the Add-to-NestTracker button to render, then spotlight it.
@@ -6324,17 +6329,18 @@ function _wfNestTrackerFinale(){
       (function waitBtn(){
         var btn = document.getElementById('coach-nesttracker');
         var visible = btn && btn.getBoundingClientRect && btn.getBoundingClientRect().width > 0;
-        if(visible && (typeof _wfAnyModalOpen!=='function' || !_wfAnyModalOpen())){
+        if(visible && !_popupsOpen()){
           try { btn.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
           setTimeout(function(){
+            if(_popupsOpen()){ setTimeout(waitBtn, 250); return; }   // popup snuck back — wait again
             if(typeof coachTour!=='function') return;
             coachTour([
               { target:'#coach-nesttracker', title:'The deal\u2019s done \u2014 but you\u2019re not', body:'This is where most agents disappear. You won\u2019t. Tap <b>\uD83C\uDFE0 Add to NestTracker</b> \u2014 your client gets a branded home-value report from you every quarter, so you\u2019re the only agent they\u2019ll ever call. That\u2019s Pillar 3.', placement:'auto', advanceOn:'click:#coach-nesttracker', noDim:true }
             ], {});
           }, 400);
-        } else if(++t2 < 60){ setTimeout(waitBtn, 150); }
+        } else if(++t2 < 80){ setTimeout(waitBtn, 200); }
       })();
-    } else if(++tries < 80){ setTimeout(wait, 200); }
+    } else if(++tries < 120){ setTimeout(wait, 200); }
   })();
 }
 window._wfNestTrackerFinale = _wfNestTrackerFinale;
