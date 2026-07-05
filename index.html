@@ -6350,8 +6350,19 @@ window._wfNestTrackerFinale = _wfNestTrackerFinale;
 function _wfNestTrackerDone(){
   setTimeout(function(){
     if(typeof coachTour!=='function') return;
+    // Optional full-length walkthrough video — shows only if one is set in Help admin (key: walkthrough).
+    var wtLink = '';
+    try {
+      var wt = (window._helpContent && window._helpContent.walkthrough) || null;
+      var raw = wt && wt.video ? String(wt.video).trim() : '';
+      if(raw){
+        var share = raw;
+        // Prefer the share/watch URL for opening in a new tab (fall back to whatever was pasted).
+        wtLink = '<br><br>\uD83C\uDFAC Prefer to watch? <a href="'+share+'" target="_blank" style="color:#1D9E75;font-weight:700;text-decoration:underline;">See the full walkthrough \u2192</a>';
+      }
+    } catch(e){}
     coachTour([
-      { target:null, title:'That\u2019s the whole system.', body:'<b>Marketing</b> brings them in \u2192 the <b>deal tracker</b> keeps you organized and gives your client their own dashboard, emails, and in-app messages \u2192 on close, <b>NestTracker</b> and <b>Smart Plans</b> keep them for life. Your to-do list and reminders tie into the AI TC through the whole thing.<br><br>See a <b>?</b> anywhere in the app? Tap it to learn exactly what that piece does \u2014 and this is just a slice of what NestTrack can do.<br><br>Your practice client is still here. Go run a <b>seller trail</b>, make an offer in the <b>Offer Manager</b>, poke around with no risk. Then go do it for real \u2014 I\u2019m rooting for you.', advanceOn:'next' }
+      { target:null, title:'That\u2019s the whole system.', body:'<b>Marketing</b> brings them in \u2192 the <b>deal tracker</b> keeps you organized and gives your client their own dashboard, emails, and in-app messages \u2192 on close, <b>NestTracker</b> and <b>Smart Plans</b> keep them for life. Your to-do list and reminders tie into the AI TC through the whole thing.<br><br>See a <b>?</b> anywhere in the app? Tap it to learn exactly what that piece does \u2014 and this is just a slice of what NestTrack can do.<br><br>Your practice client is still here. Go run a <b>seller trail</b>, make an offer in the <b>Offer Manager</b>, poke around with no risk. Then go do it for real \u2014 I\u2019m rooting for you.'+wtLink, advanceOn:'next' }
     ], { onDone:function(){ if(typeof showToast==='function') showToast('You\u2019re all set. Replay this anytime from the ? on your dashboard.'); } });
   }, 900);
 }
@@ -6709,7 +6720,6 @@ window.coachDemo = coachDemo;
 // ── HELP CENTER (data-driven, video-capable) ──
 // Built-in defaults = fallback so dots always say something even before Tom adds Firestore content.
 var HELP_DEFAULTS = {
-  install:     { title:'Add NestTrack to your home screen', body:'Installing puts NestTrack one tap away <em>and</em> turns on push notifications, so your reminders and new-lead alerts actually reach you. It takes about 20 seconds.<br/><br/><strong>On iPhone (use Safari):</strong><br/>1. Open NestTrack in <strong>Safari</strong> (not Chrome — only Safari can install on iPhone).<br/>2. Tap the <strong>Share</strong> button (the square with an arrow, at the bottom).<br/>3. Scroll down and tap <strong>Add to Home Screen</strong>.<br/>4. Tap <strong>Add</strong>. The NestTrack icon appears on your home screen — open it from there from now on.<br/><br/><strong>On Android (use Chrome):</strong><br/>1. Open NestTrack in <strong>Chrome</strong>.<br/>2. Tap the <strong>\u22EE</strong> menu (top right).<br/>3. Tap <strong>Add to Home screen</strong> (or tap the install banner if it pops up).<br/>4. Tap <strong>Add</strong> / <strong>Install</strong>.<br/><br/>After installing, <strong>always open NestTrack from the home screen icon</strong> — that\u2019s what keeps notifications working.' },
   showingtime: { title:'How to connect ShowingTime', body:'<strong>To set it up:</strong> in ShowingTime go to <strong>Settings → Calendar Sync → Subscribe Link</strong>, copy the <em>webcal://</em> URL, and paste it in the field here. <strong>Where it connects:</strong> once linked, your showings flow automatically into the Showings tab and your Seller Reports — so feedback and activity show up without you entering anything.' },
   zapier:      { title:'How to set up Zapier', body:'<strong>To set it up:</strong> in Zapier create a new Zap → <strong>Webhooks by Zapier → Catch Hook</strong>, then copy the webhook URL it gives you and paste it here. <strong>Where it connects:</strong> new and updated clients in NestTrack push out to whatever you wire on the other end of the Zap (your old CRM, a sheet, etc.).' },
   deals:       { title:'How to use the Deal Tracker', body:'<strong>To use it:</strong> open a deal, set the stage and key dates (contract, inspection, appraisal, closing), and add the parties. Update it as things move. <strong>Where it connects:</strong> everything you enter here feeds the rest of the app automatically — the client’s timeline updates, milestone emails get pre-drafted with the real dates, and your to-dos re-sort. Work the deal here and the client side keeps itself current.' },
@@ -13370,7 +13380,7 @@ window.pricingSetPublic=pricingSetPublic;
 // Sections an agent might get stuck on. Keys must match the helpDot('key') calls placed in the UI.
 var HELP_SECTIONS = [
   {key:'welcome_intro',   label:'🎬 Welcome Hook (first-run popup + optional video)'},
-  {key:'install',     label:'Add to Home Screen (install)'},
+  {key:'walkthrough',     label:'🎬 Full Walkthrough (optional video on last onboarding slide)'},
   {key:'deals',       label:'Deal Tracker'},
   {key:'offers',      label:'Offer Manager'},
   {key:'clients',     label:'Clients / Client Cards'},
@@ -25987,6 +25997,12 @@ window.dismissDealToLeaderboard = dismissDealToLeaderboard;
 async function confirmDealToLeaderboard(dealId){
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) { closeM('deal-lb-modal'); return; }
+  // Practice/onboarding deal: never write to the real leaderboard or finances — it's a fake $350k.
+  if (deal.isPracticeDeal) {
+    closeM('deal-lb-modal');
+    try { showDealToast('Practice deal \u2014 not added to your real leaderboard.', null, null); } catch(e){}
+    return;
+  }
   var agentId = deal.agentId || userProfile.agentId || '';
   var rawAmt = (document.getElementById('dlb-amount')||{}).value || '';
   var amount = parseFloat(String(rawAmt).replace(/[^0-9.]/g,'')) || 0;
