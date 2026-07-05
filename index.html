@@ -3589,7 +3589,7 @@ textarea{resize:vertical;min-height:68px;}
 <!-- FIREBASE + APP SCRIPT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, collectionGroup, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 import { getStorage, ref as storageRef, deleteObject, listAll, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
@@ -3607,6 +3607,10 @@ const firebaseConfig = {
 
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
+// Keep users signed in across tab closes, browser restarts, and app restarts (until they log out).
+// Without this, Firebase can silently fall back to weaker persistence — especially in the mobile
+// webview wrapper — and log people out. Fire-and-forget; must run before any sign-in.
+try { setPersistence(auth, browserLocalPersistence).catch(function(e){ console.log('setPersistence:', e && e.message); }); } catch(e){ console.log('setPersistence threw:', e && e.message); }
 const db = getFirestore(fbApp);
 const rtdb = getDatabase(fbApp);
 const storage = getStorage(fbApp);
@@ -24592,10 +24596,29 @@ function teamChatInit() {
     var msg = snapshot.val();
     if (!msg) return;
 
-    var el = document.getElementById('team-chat-messages');
-    if (!el) return;
-
     var isMine = msg.senderId === currentUser.uid;
+
+    // ── Unread tracking FIRST (independent of the chat page being open) ──
+    // Count any message from someone else that's newer than the last time this agent opened team chat.
+    // This runs on initial load too, so messages that arrived while the app was CLOSED (a missed push)
+    // surface as a badge the moment the app reopens — not only for messages seen live.
+    if (!isMine && (msg.ts||0) > lastSeen) {
+      var _panel = document.getElementById('agent-teamstats-panel');
+      var _viewing = _panel && _panel.style.display !== 'none';
+      if (!_viewing) {
+        unreadCount++;
+        teamChatSetBadge(unreadCount);
+      } else {
+        // They're looking at team chat right now — mark as seen so it doesn't badge.
+        lastSeen = Math.max(lastSeen, msg.ts||0);
+        try { localStorage.setItem('team_chat_last_seen', String(lastSeen)); } catch(e){}
+      }
+    }
+
+    // ── Rendering (only if the chat page is actually on screen) ──
+    var el = document.getElementById('team-chat-messages');
+    if (!el) { firstLoad = false; return; }
+
     var time = msg.ts ? new Date(msg.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
     var date = msg.ts ? new Date(msg.ts).toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}) : '';
 
@@ -24627,15 +24650,6 @@ function teamChatInit() {
     el.appendChild(wrapper);
     el.scrollTop = el.scrollHeight;
 
-    // Unread tracking
-    if (!isMine && !firstLoad && msg.ts > lastSeen) {
-      var panel = document.getElementById('agent-teamstats-panel');
-      var visible = panel && panel.style.display !== 'none';
-      if (!visible) {
-        unreadCount++;
-        teamChatSetBadge(unreadCount);
-      }
-    }
     firstLoad = false;
   });
 }
