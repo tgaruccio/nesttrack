@@ -15921,6 +15921,15 @@ async function deleteBuyer(uid) {
   const msg = `Delete ${name}?\n\nThis removes the buyer profile from this portal and deletes their saved homes/tours stored under that profile. It does NOT delete their Firebase Authentication login. If they sign in again, a new profile may be created.`;
   if (!confirm(msg)) return;
   try {
+    // Delete any deals belonging to this client FIRST — otherwise the deal doc orphans in the
+    // database (client gone, deal remains, still stamped with an agentId) and pollutes stats/digests.
+    try {
+      var _clientDeals = (_deals||[]).filter(function(d){ return d.clientUid === uid; });
+      for (var _i=0; _i<_clientDeals.length; _i++){
+        try { await fb.deleteDoc(_dealDoc(_clientDeals[_i].id)); } catch(_e){ console.log('deal cleanup:', _e && _e.message); }
+      }
+      _deals = (_deals||[]).filter(function(d){ return d.clientUid !== uid; });
+    } catch(_e){ console.log('client-deal cleanup:', _e && _e.message); }
     await deleteKnownBuyerSubcollections(uid);
     await fb.deleteDoc(fb.doc(fb.db, 'users', uid));
     allBuyers = allBuyers.filter(x => x.uid !== uid);
