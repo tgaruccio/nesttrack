@@ -27256,12 +27256,25 @@ function renderClaimBanner(){
     var name = ((l.firstName||'')+' '+(l.lastName||'')).trim() || l.email || l.phone || 'New Lead';
     var sub = [l.phone, l.email, l.source].filter(Boolean).join(' \u00b7 ');
     var rrNote = (l.mode === 'roundrobin') ? '<span style="font-size:10px;color:#fff;background:rgba(255,255,255,0.25);border-radius:4px;padding:1px 6px;margin-left:6px;">Your turn</span>' : '';
-    html += '<div style="background:#1D9E75;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px;">'
-      +'<div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:#fff;">\uD83D\uDD14 New lead to claim'+rrNote+'</div>'
+    // Give the agent enough to decide: property/address + a short preview of the lead's notes
+    // (which now carry price, city, timeframe, etc. captured from the source).
+    var addrLine = (l.address && String(l.address).trim())
+      ? '<div style="font-size:11px;color:rgba(255,255,255,0.9);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\uD83D\uDCCD '+partnerEsc(String(l.address).trim())+'</div>'
+      : '';
+    var notesPreview = '';
+    if (l.notes && String(l.notes).trim()){
+      var _n = String(l.notes).trim().replace(/\s*\n\s*/g, ' \u00b7 ');
+      if (_n.length > 120) _n = _n.slice(0,120) + '\u2026';
+      notesPreview = '<div style="font-size:11px;color:rgba(255,255,255,0.9);margin-top:3px;line-height:1.4;">\uD83D\uDCDD '+partnerEsc(_n)+'</div>';
+    }
+    html += '<div style="background:#1D9E75;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">'
+      +'<div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:700;color:#fff;">\uD83D\uDD14 New lead to claim'+rrNote+'</div>'
       +'<div style="font-size:14px;font-weight:600;color:#fff;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(name)+'</div>'
       +(sub?'<div style="font-size:11px;color:rgba(255,255,255,0.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+partnerEsc(sub)+'</div>':'')
+      +addrLine
+      +notesPreview
       +'</div>'
-      +'<button onclick="claimLead(\''+l.id+'\')" style="flex-shrink:0;background:#fff;color:#0F6E56;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;">Claim</button>'
+      +'<button onclick="claimLead(\''+l.id+'\')" style="flex-shrink:0;background:#fff;color:#0F6E56;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;align-self:center;">Claim</button>'
       +'</div>';
   });
   els.forEach(function(el){ el.innerHTML = html; el.style.display = 'block'; });
