@@ -130,6 +130,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
 .foot a{color:var(--brass-d)}
 @media (max-width:520px){
   .result-grid{grid-template-columns:1fr}
+  .budget-grid{grid-template-columns:1fr}
   .value{font-size:56px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -218,22 +219,22 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
   <div class="card">
     <h2>Your real move-up budget</h2>
     <p class="muted" style="font-size:14px;margin-top:4px">A few quick numbers give you a realistic target — closer than any rule of thumb, though still not a pre-approval.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
-      <div style="display:flex;flex-direction:column;gap:5px">
+    <div class="budget-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
         <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Annual household income</label>
-        <input id="afIncome" inputmode="numeric" placeholder="$120,000" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+        <input id="afIncome" inputmode="numeric" placeholder="$120,000" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
       </div>
-      <div style="display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
         <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Monthly debts (cars, cards, loans)</label>
-        <input id="afDebts" inputmode="numeric" placeholder="$600" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+        <input id="afDebts" inputmode="numeric" placeholder="$600" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
       </div>
-      <div style="display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
         <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Down payment (your equity)</label>
-        <input id="afDown" inputmode="numeric" placeholder="$250,000" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+        <input id="afDown" inputmode="numeric" placeholder="$250,000" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
       </div>
-      <div style="display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0">
         <label style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)">Interest rate</label>
-        <input id="afRate" inputmode="decimal" placeholder="6.75%" style="box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
+        <input id="afRate" inputmode="decimal" placeholder="6.75%" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:16px;color:var(--pine);font-family:inherit">
       </div>
     </div>
     <div class="result-grid" style="margin-top:20px">
@@ -495,6 +496,25 @@ function contactAgent(){
 }
 
 (function init(){
+  // DEMO MODE: ?demo=1 renders a fully-populated sample report with baked-in fake data — no worker
+  // call, no API cost. Used by the onboarding walkthrough to show what a real client report looks like.
+  var isDemo = /[?&]demo=1/.test(location.search);
+  if(isDemo){
+    hydrate({
+      ok:true,
+      address:'1234 Lakeview Ave, Westlake, OH 44145',
+      value:452000, owed:198000, equity:254000, equityPct:56,
+      qtrDelta:2.4, confidence:94, low:428000, high:476000, updated:'This quarter',
+      yourRate:3.75, rate30:6.82, rate15:6.05, ratesAsOf:'this week',
+      comps:[
+        { address:'1189 Lakeview Ave', sub:'Sold 3 weeks ago · 4 bd / 2.5 ba · 2,340 sqft', price:465000 },
+        { address:'1420 Bassett Rd', sub:'Sold last month · 3 bd / 2 ba · 2,100 sqft', price:441000 },
+        { address:'27655 Center Ridge Rd', sub:'Sold 6 weeks ago · 4 bd / 3 ba · 2,520 sqft', price:472000 }
+      ],
+      agent:{ name:'Tom Garuccio', firstName:'Tom', role:'The Garuccio Group at Real', phone:'440-555-0100', photo:'' }
+    });
+    return;
+  }
   var t=getToken();
   if(!t){ setTxt('heroAddr','No report link token'); return; }
   fetch(WORKER+'/api/v1/nesttracker-report?t='+encodeURIComponent(t))
