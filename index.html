@@ -6134,6 +6134,9 @@ var WELCOME_BEATS = ['welcome_intro'];
 var _wfIndex = 0;
 
 async function startWelcomeFlow(force){
+  // Hard guard: the onboarding is agent-only. Never render it for a buyer/client or lender,
+  // no matter how it's invoked. (force is used by the agent-dashboard replay button.)
+  if(!isAgent || !userProfile || userProfile.role !== 'agent') return;
   _wfIndex = 0;
   await _loadHelpContent();
   _renderWelcomeBeat();
@@ -6437,6 +6440,8 @@ function maybeStartWelcomeFlow(){
     // TEMP (Tier 0 testing): visit ?coachdemo=1 to run the engine demo on any device (incl. phone).
     if(/[?&]coachdemo=1/.test(location.search)){ setTimeout(function(){ if(typeof coachDemo==='function') coachDemo(); }, 900); return; }
     if(!userProfile) return;
+    // AGENTS ONLY. This is the agent onboarding — it must never fire for a buyer/client or lender.
+    if(!isAgent || userProfile.role !== 'agent') return;
     if(userProfile.welcomeFlowDone === true) return;
     setTimeout(function(){ startWelcomeFlow(); }, 800);
   } catch(e){}
