@@ -13547,6 +13547,10 @@ async function applyManageAsOverride(){
     _impersonated:true
   });
   isAgent = true;
+  // Managing as an AGENT — clear any lender scope inherited from the owner's own session, otherwise
+  // the lender-client query (lenderId == _teamDefaultLender()) pulls the OWNER's clients into the view.
+  isLender = (td && td.role === 'lender') ? true : false;
+  if (!isLender) { userProfile.lenderId = ''; }
   assignedAgent = Object.assign({}, ag, td?{
     photoUrl: td.photoUrl||ag.photoUrl, photo: td.photoUrl||ag.photo,
     calendly: td.calendly||ag.calendly, googleReviewUrl: td.googleReviewUrl||ag.googleReviewUrl,
