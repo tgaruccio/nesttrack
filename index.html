@@ -6106,8 +6106,7 @@ async function saveAgentProfile() {
 // ── FIRST-RUN WELCOME FLOW (three-pillar story) ────────────────────────────────
 // Separate from the team-training "My Onboarding" trail. Fires once on first login (welcomeFlowDone
 // flag), skippable everywhere, mobile-first. Each beat pulls text + an optional founder video from the
-// help_content keys welcome_intro / welcome_p1 / welcome_p2 / welcome_p3 / welcome_close — so videos are
-// added/replaced in the existing Help admin, no code change.
+// help_content key welcome_intro — the hook video is added/replaced in the Help admin, no code change.
 var WELCOME_BEATS = ['welcome_intro'];
 var _wfIndex = 0;
 
@@ -6710,7 +6709,6 @@ window.coachDemo = coachDemo;
 // ── HELP CENTER (data-driven, video-capable) ──
 // Built-in defaults = fallback so dots always say something even before Tom adds Firestore content.
 var HELP_DEFAULTS = {
-  overview:    { title:'Welcome to NestTrack', body:'<strong>What this is:</strong> your whole real estate business in one place — clients, deals, offers, showings, follow-up, and the client experience, all connected. Update something once and it flows everywhere it needs to. <strong>Start here:</strong> watch the quick overview video above for the full tour. Then look for the small <strong>?</strong> dots around the app — each one explains how that piece works and how it connects to the rest. <strong>On your phone?</strong> The video also shows how to add NestTrack to your home screen so reminders and alerts work.' },
   install:     { title:'Add NestTrack to your home screen', body:'Installing puts NestTrack one tap away <em>and</em> turns on push notifications, so your reminders and new-lead alerts actually reach you. It takes about 20 seconds.<br/><br/><strong>On iPhone (use Safari):</strong><br/>1. Open NestTrack in <strong>Safari</strong> (not Chrome — only Safari can install on iPhone).<br/>2. Tap the <strong>Share</strong> button (the square with an arrow, at the bottom).<br/>3. Scroll down and tap <strong>Add to Home Screen</strong>.<br/>4. Tap <strong>Add</strong>. The NestTrack icon appears on your home screen — open it from there from now on.<br/><br/><strong>On Android (use Chrome):</strong><br/>1. Open NestTrack in <strong>Chrome</strong>.<br/>2. Tap the <strong>\u22EE</strong> menu (top right).<br/>3. Tap <strong>Add to Home screen</strong> (or tap the install banner if it pops up).<br/>4. Tap <strong>Add</strong> / <strong>Install</strong>.<br/><br/>After installing, <strong>always open NestTrack from the home screen icon</strong> — that\u2019s what keeps notifications working.' },
   showingtime: { title:'How to connect ShowingTime', body:'<strong>To set it up:</strong> in ShowingTime go to <strong>Settings → Calendar Sync → Subscribe Link</strong>, copy the <em>webcal://</em> URL, and paste it in the field here. <strong>Where it connects:</strong> once linked, your showings flow automatically into the Showings tab and your Seller Reports — so feedback and activity show up without you entering anything.' },
   zapier:      { title:'How to set up Zapier', body:'<strong>To set it up:</strong> in Zapier create a new Zap → <strong>Webhooks by Zapier → Catch Hook</strong>, then copy the webhook URL it gives you and paste it here. <strong>Where it connects:</strong> new and updated clients in NestTrack push out to whatever you wire on the other end of the Zap (your old CRM, a sheet, etc.).' },
@@ -6733,11 +6731,8 @@ var HELP_DEFAULTS = {
   zapierstep:  { title:'How to add a Zapier action to a Smart Plan', body:'<strong>What it’s for:</strong> firing anything Zapier can do (OpenPhone texts, AI calls, letters, Facebook audiences) at an exact point in your plan. Each step gets its own unique <strong>Trigger ID</strong>, so each can do something different.<br><br><strong>To set it up:</strong><br>1. Add a <strong>Zapier</strong> step and name it (e.g. “FSBO Text 1”).<br>2. Tap <strong>⚡ Send test to Zapier</strong> — this gives Zapier sample info to work with.<br>3. Copy the Trigger ID.<br>4. In Zapier, create a Zap → trigger <em>NestTrack → Smart Plan Step Reached</em> → paste the Trigger ID.<br>5. Click <strong>Test trigger</strong> — your sample info appears to map.<br>6. Add your action (e.g. OpenPhone → Send Text), map the fields, turn the Zap on.<br><br><strong>Where it connects:</strong> when a real contact reaches that step in a live plan, NestTrack sends their real info to your Zap automatically.' },
   slybroadcast:{ title:'How to connect Slybroadcast', body:'<strong>To set it up:</strong> connect your Slybroadcast account so NestTrack can drop ringless voicemails through your Smart Plans. <strong>What it’s for:</strong> sending pre-recorded voicemail drops to contacts without ringing their phone — great for FSBO/expired outreach at scale. <strong>Where it connects:</strong> once connected, a Smart Plan voicemail step sends your recording to the contact automatically when they reach that step.' },
   thanksio:    { title:'How to connect Thanks.io', body:'<strong>To set it up:</strong> connect your Thanks.io account so NestTrack can send physical mail — handwritten cards, postcards, letters — from your Smart Plans. <strong>What it’s for:</strong> automated direct mail touches (just-listed/just-sold, holiday cards, past-client mailers) without going to the post office. <strong>Where it connects:</strong> a Smart Plan letter step hands the contact’s name and address to Thanks.io, which prints and mails it for you.' },
-  homebot:     { title:'How to connect Homebot', body:'<strong>What it is:</strong> Homebot sends your clients an automated monthly home-value digest in your name &mdash; a proven way to stay top-of-mind and earn repeat and referral business. <strong>One-time setup (required first):</strong> the &ldquo;Add to Homebot&rdquo; button sends the client through <strong>Zapier</strong> into your Homebot account &mdash; so you have to connect that Zap once before the button does anything.<br><br>1. In <strong>Zapier</strong>, create a Zap. For the trigger, pick <strong>NestTrack &rarr; Client Added to Homebot</strong>.<br>2. For the action, add <strong>Homebot &rarr; Create Client</strong> (map name + email), then <strong>Homebot &rarr; Create Home</strong> (map street + zip &mdash; NestTrack sends them already split, no formatting needed).<br>3. Turn the Zap on.<br><br><strong>Then, day to day:</strong> open any client and tap <strong>&#127968; Add to Homebot</strong> in the Marketing &amp; Nurture section. They start getting the digest, and the card shows an <strong>On Homebot</strong> badge.<br><br><strong>To stop the digest</strong> for someone, remove them inside Homebot (NestTrack can add them but can&rsquo;t remove them).' },
   nesttracker: { title:'How NestTracker works', body:'<strong>What it is:</strong> NestTracker sends your enrolled homeowners a quarterly, branded home-value report in your name &mdash; current value, estimated equity, recent neighborhood sales, and an interactive &ldquo;what if I sold&rdquo; tool. It&rsquo;s your own native version of Homebot: no Zapier, no outside subscription.<br><br><strong>To enroll someone:</strong> open any client that has a property address and tap <strong>&#127968; Add to NestTracker</strong> in the Marketing &amp; Nurture section. It values their home instantly and starts the quarterly report. The card then shows an <strong>On NestTracker</strong> badge with the current value and a link to their live report.<br><br><strong>Cost &amp; cadence:</strong> the value refreshes automatically once a quarter. You can enroll up to 50 homes. Tap <strong>Remove</strong> anytime to stop the report and free the slot.' },
-  welcome_intro: { title:'You don&rsquo;t need ten more tools. You need three things done right.', body:'Bring clients in. Wow them through the deal. Keep them for life. NestTrack runs all three &mdash; in one place, in order &mdash; so relationships turn into referrals and your business compounds instead of resets.' },
-  welcome_pillars: { title:'The whole business, in three pillars.', body:'<strong>1 &middot; Get them in the door.</strong> One to three lead sources that actually work &mdash; not fifteen and a bill that never ends. More conversations, more deals.<br><br><strong>2 &middot; Give them an experience they&rsquo;ll never forget.</strong> Never let a client feel forgotten. When it&rsquo;s done they say <em>&ldquo;this person actually cares.&rdquo;</em> That&rsquo;s what earns referrals for years.<br><br><strong>3 &middot; Stay in their corner for life.</strong> Real, personal touch &mdash; so when they, or someone they love, is ready to move, you&rsquo;re the only agent they&rsquo;d call.' },
-  welcome_close: { title:'Do those three, in order, and everything follows.', body:'The deals come easier. The referrals compound. And you get your life back &mdash; this is how I built a business that lets me be home, present, watching my son grow up.<br><br>It&rsquo;s #UncompromisingService &mdash; and it&rsquo;s what NestTrack is built to protect.<br><br>Let&rsquo;s set up your first client.' }
+  welcome_intro: { title:'You don&rsquo;t need ten more tools. You need three things done right.', body:'Bring clients in. Wow them through the deal. Keep them for life. NestTrack runs all three &mdash; in one place, in order &mdash; so relationships turn into referrals and your business compounds instead of resets.' }
 };
 
 window._helpContent = null;
@@ -13374,13 +13369,7 @@ window.pricingSetPublic=pricingSetPublic;
 // ── HELP CONTENT ADMIN ──
 // Sections an agent might get stuck on. Keys must match the helpDot('key') calls placed in the UI.
 var HELP_SECTIONS = [
-  {key:'welcome_intro',   label:'🎬 Welcome 1 — The Hook / Your Story (video)'},
-  {key:'welcome_pillars', label:'🎬 Welcome 2 — The Three Pillars (video)'},
-  {key:'welcome_close',   label:'🎬 Welcome 3 — Launch / Get Started (video)'},
-  {key:'welcome_p1',      label:'🎥 (Optional library) Pillar 1: Lead Gen'},
-  {key:'welcome_p2',      label:'🎥 (Optional library) Pillar 2: Experience'},
-  {key:'welcome_p3',      label:'🎥 (Optional library) Pillar 3: Keep in Touch'},
-  {key:'overview',    label:'Welcome / Overview (dashboard)'},
+  {key:'welcome_intro',   label:'🎬 Welcome Hook (first-run popup + optional video)'},
   {key:'install',     label:'Add to Home Screen (install)'},
   {key:'deals',       label:'Deal Tracker'},
   {key:'offers',      label:'Offer Manager'},
@@ -29952,58 +29941,6 @@ async function spFireNow(uid, btn){
   }
 }
 window.spFireNow = spFireNow;
-
-// Add a client to Homebot: fires the dedicated Homebot enrollment event to the agent's
-// own Zapier (scoped by API key), then flags the contact so the badge shows.
-async function homebotEnroll(uid, btn, isResend){
-  if(!uid) return;
-  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
-  if(!b){ if(typeof showToast==='function') showToast('Could not find that contact.'); return; }
-  if(!b.email){ if(typeof showToast==='function') showToast('Add an email for this contact first — Homebot needs it.'); else alert('Homebot needs a client email.'); return; }
-  var orig = btn ? btn.innerHTML : '';
-  if(btn){ btn.disabled=true; btn.innerHTML='Adding…'; }
-  try {
-    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
-    if(!apiKey){ if(btn){ btn.disabled=false; btn.innerHTML=orig; } if(typeof showToast==='function') showToast('Connect your Zapier API key first (Profile → Integrations).'); return; }
-    var url = PROXY_URL + '/api/v1/homebot-enroll?api_key=' + encodeURIComponent(apiKey);
-    var r = await fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ contact: { firstName:b.firstName||'', lastName:b.lastName||'', email:b.email||'', mailingAddress:b.mailingAddress||'', street:b.mailingStreet||'', city:b.mailingCity||'', state:b.mailingState||'', zip:b.mailingZip||'', uid:uid } })
-    });
-    var j = await r.json();
-    if(j && j.ok){
-      // Flag the contact so the badge shows (reflects "sent to Homebot", not a live Homebot read-back).
-      try { await saveClientField(uid, 'homebotEnrolled', true); } catch(e){}
-      if(b) b.homebotEnrolled = true;
-      if(typeof showToast==='function') showToast(isResend ? 'Re-sent to Homebot.' : 'Added to Homebot — the digest will start.');
-      if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-      // refresh the open card so the badge replaces the button
-      if(!isResend){ try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){} }
-    } else {
-      if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-      if(typeof showToast==='function') showToast('Could not add: '+((j&&j.reason)||'unknown')); else alert('Could not add: '+((j&&j.reason)||'unknown'));
-    }
-  } catch(e){
-    if(btn){ btn.disabled=false; btn.innerHTML=orig; }
-    if(typeof showToast==='function') showToast('Homebot add failed: '+(e&&e.message||'network error'));
-  }
-}
-window.homebotEnroll = homebotEnroll;
-
-// Clears NestTrack's local "on Homebot" tracking for a contact. This does NOT stop the digest —
-// the agent must remove/archive the client inside Homebot itself. We make that explicit.
-async function homebotRemove(uid){
-  if(!uid) return;
-  var ok = confirm('Remove the Homebot tag for this contact in NestTrack?\n\nIMPORTANT: this only updates NestTrack\u2019s tracking. To actually stop the monthly digest, you must remove this client inside Homebot \u2014 NestTrack can add clients to Homebot but cannot remove them.');
-  if(!ok) return;
-  try { await saveClientField(uid, 'homebotEnrolled', false); } catch(e){}
-  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
-  if(b) b.homebotEnrolled = false;
-  if(typeof showToast==='function') showToast('Removed in NestTrack. Remember to also shut them off in Homebot.');
-  try { if(typeof openBuyerDetail==='function') openBuyerDetail(uid); } catch(e){}
-}
-window.homebotRemove = homebotRemove;
 
 // ── NestTracker: native quarterly home-value report (replaces the old Homebot/Zapier bridge). ──
 // Enroll values the home once via the worker (ATTOM), stores the snapshot + a per-home token,
