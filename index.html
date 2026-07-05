@@ -6253,28 +6253,29 @@ window._wfSendStep = _wfSendStep;
 
 function _wfAnyModalOpen(){
   // True if any modal/overlay is visible on top of the deal — so the coach never covers it.
-  // Checks -modal ids AND any fixed full-screen overlay (the email preview may not be a -modal).
-  var sels = document.querySelectorAll('[id$="-modal"], [id*="preview"], [id*="email"]');
+  var sels = document.querySelectorAll('[id$="-modal"], [id*="preview"], [id*="email"], [id$="-overlay"]');
   for(var i=0;i<sels.length;i++){
     var el = sels[i];
     if(!el) continue;
     try {
       var cs = getComputedStyle(el);
-      if(cs.display !== 'none' && cs.visibility !== 'hidden' && el.offsetParent !== null){
+      // NOTE: don't check offsetParent — it's null for position:fixed elements even when visible.
+      if(cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0'){
         var r = el.getBoundingClientRect();
-        if(r.width > 200 && r.height > 150) return true;   // a real visible panel
+        if(r.width > 150 && r.height > 100) return true;   // a real visible panel
       }
     } catch(e){}
   }
-  // Also scan for any high z-index fixed overlay covering most of the screen.
+  // Also scan for any high z-index fixed overlay covering a chunk of the screen.
   var all = document.querySelectorAll('div');
   for(var j=0;j<all.length;j++){
     var d = all[j];
+    if(d.id==='coach-layer') continue;
     try {
       var s = getComputedStyle(d);
-      if(s.position==='fixed' && parseInt(s.zIndex||'0',10) >= 1000 && d.id!=='coach-layer'){
+      if(s.position==='fixed' && parseInt(s.zIndex||'0',10) >= 1000 && s.display!=='none' && s.visibility!=='hidden'){
         var rr = d.getBoundingClientRect();
-        if(rr.width > window.innerWidth*0.6 && rr.height > window.innerHeight*0.4 && s.display!=='none') return true;
+        if(rr.width > window.innerWidth*0.4 && rr.height > window.innerHeight*0.25) return true;
       }
     } catch(e){}
   }
@@ -6310,31 +6311,34 @@ window._wfClosingStep = _wfClosingStep;
 
 // ── PILLAR 3 FINALE: after the deal closes, keep them for life via NestTracker ──────────────
 function _wfNestTrackerFinale(){
-  // Wait for the commission popup (deal-lb-modal) to be gone, then open the practice client's card
-  // and spotlight "Add to NestTracker" — the keep-in-touch finale.
+  // Wait until EVERY popup is gone (leaderboard commission popup AND the email review popup),
+  // then open the practice client's card and spotlight "Add to NestTracker".
   var tries = 0;
   (function wait(){
+    var anyOpen = (typeof _wfAnyModalOpen==='function') ? _wfAnyModalOpen() : false;
     var lb = document.getElementById('deal-lb-modal');
     var lbOpen = lb && getComputedStyle(lb).display !== 'none';
-    if(!lbOpen){
-      // Open the practice client's card.
+    if(!anyOpen && !lbOpen){
+      // Everything's clear. Open the practice client's card.
       try { if(typeof openBuyerDetail==='function' && window._wfPracticeUid) openBuyerDetail(window._wfPracticeUid); } catch(e){}
-      // Wait for the Add-to-NestTracker button to render, then spotlight it.
       var t2 = 0;
       (function waitBtn(){
         var btn = document.getElementById('coach-nesttracker');
         var visible = btn && btn.getBoundingClientRect && btn.getBoundingClientRect().width > 0;
-        if(visible && (typeof _wfAnyModalOpen!=='function' || !_wfAnyModalOpen())){
+        var stillClear = (typeof _wfAnyModalOpen!=='function') || !_wfAnyModalOpen();
+        if(visible && stillClear){
           try { btn.scrollIntoView({behavior:'smooth', block:'center'}); } catch(e){}
           setTimeout(function(){
+            // Final guard: if a popup snuck back, wait again.
+            if(typeof _wfAnyModalOpen==='function' && _wfAnyModalOpen()){ setTimeout(waitBtn, 200); return; }
             if(typeof coachTour!=='function') return;
             coachTour([
               { target:'#coach-nesttracker', title:'The deal\u2019s done \u2014 but you\u2019re not', body:'This is where most agents disappear. You won\u2019t. Tap <b>\uD83C\uDFE0 Add to NestTracker</b> \u2014 your client gets a branded home-value report from you every quarter, so you\u2019re the only agent they\u2019ll ever call. That\u2019s Pillar 3.', placement:'auto', advanceOn:'click:#coach-nesttracker', noDim:true }
             ], {});
           }, 400);
-        } else if(++t2 < 60){ setTimeout(waitBtn, 150); }
+        } else if(++t2 < 80){ setTimeout(waitBtn, 200); }
       })();
-    } else if(++tries < 80){ setTimeout(wait, 200); }
+    } else if(++tries < 120){ setTimeout(wait, 200); }   // up to ~24s (email review can take a while)
   })();
 }
 window._wfNestTrackerFinale = _wfNestTrackerFinale;
