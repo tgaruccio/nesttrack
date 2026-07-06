@@ -31203,6 +31203,10 @@ async function confirmImport() {
   if (batchSegment && typeof _registerSegment==='function') _registerSegment(batchSegment);
 
   // Which smart plans auto-enroll for this batch segment?
+  // Ensure plans are loaded first — otherwise _plansForSegment returns empty and nobody enrolls.
+  if (typeof loadSmartPlans==='function' && (typeof _smartPlans==='undefined' || !_smartPlans || !_smartPlans.length)) {
+    try { await loadSmartPlans(); } catch(e){}
+  }
   var autoPlans = (batchSegment && typeof _plansForSegment==='function') ? _plansForSegment(batchSegment) : [];
 
   var imported = 0, failed = 0, enrolled = 0;
@@ -31214,7 +31218,7 @@ async function confirmImport() {
         firstName: r.firstName, lastName: r.lastName,
         email: r.email, email2: r.email2||'',
         phone: r.phone, phone2: r.phone2||'',
-        address: r.address||'', notes: r.notes||'',
+        address: r.address||'', mailingAddress: r.address||'', notes: r.notes||'', agentNotes: r.notes||'',
         agentId: agentId, lenderId: 'none', role: 'buyer',
         journeyType: r.journeyType || 'buyer',
         crmStatus: batchStatus || 'pipeline',
