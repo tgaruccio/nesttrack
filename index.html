@@ -30980,7 +30980,10 @@ var IMPORT_FIELDS = [
   { key:'email2',    label:'Email 2',    hints:['email2','secondaryemail','altemail','otheremail'] },
   { key:'phone',     label:'Phone',      hints:['phone','mobile','cell','phonenumber','primaryphone','tel','phone1'] },
   { key:'phone2',    label:'Phone 2',    hints:['phone2','secondaryphone','altphone','otherphone','homephone'] },
-  { key:'address',   label:'Address',    hints:['address','propertyaddress','street','addr','propaddress'] },
+  { key:'address',   label:'Street Address', hints:['address','propertyaddress','street','addr','propaddress','streetaddress','address1'] },
+  { key:'city',      label:'City',       hints:['city','town'] },
+  { key:'state',     label:'State',      hints:['state','province','st'] },
+  { key:'zip',       label:'Zip / Postal', hints:['zip','zipcode','postal','postalcode','postcode'] },
   { key:'notes',     label:'Notes',      hints:['notes','note','comment','comments','remarks'] }
 ];
 var _csvHeaders = [];
@@ -31044,7 +31047,15 @@ function rebuildImportRowsFromMapping(){
   _importRows = [];
   _csvDataRows.forEach(function(row){
     var fn = val(row,'firstName'), em = val(row,'email');
-    var ph = val(row,'phone'), addr = val(row,'address');
+    var ph = val(row,'phone');
+    // Build the full address from whatever address parts are mapped (street, city, state, zip).
+    // Many lists (FSBO/expired especially) split the address across separate columns.
+    var street = val(row,'address'), city = val(row,'city'), state = val(row,'state'), zip = val(row,'zip');
+    var addr = street;
+    if (city)  addr += (addr?', ':'') + city;
+    if (state) addr += (addr?', ':'') + state;
+    if (zip)   addr += (addr?' ':'') + zip;
+    addr = addr.trim();
     // A row is a real contact if it has ANY usable identifier — name, email, phone, OR address.
     // FSBO/expired lists often have just a phone + address and no name yet (skip-traced later),
     // so requiring a name/email wrongly dropped most of the list.
