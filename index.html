@@ -4204,10 +4204,10 @@ function _partnerIsLeaderView(){ return _partnerAgentId && _partnerAgentId === _
 // ─── DEFAULT TEAM ───
 const DEFAULT_AGENTS = [
   {id:'tom',name:'Tom Garuccio',role:'Team Leader',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',googleReviewUrl:'https://g.page/r/CYTaeIyFmCHoEBM/review',isDefault:true,isAdmin:true},
-  {id:'christine',name:'Christine Revay',role:'REALTOR®',phone:'440-376-4181',email:'Christine@GaruccioGroup.com'},
-  {id:'taylor',name:'Taylor Kaczur',role:'REALTOR®',phone:'216-219-1954',email:'Taylor@GaruccioGroup.com'},
-  {id:'molly',name:'Molly Ebosh',role:'REALTOR®',phone:'440-281-4115',email:'Molly@GaruccioGroup.com'},
-  {id:'brittney',name:'Brittney Dirskell',role:'REALTOR®',phone:'216-394-7087',email:'Brittney@GaruccioGroup.com'},
+  {id:'christine',name:'Christine Revay',role:'REALTOR®',phone:'440-376-4181',email:'Christine@GaruccioGroup.com',teamId:'tom'},
+  {id:'taylor',name:'Taylor Kaczur',role:'REALTOR®',phone:'216-219-1954',email:'Taylor@GaruccioGroup.com',teamId:'tom'},
+  {id:'molly',name:'Molly Ebosh',role:'REALTOR®',phone:'440-281-4115',email:'Molly@GaruccioGroup.com',teamId:'tom'},
+  {id:'brittney',name:'Brittney Dirskell',role:'REALTOR®',phone:'216-394-7087',email:'Brittney@GaruccioGroup.com',teamId:'tom'},
 ];
 
 const DEFAULT_LENDERS = [
@@ -4520,7 +4520,20 @@ async function signUp() {
       try { await fb.updateDoc(fb.doc(fb.db,'agentInvites',window._agentInviteCode), { used:true, usedBy:cred.user.uid, usedAt:fb.serverTimestamp() }); } catch(x){ console.log('agentInvite mark used:', x); }
     }
     if (newProfile.role==='agent' && newProfile.agentId) {
-      try { await fb.setDoc(fb.doc(fb.db,'team_agents', newProfile.agentId), { joined:true }, {merge:true}); } catch(x){ console.log('joined flag:', x); }
+      // Write a COMPLETE team_agents record — this is what the platform admin roster reads.
+      // Storing name/email/phone/teamId/teamRole here (not just {joined}) means the agent
+      // shows up correctly in the owner's admin with their real details and correct grouping.
+      try {
+        await fb.setDoc(fb.doc(fb.db,'team_agents', newProfile.agentId), {
+          id: newProfile.agentId,
+          name: (first+' '+last).trim(),
+          email: email.toLowerCase(),
+          phone: phone || '',
+          teamId: newProfile.teamId || newProfile.agentId,
+          teamRole: newProfile.teamRole || 'member',
+          joined: true
+        }, {merge:true});
+      } catch(x){ console.log('team_agents write:', x); }
     }
 
     // Mark invite as used
