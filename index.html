@@ -31044,12 +31044,16 @@ function rebuildImportRowsFromMapping(){
   _importRows = [];
   _csvDataRows.forEach(function(row){
     var fn = val(row,'firstName'), em = val(row,'email');
-    if (!fn && !em) return;
+    var ph = val(row,'phone'), addr = val(row,'address');
+    // A row is a real contact if it has ANY usable identifier — name, email, phone, OR address.
+    // FSBO/expired lists often have just a phone + address and no name yet (skip-traced later),
+    // so requiring a name/email wrongly dropped most of the list.
+    if (!fn && !em && !ph && !addr) return;
     _importRows.push({
       firstName: fn, lastName: val(row,'lastName'),
       email: em, email2: val(row,'email2'),
-      phone: val(row,'phone'), phone2: val(row,'phone2'),
-      address: val(row,'address'), notes: val(row,'notes'),
+      phone: ph, phone2: val(row,'phone2'),
+      address: addr, notes: val(row,'notes'),
       crmStatus: 'pipeline', journeyType: 'buyer', segment: ''
     });
   });
