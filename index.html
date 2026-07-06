@@ -6794,7 +6794,48 @@ var HELP_DEFAULTS = {
   welcome_intro: { title:'You don&rsquo;t need ten more tools. You need three things done right.', body:'Bring clients in. Wow them through the deal. Keep them for life. NestTrack runs all three &mdash; in one place, in order &mdash; so relationships turn into referrals and your business compounds instead of resets.' }
 };
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ONBOARDING EMAIL SEQUENCE  —  9 emails, every 3 days, triggered on cold signup.
+//  Editable in Admin → Help → "Onboarding Emails" (subject / body / video slot each).
+//  Stored in Firestore help_content/onboarding_emails. Sent by the worker drip cron,
+//  keyed off the agent's trialStartedAt (set at self-serve signup).
+// ═══════════════════════════════════════════════════════════════════════════
+var ONBOARDING_EMAILS = [
+  { key:'oe1', day:0,  label:'Day 0 — Welcome + first win' },
+  { key:'oe2', day:3,  label:'Day 3 — Offer Manager' },
+  { key:'oe3', day:6,  label:'Day 6 — Keep them for life (NestTracker + Smart Plans)' },
+  { key:'oe4', day:9,  label:'Day 9 — Marketing & lead generation' },
+  { key:'oe5', day:12, label:'Day 12 — AI Transaction Coordinator' },
+  { key:'oe6', day:15, label:'Day 15 — The full buyer journey' },
+  { key:'oe7', day:18, label:'Day 18 — The full seller journey' },
+  { key:'oe8', day:21, label:'Day 21 — Make it your own' },
+  { key:'oe9', day:24, label:'Day 24 — For team leaders' }
+];
+
+var ONBOARDING_EMAIL_DEFAULTS = {
+  oe1: { subject:"You're in. Now let's get you one quick win.",
+    body:"Hey — Tom here, founder of NestTrack (and a working broker on Cleveland's west side, so I built this for us, not for a boardroom).<br><br>Quick promise before anything else: I'm not going to bury you in features. Over the next few weeks I'll show you the handful of things that actually win listings and keep clients for life. One email, one tool, every few days. That's it.<br><br>But today, let's just get you one win so this stops being \"another app\" and starts being yours. Pick whichever fits where you're at:<br><br><strong>Working a deal?</strong> Add that client and start their journey. In two minutes they'll have their own dashboard — their timeline, their next steps. You'll look like the most organized agent they've ever worked with, because you are now.<br><br><strong>Between deals?</strong> Add a past client to NestTracker and send them a home-value report. One past client today = one warm lead down the road.<br><br>Either one takes two minutes and shows you the whole point of NestTrack. Go add one client. I'll be back in a few days with the tool that makes your sellers think you're a genius.<br><br>— Tom" },
+  oe2: { subject:"Don't be the agent who missed a term on an offer.",
+    body:"Hey — let's talk about the moment that quietly makes or breaks your reputation with a seller: the offer.<br><br>Here's what goes wrong for most agents. An offer comes in. You're busy. You eyeball the terms, forward a PDF, maybe miss that the buyer asked for a $6k credit buried on page four. Multiple offers? Now you're building a spreadsheet at 9pm. And your seller is texting \"did you get anything?\" because they have no idea what's happening.<br><br>That's the agent you don't want to be. The <strong>Offer Manager</strong> kills all three problems:<br><br>• <strong>Nothing gets missed.</strong> Every offer's terms laid out clean — price, credits, contingencies, dates — side by side. No spreadsheet, no 9pm math.<br>• <strong>Your seller stays in the know.</strong> They see offers in a format they actually understand. You look sharp without extra work.<br>• <strong>The compliance piece covers you.</strong> When you present an offer, it's logged and your seller's notified — so you'll never have that awkward \"did you actually show my seller this?\" conversation.<br><br>Miss a term or look disorganized during offers and that seller doesn't refer you. Handle it like this and they tell everyone their agent is a pro.<br><br>Go run an offer through it on a practice deal. You'll never go back to the PDF-and-hope method.<br><br>— Tom" },
+  oe3: { subject:"The money isn't in the closing. It's in year three.",
+    body:"Hey — real talk about the most expensive mistake in this business: disappearing after closing.<br><br>You close the deal, you're thrilled, you move on to the next fire. Eighteen months later that client sells — and uses someone else. Not because you did a bad job. Because you went quiet, and quiet reads as \"my agent forgot about me.\"<br><br>NestTrack has two tools that fix this, running quietly in the background:<br><br>• <strong>NestTracker</strong> — an automatic home-value report that lands in your past client's inbox with your name on it. Gives them a real reason to think about their home (and you) every month. This is what turns a closed deal into a lifelong referral source.<br>• <strong>Smart Plans</strong> — timed, human-sounding follow-up that goes out on schedule whether or not you remembered. Set it once, in your voice, and past clients never feel forgotten.<br><br>The math: chasing new leads is expensive and exhausting. Keeping the clients you already earned is nearly free and compounds every year.<br><br>Add a few past clients to NestTracker today. Future-you — the one getting referral calls instead of buying leads — will thank you.<br><br>— Tom" },
+  oe4: { subject:"No leads? You're sitting on a lead machine you haven't turned on.",
+    body:"Hey — let's talk about the thing that keeps every agent up at night: where's the next deal coming from? Most agents answer that by <em>buying</em> leads — expensive, cold, someone else's list. But you're sitting on a set of tools that generate your own.<br><br>Here's what's in the Marketing tab, and how to actually pull leads in with it:<br><br>• <strong>Landing & capture pages</strong> — a home-valuation page for \"what's my house worth?\" traffic, cash-offer, move-up, expired. Drop the link in a Facebook post, a text, an ad, your signature. Every click becomes a contact in your CRM.<br>• <strong>Automated campaigns</strong> — drop in an FSBO or expired list and let it run: ringless voicemail drops, texts, and physical letters/postcards go out on their own through Smart Plans. Set the sequence once; it works the list for you.<br>• <strong>Facebook ads → landing pages</strong> — run an ad straight into a capture page, and every lead flows into NestTrack automatically.<br>• <strong>The contact-me widget</strong> — drop it into any landing page you've got, and inquiries funnel straight into NestTrack as contacts. Your pages, your leads, all in one place.<br>• <strong>Your digital business card</strong> — one link with everything about you. Instagram bio, QR on your yard signs and open-house flyers, text it to everyone you meet. A 24/7 capture point with your name on it.<br><br>The move: pick ONE — the valuation page converts best for most agents — and get it in front of people this week.<br><br>What happens if you don't: you stay dependent on buying leads or waiting for referrals, and your pipeline lives on someone else's terms. These tools put lead gen back in your own hands.<br><br>— Tom" },
+  oe5: { subject:"What if the paperwork just... handled itself?",
+    body:"Hey — let's talk about the part of this job nobody got into real estate for: transaction coordination. The dates, the documents, the \"wait, did that contingency deadline pass?\" panic at 11pm.<br><br>NestTrack has an <strong>AI Transaction Coordinator</strong> that takes that weight off your plate. It tracks the deal's moving parts, keeps the dates straight, and helps make sure nothing falls through the cracks between contract and close.<br><br>Why this matters: a blown deadline or missed document isn't just embarrassing — it can kill a deal or land you in real liability. The agents who look effortless during a transaction aren't superhuman. They just have a system doing the remembering. Now you do too.<br><br>What happens if you don't use it: you keep carrying all of it in your head, and on a busy week you miss something — turning a smooth close into a scramble.<br><br>Go run a deal through it and watch how much lighter the back half of a transaction feels.<br><br>— Tom" },
+  oe6: { subject:"Your buyers are texting \"any update?\" — here's why.",
+    body:"Hey — ever notice the buyers who text \"any updates?\" every other day are the ones who feel out of the loop? It's not neediness. They can't see what's happening, so they assume nothing is.<br><br>The full <strong>buyer journey</strong> in NestTrack fixes that at the root. From the first hello to the keys, your buyer gets their own view — where they are, what's next, what's coming up. They see the deal moving without texting you for a status report.<br><br>What that does for you:<br><br>• <strong>Fewer \"any update?\" texts</strong> — because they already know<br>• <strong>You look like the most organized agent they've worked with</strong> — because the system remembers for you<br>• <strong>A five-star experience</strong> that becomes a referral, because feeling taken care of is what people remember<br><br>What happens if you don't: your buyer feels lost, mistakes your silence for not caring, and even if the deal closes fine, they don't send you their sister. The experience is the marketing.<br><br>Set up a buyer's journey and watch the update-texts dry up.<br><br>— Tom" },
+  oe7: { subject:"Sellers don't fire you over price. They fire you over silence.",
+    body:"Hey — here's a truth that stings: most sellers who get frustrated with their agent aren't mad about price or offers. They're mad because after the listing went live, they felt forgotten. Showings happen, feedback comes in, and… they hear nothing.<br><br>The full <strong>seller journey</strong> in NestTrack keeps them in the loop the whole way. From listing prep to closing, your seller sees what's happening — showings, feedback, offers, next steps — in a way they actually understand. When an offer comes in, they know.<br><br>Why this matters: a seller who feels informed trusts you, defends your advice, and refers you. A seller in the dark second-guesses everything and tells friends their agent \"went quiet.\"<br><br>What happens if you don't: you do great work behind the scenes, but they can't see it — so in their memory, you disappeared after the sign went up. Show them the work.<br><br>Set up a seller's journey and never leave them wondering again.<br><br>— Tom" },
+  oe8: { subject:"Right now your clients might be getting emails that don't look like you.",
+    body:"Hey — quick housekeeping one, but it matters more than it sounds. Every email, page, and touch your clients get from NestTrack can carry <em>your</em> brand — your name, photo, signature, booking link. Or it can go out generic. Right now, if you haven't set it up, it's the generic version.<br><br>Take five minutes and make it yours:<br><br>• <strong>Your profile & photo</strong> — so clients see you, not a default<br>• <strong>Your email signature</strong> — every message looks polished and on-brand<br>• <strong>Your booking link</strong> — let clients grab time with you without the back-and-forth<br>• <strong>Your branding</strong> — so your landing pages and reports look like your business<br><br>Why bother: people trust what looks intentional. A branded touch says \"this agent has their act together.\" A generic one quietly undercuts you — even when your work is great.<br><br>Five minutes. Set it up once. Everything you send from here on looks like a pro did it.<br><br>— Tom" },
+  oe9: { subject:"Solo today, team tomorrow — same account.",
+    body:"Hey — this one's for the team leaders (and soloists who plan to be). If you're running agents, or about to, NestTrack becomes your home base — and it builds accountability from the actual work, not a spreadsheet you keep up by hand.<br><br>What you get as a leader:<br><br>• <strong>Add your agents</strong> — bring them onto the platform with the same tools you use<br>• <strong>Onboarding trail</strong> — new agents get a guided ramp so they're producing from week one<br>• <strong>Team chat</strong> — one place for your team to talk, share wins, ask questions<br>• <strong>The leaderboard</strong> — units and volume pulled straight from real deals. No manual scorekeeping. It updates itself as agents close.<br><br>Why this matters: most team leaders fly blind or drown in manual tracking. This gives you visibility into who's producing, who's stuck, and who needs a nudge — automatically.<br><br>What happens if you don't: you keep herding cats through group texts and a whiteboard, and never quite know where everyone stands until it's too late to coach.<br><br>Add your first agent and watch the home base come to life.<br><br>— Tom" }
+};
+
 window._helpContent = null;
+
 async function _loadHelpContent(force){
   if (window._helpContent && !force) return window._helpContent;
   try { var snap = await fb.getDoc(fb.doc(fb.db,'help_content','sections')); window._helpContent = (snap.exists() && snap.data().items) || {}; }
@@ -13144,6 +13185,7 @@ async function renderOwnerAdmin(){
 
   var helpTab='<div id="admintab-help" style="display:'+(tab==='help'?'block':'none')+';padding-top:14px;">'
     +'<div id="admin-help-content" class="card" style="padding:16px;"><div style="font-size:12px;color:var(--text3);">Loading help content\u2026</div></div>'
+    +'<div id="admin-obemail-content" class="card" style="padding:16px;margin-top:14px;"><div style="font-size:12px;color:var(--text3);">Loading onboarding emails\u2026</div></div>'
   +'</div>';
 
   panel.innerHTML=
@@ -13157,7 +13199,7 @@ async function renderOwnerAdmin(){
 
   if(tab==='finance'){ adminLoadFinance(); }
   if(tab==='billing'){ if(typeof renderPricingTiers==='function') renderPricingTiers(); }
-  if(tab==='help'){ if(typeof renderHelpAdmin==='function') renderHelpAdmin(); }
+  if(tab==='help'){ if(typeof renderHelpAdmin==='function') renderHelpAdmin(); if(typeof renderObEmailAdmin==='function') renderObEmailAdmin(); }
   if(typeof _loadBillTiers==='function') _loadBillTiers();
   if(window._adminQ && tab==='people'){ var si=document.getElementById('admin-search'); if(si){ si.value=window._adminQ; adminFilter(window._adminQ); } }
 }
@@ -13531,6 +13573,91 @@ async function helpSave(key){
   }catch(e){ alert('Could not save help content: '+(e&&e.message||'')+'\n\nIf this is a permissions error, the help_content Firestore rule still needs to be added.'); }
 }
 window.helpSave=helpSave;
+
+// ── Onboarding Email admin (Admin → Help → Onboarding Emails) ──
+window._obEmails = null;
+async function _loadObEmails(force){
+  if (window._obEmails && !force) return window._obEmails;
+  try { var snap = await fb.getDoc(fb.doc(fb.db,'help_content','onboarding_emails')); window._obEmails = (snap.exists() && snap.data().items) || {}; }
+  catch(e){ window._obEmails = window._obEmails || {}; }
+  return window._obEmails;
+}
+async function renderObEmailAdmin(){
+  var box=document.getElementById('admin-obemail-content'); if(!box) return;
+  var content = await _loadObEmails(true);
+  // First-open seeding: if the Firestore doc has no saved copy yet, seed the full defaults
+  // so the worker drip sends the complete emails (not its short built-in fallback).
+  if (content && Object.keys(content).length===0 && typeof ONBOARDING_EMAIL_DEFAULTS!=='undefined'){
+    try{
+      var seed={};
+      (ONBOARDING_EMAILS||[]).forEach(function(e){ var d=ONBOARDING_EMAIL_DEFAULTS[e.key]||{}; seed[e.key]={subject:d.subject||'',body:d.body||'',video:''}; });
+      await fb.setDoc(fb.doc(fb.db,'help_content','onboarding_emails'), { items: seed, updatedAt: Date.now() }, {merge:true});
+      window._obEmails = seed; content = seed;
+    }catch(e){ /* non-fatal — admin still shows defaults from code */ }
+  }
+  var rows = (typeof ONBOARDING_EMAILS!=='undefined'?ONBOARDING_EMAILS:[]).map(function(e){
+    var c = content[e.key] || {};
+    var hasVid = !!(c.video && String(c.video).trim());
+    var edited = !!(c.subject || c.body);
+    var status = hasVid ? '\uD83C\uDFA5 Video + text' : (edited ? '\u270F\uFE0F Edited' : '\u2014 Using default copy');
+    var statusColor = hasVid ? 'var(--green)' : (edited ? 'var(--text2)' : 'var(--text3)');
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;background:var(--surface2);border-radius:10px;margin-bottom:7px;">'
+      +'<div style="min-width:0;"><div style="font-weight:600;font-size:13px;">'+e.label+'</div>'
+      +'<div style="font-size:11px;color:'+statusColor+';">'+status+'</div></div>'
+      +'<button class="btn btn-sm" onclick="obEmailEdit(\''+e.key+'\')" style="flex-shrink:0;font-size:11px;">Edit</button>'
+    +'</div>';
+  }).join('');
+  box.innerHTML='<div style="font-size:14px;font-weight:700;margin-bottom:4px;">\u2709\uFE0F Onboarding Emails</div>'
+    +'<div style="font-size:12.5px;color:var(--text3);line-height:1.5;margin-bottom:14px;">The 9-email welcome sequence new agents get after signing up, one every 3 days. Edit the subject and copy, and paste a video link to feature at the top of any email. Leave blank to use the built-in copy.</div>'
+    +rows;
+}
+window.renderObEmailAdmin=renderObEmailAdmin;
+
+async function obEmailEdit(key){
+  var content = await _loadObEmails();
+  var c = content[key] || {};
+  var meta = (typeof ONBOARDING_EMAILS!=='undefined'?ONBOARDING_EMAILS:[]).find(function(e){return e.key===key;}) || {label:key};
+  var def = (typeof ONBOARDING_EMAIL_DEFAULTS!=='undefined' && ONBOARDING_EMAIL_DEFAULTS[key]) || {};
+  var subjVal = (c.subject!==undefined && c.subject!=='') ? c.subject : (def.subject||'');
+  var bodyVal = (c.body!==undefined && c.body!=='') ? c.body : (def.body||'');
+  var videoVal = (c.video!==undefined) ? c.video : '';
+  var usingDefault = !(c.subject||c.body);
+  var m=document.createElement('div'); m.className='mo'; m.id='obemail-edit-modal'; m.style.cssText='display:flex;z-index:9999;';
+  m.innerHTML='<div class="mbox" style="max-width:560px;">'
+    +'<div class="mhdr"><div class="mtitle">Edit: '+meta.label+'</div><button class="xbtn" onclick="document.getElementById(\'obemail-edit-modal\').remove();">\u2715</button></div>'
+    +'<div style="padding:18px 22px 22px;display:flex;flex-direction:column;gap:14px;">'
+      +(usingDefault?'<div style="font-size:11.5px;color:var(--text3);background:var(--surface2);border-radius:8px;padding:8px 10px;line-height:1.5;">\uD83D\uDCA1 This is the built-in copy, shown so you can tweak it. Edit freely and Save \u2014 or just add a video link and leave the copy as-is.</div>':'')
+      +'<div><label class="flabel" style="font-weight:600;">Subject line</label>'
+        +'<input id="obe-subject" type="text" value="'+String(subjVal).replace(/"/g,'&quot;')+'" placeholder="Email subject" style="width:100%;box-sizing:border-box;"/></div>'
+      +'<div><label class="flabel" style="font-weight:600;">Video link <span style="font-weight:400;color:var(--text3);">(Loom or YouTube \u2014 shows at the top of the email)</span></label>'
+        +'<input id="obe-video" type="url" value="'+String(videoVal).replace(/"/g,'&quot;')+'" placeholder="https://www.loom.com/share/..." style="width:100%;box-sizing:border-box;"/></div>'
+      +'<div><label class="flabel" style="font-weight:600;">Email body</label>'
+        +'<textarea id="obe-body" rows="12" style="width:100%;box-sizing:border-box;font-family:inherit;font-size:13px;">'+String(bodyVal)+'</textarea>'
+        +'<div style="font-size:11px;color:var(--text3);margin-top:4px;">Simple HTML: use &lt;br&gt; for line breaks, &lt;strong&gt;bold&lt;/strong&gt;, &lt;em&gt;italic&lt;/em&gt;, &bull; for bullets.</div></div>'
+      +'<div style="display:flex;gap:8px;margin-top:4px;">'
+        +'<button class="btn" style="flex:1;" onclick="document.getElementById(\'obemail-edit-modal\').remove();">Cancel</button>'
+        +'<button class="btn btn-g" style="flex:1;" onclick="obEmailSave(\''+key+'\')">Save</button>'
+      +'</div>'
+    +'</div></div>';
+  m.addEventListener('click',function(e){ if(e.target===m) m.remove(); });
+  document.body.appendChild(m);
+}
+window.obEmailEdit=obEmailEdit;
+
+async function obEmailSave(key){
+  var subject=((document.getElementById('obe-subject')||{}).value||'').trim();
+  var body=((document.getElementById('obe-body')||{}).value||'').trim();
+  var video=((document.getElementById('obe-video')||{}).value||'').trim();
+  var content = await _loadObEmails(); content = content || {};
+  content[key] = { subject:subject, body:body, video:video };
+  try{
+    await fb.setDoc(fb.doc(fb.db,'help_content','onboarding_emails'), { items: content, updatedAt: Date.now() }, {merge:true});
+    window._obEmails = content;
+    var el=document.getElementById('obemail-edit-modal'); if(el) el.remove();
+    renderObEmailAdmin();
+  }catch(e){ alert('Could not save: '+(e&&e.message||'')); }
+}
+window.obEmailSave=obEmailSave;
 async function ownerLoadUsage(){
   var btn=document.getElementById('owner-usage-btn'); if(btn){ btn.disabled=true; btn.textContent='Loading\u2026'; }
   var agents=(DEFAULT_AGENTS||[]);
