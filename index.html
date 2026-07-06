@@ -16511,14 +16511,47 @@ function renderSegmentManager(){
     var meta=[];
     if(count) meta.push(count+' contact'+(count!==1?'s':''));
     if(plans) meta.push(plans+' auto-plan'+(plans!==1?'s':''));
+    var seArg=s.replace(/'/g,"\\'").replace(/"/g,'&quot;');
     return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:0.5px solid var(--border);border-radius:var(--r-sm);">'
       +'<div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:500;">'+s.replace(/</g,'&lt;')+'</div>'
-      +(meta.length?'<div style="font-size:11px;color:var(--text3);">'+meta.join(' · ')+'</div>':'')+'</div>'
-      +'<button class="btn btn-sm" onclick="deleteSegment(\''+s.replace(/'/g,"\\'").replace(/"/g,'&quot;')+'\')" style="color:#E24B4A;flex-shrink:0;">Delete</button>'
+      +(meta.length?'<div style="font-size:11px;color:var(--text3);">'+meta.join(' \u00b7 ')+'</div>':'')+'</div>'
+      +((count && plans)?'<button class="btn btn-sm btn-g" onclick="backfillSegmentPlan(\''+seArg+'\')" style="flex-shrink:0;font-size:11px;" title="Enroll everyone already in this segment into its auto-plan">\u21bb Enroll all</button>':'')
+      +'<button class="btn btn-sm" onclick="deleteSegment(\''+seArg+'\')" style="color:#E24B4A;flex-shrink:0;">Delete</button>'
       +'</div>';
   }).join('');
 }
 window.renderSegmentManager=renderSegmentManager;
+
+// Backfill: enroll every contact already tagged with this segment into its triggered plan.
+// For contacts added/tagged BEFORE the plan's trigger existed (auto-enroll only fires at
+// import/tag time, so pre-existing contacts need this one-time catch-up).
+async function backfillSegmentPlan(seg){
+  var plans=(typeof _plansForSegment==='function')?_plansForSegment(seg):[];
+  if(!plans.length){ alert('No auto-enroll plan is set for "'+seg+'".'); return; }
+  var p=plans[0];
+  var targets=(allBuyers||[]).filter(function(b){
+    return (b.segment||'').trim().toLowerCase()===seg.trim().toLowerCase()
+      && !(b.smartPlanId && b.smartPlanStatus==='active');
+  });
+  if(!targets.length){ alert('Everyone in "'+seg+'" is already enrolled in an active plan.'); return; }
+  if(!confirm('Enroll '+targets.length+' contact'+(targets.length!==1?'s':'')+' in "'+seg+'" into the plan "'+(p.name||'Smart Plan')+'"?\n\nThis starts the plan for people already in the segment.')) return;
+  var today=(typeof spTodayET==='function')?spTodayET():new Date().toISOString().split('T')[0];
+  var agentId=(userProfile&&userProfile.agentId)|| '';
+  var done=0, failed=0;
+  for(var i=0;i<targets.length;i++){
+    var b=targets[i];
+    try{
+      var patch={ smartPlanId:p.id, smartPlanName:p.name||'', smartPlanOwner:agentId, smartPlanStatus:'active', smartPlanStep:0, smartPlanNextDue:today, smartPlanEnrolledAt:today };
+      await fb.updateDoc(fb.doc(fb.db,'users',b.uid), patch);
+      b.smartPlanId=p.id; b.smartPlanName=p.name||''; b.smartPlanOwner=agentId; b.smartPlanStatus='active'; b.smartPlanStep=0; b.smartPlanNextDue=today; b.smartPlanEnrolledAt=today;
+      done++;
+    }catch(e){ failed++; }
+  }
+  alert('\u2713 Enrolled '+done+' contact'+(done!==1?'s':'')+' in "'+(p.name||'Smart Plan')+'"'+(failed?(' \u00b7 '+failed+' failed'):'')+'.');
+  if(typeof renderBuyers==='function') renderBuyers();
+  renderSegmentManager();
+}
+window.backfillSegmentPlan=backfillSegmentPlan;
 
 async function deleteSegment(seg){
   var count=_countContactsInSegment(seg);
@@ -16593,10 +16626,31 @@ async function saveContactSegment(uid){
   var seg=inp.value.trim();
   if(seg==='__add__') seg='';
   try{
-    await fb.updateDoc(fb.doc(fb.db,'users',uid),{ segment: seg });
+    var patch={ segment: seg };
     var buyer=(allBuyers||[]).find(function(b){ return b.uid===uid; });
-    if(buyer) buyer.segment=seg;
-    if(status){ status.textContent=seg?'\u2713 Saved':'\u2713 Cleared'; status.style.display='block'; setTimeout(function(){ status.style.display='none'; },2500); }
+    // Auto-enroll into a segment-triggered Smart Plan — same behavior as CSV import.
+    // Only enroll if this segment has a triggered plan AND the contact isn't already in an active plan.
+    var enrolledMsg='';
+    if(seg && typeof _plansForSegment==='function'){
+      var plans=_plansForSegment(seg);
+      var alreadyActive = buyer && buyer.smartPlanId && buyer.smartPlanStatus==='active';
+      if(plans.length && !alreadyActive){
+        var p=plans[0];
+        var today=(typeof spTodayET==='function')?spTodayET():new Date().toISOString().split('T')[0];
+        var agentId=(userProfile&&userProfile.agentId)|| '';
+        patch.smartPlanId=p.id;
+        patch.smartPlanName=p.name||'';
+        patch.smartPlanOwner=agentId;
+        patch.smartPlanStatus='active';
+        patch.smartPlanStep=0;
+        patch.smartPlanNextDue=today;
+        patch.smartPlanEnrolledAt=today;
+        enrolledMsg=' \u00b7 enrolled in '+(p.name||'Smart Plan');
+      }
+    }
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+    if(buyer){ buyer.segment=seg; if(patch.smartPlanId){ buyer.smartPlanId=patch.smartPlanId; buyer.smartPlanName=patch.smartPlanName; buyer.smartPlanOwner=patch.smartPlanOwner; buyer.smartPlanStatus='active'; buyer.smartPlanStep=0; buyer.smartPlanNextDue=patch.smartPlanNextDue; buyer.smartPlanEnrolledAt=patch.smartPlanEnrolledAt; } }
+    if(status){ status.textContent=(seg?'\u2713 Saved':'\u2713 Cleared')+enrolledMsg; status.style.display='block'; setTimeout(function(){ status.style.display='none'; },2500); }
     if(typeof renderBuyers==='function') renderBuyers();
   }catch(e){ alert('Failed to save: '+e.message); }
 }
