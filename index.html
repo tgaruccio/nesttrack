@@ -28643,7 +28643,10 @@ var SP_CHANNELS = {
   vm:      { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
   letter:  { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
   texttap: { label:'Text (you send)', icon:'📲', color:'#0369A1', bg:'#E0F2FE', desc:'Push reminder — you tap to send from your own phone' },
-  zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap (text, letter, AI call, audience…)' }
+  zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap (text, letter, AI call, audience…)' },
+  nesttracker: { label:'Add to NestTracker', icon:'🏡', color:'#0F6E56', bg:'#E1F5EE', desc:'Auto-enroll in the home-value report' },
+  setstatus:   { label:'Change status',      icon:'🔀', color:'#B45309', bg:'#FEF3C7', desc:'Move to a pipeline stage (cold, nurture…)' },
+  setsegment:  { label:'Change segment',     icon:'🏷️', color:'#7C3AED', bg:'#F3E8FF', desc:'Re-tag the contact into a segment' }
 };
 
 function _spAgentId(){ return (userProfile && userProfile.agentId) || ''; }
@@ -29158,6 +29161,9 @@ function _spStepCard(s,i){
     }
   }
   else if(s.channel==='email'){ _rdy=!!((s.emailSubject&&s.emailSubject.trim())||(s.emailBody&&s.emailBody.trim())||(s.emailHtml&&s.emailHtml.trim())); _rdyLabel=_rdy?'✓ Email ready':'⚠ No email content — tap Edit'; }
+  else if(s.channel==='nesttracker'){ _rdy=true; _rdyLabel='✓ Will auto-enroll in NestTracker'; }
+  else if(s.channel==='setstatus'){ _rdy=!!(s.newStatus&&s.newStatus.trim()); _rdyLabel=_rdy?('✓ Move to: '+s.newStatus):'⚠ Pick a status — tap Edit'; }
+  else if(s.channel==='setsegment'){ _rdy=!!(s.newSegment&&s.newSegment.trim()); _rdyLabel=_rdy?('✓ Set segment: '+s.newSegment):'⚠ Pick a segment — tap Edit'; }
   else { _rdy=!!(s.content&&s.content.trim()); _rdyLabel=_rdy?'✓ Zapier step ready':'⚠ Add a label — tap Edit'; }
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-left:3px solid '+c.color+';border-radius:var(--r);padding:12px 16px;">'
     +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
@@ -29312,6 +29318,36 @@ function spEditStep(i){
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Use {first} or {last} to auto-fill the contact\'s name.</div>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
         +'<input type="text" id="sp-step-content" placeholder="What this email is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
+    } else if(s.channel==='nesttracker'){
+      inner=hdr
+        +'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;background:#E1F5EE;border-radius:var(--r-sm);padding:12px 13px;">When a contact reaches this step, they\'re automatically enrolled in <strong>NestTracker</strong> — the quarterly home-value report that keeps you top-of-mind. Perfect for a seller who isn\'t ready yet.</div>'
+        +'<div style="font-size:11.5px;color:var(--text3);line-height:1.6;margin-bottom:12px;">Requires the contact to have a <strong>mailing address</strong>, and counts toward your NestTracker home limit. If the address is missing or you\'re at your cap, the step is skipped for that contact (nothing breaks). Contacts already enrolled are left as-is.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="e.g. Enroll future sellers" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
+    } else if(s.channel==='setstatus'){
+      var _statuses=[['pipeline','Pipeline (lead)'],['active','Active client'],['nurture','Nurture / long-term'],['cold','Cold'],['past','Past client'],['contact','Contact']];
+      inner=hdr
+        +'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;background:#FEF3C7;border-radius:var(--r-sm);padding:12px 13px;">Moves the contact to a different <strong>pipeline stage</strong> when they reach this step. Great as the last step of a campaign — e.g. after a full seller follow-up, move them to <strong>Cold</strong>.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Move contact to</label>'
+        +'<select id="sp-step-newstatus" style="width:100%;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);">'
+          +'<option value="">— pick a stage —</option>'
+          +_statuses.map(function(o){ return '<option value="'+o[0]+'"'+((s.newStatus===o[0])?' selected':'')+'>'+o[1]+'</option>'; }).join('')
+        +'</select>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="Why this status change" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
+    } else if(s.channel==='setsegment'){
+      var _segs=(typeof _allSegments==='function')?_allSegments():[];
+      var _curSeg=s.newSegment||'';
+      if(_curSeg && _segs.indexOf(_curSeg)===-1) _segs=_segs.concat([_curSeg]);
+      inner=hdr
+        +'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;background:#F3E8FF;border-radius:var(--r-sm);padding:12px 13px;">Re-tags the contact into a <strong>segment</strong> when they reach this step. Note: if that segment auto-triggers another Smart Plan, this will start it.</div>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Set segment to</label>'
+        +'<select id="sp-step-newsegment" style="width:100%;font-size:13px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);">'
+          +'<option value="">— none / clear segment —</option>'
+          +_segs.map(function(sg){ return '<option value="'+partnerEsc(sg)+'"'+((_curSeg===sg)?' selected':'')+'>'+partnerEsc(sg)+'</option>'; }).join('')
+        +'</select>'
+        +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
+        +'<input type="text" id="sp-step-content" placeholder="Why this segment change" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
     } else {
       var _tid = s.triggerId || ('trig_' + Math.random().toString(36).slice(2,8) + Math.random().toString(36).slice(2,6));
       if(!s.triggerId) s.triggerId = _tid;
@@ -29426,6 +29462,12 @@ function spEmailPreview(){
     .replace(/\{first\}/gi,'Sarah').replace(/\{last\}/gi,'Miller')
     .replace(/\{name\}/gi,'Sarah Miller').replace(/%FIRST_NAME%/gi,'Sarah'); }
   subject = fill(subject); bodyHtml = fill(bodyHtml);
+  // Append the agent signature exactly as the send does (send uses plan.senderSignature,
+  // which is captured from agentSignatureHtml() when the plan is saved).
+  var sig = (typeof agentSignatureHtml==='function') ? (agentSignatureHtml()||'') : '';
+  var sigNote = '';
+  if (sig && sig.trim()){ bodyHtml = bodyHtml + fill(sig); }
+  else { sigNote = 'No email signature is set in your Profile — none will be added. Set one under Profile to sign your emails.'; }
   var agentName = (userProfile && userProfile.name) || ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || 'Your Agent';
   var fromLine = agentName + ' <'+((userProfile&&userProfile.firstName||'agent').toLowerCase())+'@news.nesttrack.io>';
 
@@ -29447,7 +29489,9 @@ function spEmailPreview(){
           +(bodyHtml||'<div style="color:#aaa;font-size:13px;">No content yet \u2014 add a text or image block.</div>')
         +'</div>'
       +'</div>'
-      +'<div style="padding:10px 18px;border-top:1px solid #eee;flex-shrink:0;font-size:11px;color:#999;text-align:center;">Sample contact shown (\u201cSarah Miller\u201d). Real emails use each contact\u2019s actual info.</div>'
+      +'<div style="padding:10px 18px;border-top:1px solid #eee;flex-shrink:0;font-size:11px;color:#999;text-align:center;">Sample contact shown (\u201cSarah Miller\u201d). Real emails use each contact\u2019s actual info.'
+        +(sigNote?'<br><span style="color:#D97706;">\u26A0 '+partnerEsc(sigNote)+'</span>':'')
+      +'</div>'
     +'</div>';
   m.addEventListener('click',function(e){ if(e.target===m) m.remove(); });
   document.body.appendChild(m);
@@ -29501,6 +29545,10 @@ function spSaveStep(i){
     if(imgTplEl) s.imageTemplateId=imgTplEl.value.trim();
     var pcSizeEl=document.getElementById('sp-step-postcard-size');
     if(pcSizeEl) s.postcardSize=pcSizeEl.value||'4x6';
+    var newStatusEl=document.getElementById('sp-step-newstatus');
+    if(newStatusEl) s.newStatus=newStatusEl.value;
+    var newSegEl=document.getElementById('sp-step-newsegment');
+    if(newSegEl) s.newSegment=newSegEl.value;
     var smsEl=document.getElementById('sp-step-sms');
     if(smsEl) s.smsBody=smsEl.value;
     var subjEl=document.getElementById('sp-step-subject');
