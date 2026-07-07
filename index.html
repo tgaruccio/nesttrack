@@ -4378,7 +4378,17 @@ function clearAppBadge(){
 window.clearAppBadge = clearAppBadge;
 // Clear the badge each time the app is brought back to the foreground.
 document.addEventListener('visibilitychange', function(){
-  if (document.visibilityState === 'visible') { try { clearAppBadge(); } catch(e){} }
+  if (document.visibilityState === 'visible') {
+    try { clearAppBadge(); } catch(e){}
+    // A push tap can foreground the app with a deep-link param in the URL without a fresh page
+    // load (so the on-load handlers don't re-run). Re-check here so push routing still works.
+    try {
+      var qs = new URLSearchParams(window.location.search);
+      if (qs.get('ntdash') && typeof _handleNtDashDeepLink==='function') _handleNtDashDeepLink();
+      else if (qs.get('lead') && typeof _handleLeadDeepLink==='function') _handleLeadDeepLink();
+      else if (qs.get('go') && typeof _handlePageDeepLink==='function') _handlePageDeepLink();
+    } catch(e){}
+  }
 });
 
 async function signIn() {
