@@ -28690,7 +28690,32 @@ async function openNestTrackerDash(){
 }
 window.openNestTrackerDash = openNestTrackerDash;
 
+// Open the confirm/preview screen for a home flagged "Needs review" (from an auto-enroll
+// that had no value or low confidence). Reuses the exact same _ntShowPreview screen the
+// manual enroll uses — agent enters/accepts the value and confirms → it goes live.
+function ntReviewHome(token){
+  var j = window._ntDashData || {};
+  var h = (j.homes||[]).find(function(x){ return x.token===token; });
+  if(!h){ if(typeof showToast==='function') showToast('Could not load that home — refresh and try again.'); return; }
+  // Shape the home data into what _ntShowPreview expects.
+  var noValue = !h.value || Number(h.value) <= 0;
+  _ntShowPreview(h.uid || '', {
+    token: h.token,
+    value: h.value || 0,
+    low: h.low || 0,
+    high: h.high || 0,
+    confidence: h.confidence || 0,
+    lowConfidence: !!h.lowConfidence,
+    needsManualValue: noValue,               // no value → manual-entry screen; else the review screen
+    matchedAddress: h.address || '',
+    reportUrl: h.reportUrl || ('https://app.nesttrack.io/report.html?t='+h.token),
+    _isReview: true                          // marker: this is a review of an existing pending home
+  });
+}
+window.ntReviewHome = ntReviewHome;
+
 function _ntDashHtml(j){
+  window._ntDashData = j;   // stash so ntReviewHome() can find a home's data to open the confirm screen
   var fmt = function(n){ return '$'+Number(n||0).toLocaleString(); };
   var pct = j.cap ? Math.round((j.active/j.cap)*100) : 0;
   function stat(label, val, sub, accent){
@@ -28751,7 +28776,9 @@ function _ntDashHtml(j){
   // Homes list
   var rows = '';
   (j.homes||[]).forEach(function(h){
-    var badge = h.status==='pending'
+    var badge = h.needsReview
+      ? '<span onclick="ntReviewHome(\''+(h.token||'')+'\')" title="'+partnerEsc(h.reviewReason||'Needs your review')+'" style="font-size:10px;font-weight:700;color:#B45309;background:#FEF3C7;padding:2px 8px;border-radius:999px;cursor:pointer;border:1px solid #F0C674;">\u26A0 Needs review</span>'
+      : h.status==='pending'
       ? '<span style="font-size:10px;font-weight:700;color:#8A5A00;background:#FDECCB;padding:2px 7px;border-radius:999px;">Pending</span>'
       : (h.status==='locked' || h.locked)
         ? '<span style="font-size:10px;font-weight:700;color:#991B1B;background:#FEE2E2;padding:2px 7px;border-radius:999px;">Paused</span>'
@@ -30637,6 +30664,10 @@ async function ntConfirmPreview(overrideValue){
       else if(j.firstSendReason==='client unsubscribed'){ _msg += ' (Client is unsubscribed — no email sent.)'; }
       else { _msg += ' Quarterly report is live.'; }
       if(typeof showToast==='function') showToast(_msg);
+      // If the NestTracker dashboard is open (e.g. reviewing a flagged home), refresh it so
+      // the "Needs review" badge clears and status flips to Active.
+      var _dm=document.getElementById('nt-dash-modal');
+      if(_dm && _dm.style.display!=='none' && typeof openNestTrackerDash==='function'){ try{ openNestTrackerDash(); }catch(e){} }
     } else {
       if(typeof showToast==='function') showToast('Could not enroll: '+((j&&j.reason)||'error'));
     }
