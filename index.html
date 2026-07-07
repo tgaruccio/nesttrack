@@ -29356,11 +29356,21 @@ function spEmailDesignOpen(i){
     '<div style="padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
       +'<button onclick="spEmailDesignClose()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
       +'<div style="flex:1;font-size:15px;font-weight:600;">\uD83D\uDCE7 Design email</div>'
+      +'<button class="btn btn-sm" onclick="spEmailPreview()" style="margin-right:6px;">\uD83D\uDC41 Preview</button>'
       +'<button class="btn btn-g btn-sm" onclick="spEmailDesignSave('+i+')">Done</button>'
     +'</div>'
     +'<div style="flex:1;overflow-y:auto;padding:14px 16px;-webkit-overflow-scrolling:touch;">'
       +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Subject</label>'
-      +'<input type="text" id="sp-email-subject" placeholder="Quick question, {first}" value="'+partnerEsc(s.emailSubject||'')+'" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;margin:4px 0 14px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+      +'<input type="text" id="sp-email-subject" placeholder="Quick question, {first}" value="'+partnerEsc(s.emailSubject||'')+'" style="width:100%;box-sizing:border-box;font-size:14px;padding:9px 10px;margin:4px 0 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+      +'<div style="background:var(--surface2);border-radius:var(--r-sm);padding:8px 10px;margin:0 0 14px;">'
+        +'<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px;">\u2728 Personalize \u2014 tap to insert the contact\u2019s info:</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+          +'<button type="button" class="btn btn-sm" onclick="spInsertToken(\'{first}\')" style="font-size:12px;">First name</button>'
+          +'<button type="button" class="btn btn-sm" onclick="spInsertToken(\'{last}\')" style="font-size:12px;">Last name</button>'
+          +'<button type="button" class="btn btn-sm" onclick="spInsertToken(\'{name}\')" style="font-size:12px;">Full name</button>'
+        +'</div>'
+        +'<div style="font-size:10.5px;color:var(--text3);margin-top:6px;">Tip: type in the subject or a text block, then tap a chip \u2014 it drops in where your cursor is. e.g. \u201cHi {first},\u201d becomes \u201cHi Sarah,\u201d</div>'
+      +'</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
         +'<button class="btn btn-sm" onclick="addNlBlock(\'text\')">+ Text</button>'
         +'<button class="btn btn-sm" onclick="addNlBlock(\'image\')">+ Image</button>'
@@ -29378,6 +29388,71 @@ function spEmailDesignOpen(i){
   renderNlBlocks();
 }
 window.spEmailDesignOpen = spEmailDesignOpen;
+
+// Track the last email field the user focused (subject or a text block), so token
+// chips insert at the cursor there. Insert-at-cursor makes personalization obvious.
+var _spLastEmailField = null;
+document.addEventListener('focusin', function(e){
+  var t=e.target;
+  if(t && (t.id==='sp-email-subject' || (t.tagName==='TEXTAREA' && t.closest && t.closest('#sp-nl-blocks')))){
+    _spLastEmailField = t;
+  }
+});
+function spInsertToken(tok){
+  var el=_spLastEmailField;
+  // default to subject if nothing focused yet
+  if(!el || !document.body.contains(el)) el=document.getElementById('sp-email-subject');
+  if(!el) return;
+  var start=el.selectionStart, end=el.selectionEnd;
+  if(typeof start==='number'){
+    el.value = el.value.slice(0,start) + tok + el.value.slice(end);
+    var pos=start+tok.length; el.focus(); el.setSelectionRange(pos,pos);
+    el.dispatchEvent(new Event('input',{bubbles:true}));  // keep block state in sync
+  } else {
+    el.value += tok; el.focus();
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+}
+window.spInsertToken = spInsertToken;
+
+// Preview the email exactly as it will send — same builder used on save, with merge
+// tokens filled in with a sample contact so you see the real thing before deploying.
+function spEmailPreview(){
+  if(typeof saveNlBlockValues==='function') saveNlBlockValues();
+  var subject = (document.getElementById('sp-email-subject')||{}).value || '(no subject)';
+  var bodyHtml = (typeof buildNlBodyHtml==='function') ? buildNlBodyHtml(true) : '';
+  // Fill merge tokens with a realistic sample so the preview reads naturally.
+  function fill(t){ return String(t||'')
+    .replace(/\{first\}/gi,'Sarah').replace(/\{last\}/gi,'Miller')
+    .replace(/\{name\}/gi,'Sarah Miller').replace(/%FIRST_NAME%/gi,'Sarah'); }
+  subject = fill(subject); bodyHtml = fill(bodyHtml);
+  var agentName = (userProfile && userProfile.name) || ((userProfile&&userProfile.firstName||'')+' '+(userProfile&&userProfile.lastName||'')).trim() || 'Your Agent';
+  var fromLine = agentName + ' <'+((userProfile&&userProfile.firstName||'agent').toLowerCase())+'@news.nesttrack.io>';
+
+  var m=document.createElement('div');
+  m.id='sp-email-preview-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px;';
+  m.innerHTML=
+    '<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.3);">'
+      +'<div style="padding:14px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;flex-shrink:0;">'
+        +'<div style="flex:1;font-size:14px;font-weight:700;color:#1a1a1a;">\uD83D\uDC41 Email preview</div>'
+        +'<button onclick="document.getElementById(\'sp-email-preview-modal\').remove();" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">\u2715</button>'
+      +'</div>'
+      +'<div style="padding:12px 18px;border-bottom:1px solid #f0f0f0;background:#FBF8F3;flex-shrink:0;font-size:12.5px;color:#555;">'
+        +'<div><b>From:</b> '+partnerEsc(fromLine)+'</div>'
+        +'<div style="margin-top:3px;"><b>Subject:</b> '+partnerEsc(subject)+'</div>'
+      +'</div>'
+      +'<div style="flex:1;overflow-y:auto;padding:20px 18px;background:#f5f5f5;">'
+        +'<div style="background:#fff;border-radius:8px;padding:20px;max-width:100%;box-shadow:0 1px 4px rgba(0,0,0,0.06);">'
+          +(bodyHtml||'<div style="color:#aaa;font-size:13px;">No content yet \u2014 add a text or image block.</div>')
+        +'</div>'
+      +'</div>'
+      +'<div style="padding:10px 18px;border-top:1px solid #eee;flex-shrink:0;font-size:11px;color:#999;text-align:center;">Sample contact shown (\u201cSarah Miller\u201d). Real emails use each contact\u2019s actual info.</div>'
+    +'</div>';
+  m.addEventListener('click',function(e){ if(e.target===m) m.remove(); });
+  document.body.appendChild(m);
+}
+window.spEmailPreview = spEmailPreview;
 
 function spEmailDesignClose(){
   _nlContainerId='nl-blocks';
