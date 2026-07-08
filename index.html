@@ -30022,7 +30022,7 @@ function _spStepCard(s,i){
     }
   }
   else if(s.channel==='email'){ _rdy=!!((s.emailSubject&&s.emailSubject.trim())||(s.emailBody&&s.emailBody.trim())||(s.emailHtml&&s.emailHtml.trim())); _rdyLabel=_rdy?'✓ Email ready':'⚠ No email content — tap Edit'; }
-  else if(s.channel==='nesttracker'){ _rdy=true; _rdyLabel='✓ Will auto-enroll in NestTracker'; }
+  else if(s.channel==='nesttracker'){ _rdy=true; _rdyLabel='✓ Will send the quarterly value email'; }
   else if(s.channel==='setstatus'){ _rdy=!!(s.newStatus&&s.newStatus.trim()); _rdyLabel=_rdy?('✓ Move to: '+s.newStatus):'⚠ Pick a status — tap Edit'; }
   else if(s.channel==='setsegment'){ _rdy=!!(s.newSegment&&s.newSegment.trim()); _rdyLabel=_rdy?('✓ Set segment: '+s.newSegment):'⚠ Pick a segment — tap Edit'; }
   else { _rdy=!!(s.content&&s.content.trim()); _rdyLabel=_rdy?'✓ Zapier step ready':'⚠ Add a label — tap Edit'; }
@@ -30181,8 +30181,12 @@ function spEditStep(i){
         +'<input type="text" id="sp-step-content" placeholder="What this email is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
     } else if(s.channel==='nesttracker'){
       inner=hdr
-        +'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;background:#E1F5EE;border-radius:var(--r-sm);padding:12px 13px;">When a contact reaches this step, they\'re automatically enrolled in <strong>NestTracker</strong> — the quarterly home-value report that keeps you top-of-mind. Perfect for a seller who isn\'t ready yet.</div>'
+        +'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:14px;background:#E1F5EE;border-radius:var(--r-sm);padding:12px 13px;">When a contact reaches this step, they\'re automatically enrolled in <strong>NestTracker</strong> — the quarterly home-value report that keeps you top-of-mind. Built as the last touch on a seller lead who\'s stopped responding: it keeps you in their inbox, quarter after quarter.</div>'
         +'<div style="font-size:11.5px;color:var(--text3);line-height:1.6;margin-bottom:12px;">Requires the contact to have a <strong>mailing address</strong>, and counts toward your NestTracker home limit. If the address is missing or you\'re at your cap, the step is skipped for that contact (nothing breaks). Contacts already enrolled are left as-is.</div>'
+        +'<div style="background:var(--surface2);border-radius:var(--r-sm);padding:11px 12px;margin-bottom:12px;font-size:11.5px;line-height:1.55;">'
+          +'<div style="color:var(--text);"><strong>What this does:</strong> sends them the quarterly home-value email, in your name.</div>'
+          +'<div style="color:var(--text3);margin-top:5px;"><strong>What it doesn\'t:</strong> no home dashboard, no maintenance reminders, no equity review. A plan runs on whoever lands in the segment, and a cold lead has no purchase price to build any of that from. Enroll someone from their client card if you want the full thing.</div>'
+        +'</div>'
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
         +'<input type="text" id="sp-step-content" placeholder="e.g. Enroll future sellers" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
     } else if(s.channel==='setstatus'){
