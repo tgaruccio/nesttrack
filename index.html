@@ -1241,6 +1241,16 @@ textarea{resize:vertical;min-height:68px;}
           </div>
         </div>
 
+        <div style="margin-top:16px;padding:12px 13px;background:var(--surface2);border-radius:var(--r-sm);">
+          <label style="display:flex;gap:9px;align-items:flex-start;cursor:pointer;">
+            <input type="checkbox" id="nt-en-setuphome" style="margin-top:3px;flex-shrink:0;"/>
+            <span>
+              <span style="font-size:13px;font-weight:600;color:var(--text);">Set up their home dashboard</span>
+              <span style="display:block;font-size:11.5px;color:var(--text3);line-height:1.5;margin-top:2px;">Maintenance reminders, a home file, and a repair log in their portal. Recommended for past clients — leave off for prospects, who still get the quarterly value report.</span>
+            </span>
+          </label>
+        </div>
+
         <div id="nt-enroll-err" style="display:none;font-size:12.5px;color:#B91C1C;margin-top:12px;"></div>
         <div style="display:flex;gap:10px;margin-top:20px;">
           <button class="btn" onclick="ntCloseEnroll()" style="flex:0 0 auto;">Cancel</button>
@@ -29489,6 +29499,20 @@ function ntReviewHome(token){
 }
 window.ntReviewHome = ntReviewHome;
 
+// Agents enrol before they close and close before they remember. The home dashboard can be
+// switched on or off at any point — turning it on seeds the schedule if there isn't one yet.
+async function ntToggleHomeDash(token, on){
+  if(!token) return;
+  try {
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'nesttracker-home-dash'}, body: JSON.stringify({ t:token, on:on }) });
+    var j = await r.json();
+    if (!j || !j.ok) throw new Error((j&&j.reason)||'');
+    if (typeof showToast==='function') showToast(on ? (j.seeded ? 'Home dashboard on — maintenance schedule created.' : 'Home dashboard on.') : 'Home dashboard off. Their quarterly value report keeps going.');
+    if (typeof openNestTrackerDash==='function') openNestTrackerDash();
+  } catch(e){ if (typeof showToast==='function') showToast('Could not change that. Try again.'); }
+}
+window.ntToggleHomeDash = ntToggleHomeDash;
+
 function _ntDashHtml(j){
   window._ntDashData = j;   // stash so ntReviewHome() can find a home's data to open the confirm screen
   var fmt = function(n){ return '$'+Number(n||0).toLocaleString(); };
@@ -29588,6 +29612,7 @@ function _ntDashHtml(j){
       + '<td style="padding:9px 8px;">'+checkin+'</td>'
       + '<td style="padding:9px 8px;white-space:nowrap;"><a href="'+h.reportUrl+'" target="_blank" style="font-size:11.5px;color:#185FA5;text-decoration:underline;">Report</a>'
       + (h.uid?' · <span onclick="document.getElementById(\'nt-dash-modal\').style.display=\'none\'; if(typeof openBuyerDetail===\'function\')openBuyerDetail(\''+h.uid+'\');" style="font-size:11.5px;color:#185FA5;text-decoration:underline;cursor:pointer;">Client</span>':'')
+      + ' · <span onclick="ntToggleHomeDash(\''+(h.token||'')+'\','+(h.homeDash?'false':'true')+')" title="Maintenance reminders, home file, and repair log in their portal" style="font-size:11.5px;color:'+(h.homeDash?'#0F7A52':'var(--text3)')+';text-decoration:underline;cursor:pointer;">Dashboard '+(h.homeDash?'on':'off')+'</span>'
       + '</td></tr>';
   });
   var list = (j.homes && j.homes.length)
@@ -31297,6 +31322,10 @@ async function ntEnroll(uid, btn, isRefresh){
   setV('nt-en-year', year);
   setV('nt-en-loan',''); setV('nt-en-owed',''); setV('nt-en-rate','');
   var termEl=document.getElementById('nt-en-term'); if(termEl) termEl.value='30';
+  // Default on for someone who's clearly a past client, off otherwise — but visible either way,
+  // so it never silently does the wrong thing because a status wasn't switched.
+  var shEl=document.getElementById('nt-en-setuphome');
+  if(shEl) shEl.checked = (b.crmStatus==='past' || b.crmStatus==='closed');
   var whoEl=document.getElementById('nt-enroll-who');
   if(whoEl) whoEl.textContent = who ? ('Enrolling '+who+'. Confirm the property and add loan details if you have them.') : 'Confirm the property and add loan details if you have them.';
   var errEl=document.getElementById('nt-enroll-err'); if(errEl){ errEl.style.display='none'; errEl.textContent=''; }
@@ -31340,6 +31369,7 @@ async function ntSubmitEnroll(){
     purchasePrice:num(gv('nt-en-price')), purchaseDate:gv('nt-en-year'),
     loanAmount:num(gv('nt-en-loan')), ownerOwed:num(gv('nt-en-owed')),
     ownerRate:num(gv('nt-en-rate')), loanTerm:(gv('nt-en-term')==='15'?'15':'30'),
+    setupHome: !!((document.getElementById('nt-en-setuphome')||{}).checked),
     uid:uid
   };
   var goEl=document.getElementById('nt-enroll-go');
