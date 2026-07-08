@@ -1208,11 +1208,11 @@ textarea{resize:vertical;min-height:68px;}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div>
             <label class="flabel" style="font-weight:600;">Purchase price <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
-            <input type="text" id="nt-en-price" inputmode="decimal" placeholder="$450,000" style="width:100%;box-sizing:border-box;"/>
+            <input type="text" id="nt-en-price" oninput="ntEnrollCheckEquity()" inputmode="decimal" placeholder="$450,000" style="width:100%;box-sizing:border-box;"/>
           </div>
           <div>
             <label class="flabel" style="font-weight:600;">Year purchased <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
-            <input type="text" id="nt-en-year" inputmode="numeric" placeholder="2019" style="width:100%;box-sizing:border-box;"/>
+            <input type="text" id="nt-en-year" oninput="ntEnrollCheckEquity()" inputmode="numeric" placeholder="2019" style="width:100%;box-sizing:border-box;"/>
           </div>
         </div>
 
@@ -1222,7 +1222,7 @@ textarea{resize:vertical;min-height:68px;}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div>
             <label class="flabel" style="font-weight:600;">Original loan amount</label>
-            <input type="text" id="nt-en-loan" inputmode="decimal" placeholder="$360,000" style="width:100%;box-sizing:border-box;"/>
+            <input type="text" id="nt-en-loan" oninput="ntEnrollCheckEquity()" inputmode="decimal" placeholder="$360,000" style="width:100%;box-sizing:border-box;"/>
           </div>
           <div>
             <label class="flabel" style="font-weight:600;">Current balance <span style="font-weight:400;color:var(--text3);">(if known)</span></label>
@@ -1249,6 +1249,10 @@ textarea{resize:vertical;min-height:68px;}
               <span style="display:block;font-size:11.5px;color:var(--text3);line-height:1.5;margin-top:2px;">Maintenance reminders, a home file, and a repair log in their portal. Recommended for past clients — leave off for prospects, who still get the quarterly value report.</span>
             </span>
           </label>
+        </div>
+
+        <div id="nt-en-equity-warn" style="display:none;font-size:11.5px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:var(--r-sm);padding:9px 11px;margin-top:12px;line-height:1.5;">
+          Without the <strong>purchase price</strong>, <strong>original loan</strong>, and <strong>year</strong>, they'll still get a quarterly value report — but never an equity review, a PMI alert, or a breakdown of how their equity grew. Those are the parts that book conversations.
         </div>
 
         <div id="nt-enroll-err" style="display:none;font-size:12.5px;color:#B91C1C;margin-top:12px;"></div>
@@ -16610,7 +16614,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128226;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Marketing &amp; Nurture</div></div>
       <div id="sp-contact-row-${uid}">${spContactRowHtml(b)}</div>
-      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.ntEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On NestTracker</span>${b.ntValue?` <span style="font-size:11px;color:var(--text2);font-weight:600;">&mdash; est. $${Number(b.ntValue).toLocaleString()}</span>`:''} <a href="https://app.nesttrack.io/report.html?t=${b.ntToken||''}&preview=1" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:underline;margin-left:6px;">View report</a> <span onclick="ntRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button id="coach-nesttracker" class="btn btn-sm" onclick="ntEnroll('${uid}',this)">&#127968; Add to NestTracker</button> <span style="font-size:11px;color:var(--text3);">&mdash; quarterly home-value report</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
+      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.ntEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On NestTracker</span>${b.ntValue?` <span style="font-size:11px;color:var(--text2);font-weight:600;">&mdash; est. $${Number(b.ntValue).toLocaleString()}</span>`:''} <a href="https://app.nesttrack.io/report.html?t=${b.ntToken||''}&preview=1" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:underline;margin-left:6px;">View report</a> <span onclick="ntEnroll('${uid}')" title="Update purchase price, loan, rate — needed for the equity review" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Edit details</span> <span onclick="ntRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button id="coach-nesttracker" class="btn btn-sm" onclick="ntEnroll('${uid}',this)">&#127968; Add to NestTracker</button> <span style="font-size:11px;color:var(--text3);">&mdash; quarterly home-value report</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128202;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Activity</div></div>
@@ -29513,6 +29517,16 @@ async function ntToggleHomeDash(token, on){
 }
 window.ntToggleHomeDash = ntToggleHomeDash;
 
+// The equity review, the PMI alert and the growth split all need three fields the form treats as
+// optional. Say so, in the moment, rather than letting the agent find out a year later.
+function ntEnrollCheckEquity(){
+  var w = document.getElementById('nt-en-equity-warn'); if(!w) return;
+  var v = function(id){ return ((document.getElementById(id)||{}).value||'').replace(/[^0-9.]/g,''); };
+  var thin = !v('nt-en-price') || !v('nt-en-loan') || !v('nt-en-year');
+  w.style.display = thin ? 'block' : 'none';
+}
+window.ntEnrollCheckEquity = ntEnrollCheckEquity;
+
 function _ntDashHtml(j){
   window._ntDashData = j;   // stash so ntReviewHome() can find a home's data to open the confirm screen
   var fmt = function(n){ return '$'+Number(n||0).toLocaleString(); };
@@ -31322,10 +31336,28 @@ async function ntEnroll(uid, btn, isRefresh){
   setV('nt-en-year', year);
   setV('nt-en-loan',''); setV('nt-en-owed',''); setV('nt-en-rate','');
   var termEl=document.getElementById('nt-en-term'); if(termEl) termEl.value='30';
+  // Already on NestTracker? Pull back what we stored so this is an edit, not a retype. Re-submitting
+  // updates the same home in place — the worker reuses the existing token.
+  if (b.ntToken){
+    try {
+      var _rr = await fetch(PROXY_URL + '/api/v1/nesttracker-report?t=' + encodeURIComponent(b.ntToken));
+      var _rj = await _rr.json();
+      if (_rj && _rj.ok){
+        var _m = function(n){ return n ? ('$' + Number(n).toLocaleString()) : ''; };
+        if (_rj.purchasePrice) setV('nt-en-price', _m(_rj.purchasePrice));
+        if (_rj.purchaseDate)  setV('nt-en-year',  _rj.purchaseDate);
+        if (_rj.loanAmount)    setV('nt-en-loan',  _m(_rj.loanAmount));
+        if (_rj.ownerOwed)     setV('nt-en-owed',  _m(_rj.ownerOwed));
+        if (_rj.yourRate)      setV('nt-en-rate',  String(_rj.yourRate));
+        if (_rj.loanTerm && termEl) termEl.value = _rj.loanTerm;
+      }
+    } catch(e){}
+  }
   // Default on for someone who's clearly a past client, off otherwise — but visible either way,
   // so it never silently does the wrong thing because a status wasn't switched.
   var shEl=document.getElementById('nt-en-setuphome');
   if(shEl) shEl.checked = (b.crmStatus==='past' || b.crmStatus==='closed');
+  ntEnrollCheckEquity();
   var whoEl=document.getElementById('nt-enroll-who');
   if(whoEl) whoEl.textContent = who ? ('Enrolling '+who+'. Confirm the property and add loan details if you have them.') : 'Confirm the property and add loan details if you have them.';
   var errEl=document.getElementById('nt-enroll-err'); if(errEl){ errEl.style.display='none'; errEl.textContent=''; }
