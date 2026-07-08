@@ -594,6 +594,9 @@ textarea{resize:vertical;min-height:68px;}
        has a live NestTracker home. Sits above the journey because after closing, this is the thing. ══ -->
   <div id="home-dash-section" style="display:none;"></div>
 
+  <!-- Up next — the maintenance the home actually needs. Filled by _hdLoadTasks(). -->
+  <div id="home-tasks-section" style="display:none;"></div>
+
   <!-- Collapsed record of the transaction. Tapping it reveals the trail/timeline below. -->
   <div id="home-purchase-card" style="display:none;"></div>
 
@@ -12010,6 +12013,145 @@ async function hdDismissReview(){
 }
 window.hdDismissReview = hdDismissReview;
 
+// ── Up next: the maintenance the home actually needs ─────────────────────────────────
+// Done is one tap and never blocks. Attribution is offered afterward and ignoring it costs
+// nothing. Snoozing offers to re-time the task for good, because the moment a reminder feels
+// like nagging is the moment you find out it's set wrong.
+async function _hdPost(action, body){
+  var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':action}, body: JSON.stringify(body) });
+  return await r.json();
+}
+function _hdToday(){ return new Date().toISOString().slice(0,10); }
+function _hdWhen(ymd){
+  var d = Date.parse(String(ymd)+'T12:00:00Z'); if (isNaN(d)) return 'soon';
+  var days = Math.round((d - Date.now())/86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  if (days <= 21) return 'in ' + days + ' days';
+  return 'in ' + new Date(d).toLocaleDateString('en-US',{ month:'long' });
+}
+function _hdTaskIcon(k){
+  return ({ furnace_filter:'\uD83C\uDF2C\uFE0F', hvac_service:'\uD83D\uDD27', water_filter:'\uD83D\uDCA7',
+            smoke_co:'\uD83D\uDD14', gutters:'\uD83C\uDFE0', water_heater:'\uD83D\uDD25' })[k] || '\uD83D\uDD27';
+}
+function _hdEveryLabel(d){
+  d = Number(d)||90;
+  if (d >= 350) return 'year';
+  if (d >= 170) return '6 months';
+  if (d >= 80)  return '3 months';
+  return d + ' days';
+}
+
+function _hdTaskActionsHtml(key){
+  return '<div style="display:flex;gap:8px;margin-top:10px;">'
+    + '<button class="btn btn-sm btn-g" style="flex:1;" onclick="hdTaskDone(\''+key+'\')">\u2713 Done</button>'
+    + '<button class="btn btn-sm" style="flex:1;" onclick="hdTaskSnooze(\''+key+'\')">Not now</button></div>';
+}
+function _hdTaskRowHtml(t, divider){
+  var overdue = String(t.nextDue) < _hdToday();
+  return '<div style="display:flex;gap:12px;' + (divider ? 'padding-bottom:14px;border-bottom:0.5px solid var(--border);margin-bottom:14px;' : '') + '">'
+    + '<span style="font-size:18px;line-height:1.4;">' + _hdTaskIcon(t.key) + '</span>'
+    + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:14px;color:var(--text);">' + escapeHtml(t.title) + '</div>'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-top:5px;flex-wrap:wrap;">'
+        + (t.spec ? '<span style="font-size:11px;background:var(--green-lt);color:#04342C;padding:3px 9px;border-radius:20px;">' + escapeHtml(t.spec) + '</span>' : '')
+        + '<span style="font-size:12px;color:' + (overdue ? '#B45309' : 'var(--text3)') + ';">' + (overdue ? 'Overdue' : 'Due ' + _hdWhen(t.nextDue)) + '</span>'
+      + '</div>'
+      + '<div id="hdt-actions-' + t.key + '">' + _hdTaskActionsHtml(t.key) + '</div>'
+    + '</div></div>';
+}
+function _hdTasksCardHtml(tasks){
+  var soon = new Date(Date.now() + 7*86400000).toISOString().slice(0,10);
+  var live = (tasks||[]).filter(function(t){ return t.enabled !== false; })
+                        .sort(function(a,b){ return String(a.nextDue).localeCompare(String(b.nextDue)); });
+  var due  = live.filter(function(t){ return String(t.nextDue) <= soon; }).slice(0,3);
+
+  var h = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-top:12px;">'
+        + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;">Up next</div>';
+  if (!due.length){
+    var n = live[0];
+    return h + '<div style="font-size:13px;color:var(--text3);line-height:1.6;">Nothing due right now.'
+      + (n ? ' Next up: ' + escapeHtml(n.title.charAt(0).toLowerCase() + n.title.slice(1)) + ' ' + _hdWhen(n.nextDue) + '.' : '')
+      + '</div></div>';
+  }
+  due.forEach(function(t,i){ h += _hdTaskRowHtml(t, i < due.length - 1); });
+  return h + '</div>';
+}
+
+async function _hdLoadTasks(tok){
+  var el = document.getElementById('home-tasks-section'); if (!el) return;
+  try {
+    var r = await fetch(PROXY_URL + '/api/v1/home-tasks?t=' + encodeURIComponent(tok));
+    var j = await r.json();
+    if (!j || !j.ok || !j.tasks || !j.tasks.length){ el.style.display='none'; return; }
+    window._hdTasks = j.tasks;
+    el.innerHTML = _hdTasksCardHtml(j.tasks);
+    el.style.display = 'block';
+  } catch(e){ el.style.display='none'; }
+}
+
+async function hdTaskDone(key){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var box = document.getElementById('hdt-actions-' + key);
+  if (box) box.innerHTML = '<div style="font-size:12px;color:var(--text3);margin-top:10px;">Saving\u2026</div>';
+  try {
+    var j = await _hdPost('home-task-complete', { t:tok, key:key });
+    if (!j || !j.ok) throw new Error('');
+    window._hdTasks = j.tasks;
+    if (box) box.innerHTML = '<div style="background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px;margin-top:10px;">'
+      + '<div style="font-size:12px;color:var(--green-dk);margin-bottom:7px;">\u2713 Logged today</div>'
+      + '<div style="display:flex;gap:6px;">'
+        + '<input id="hdt-who-' + key + '" type="text" placeholder="Who did it? (optional)" style="flex:1;font-size:12.5px;padding:7px 9px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        + '<button class="btn btn-sm" onclick="hdTaskWho(\'' + key + '\')">Save</button>'
+      + '</div></div>';
+  } catch(e){
+    if (box) box.innerHTML = _hdTaskActionsHtml(key);
+    if (typeof showToast === 'function') showToast('Could not save that. Try again.');
+  }
+}
+window.hdTaskDone = hdTaskDone;
+
+async function hdTaskWho(key){
+  var inp = document.getElementById('hdt-who-' + key);
+  var v = inp ? inp.value.trim() : '';
+  var tok = (userProfile && userProfile.ntHomeToken) || '';
+  var box = document.getElementById('hdt-actions-' + key);
+  if (v && tok){ try { await _hdPost('home-task-attribute', { t:tok, key:key, by:v }); } catch(e){} }
+  if (box) box.innerHTML = '<div style="font-size:12px;color:var(--green-dk);margin-top:10px;">\u2713 Logged' + (v ? ' \u2014 ' + escapeHtml(v) : ' today') + '</div>';
+}
+window.hdTaskWho = hdTaskWho;
+
+async function hdTaskSnooze(key){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var box = document.getElementById('hdt-actions-' + key);
+  var t = (window._hdTasks || []).filter(function(x){ return x.key===key; })[0] || { everyDays:90 };
+  var less = Math.min(1825, (Number(t.everyDays)||90) * 2);
+  try { await _hdPost('home-task-adjust', { t:tok, key:key, snoozeDays:7 }); } catch(e){}
+  if (box) box.innerHTML = '<div style="background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px;margin-top:10px;">'
+    + '<div style="font-size:12px;color:var(--text2);margin-bottom:7px;">Snoozed a week. Is this too often?</div>'
+    + '<div style="display:flex;gap:6px;">'
+      + '<button class="btn btn-sm" style="flex:1;" onclick="hdTaskEvery(\'' + key + '\',' + less + ')">Every ' + _hdEveryLabel(less) + '</button>'
+      + '<button class="btn btn-sm" style="flex:1;" onclick="hdTaskOff(\'' + key + '\')">Turn it off</button>'
+    + '</div></div>';
+}
+window.hdTaskSnooze = hdTaskSnooze;
+
+async function hdTaskEvery(key, days){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var box = document.getElementById('hdt-actions-' + key);
+  try { var j = await _hdPost('home-task-adjust', { t:tok, key:key, everyDays:days }); if (j && j.ok) window._hdTasks = j.tasks; } catch(e){}
+  if (box) box.innerHTML = '<div style="font-size:12px;color:var(--text3);margin-top:10px;">Changed to every ' + _hdEveryLabel(days) + '.</div>';
+}
+window.hdTaskEvery = hdTaskEvery;
+
+async function hdTaskOff(key){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var box = document.getElementById('hdt-actions-' + key);
+  try { var j = await _hdPost('home-task-adjust', { t:tok, key:key, enabled:false }); if (j && j.ok) window._hdTasks = j.tasks; } catch(e){}
+  if (box) box.innerHTML = '<div style="font-size:12px;color:var(--text3);margin-top:10px;">Turned off. You won\u2019t hear about this again.</div>';
+}
+window.hdTaskOff = hdTaskOff;
+
 async function renderHomeDash(){
   var sec = document.getElementById('home-dash-section');
   var pc  = document.getElementById('home-purchase-card');
@@ -12017,7 +12159,13 @@ async function renderHomeDash(){
 
   var tok = (userProfile && userProfile.ntHomeToken) || '';
   window._hdActive = !!tok;
-  if (!tok){ sec.style.display='none'; if(pc) pc.style.display='none'; return; }
+  var tasksEl = document.getElementById('home-tasks-section');
+  if (!tok){
+    sec.style.display='none';
+    if (pc) pc.style.display='none';
+    if (tasksEl) tasksEl.style.display='none';
+    return;
+  }
 
   var isPast = !!(userProfile && (userProfile.crmStatus==='past' || userProfile.crmStatus==='closed'));
   if (pc){
@@ -12034,6 +12182,7 @@ async function renderHomeDash(){
     if (!j || !j.ok){ sec.style.display='none'; return; }
     sec.innerHTML = _hdEquityCardHtml(j);
   } catch(e){ sec.style.display='none'; }
+  _hdLoadTasks(tok);
 }
 window.renderHomeDash = renderHomeDash;
 function renderHome() {
