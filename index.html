@@ -597,6 +597,9 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Up next — the maintenance the home actually needs. Filled by _hdLoadTasks(). -->
   <div id="home-tasks-section" style="display:none;"></div>
 
+  <!-- Something broke. The agent's people, not a directory. -->
+  <div id="home-pros-section" style="display:none;"></div>
+
   <!-- The home's systems, and the record that builds itself out of Done taps. -->
   <div id="home-file-section" style="display:none;"></div>
   <div id="home-history-section" style="display:none;"></div>
@@ -12052,9 +12055,17 @@ function _hdEveryLabel(d){
 }
 
 function _hdTaskActionsHtml(key){
+  var t = (window._hdTasks || []).filter(function(x){ return x.key === key; })[0] || {};
+  var cats = HD_PRO_CATS[t.pro] || null;
+  var second = cats
+    ? '<button class="btn btn-sm" style="flex:1;" onclick="hdFindPro(\'' + cats.join(',') + '\')">Find a pro</button>'
+    : '<button class="btn btn-sm" style="flex:1;" onclick="hdTaskSnooze(\'' + key + '\')">Not now</button>';
+  var later = cats
+    ? '<div style="text-align:center;margin-top:7px;"><span onclick="hdTaskSnooze(\'' + key + '\')" style="font-size:11.5px;color:var(--text3);cursor:pointer;text-decoration:underline;">Not now</span></div>'
+    : '';
   return '<div style="display:flex;gap:8px;margin-top:10px;">'
-    + '<button class="btn btn-sm btn-g" style="flex:1;" onclick="hdTaskDone(\''+key+'\')">\u2713 Done</button>'
-    + '<button class="btn btn-sm" style="flex:1;" onclick="hdTaskSnooze(\''+key+'\')">Not now</button></div>';
+    + '<button class="btn btn-sm btn-g" style="flex:1;" onclick="hdTaskDone(\'' + key + '\')">\u2713 Done</button>'
+    + second + '</div>' + later;
 }
 function _hdTaskRowHtml(t, divider){
   var overdue = String(t.nextDue) < _hdToday();
@@ -12225,9 +12236,15 @@ function _hdHistoryCardHtml(log, showAll){
   shown.forEach(function(e){
     var d = new Date(e.ts);
     var when = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
+    var isOpen = (e.key === 'issue' && e.open);
+    var safeTs = String(e.ts).replace(/[^a-zA-Z0-9]/g,'');
+    var line = escapeHtml(e.title) + (e.by ? ' \u2014 ' + escapeHtml(e.by) : '') + (e.key === 'issue' && !e.open ? ' \u00b7 fixed' : '');
     h += '<div style="display:flex;gap:10px;padding:6px 0;">'
       + '<span style="font-size:11.5px;color:var(--text3);min-width:52px;">' + when + '</span>'
-      + '<span style="font-size:12.5px;color:var(--text2);flex:1;">' + escapeHtml(e.title) + (e.by ? ' \u2014 ' + escapeHtml(e.by) : '') + '</span></div>';
+      + '<div style="flex:1;min-width:0;">'
+        + '<span style="font-size:12.5px;color:' + (isOpen ? '#B45309' : 'var(--text2)') + ';">' + line + '</span>'
+        + (isOpen ? '<div id="hdi-' + safeTs + '"><span onclick="hdIssueFix(\'' + e.ts + '\')" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;text-decoration:underline;">Mark fixed</span></div>' : '')
+      + '</div></div>';
   });
   if (log.length > 4) h += '<div style="margin-top:9px;"><span onclick="hdHistoryToggle()" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;">' + (showAll ? 'Show less' : 'Show all ' + log.length) + '</span></div>';
   return h + '</div>';
@@ -12257,6 +12274,124 @@ function hdExportHistory(){
 }
 window.hdExportHistory = hdExportHistory;
 
+// ── The agent's people ───────────────────────────────────────────────────────────────
+// The reminder was never the hard part. "Have your HVAC serviced" is still a chore; "here are the
+// three HVAC people your agent trusts, tap to call" is a solved problem. No standalone home app
+// can do this, because it needs an agent. Keep it a list of people, never a directory.
+var HD_PRO_CATS = { 'HVAC':['HVAC'], 'Gutters':['Roofing','Handyman'], 'Plumbing':['Plumber'] };
+var HD_ISSUE_CATS = [
+  { label:'Plumbing',          cats:['Plumber'] },
+  { label:'Electrical',        cats:['Electrician'] },
+  { label:'Heating & cooling', cats:['HVAC'] },
+  { label:'Roof & gutters',    cats:['Roofing'] },
+  { label:'Appliance',         cats:['Handyman','Contractor'] },
+  { label:'Something else',    cats:['Handyman','Contractor'] }
+];
+
+async function _hdEnsurePartners(){
+  try {
+    if (typeof agentPartners !== 'undefined' && agentPartners && agentPartners.length) return agentPartners;
+    if (typeof loadAgentPartners === 'function') await loadAgentPartners((userProfile && userProfile.agentId) || '');
+  } catch(e){}
+  return (typeof agentPartners !== 'undefined' && agentPartners) || [];
+}
+
+function _hdProsCardHtml(){
+  return '<div onclick="hdSomethingWrong()" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 18px;margin-top:12px;display:flex;align-items:center;gap:12px;cursor:pointer;">'
+    + '<span style="font-size:19px;">\u26A0\uFE0F</span>'
+    + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:14px;color:var(--text);">Something\u2019s wrong?</div>'
+      + '<div style="font-size:12px;color:var(--text3);">Plumbing, electrical, HVAC, roof</div>'
+    + '</div>'
+    + '<span style="font-size:13px;color:var(--text3);">\u203A</span></div>';
+}
+
+function _hdSheet(id, title, inner){
+  var m = document.createElement('div');
+  m.id = id;
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px;';
+  m.innerHTML = '<div style="background:var(--surface);border-radius:14px;max-width:400px;width:100%;max-height:88vh;overflow:auto;padding:20px 22px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
+      + '<div style="flex:1;font-size:15px;font-weight:600;">' + title + '</div>'
+      + '<span onclick="document.getElementById(\'' + id + '\').remove();" style="font-size:19px;color:var(--text3);cursor:pointer;line-height:1;">\u2715</span>'
+    + '</div>' + inner + '</div>';
+  m.addEventListener('click', function(e){ if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+}
+
+function hdSomethingWrong(){
+  var rows = HD_ISSUE_CATS.map(function(c){
+    return '<div onclick="hdFindPro(\'' + c.cats.join(',') + '\',\'' + c.label.replace(/'/g,"\\'") + '\')" style="padding:13px 4px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;cursor:pointer;">'
+      + '<span style="flex:1;font-size:14px;color:var(--text);">' + c.label + '</span>'
+      + '<span style="font-size:13px;color:var(--text3);">\u203A</span></div>';
+  }).join('');
+  _hdSheet('hd-issue-modal', 'What\u2019s going on?', rows);
+}
+window.hdSomethingWrong = hdSomethingWrong;
+
+// issueLabel present → this came from Something's wrong, so offer to log it.
+async function hdFindPro(catsCsv, issueLabel){
+  var prev = document.getElementById('hd-issue-modal'); if (prev) prev.remove();
+  var cats = String(catsCsv||'').split(',').filter(Boolean);
+  var agentFirst = ((typeof currentAgent === 'function' && currentAgent()) || {}).firstName || 'your agent';
+  _hdSheet('hd-pro-modal', issueLabel || 'Find a pro', '<div id="hd-pro-body" style="font-size:12.5px;color:var(--text3);">Loading\u2026</div>');
+
+  var all = await _hdEnsurePartners();
+  var list = (all||[]).filter(function(p){ return cats.indexOf(p.category) >= 0; });
+  var body = document.getElementById('hd-pro-body'); if (!body) return;
+
+  var h = '';
+  if (!list.length){
+    h = '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px;">' + escapeHtml(agentFirst) + ' hasn\u2019t added anyone here yet. Send a message and they\u2019ll point you to someone they trust.</div>'
+       + '<button class="btn btn-g" style="width:100%;" onclick="document.getElementById(\'hd-pro-modal\').remove(); go(\'chat\',document.querySelector(\'[data-pg=chat]\'));">Message ' + escapeHtml(agentFirst) + '</button>';
+  } else {
+    h = '<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">People ' + escapeHtml(agentFirst) + ' trusts.</div>';
+    list.slice(0,6).forEach(function(p, i){
+      h += '<div style="padding:11px 0;' + (i < Math.min(list.length,6)-1 ? 'border-bottom:0.5px solid var(--border);' : '') + '">'
+        + '<div style="font-size:13.5px;font-weight:600;color:var(--text);">' + partnerEsc(p.name || p.company || 'Partner') + '</div>'
+        + (p.company && p.name ? '<div style="font-size:11.5px;color:var(--text3);margin-bottom:6px;">' + partnerEsc(p.company) + '</div>' : '<div style="height:4px;"></div>')
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + (typeof partnerActionButtons === 'function' ? partnerActionButtons(p) : '') + '</div>'
+      + '</div>';
+    });
+  }
+  if (issueLabel){
+    h += '<div style="border-top:0.5px solid var(--border);margin-top:14px;padding-top:14px;">'
+       + '<button class="btn" style="width:100%;" onclick="hdIssueLog(\'' + issueLabel.replace(/'/g,"\\'") + '\')">Log this in your home history</button></div>';
+  }
+  body.innerHTML = h;
+}
+window.hdFindPro = hdFindPro;
+
+async function hdIssueLog(label){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  try {
+    var j = await _hdPost('home-issue-log', { t:tok, label:label });
+    if (j && j.ok){ window._hdLog = j.log; _hdRefreshHistory(); }
+  } catch(e){}
+  var m = document.getElementById('hd-pro-modal'); if (m) m.remove();
+  if (typeof showToast === 'function') showToast('Logged. Mark it fixed in your home history when it\u2019s sorted.');
+}
+window.hdIssueLog = hdIssueLog;
+
+function hdIssueFix(ts){
+  var row = document.getElementById('hdi-' + ts.replace(/[^a-zA-Z0-9]/g,''));
+  if (!row) return;
+  row.innerHTML = '<div style="display:flex;gap:6px;margin-top:6px;">'
+    + '<input id="hdi-who" type="text" placeholder="Who fixed it? (optional)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+    + '<button class="btn btn-sm btn-g" onclick="hdIssueFixSave(\'' + ts + '\')">Fixed</button></div>';
+}
+window.hdIssueFix = hdIssueFix;
+
+async function hdIssueFixSave(ts){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var by = ((document.getElementById('hdi-who')||{}).value || '').trim();
+  try {
+    var j = await _hdPost('home-issue-resolve', { t:tok, ts:ts, by:by });
+    if (j && j.ok){ window._hdLog = j.log; _hdRefreshHistory(); }
+  } catch(e){}
+}
+window.hdIssueFixSave = hdIssueFixSave;
+
 async function _hdLoadTasks(tok){
   var tEl = document.getElementById('home-tasks-section');
   var fEl = document.getElementById('home-file-section');
@@ -12274,6 +12409,8 @@ async function _hdLoadTasks(tok){
       if (window._hdTasks.length){ tEl.innerHTML = _hdTasksCardHtml(window._hdTasks); tEl.style.display='block'; }
       else tEl.style.display='none';
     }
+    var pEl = document.getElementById('home-pros-section');
+    if (pEl){ pEl.innerHTML = _hdProsCardHtml(); pEl.style.display='block'; }
     if (fEl){ fEl.innerHTML = _hdFileCardHtml(window._hdItems); fEl.style.display='block'; }
     if (hEl){
       if (window._hdLog.length){ hEl.innerHTML = _hdHistoryCardHtml(window._hdLog, window._hdHistoryAll); hEl.style.display='block'; }
@@ -12283,6 +12420,7 @@ async function _hdLoadTasks(tok){
     if (tEl) tEl.style.display='none';
     if (fEl) fEl.style.display='none';
     if (hEl) hEl.style.display='none';
+    var pe = document.getElementById('home-pros-section'); if (pe) pe.style.display='none';
   }
 }
 
@@ -12371,7 +12509,7 @@ async function renderHomeDash(){
     sec.style.display='none';
     if (pc) pc.style.display='none';
     if (tasksEl) tasksEl.style.display='none';
-    ['home-file-section','home-history-section'].forEach(function(id){
+    ['home-pros-section','home-file-section','home-history-section'].forEach(function(id){
       var e = document.getElementById(id); if (e) e.style.display='none';
     });
     return;
