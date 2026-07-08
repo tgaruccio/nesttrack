@@ -12237,14 +12237,14 @@ function _hdHistoryCardHtml(log, showAll){
     var d = new Date(e.ts);
     var when = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
     var isOpen = (e.key === 'issue' && e.open);
-    var safeTs = String(e.ts).replace(/[^a-zA-Z0-9]/g,'');
     var line = escapeHtml(e.title) + (e.by ? ' \u2014 ' + escapeHtml(e.by) : '') + (e.key === 'issue' && !e.open ? ' \u00b7 fixed' : '');
-    h += '<div style="display:flex;gap:10px;padding:6px 0;">'
+    h += '<div onclick="hdLogOpen(\'' + e.ts + '\')" style="display:flex;gap:10px;padding:7px 0;cursor:pointer;">'
       + '<span style="font-size:11.5px;color:var(--text3);min-width:52px;">' + when + '</span>'
       + '<div style="flex:1;min-width:0;">'
-        + '<span style="font-size:12.5px;color:' + (isOpen ? '#B45309' : 'var(--text2)') + ';">' + line + '</span>'
-        + (isOpen ? '<div id="hdi-' + safeTs + '"><span onclick="hdIssueFix(\'' + e.ts + '\')" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;text-decoration:underline;">Mark fixed</span></div>' : '')
-      + '</div></div>';
+        + '<span style="font-size:12.5px;color:' + (isOpen ? '#B45309' : 'var(--text2)') + ';">' + line + (isOpen ? ' \u00b7 open' : '') + '</span>'
+        + (e.note ? '<div style="font-size:11.5px;color:var(--text3);line-height:1.45;margin-top:1px;">' + escapeHtml(e.note) + '</div>' : '')
+      + '</div>'
+      + '<span style="font-size:12px;color:var(--text3);">\u203A</span></div>';
   });
   if (log.length > 4) h += '<div style="margin-top:9px;"><span onclick="hdHistoryToggle()" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;">' + (showAll ? 'Show less' : 'Show all ' + log.length) + '</span></div>';
   return h + '</div>';
@@ -12265,7 +12265,8 @@ function hdExportHistory(){
   log.forEach(function(e){
     var d = new Date(e.ts);
     var when = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{ year:'numeric', month:'short', day:'numeric' });
-    lines.push(when + ' \u2014 ' + e.title + (e.by ? ' \u2014 ' + e.by : ''));
+    lines.push(when + ' \u2014 ' + e.title + (e.by ? ' \u2014 ' + e.by : '') + (e.key === 'issue' && !e.open ? ' (fixed)' : ''));
+    if (e.note) lines.push('    ' + e.note);
   });
   var a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/plain' }));
@@ -12373,7 +12374,8 @@ async function hdFindPro(catsCsv, issueLabel){
   }
   if (issueLabel){
     h += '<div style="border-top:0.5px solid var(--border);margin-top:14px;padding-top:14px;">'
-       + '<button class="btn" style="width:100%;" onclick="hdIssueLog(\'' + issueLabel.replace(/'/g,"\\'") + '\')">Log this in your home history</button></div>';
+       + '<input id="hd-issue-note" type="text" placeholder="What\u2019s wrong? (optional)" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+       + '<button class="btn" style="width:100%;margin-top:8px;" onclick="hdIssueLog(\'' + issueLabel.replace(/'/g,"\\'") + '\')">Log this in your home history</button></div>';
   }
   body.innerHTML = h;
 }
@@ -12381,8 +12383,9 @@ window.hdFindPro = hdFindPro;
 
 async function hdIssueLog(label){
   var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var note = ((document.getElementById('hd-issue-note')||{}).value || '').trim();
   try {
-    var j = await _hdPost('home-issue-log', { t:tok, label:label });
+    var j = await _hdPost('home-issue-log', { t:tok, label:label, note:note });
     if (j && j.ok){ window._hdLog = j.log; _hdRefreshHistory(); }
   } catch(e){}
   var m = document.getElementById('hd-pro-modal'); if (m) m.remove();
@@ -12390,24 +12393,62 @@ async function hdIssueLog(label){
 }
 window.hdIssueLog = hdIssueLog;
 
-function hdIssueFix(ts){
-  var row = document.getElementById('hdi-' + ts.replace(/[^a-zA-Z0-9]/g,''));
-  if (!row) return;
-  row.innerHTML = '<div style="display:flex;gap:6px;margin-top:6px;">'
-    + '<input id="hdi-who" type="text" placeholder="Who fixed it? (optional)" style="flex:1;font-size:12px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
-    + '<button class="btn btn-sm btn-g" onclick="hdIssueFixSave(\'' + ts + '\')">Fixed</button></div>';
+// One tap on any history entry opens everything you can do with it. A mis-tapped Done shouldn't
+// be permanent, and "Plumbing issue" is worth a lot more with a line about what was actually wrong.
+function hdLogOpen(ts){
+  var e = (window._hdLog || []).filter(function(x){ return x.ts === ts; })[0];
+  if (!e) return;
+  var d = new Date(e.ts);
+  var when = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{ month:'long', day:'numeric', year:'numeric' });
+  var isOpen = (e.key === 'issue' && e.open);
+  var esc = function(v){ return escapeHtml(v||''); };
+  var inner = '<div style="font-size:11.5px;color:var(--text3);">' + when + '</div>'
+    + '<div style="font-size:15px;color:var(--text);margin:2px 0 14px;">' + esc(e.title) + (e.key==='issue' && !e.open ? ' \u00b7 fixed' : '') + '</div>'
+    + '<label class="flabel">What happened <span style="font-weight:400;color:var(--text3);">(optional)</span></label>'
+    + '<input id="hdl-note" type="text" value="' + esc(e.note) + '" placeholder="Upstairs bathroom, slow drain" style="width:100%;box-sizing:border-box;margin:4px 0 12px;"/>'
+    + '<label class="flabel">Who handled it <span style="font-weight:400;color:var(--text3);">(optional)</span></label>'
+    + '<input id="hdl-by" type="text" value="' + esc(e.by) + '" placeholder="Bergman Plumbing" style="width:100%;box-sizing:border-box;margin-top:4px;"/>'
+    + (isOpen ? '<button class="btn btn-g" style="width:100%;margin-top:16px;" onclick="hdLogFix(\'' + ts + '\')">Mark it fixed</button>' : '')
+    + '<div style="display:flex;gap:8px;margin-top:' + (isOpen ? '8px' : '18px') + ';">'
+      + '<button class="btn btn-sm" onclick="hdLogDelete(\'' + ts + '\')" style="color:#E24B4A;">Delete</button>'
+      + '<button class="btn" style="flex:1;" onclick="document.getElementById(\'hd-log-modal\').remove();">Cancel</button>'
+      + '<button class="btn' + (isOpen ? '' : ' btn-g') + '" style="flex:1;" onclick="hdLogSave(\'' + ts + '\')">Save</button>'
+    + '</div>';
+  _hdSheet('hd-log-modal', 'Home history', inner);
 }
-window.hdIssueFix = hdIssueFix;
+window.hdLogOpen = hdLogOpen;
 
-async function hdIssueFixSave(ts){
+function _hdLogFields(){
+  return { note: ((document.getElementById('hdl-note')||{}).value || '').trim(),
+           by:   ((document.getElementById('hdl-by')  ||{}).value || '').trim() };
+}
+async function hdLogSave(ts){
   var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
-  var by = ((document.getElementById('hdi-who')||{}).value || '').trim();
+  var f = _hdLogFields();
+  try { var j = await _hdPost('home-log-note', { t:tok, ts:ts, note:f.note, by:f.by }); if (j && j.ok){ window._hdLog = j.log; _hdRefreshHistory(); } } catch(e){}
+  var m = document.getElementById('hd-log-modal'); if (m) m.remove();
+}
+window.hdLogSave = hdLogSave;
+
+async function hdLogFix(ts){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var f = _hdLogFields();
   try {
-    var j = await _hdPost('home-issue-resolve', { t:tok, ts:ts, by:by });
+    if (f.note) await _hdPost('home-log-note', { t:tok, ts:ts, note:f.note });
+    var j = await _hdPost('home-issue-resolve', { t:tok, ts:ts, by:f.by });
     if (j && j.ok){ window._hdLog = j.log; _hdRefreshHistory(); }
   } catch(e){}
+  var m = document.getElementById('hd-log-modal'); if (m) m.remove();
 }
-window.hdIssueFixSave = hdIssueFixSave;
+window.hdLogFix = hdLogFix;
+
+async function hdLogDelete(ts){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  if (!confirm('Remove this from your home history?')) return;
+  try { var j = await _hdPost('home-log-delete', { t:tok, ts:ts }); if (j && j.ok){ window._hdLog = j.log; _hdRefreshHistory(); } } catch(e){}
+  var m = document.getElementById('hd-log-modal'); if (m) m.remove();
+}
+window.hdLogDelete = hdLogDelete;
 
 async function _hdLoadTasks(tok){
   var tEl = document.getElementById('home-tasks-section');
