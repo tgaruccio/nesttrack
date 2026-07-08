@@ -590,6 +590,13 @@ textarea{resize:vertical;min-height:68px;}
     <span id="home-chat-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;font-weight:600;"></span>
   </button>
 
+  <!-- ══ MY HOME — post-close dashboard. Filled by renderHomeDash(); hidden unless the client
+       has a live NestTracker home. Sits above the journey because after closing, this is the thing. ══ -->
+  <div id="home-dash-section" style="display:none;"></div>
+
+  <!-- Collapsed record of the transaction. Tapping it reveals the trail/timeline below. -->
+  <div id="home-purchase-card" style="display:none;"></div>
+
   <!-- ══ HOME BUYERS JOURNEY ══ -->
   <div id="home-buy-section" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:visible;">
     <div style="background:linear-gradient(135deg,var(--green-dk),var(--green));padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
@@ -11847,9 +11854,188 @@ function _applyHomeSections() {
   if (buySection) buySection.style.display = (hasBuyerDeal || !hasSellerDeal) ? 'block' : 'none';
   var sellSection = document.getElementById('home-sell-section');
   if (sellSection) sellSection.style.display = hasSellerDeal ? 'block' : 'none';
+  if (typeof _hdApplyTrail === 'function') _hdApplyTrail();   // post-close: fold the finished trail away
   return hasSellerDeal;
 }
 window._applyHomeSections = _applyHomeSections;
+
+// ═══ POST-CLOSE HOME DASHBOARD ═══════════════════════════════════════════════════════
+// Appears when the client's user doc carries an ntHomeToken (written by the worker the moment
+// their NestTracker home goes live). The trail only folds away once the deal is actually closed —
+// a client mid-transaction keeps their journey open, with their home value sitting above it.
+window._hdActive = false;
+window._hdTrailOpen = false;
+
+function _hdMoney(n){ return '$' + Math.round(Number(n)||0).toLocaleString(); }
+
+function _hdApplyTrail(){
+  var hasHome = !!(userProfile && userProfile.ntHomeToken);   // read directly — runs before the fetch
+  var isPast  = !!(userProfile && (userProfile.crmStatus==='past' || userProfile.crmStatus==='closed'));
+  if (!(hasHome && isPast && !window._hdTrailOpen)) return;
+  ['home-buy-section','home-mort-section','home-sell-section'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.style.display = 'none';
+  });
+}
+window._hdApplyTrail = _hdApplyTrail;
+
+// Never show a date we aren't sure of — a wrong closing date is worse than none.
+function _hdCloseDate(){
+  var deals = (typeof _clientDeals !== 'undefined' && _clientDeals) || [];
+  var d = deals.filter(function(x){ return x.dealType !== 'seller'; })[0] || deals[0] || null;
+  var raw = '';
+  if (d) raw = d.closingDate || (d.dates && d.dates.closingDate) || (d.contractDates && d.contractDates.closingDate) || d.closedAt || '';
+  if (!raw && userProfile && userProfile.contractDates) raw = userProfile.contractDates.closingDate || '';
+  if (!raw) return { when:'', address:(d && d.address) || '' };
+  var dt = new Date(raw);
+  if (isNaN(dt.getTime())) return { when:'', address:(d && d.address) || '' };
+  return { when: dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}), address:(d && d.address) || '' };
+}
+
+function _hdPurchaseCardHtml(){
+  var info = _hdCloseDate();
+  var sub  = info.when ? ('Closed ' + info.when) : (info.address || 'Your transaction');
+  var open = !!window._hdTrailOpen;
+  return '<div onclick="hdToggleTrail()" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;">'
+    + '<span style="font-size:19px;">\uD83D\uDD11</span>'
+    + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:14px;color:var(--text);">Your purchase</div>'
+      + '<div style="font-size:12px;color:var(--text3);">' + escapeHtml(sub) + '</div>'
+    + '</div>'
+    + '<span style="font-size:13px;color:var(--text3);">' + (open ? '\u25B2' : '\u25BC') + '</span>'
+  + '</div>';
+}
+
+function hdToggleTrail(){
+  window._hdTrailOpen = !window._hdTrailOpen;
+  if (typeof _applyHomeSections === 'function') _applyHomeSections();
+  var pc = document.getElementById('home-purchase-card'); if (pc) pc.innerHTML = _hdPurchaseCardHtml();
+  if (window._hdTrailOpen){
+    try { if (typeof renderTrailMap==='function') renderTrailMap(); } catch(e){}
+    try { if (typeof renderTxnTimeline==='function') renderTxnTimeline(); } catch(e){}
+    try { if (typeof renderSellerTrail==='function') renderSellerTrail(); } catch(e){}
+  }
+}
+window.hdToggleTrail = hdToggleTrail;
+
+// The annual review surfaces for a three-month window around each anniversary, and only once —
+// dismissing it stores the year so it stays quiet until the next one.
+function _hdReviewDue(ins){
+  if (!ins || !ins.monthsOwned || ins.monthsOwned < 11) return false;
+  var r = ins.monthsOwned % 12;
+  if (!(r >= 11 || r <= 1)) return false;
+  return !(userProfile && userProfile.ntReviewDismissed === String(new Date().getFullYear()));
+}
+
+function _hdHookHtml(ins){
+  var h = ins && ins.hook; if (!h) return '';
+  var t;
+  if (h.type === 'pmi_ready')        t = 'You put ' + h.downPct + '% down. You\u2019re now at ' + h.equityPct + '% equity, which means you may be able to drop your mortgage insurance. On a loan your size that\u2019s often around ' + _hdMoney(h.monthly) + ' a month.';
+  else if (h.type === 'pmi_close')   t = 'You put ' + h.downPct + '% down and you\u2019re at ' + h.equityPct + '% equity. About ' + _hdMoney(h.away) + ' more and you may be able to drop your mortgage insurance.';
+  else if (h.type === 'refi')        t = 'You\u2019re paying ' + h.yourRate + '%. The average today is ' + h.todayRate + '%. On your balance that\u2019s roughly ' + _hdMoney(h.monthly) + ' a month.';
+  else if (h.type === 'equity_strong') t = 'You\u2019re sitting on ' + _hdMoney(h.equity) + ' of equity \u2014 ' + h.equityPct + '% of your home.';
+  else                               t = 'Here\u2019s what your home did this year, and what to expect from the next one.';
+  return '<div style="background:var(--green-lt);border-radius:var(--r-sm);padding:11px 13px;margin-bottom:12px;font-size:13px;color:#04342C;line-height:1.55;">' + t + '</div>';
+}
+
+function _hdStatRow(label, val, color, bold){
+  return '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;">'
+    + '<span style="font-size:13px;color:' + color + ';">' + label + '</span>'
+    + '<span style="font-size:13px;color:var(--text);' + (bold?'font-weight:600;':'') + '">' + val + '</span></div>';
+}
+function _hdGrowRow(label, amt){
+  return '<div style="display:flex;justify-content:space-between;padding:2px 0;">'
+    + '<span style="font-size:12.5px;color:var(--text2);">' + label + '</span>'
+    + '<span style="font-size:12.5px;color:var(--green-dk);">+' + _hdMoney(amt) + '</span></div>';
+}
+
+function _hdEquityCardHtml(j){
+  var ins   = j.insight || null;
+  var eqAmt = (j.equity   != null) ? Number(j.equity)   : null;
+  var eqPct = (j.equityPct!= null) ? Number(j.equityPct): null;
+  var owed  = (j.owed     != null) ? Number(j.owed)     : null;
+  var agentName = (j.agent && (j.agent.name || j.agent.firstName)) || 'your agent';
+
+  var h = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:16px 18px;">'
+    + '<div style="font-size:11.5px;color:var(--text3);margin-bottom:4px;">Your home is worth</div>'
+    + '<div style="font-family:\'Fraunces\',serif;font-weight:300;font-size:32px;line-height:1.1;color:var(--text);">' + _hdMoney(j.value) + '</div>';
+
+  if (eqAmt != null && eqPct != null){
+    var p = Math.max(0, Math.min(100, eqPct));
+    h += '<div style="display:flex;height:7px;border-radius:20px;overflow:hidden;margin:15px 0 9px;">'
+       +   '<div style="width:' + p + '%;background:var(--green);"></div>'
+       +   '<div style="flex:1;background:#D3D1C7;"></div></div>'
+       + _hdStatRow('Your equity', _hdMoney(eqAmt) + ' \u00b7 ' + eqPct + '%', 'var(--green-dk)', true);
+    if (owed != null) h += _hdStatRow('Estimated loan balance', _hdMoney(owed), 'var(--text2)', false);
+  }
+
+  if (ins && ins.growth && (ins.growth.appreciation > 0 || ins.growth.principalPaid > 0)){
+    var g = ins.growth;
+    h += '<div style="background:var(--surface2);border-radius:var(--r-sm);padding:11px 13px;margin-top:14px;">'
+       +   '<div style="font-size:11.5px;color:var(--text3);margin-bottom:7px;">' + (g.basis==='year' ? 'How your equity grew this year' : 'How your equity grew since you bought') + '</div>'
+       +   (g.appreciation  > 0 ? _hdGrowRow('Your home gained value', g.appreciation) : '')
+       +   (g.principalPaid > 0 ? _hdGrowRow('You paid down the loan', g.principalPaid) : '')
+       + '</div>';
+  }
+
+  h += '<div style="font-size:11px;color:var(--text3);margin-top:10px;line-height:1.5;">Value updated every quarter by ' + escapeHtml(agentName) + '.'
+     + (owed != null ? ' Loan balance is an estimate.' : '') + '</div>';
+
+  if (_hdReviewDue(ins)){
+    h += '<div style="border-top:0.5px solid var(--border);margin-top:16px;padding-top:16px;">'
+       +   '<div style="font-family:\'Fraunces\',serif;font-weight:300;font-size:18px;color:var(--text);line-height:1.35;margin-bottom:10px;">Your equity review is ready</div>'
+       +   _hdHookHtml(ins)
+       +   '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:13px;">Twenty minutes covers what your home is really worth, what you actually owe, and what to expect from the next year.</div>'
+       +   '<button class="btn btn-g" style="width:100%;" onclick="hdBookReview()">Book your equity review</button>'
+       +   '<div style="text-align:center;margin-top:9px;"><span onclick="hdDismissReview()" style="font-size:11.5px;color:var(--text3);cursor:pointer;text-decoration:underline;">Not right now</span></div>'
+       + '</div>';
+  }
+  return h + '</div>';
+}
+
+function hdBookReview(){
+  var a = (typeof currentAgent === 'function') ? currentAgent() : null;
+  var url = a && (a.calendly || a.calendarLink);
+  if (url) window.open(url, '_blank');
+  else if (typeof go === 'function') go('chat', document.querySelector('[data-pg=chat]'));
+}
+window.hdBookReview = hdBookReview;
+
+async function hdDismissReview(){
+  var yr = String(new Date().getFullYear());
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), { ntReviewDismissed: yr });
+    if (userProfile) userProfile.ntReviewDismissed = yr;
+  } catch(e){}
+  renderHomeDash();
+}
+window.hdDismissReview = hdDismissReview;
+
+async function renderHomeDash(){
+  var sec = document.getElementById('home-dash-section');
+  var pc  = document.getElementById('home-purchase-card');
+  if (!sec) return;
+
+  var tok = (userProfile && userProfile.ntHomeToken) || '';
+  window._hdActive = !!tok;
+  if (!tok){ sec.style.display='none'; if(pc) pc.style.display='none'; return; }
+
+  var isPast = !!(userProfile && (userProfile.crmStatus==='past' || userProfile.crmStatus==='closed'));
+  if (pc){
+    if (isPast){ pc.innerHTML = _hdPurchaseCardHtml(); pc.style.display='block'; }
+    else pc.style.display='none';
+  }
+  _hdApplyTrail();
+
+  sec.style.display = 'block';
+  sec.innerHTML = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:18px;font-size:12.5px;color:var(--text3);">Loading your home\u2026</div>';
+  try {
+    var r = await fetch(PROXY_URL + '/api/v1/nesttracker-report?t=' + encodeURIComponent(tok));
+    var j = await r.json();
+    if (!j || !j.ok){ sec.style.display='none'; return; }
+    sec.innerHTML = _hdEquityCardHtml(j);
+  } catch(e){ sec.style.display='none'; }
+}
+window.renderHomeDash = renderHomeDash;
 function renderHome() {
   // Preload Doc Generator templates so home trail popups can show tagged docs
   if (!window._dtTemplates && typeof _ensureTrailTemplates==='function') { _ensureTrailTemplates().catch(function(){}); }
@@ -11917,6 +12103,8 @@ function renderHome() {
   // Saved homes badge
   var savedBadge = document.getElementById('home-saved-badge');
   if (savedBadge) savedBadge.textContent = props.length ? '('+props.length+')' : '';
+
+  renderHomeDash();
 }
 
 // ─── Shared email preview system ───
