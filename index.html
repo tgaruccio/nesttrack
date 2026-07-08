@@ -597,6 +597,10 @@ textarea{resize:vertical;min-height:68px;}
   <!-- Up next — the maintenance the home actually needs. Filled by _hdLoadTasks(). -->
   <div id="home-tasks-section" style="display:none;"></div>
 
+  <!-- The home's systems, and the record that builds itself out of Done taps. -->
+  <div id="home-file-section" style="display:none;"></div>
+  <div id="home-history-section" style="display:none;"></div>
+
   <!-- Collapsed record of the transaction. Tapping it reveals the trail/timeline below. -->
   <div id="home-purchase-card" style="display:none;"></div>
 
@@ -12083,16 +12087,203 @@ function _hdTasksCardHtml(tasks){
   return h + '</div>';
 }
 
+// ── Home file + Home history ─────────────────────────────────────────────────────────
+// The file exists so a reminder can know your filter size, and so the model number is there at
+// 9 PM on a Sunday when the dryer stops. The history isn't something anyone sets out to keep —
+// it accumulates out of Done taps, and years later it's the record a buyer's agent reads.
+var NT_HOME_ITEMS = [
+  { key:'furnace',      name:'Furnace',         specLabel:'Filter size', taskKey:'furnace_filter' },
+  { key:'water_filter', name:'Water filter',    specLabel:'Filter size', taskKey:'water_filter' },
+  { key:'water_heater', name:'Water heater' },
+  { key:'ac',           name:'Air conditioner' },
+  { key:'dishwasher',   name:'Dishwasher' },
+  { key:'washer',       name:'Washer' },
+  { key:'dryer',        name:'Dryer' },
+  { key:'refrigerator', name:'Refrigerator' },
+  { key:'range',        name:'Range' },
+  { key:'custom',       name:'Something else' }
+];
+
+function _hdFileCardHtml(items){
+  items = items || [];
+  var h = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-top:12px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:' + (items.length ? '12px' : '8px') + ';">'
+          + '<div style="font-size:13px;font-weight:600;color:var(--text);">Home file</div>'
+          + '<button class="btn btn-sm" onclick="hdFileAdd()">+ Add</button>'
+        + '</div>';
+  if (!items.length){
+    return h + '<div style="font-size:12.5px;color:var(--text3);line-height:1.6;">Add your furnace, water heater, and appliances. Model numbers live here for when something breaks, and a filter size here shows up in the reminder.</div></div>';
+  }
+  items.forEach(function(it, i){
+    var sub = [it.brand, it.model].filter(Boolean).join(' ');
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;' + (i < items.length-1 ? 'border-bottom:0.5px solid var(--border);' : '') + '">'
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:13.5px;color:var(--text);">' + escapeHtml(it.name) + '</div>'
+        + (sub || it.spec ? '<div style="font-size:11.5px;color:var(--text3);">' + escapeHtml(sub) + (sub && it.spec ? ' \u00b7 ' : '') + (it.spec ? escapeHtml(it.spec) : '') + '</div>' : '')
+      + '</div>'
+      + '<span onclick="hdFileAdd(\'' + it.id + '\')" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;">Edit</span>'
+    + '</div>';
+  });
+  return h + '</div>';
+}
+
+function hdFileAdd(id){
+  var items = window._hdItems || [];
+  var it = id ? (items.filter(function(x){ return x.id===id; })[0] || {}) : {};
+  var presetKey = it.key || '';
+  var m = document.createElement('div');
+  m.id = 'hd-file-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px;';
+  m.innerHTML = '<div style="background:var(--surface);border-radius:14px;max-width:400px;width:100%;max-height:88vh;overflow:auto;padding:20px 22px;">'
+    + '<div style="font-size:15px;font-weight:600;margin-bottom:14px;">' + (id ? 'Edit item' : 'Add to your home file') + '</div>'
+    + '<label class="flabel">What is it</label>'
+    + '<select id="hdf-key" onchange="hdFileKeyChange()" style="width:100%;font-size:13.5px;padding:9px 10px;margin:4px 0 12px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);">'
+      + NT_HOME_ITEMS.map(function(p){ return '<option value="' + p.key + '"' + (presetKey===p.key ? ' selected' : '') + '>' + p.name + '</option>'; }).join('')
+    + '</select>'
+    + '<div id="hdf-name-wrap" style="display:' + (presetKey==='custom' ? 'block' : 'none') + ';">'
+      + '<label class="flabel">Name it</label>'
+      + '<input id="hdf-name" type="text" value="' + escapeHtml(presetKey==='custom' ? (it.name||'') : '') + '" placeholder="Garbage disposal" style="width:100%;box-sizing:border-box;margin:4px 0 12px;"/>'
+    + '</div>'
+    + '<div id="hdf-spec-wrap" style="display:none;">'
+      + '<label class="flabel" id="hdf-spec-label">Filter size</label>'
+      + '<input id="hdf-spec" type="text" value="' + escapeHtml(it.spec||'') + '" placeholder="16x25x1" style="width:100%;box-sizing:border-box;margin:4px 0 12px;"/>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;">'
+      + '<div style="flex:1;"><label class="flabel">Brand</label><input id="hdf-brand" type="text" value="' + escapeHtml(it.brand||'') + '" placeholder="Carrier" style="width:100%;box-sizing:border-box;margin-top:4px;"/></div>'
+      + '<div style="flex:1;"><label class="flabel">Model</label><input id="hdf-model" type="text" value="' + escapeHtml(it.model||'') + '" placeholder="59TP6" style="width:100%;box-sizing:border-box;margin-top:4px;"/></div>'
+    + '</div>'
+    + '<label class="flabel" style="margin-top:12px;display:block;">Notes <span style="font-weight:400;color:var(--text3);">(optional)</span></label>'
+    + '<input id="hdf-notes" type="text" value="' + escapeHtml(it.notes||'') + '" placeholder="Installed 2019, under warranty" style="width:100%;box-sizing:border-box;margin-top:4px;"/>'
+    + '<div style="display:flex;gap:8px;margin-top:18px;">'
+      + (id ? '<button class="btn btn-sm" onclick="hdFileDelete(\'' + id + '\')" style="color:#E24B4A;">Remove</button>' : '')
+      + '<button class="btn" style="flex:1;" onclick="document.getElementById(\'hd-file-modal\').remove();">Cancel</button>'
+      + '<button class="btn btn-g" style="flex:1;" onclick="hdFileSave(' + (id ? '\'' + id + '\'' : 'null') + ')">Save</button>'
+    + '</div></div>';
+  m.addEventListener('click', function(e){ if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+  hdFileKeyChange();
+}
+window.hdFileAdd = hdFileAdd;
+
+function hdFileKeyChange(){
+  var k = (document.getElementById('hdf-key')||{}).value || '';
+  var p = NT_HOME_ITEMS.filter(function(x){ return x.key===k; })[0] || {};
+  var nw = document.getElementById('hdf-name-wrap'); if (nw) nw.style.display = (k==='custom') ? 'block' : 'none';
+  var sw = document.getElementById('hdf-spec-wrap'); if (sw) sw.style.display = p.specLabel ? 'block' : 'none';
+  var sl = document.getElementById('hdf-spec-label'); if (sl && p.specLabel) sl.textContent = p.specLabel;
+}
+window.hdFileKeyChange = hdFileKeyChange;
+
+async function hdFileSave(id){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  var k = (document.getElementById('hdf-key')||{}).value || 'custom';
+  var p = NT_HOME_ITEMS.filter(function(x){ return x.key===k; })[0] || {};
+  var name = (k==='custom') ? ((document.getElementById('hdf-name')||{}).value||'').trim() : p.name;
+  if (!name){ if (typeof showToast==='function') showToast('Give it a name first.'); return; }
+  var item = { id: id || undefined, key:k, name:name,
+    brand: ((document.getElementById('hdf-brand')||{}).value||'').trim(),
+    model: ((document.getElementById('hdf-model')||{}).value||'').trim(),
+    notes: ((document.getElementById('hdf-notes')||{}).value||'').trim(),
+    spec:  p.specLabel ? ((document.getElementById('hdf-spec')||{}).value||'').trim() : '',
+    taskKey: p.taskKey || '' };
+  try {
+    var j = await _hdPost('home-file-save', { t:tok, item:item });
+    if (!j || !j.ok) throw new Error('');
+    window._hdItems = j.items; if (j.tasks) window._hdTasks = j.tasks;
+    var el = document.getElementById('home-file-section'); if (el) el.innerHTML = _hdFileCardHtml(j.items);
+    var te = document.getElementById('home-tasks-section'); if (te && j.tasks) te.innerHTML = _hdTasksCardHtml(j.tasks);  // filter size lands in the reminder
+    var mm = document.getElementById('hd-file-modal'); if (mm) mm.remove();
+  } catch(e){ if (typeof showToast==='function') showToast('Could not save that. Try again.'); }
+}
+window.hdFileSave = hdFileSave;
+
+async function hdFileDelete(id){
+  var tok = (userProfile && userProfile.ntHomeToken) || ''; if (!tok) return;
+  try {
+    var j = await _hdPost('home-file-delete', { t:tok, id:id });
+    if (j && j.ok){
+      window._hdItems = j.items;
+      var el = document.getElementById('home-file-section'); if (el) el.innerHTML = _hdFileCardHtml(j.items);
+    }
+  } catch(e){}
+  var mm = document.getElementById('hd-file-modal'); if (mm) mm.remove();
+}
+window.hdFileDelete = hdFileDelete;
+
+function _hdHistoryCardHtml(log, showAll){
+  log = log || [];
+  if (!log.length) return '';
+  var since = new Date(log[log.length-1].ts);
+  var sinceTxt = isNaN(since.getTime()) ? '' : ' since ' + since.toLocaleDateString('en-US',{ month:'long', year:'numeric' });
+  var shown = showAll ? log : log.slice(0,4);
+  var h = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:16px 18px;margin-top:12px;">'
+        + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">'
+          + '<div style="font-size:13px;font-weight:600;color:var(--text);">Home history</div>'
+          + '<span onclick="hdExportHistory()" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;">Export</span>'
+        + '</div>'
+        + '<div style="font-size:12px;color:var(--text3);margin-bottom:11px;">' + log.length + ' thing' + (log.length!==1?'s':'') + ' logged' + sinceTxt + '.</div>';
+  shown.forEach(function(e){
+    var d = new Date(e.ts);
+    var when = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{ month:'short', day:'numeric' });
+    h += '<div style="display:flex;gap:10px;padding:6px 0;">'
+      + '<span style="font-size:11.5px;color:var(--text3);min-width:52px;">' + when + '</span>'
+      + '<span style="font-size:12.5px;color:var(--text2);flex:1;">' + escapeHtml(e.title) + (e.by ? ' \u2014 ' + escapeHtml(e.by) : '') + '</span></div>';
+  });
+  if (log.length > 4) h += '<div style="margin-top:9px;"><span onclick="hdHistoryToggle()" style="font-size:11.5px;color:var(--green-dk);cursor:pointer;">' + (showAll ? 'Show less' : 'Show all ' + log.length) + '</span></div>';
+  return h + '</div>';
+}
+function hdHistoryToggle(){
+  window._hdHistoryAll = !window._hdHistoryAll;
+  var el = document.getElementById('home-history-section');
+  if (el) el.innerHTML = _hdHistoryCardHtml(window._hdLog || [], window._hdHistoryAll);
+}
+window.hdHistoryToggle = hdHistoryToggle;
+
+// The record is theirs to walk away with. It costs nothing, and it means access ending never
+// looks like the app their agent gave them just broke.
+function hdExportHistory(){
+  var log = window._hdLog || [];
+  var rep = window._hdReport || {};
+  var lines = ['Home maintenance history', rep.address || '', ''];
+  log.forEach(function(e){
+    var d = new Date(e.ts);
+    var when = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US',{ year:'numeric', month:'short', day:'numeric' });
+    lines.push(when + ' \u2014 ' + e.title + (e.by ? ' \u2014 ' + e.by : ''));
+  });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/plain' }));
+  a.download = 'home-maintenance-history.txt';
+  a.click();
+}
+window.hdExportHistory = hdExportHistory;
+
 async function _hdLoadTasks(tok){
-  var el = document.getElementById('home-tasks-section'); if (!el) return;
+  var tEl = document.getElementById('home-tasks-section');
+  var fEl = document.getElementById('home-file-section');
+  var hEl = document.getElementById('home-history-section');
   try {
     var r = await fetch(PROXY_URL + '/api/v1/home-tasks?t=' + encodeURIComponent(tok));
     var j = await r.json();
-    if (!j || !j.ok || !j.tasks || !j.tasks.length){ el.style.display='none'; return; }
-    window._hdTasks = j.tasks;
-    el.innerHTML = _hdTasksCardHtml(j.tasks);
-    el.style.display = 'block';
-  } catch(e){ el.style.display='none'; }
+    if (!j || !j.ok) throw new Error('');
+    window._hdTasks = j.tasks || [];
+    window._hdItems = j.items || [];
+    window._hdLog   = j.log   || [];
+
+    // A prospect has no schedule, so no Up next — but the home file is still worth having.
+    if (tEl){
+      if (window._hdTasks.length){ tEl.innerHTML = _hdTasksCardHtml(window._hdTasks); tEl.style.display='block'; }
+      else tEl.style.display='none';
+    }
+    if (fEl){ fEl.innerHTML = _hdFileCardHtml(window._hdItems); fEl.style.display='block'; }
+    if (hEl){
+      if (window._hdLog.length){ hEl.innerHTML = _hdHistoryCardHtml(window._hdLog, window._hdHistoryAll); hEl.style.display='block'; }
+      else hEl.style.display='none';
+    }
+  } catch(e){
+    if (tEl) tEl.style.display='none';
+    if (fEl) fEl.style.display='none';
+    if (hEl) hEl.style.display='none';
+  }
 }
 
 async function hdTaskDone(key){
@@ -12103,6 +12294,7 @@ async function hdTaskDone(key){
     var j = await _hdPost('home-task-complete', { t:tok, key:key });
     if (!j || !j.ok) throw new Error('');
     window._hdTasks = j.tasks;
+    if (j.log){ window._hdLog = j.log; _hdRefreshHistory(); }
     if (box) box.innerHTML = '<div style="background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px;margin-top:10px;">'
       + '<div style="font-size:12px;color:var(--green-dk);margin-bottom:7px;">\u2713 Logged today</div>'
       + '<div style="display:flex;gap:6px;">'
@@ -12116,12 +12308,22 @@ async function hdTaskDone(key){
 }
 window.hdTaskDone = hdTaskDone;
 
+function _hdRefreshHistory(){
+  var hEl = document.getElementById('home-history-section'); if (!hEl) return;
+  var log = window._hdLog || [];
+  if (!log.length){ hEl.style.display='none'; return; }
+  hEl.innerHTML = _hdHistoryCardHtml(log, window._hdHistoryAll);
+  hEl.style.display = 'block';
+}
+
 async function hdTaskWho(key){
   var inp = document.getElementById('hdt-who-' + key);
   var v = inp ? inp.value.trim() : '';
   var tok = (userProfile && userProfile.ntHomeToken) || '';
   var box = document.getElementById('hdt-actions-' + key);
-  if (v && tok){ try { await _hdPost('home-task-attribute', { t:tok, key:key, by:v }); } catch(e){} }
+  if (v && tok){
+    try { var j = await _hdPost('home-task-attribute', { t:tok, key:key, by:v }); if (j && j.ok && j.log){ window._hdLog = j.log; _hdRefreshHistory(); } } catch(e){}
+  }
   if (box) box.innerHTML = '<div style="font-size:12px;color:var(--green-dk);margin-top:10px;">\u2713 Logged' + (v ? ' \u2014 ' + escapeHtml(v) : ' today') + '</div>';
 }
 window.hdTaskWho = hdTaskWho;
@@ -12169,6 +12371,9 @@ async function renderHomeDash(){
     sec.style.display='none';
     if (pc) pc.style.display='none';
     if (tasksEl) tasksEl.style.display='none';
+    ['home-file-section','home-history-section'].forEach(function(id){
+      var e = document.getElementById(id); if (e) e.style.display='none';
+    });
     return;
   }
 
