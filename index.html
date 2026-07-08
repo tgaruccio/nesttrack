@@ -4328,6 +4328,9 @@ function _firebaseInit() {
       if (window._signupInProgress) return;
       await loadUserProfile();
       showApp();
+      // Cold-launch badge reset. The visibilitychange handler runs before currentUser exists, so
+      // its server clear no-ops; do it here now that we have the uid.
+      try { clearAppBadge(); } catch(e){}
     } else {
       showLogin();
     }
@@ -4395,9 +4398,10 @@ document.addEventListener('DOMContentLoaded', initAuthScreen);
 // Reset the native app-icon badge to 0. Works via the Median bridge (native app); no-op on web.
 // Called when the app opens and whenever it returns to the foreground.
 function clearAppBadge(){
+  // Local clear — instant, but only zeroes the number painted on the device. OneSignal's server
+  // counter keeps climbing, so on its own this gets overwritten by the next push.
   try {
     if (typeof median !== 'undefined' && median) {
-      // Median exposes badge control under notifications; guard each shape.
       if (median.notifications && typeof median.notifications.setAppIconBadge === 'function') {
         median.notifications.setAppIconBadge({ number: 0 });
       } else if (median.onesignal && typeof median.onesignal.setBadgeCount === 'function') {
@@ -4405,6 +4409,13 @@ function clearAppBadge(){
       }
     }
   } catch(e){ /* web / bridge unavailable — nothing to clear */ }
+  // Server clear — the part that actually sticks. Tells OneSignal to SetTo:0 so the next push
+  // resumes from zero instead of the old total. Fire-and-forget; needs the logged-in uid.
+  try {
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.uid && typeof PROXY_URL !== 'undefined'){
+      fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'clear-badge'}, body: JSON.stringify({ uid: currentUser.uid }) }).catch(function(){});
+    }
+  } catch(e){}
 }
 window.clearAppBadge = clearAppBadge;
 // Clear the badge each time the app is brought back to the foreground.
