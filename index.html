@@ -28814,7 +28814,27 @@ function _ntDashHtml(j){
         ? '<span style="font-size:10px;font-weight:700;color:#991B1B;background:#FEE2E2;padding:2px 7px;border-radius:999px;">Paused</span>'
         : '<span style="font-size:10px;font-weight:700;color:#0F7A52;background:#DDF3E7;padding:2px 7px;border-radius:999px;">Active</span>';
     var over = h.overridden ? ' <span style="font-size:10px;color:#6D28D9;background:#EDE9FE;padding:2px 6px;border-radius:999px;">Corrected</span>' : '';
-    var checkin = h.lastCheckinAt ? '<span title="Last check-in" style="font-size:10.5px;color:#0F7A52;">● checked in</span>' : '<span style="font-size:10.5px;color:var(--text3);">—</span>';
+    // Engagement indicator — has the client been opening their report? Helps you prune dead enrollments.
+    var engaged;
+    var _vc = h.viewCount||0;
+    var _lv = h.lastViewedAt ? Date.parse(h.lastViewedAt) : 0;
+    var _daysSince = _lv ? Math.floor((Date.now()-_lv)/86400000) : null;
+    var _enrolledMs = h.enrolledAt ? Date.parse(h.enrolledAt) : 0;
+    var _ageDays = _enrolledMs ? Math.floor((Date.now()-_enrolledMs)/86400000) : 0;
+    if (h.lastCheckinAt){
+      engaged = '<span title="Tapped a check-in button" style="font-size:10.5px;font-weight:600;color:#0F7A52;">● checked in</span>';
+    } else if (_vc > 0 && _daysSince !== null){
+      var col = _daysSince <= 45 ? '#0F7A52' : (_daysSince <= 120 ? '#B45309' : '#991B1B');
+      var whenTxt = _daysSince===0 ? 'today' : (_daysSince===1 ? 'yesterday' : (_daysSince+'d ago'));
+      engaged = '<span title="'+_vc+' open'+(_vc!==1?'s':'')+', last '+whenTxt+'" style="font-size:10.5px;font-weight:600;color:'+col+';">● opened '+whenTxt+'</span>'
+              + '<div style="font-size:9.5px;color:var(--text3);">'+_vc+' open'+(_vc!==1?'s':'')+'</div>';
+    } else if (_ageDays >= 100){
+      // Enrolled long enough to have received a report, but never opened → flag for pruning
+      engaged = '<span title="No opens since enrolling — consider removing" style="font-size:10.5px;font-weight:600;color:#991B1B;">○ never opened</span>';
+    } else {
+      engaged = '<span title="No opens yet (may not have received a report yet)" style="font-size:10.5px;color:var(--text3);">— no opens yet</span>';
+    }
+    var checkin = engaged;
     rows += '<tr style="border-bottom:1px solid var(--border);">'
       + '<td style="padding:9px 8px;text-align:center;"><input type="checkbox" class="nt-rm-box" data-token="'+(h.token||'')+'" style="cursor:pointer;"></td>'
       + '<td style="padding:9px 8px;"><div style="font-size:13px;font-weight:600;color:var(--text);">'+(h.name||'Client')+'</div><div style="font-size:11px;color:var(--text3);">'+(h.address||'')+'</div></td>'
