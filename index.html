@@ -11881,17 +11881,22 @@ function _hdApplyTrail(){
 }
 window._hdApplyTrail = _hdApplyTrail;
 
-// Never show a date we aren't sure of — a wrong closing date is worse than none.
+// Never show a date we aren't sure of — a wrong closing date is worse than none. Prefer the deal's
+// closing date; fall back to the purchase date the agent entered at enrollment.
 function _hdCloseDate(){
   var deals = (typeof _clientDeals !== 'undefined' && _clientDeals) || [];
   var d = deals.filter(function(x){ return x.dealType !== 'seller'; })[0] || deals[0] || null;
+  var rep = window._hdReport || {};
   var raw = '';
   if (d) raw = d.closingDate || (d.dates && d.dates.closingDate) || (d.contractDates && d.contractDates.closingDate) || d.closedAt || '';
   if (!raw && userProfile && userProfile.contractDates) raw = userProfile.contractDates.closingDate || '';
-  if (!raw) return { when:'', address:(d && d.address) || '' };
-  var dt = new Date(raw);
-  if (isNaN(dt.getTime())) return { when:'', address:(d && d.address) || '' };
-  return { when: dt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}), address:(d && d.address) || '' };
+  if (!raw) raw = rep.purchaseDate || '';
+  var address = (d && d.address) || rep.address || '';
+  if (!raw) return { when:'', address:address };
+  var dt = new Date(/^\d{4}$/.test(String(raw).trim()) ? (String(raw).trim()+'-01-01T12:00:00Z') : raw);
+  if (isNaN(dt.getTime())) return { when:'', address:address };
+  var opts = /^\d{4}$/.test(String(raw).trim()) ? { year:'numeric' } : { month:'long', day:'numeric', year:'numeric' };
+  return { when: dt.toLocaleDateString('en-US', opts), address:address };
 }
 
 function _hdPurchaseCardHtml(){
@@ -12180,7 +12185,9 @@ async function renderHomeDash(){
     var r = await fetch(PROXY_URL + '/api/v1/nesttracker-report?t=' + encodeURIComponent(tok));
     var j = await r.json();
     if (!j || !j.ok){ sec.style.display='none'; return; }
+    window._hdReport = j;
     sec.innerHTML = _hdEquityCardHtml(j);
+    if (pc && pc.style.display !== 'none') pc.innerHTML = _hdPurchaseCardHtml();   // now we know the date
   } catch(e){ sec.style.display='none'; }
   _hdLoadTasks(tok);
 }
