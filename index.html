@@ -8143,6 +8143,9 @@ const EMAIL_EDITOR_DEFS = [
   {group:'Mortgage', key:'mortgage_9', label:'Step 9 — Closing Disclosure', type:'mortgage', num:9},
   {group:'Mortgage', key:'mortgage_10', label:'Step 10 — Clear to Close', type:'mortgage', num:10},
   {group:'Mortgage', key:'mortgage_11', label:'Step 11 — Closing Day', type:'mortgage', num:11},
+  {group:'Home maintenance', key:'maint_hvac_service',  label:'HVAC service reminder',   type:'maint', mkey:'hvac_service'},
+  {group:'Home maintenance', key:'maint_gutters',       label:'Gutter cleaning reminder', type:'maint', mkey:'gutters'},
+  {group:'Home maintenance', key:'maint_water_heater',  label:'Water heater flush reminder', type:'maint', mkey:'water_heater'},
 ];
 
 async function loadCustomEmailTemplates() {
@@ -8153,7 +8156,17 @@ async function loadCustomEmailTemplates() {
   } catch(e) { console.log('loadCustomEmailTemplates err:', e.message); }
 }
 
+// The editable portion of each maintenance email — subject + the opening reminder line. Everything
+// else (the agent's pros, filter-size note, unsubscribe) is assembled by the worker and not editable.
+// Keep these subjects/lines in step with the worker's LINES map and _maintSendEmail subject.
+var MAINT_EMAIL_DEFAULTS = {
+  hvac_service:  { subject:'Have your HVAC serviced', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 your heating and cooling system is about due for a tune-up.' },
+  gutters:       { subject:'Time to clean the gutters', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 it\u2019s about time to get the gutters cleaned out.' },
+  water_heater:  { subject:'Time to flush the water heater', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 your water heater\u2019s due for a flush.' }
+};
+
 function eeGetDefaultBody(def) {
+  if (def.type==='maint') { var m=MAINT_EMAIL_DEFAULTS[def.mkey]; return m ? m.body : ''; }
   var emailMap = def.type==='seller' ? SELLER_STEP_EMAILS : def.type==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
   var tmpl = emailMap[def.num];
   if (!tmpl || typeof tmpl.body !== 'function') return '';
@@ -8161,6 +8174,7 @@ function eeGetDefaultBody(def) {
 }
 
 function eeGetDefaultSubject(def) {
+  if (def.type==='maint') { var m=MAINT_EMAIL_DEFAULTS[def.mkey]; return m ? m.subject : ''; }
   var emailMap = def.type==='seller' ? SELLER_STEP_EMAILS : def.type==='mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
   var tmpl = emailMap[def.num];
   return tmpl ? tmpl.subject : '';
@@ -8221,7 +8235,7 @@ function renderEmailEditorList() {
   if (!card || !list) return;
   card.style.display = 'flex';
 
-  var groups = ['Buyer','Seller','Mortgage'];
+  var groups = ['Buyer','Seller','Mortgage','Home maintenance'];
   list.innerHTML = groups.map(function(grp) {
     var defs = EMAIL_EDITOR_DEFS.filter(function(d){ return d.group===grp; });
     return '<div style="margin-bottom:16px;">'
