@@ -29629,6 +29629,21 @@ function _ntDashHtml(j){
       engaged = '<span title="No opens yet (may not have received a report yet)" style="font-size:10.5px;color:var(--text3);">— no opens yet</span>';
     }
     var checkin = engaged;
+
+    // Maintenance activity — the log building itself is the tell that a relationship is alive.
+    // Count and recency only; the detail lives in the client's own app, not this list.
+    if (h.homeDash !== false){
+      var _lc = h.logCount||0;
+      if (_lc > 0){
+        var _llMs = h.lastLogAt ? Date.parse(h.lastLogAt) : 0;
+        var _llDays = _llMs ? Math.floor((Date.now()-_llMs)/86400000) : null;
+        var _llTxt = _llDays===0 ? 'today' : (_llDays===1 ? 'yesterday' : (_llDays!=null ? _llDays+'d ago' : ''));
+        var _llCol = (_llDays!=null && _llDays<=120) ? '#0F7A52' : '#B45309';
+        checkin += '<div style="font-size:9.5px;color:'+_llCol+';margin-top:2px;">🔧 '+_lc+' logged'+(_llTxt?' · '+_llTxt:'')+'</div>';
+      } else {
+        checkin += '<div style="font-size:9.5px;color:var(--text3);margin-top:2px;">🔧 nothing logged</div>';
+      }
+    }
     rows += '<tr style="border-bottom:1px solid var(--border);">'
       + '<td style="padding:9px 8px;text-align:center;"><input type="checkbox" class="nt-rm-box" data-token="'+(h.token||'')+'" style="cursor:pointer;"></td>'
       + '<td style="padding:9px 8px;"><div style="font-size:13px;font-weight:600;color:var(--text);">'+(h.name||'Client')+'</div><div style="font-size:11px;color:var(--text3);">'+(h.address||'')+'</div></td>'
