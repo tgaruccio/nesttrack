@@ -203,6 +203,9 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
         </div>
       </div>
     </div>
+    <!-- Growth split + the one thing worth talking about — filled from d.insight by hydrate(). -->
+    <div id="growthSplit" style="display:none;margin-top:16px;background:var(--ivory);border:1px solid var(--line);border-radius:var(--r-sm);padding:14px 16px"></div>
+    <div id="equityReview" style="display:none;margin-top:16px"></div>
     <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:13px;color:var(--ink-soft)">Know your exact balance?</span>
       <input id="owedInput" inputmode="numeric" placeholder="Update your loan balance" style="flex:1;min-width:150px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--ivory);font-size:15px;color:var(--pine);font-family:inherit">
@@ -318,6 +321,35 @@ var slider = document.getElementById('sellSlider');
 function setTxt(id,v){ var el=document.getElementById(id); if(el) el.textContent=v; }
 function getToken(){ try{ return (new URLSearchParams(location.search)).get('t')||''; }catch(e){ return ''; } }
 
+// Growth split + the one finding worth a conversation. Same insight object the in-app card and the
+// quarterly email use, so the report can never disagree with them.
+function renderInsight(ins){
+  var gEl=document.getElementById('growthSplit'), rEl=document.getElementById('equityReview');
+  if(!ins){ if(gEl)gEl.style.display='none'; if(rEl)rEl.style.display='none'; return; }
+
+  var g=ins.growth;
+  if(gEl && g && (g.appreciation>0 || g.principalPaid>0)){
+    var row=function(l,a){ return '<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="font-size:13px;color:var(--ink-soft)">'+l+'</span><span class="num" style="font-size:13px;color:var(--sage);font-weight:600">+'+fmt(a)+'</span></div>'; };
+    gEl.innerHTML='<div style="font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px">'
+      +(g.basis==='year'?'How your equity grew this year':'How your equity grew since you bought')+'</div>'
+      +(g.appreciation>0?row('Your home gained value',g.appreciation):'')
+      +(g.principalPaid>0?row('You paid down the loan',g.principalPaid):'');
+    gEl.style.display='block';
+  } else if(gEl){ gEl.style.display='none'; }
+
+  var h=ins.hook, t='';
+  if(h){
+    if(h.type==='pmi_ready')       t='You put '+h.downPct+'% down. You\u2019re at '+h.equityPct+'% equity now, which usually means you can ask your lender to drop the mortgage insurance \u2014 often around '+fmt(h.monthly)+' a month.';
+    else if(h.type==='pmi_close')  t='You put '+h.downPct+'% down and you\u2019re at '+h.equityPct+'% equity. About '+fmt(h.away)+' more and you can likely drop the mortgage insurance.';
+    else if(h.type==='refi')       t='You\u2019re paying '+h.yourRate+'%. The average today is '+h.todayRate+'%. On your balance that\u2019s roughly '+fmt(h.monthly)+' a month.';
+    else if(h.type==='equity_strong') t='You\u2019re sitting on '+fmt(h.equity)+' of equity \u2014 '+h.equityPct+'% of your home. That\u2019s borrowing power, or a bigger next home.';
+  }
+  if(rEl && t){
+    rEl.innerHTML='<div style="background:var(--sage-soft);border-radius:var(--r-sm);padding:14px 16px;font-size:14px;line-height:1.55;color:var(--pine)">'+t+'</div>';
+    rEl.style.display='block';
+  } else if(rEl){ rEl.style.display='none'; }
+}
+
 function hydrate(d){
   if(d.address) setTxt('heroAddr', 'YOUR HOME · ' + String(d.address).toUpperCase());
   DATA.value = d.value||0;
@@ -338,6 +370,8 @@ function hydrate(d){
   var ownPct = (d.equityPct!=null)? d.equityPct : (DATA.value? Math.round(DATA.equity/DATA.value*100):64);
   var ownBar=document.getElementById('ownBar'), owedBar=document.getElementById('owedBar');
   if(ownBar) ownBar.style.width=ownPct+'%'; if(owedBar) owedBar.style.width=Math.max(0,100-ownPct)+'%';
+
+  renderInsight(d.insight);
 
   if(DATA.value){ slider.min=Math.round(DATA.value*0.85/1000)*1000; slider.max=Math.round(DATA.value*1.15/1000)*1000; slider.value=Math.round(DATA.value/1000)*1000; }
   if(d.yourRate!=null) setTxt('yourRate', d.yourRate.toFixed(2)+'%');
