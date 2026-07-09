@@ -16625,7 +16625,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128226;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Marketing &amp; Nurture</div></div>
       <div id="sp-contact-row-${uid}">${spContactRowHtml(b)}</div>
-      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.ntEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On NestTracker</span>${b.ntValue?` <span style="font-size:11px;color:var(--text2);font-weight:600;">&mdash; est. $${Number(b.ntValue).toLocaleString()}</span>`:''} <a href="https://app.nesttrack.io/report.html?t=${b.ntToken||''}&preview=1" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:underline;margin-left:6px;">View report</a> <span onclick="ntEnroll('${uid}')" title="Update purchase price, loan, rate — needed for the equity review" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Edit details</span> <span onclick="ntRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button id="coach-nesttracker" class="btn btn-sm" onclick="ntEnroll('${uid}',this)">&#127968; Add to NestTracker</button> <span style="font-size:11px;color:var(--text3);">&mdash; quarterly home-value report</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
+      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.ntEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On NestTracker</span>${b.ntValue?` <span style="font-size:11px;color:var(--text2);font-weight:600;">&mdash; est. $${Number(b.ntValue).toLocaleString()}</span>`:''} <a href="https://app.nesttrack.io/report.html?t=${b.ntToken||''}&preview=1" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:underline;margin-left:6px;">View report</a> <span onclick="ntEnroll('${uid}')" title="Update purchase price, loan, rate — needed for the equity review" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Edit details</span> <span onclick="ntWalkthrough('${uid}')" title="Add or edit the home's systems and filter sizes" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Home details</span> <span onclick="ntRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button id="coach-nesttracker" class="btn btn-sm" onclick="ntEnroll('${uid}',this)">&#127968; Add to NestTracker</button> <span onclick="ntWalkthrough('${uid}')" title="Capture furnace, water heater, filter sizes at the walkthrough — applies when you enroll after closing" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:8px;">Set up their home</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
     </div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128202;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Activity</div></div>
@@ -31337,6 +31337,100 @@ window.spFireNow = spFireNow;
 // Enroll values the home once via the worker (ATTOM), stores the snapshot + a per-home token,
 // and flips the card to "On NestTracker" with the current value + a link to the live report.
 // isRefresh=true re-pulls an already-enrolled home (doesn't count against the 50-home cap).
+// ── Walkthrough capture ──────────────────────────────────────────────────────────────
+// The legend move: standing in the house at the final walkthrough, before closing, the agent
+// captures the furnace, water heater, filter sizes. Stages onto the contact (no NestTracker home
+// exists yet); confirm seeds the home file from it when the deal closes and the address matches.
+var NT_INTAKE_PROMPTS = [
+  { key:'furnace',      name:'Furnace',         specLabel:'Filter size (on the old filter)', taskKey:'furnace_filter' },
+  { key:'water_filter', name:'Water filter',    specLabel:'Filter size / model',              taskKey:'water_filter' },
+  { key:'water_heater', name:'Water heater' },
+  { key:'ac',           name:'Air conditioner' }
+];
+window._ntIntakeUid = '';
+window._ntIntakeAddr = '';
+
+async function ntWalkthrough(uid){
+  window._ntIntakeUid = uid;
+  var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.filter(function(x){return x.uid===uid;})[0] : null;
+  window._ntIntakeAddr = (b && (b.mailingAddress || b.address || b.propertyAddress)) || '';
+
+  // Prefill from anything already staged.
+  var existing = {};
+  try {
+    var r = await fetch(PROXY_URL + '/api/v1/home-intake?uid=' + encodeURIComponent(uid));
+    var j = await r.json();
+    if (j && j.ok && j.intake && j.intake.items){ j.intake.items.forEach(function(it){ existing[it.key] = it; }); if(j.intake.address) window._ntIntakeAddr = j.intake.address; }
+  } catch(e){}
+
+  var rows = NT_INTAKE_PROMPTS.map(function(p){
+    var e = existing[p.key] || {};
+    return '<div style="padding:12px 0;border-bottom:0.5px solid var(--border);">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:7px;">'+p.name+'</div>'
+      + (p.specLabel ? '<input id="wt-'+p.key+'-spec" type="text" value="'+partnerEsc(e.spec||'')+'" placeholder="'+p.specLabel+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:8px 10px;margin-bottom:6px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>' : '')
+      + '<div style="display:flex;gap:6px;">'
+        + '<input id="wt-'+p.key+'-brand" type="text" value="'+partnerEsc(e.brand||'')+'" placeholder="Brand" style="flex:1;min-width:0;box-sizing:border-box;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+        + '<input id="wt-'+p.key+'-model" type="text" value="'+partnerEsc(e.model||'')+'" placeholder="Model #" style="flex:1;min-width:0;box-sizing:border-box;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>'
+      + '</div></div>';
+  }).join('');
+
+  var m = document.createElement('div');
+  m.id = 'nt-walk-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10070;display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch;';
+  m.innerHTML = '<div style="background:var(--surface);border-radius:16px;max-width:440px;width:100%;margin:20px 0;padding:0 20px 20px;">'
+    + '<div style="position:sticky;top:0;background:var(--surface);z-index:2;display:flex;justify-content:space-between;align-items:center;padding:18px 0 6px;">'
+      + '<div style="font-size:16px;font-weight:700;color:var(--text);">Set up their home</div>'
+      + '<button onclick="document.getElementById(\'nt-walk-modal\').remove();" aria-label="Close" style="background:var(--surface2);border:none;width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;color:var(--text2);">&times;</button>'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--text3);line-height:1.55;margin-bottom:6px;">Capture what you can see at the walkthrough. All optional — even one filter size makes their reminders smarter. This saves against their record and applies automatically when you enroll them after closing.</div>'
+    + '<div style="font-size:11.5px;color:var(--text2);margin-bottom:10px;">For: <strong>'+partnerEsc(window._ntIntakeAddr||'this home')+'</strong></div>'
+    + rows
+    + '<div style="display:flex;gap:8px;margin-top:16px;">'
+      + '<button class="btn" style="flex:1;" onclick="document.getElementById(\'nt-walk-modal\').remove();">Cancel</button>'
+      + '<button class="btn btn-g" style="flex:2;" id="wt-save" onclick="ntWalkthroughSave()">Save home details</button>'
+    + '</div>';
+  m.addEventListener('click', function(e){ if(e.target===m) m.remove(); });
+  document.body.appendChild(m);
+}
+window.ntWalkthrough = ntWalkthrough;
+
+async function ntWalkthroughSave(){
+  var uid = window._ntIntakeUid; if(!uid) return;
+  var items = [];
+  NT_INTAKE_PROMPTS.forEach(function(p){
+    var spec  = p.specLabel ? ((document.getElementById('wt-'+p.key+'-spec')||{}).value||'').trim() : '';
+    var brand = ((document.getElementById('wt-'+p.key+'-brand')||{}).value||'').trim();
+    var model = ((document.getElementById('wt-'+p.key+'-model')||{}).value||'').trim();
+    if (spec || brand || model){
+      items.push({ key:p.key, name:p.name, spec:spec, brand:brand, model:model, taskKey:p.taskKey||'' });
+    }
+  });
+  var btn = document.getElementById('wt-save'); if(btn){ btn.textContent='Saving…'; btn.disabled=true; }
+  try {
+    var r = await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'home-intake-save'},
+      body: JSON.stringify({ uid:uid, address:window._ntIntakeAddr, items:items }) });
+    var j = await r.json();
+    if (!j || !j.ok) throw new Error('');
+    var m = document.getElementById('nt-walk-modal'); if(m) m.remove();
+    if (typeof showToast==='function') showToast(items.length ? 'Home details saved. They\u2019ll apply when you enroll after closing.' : 'Cleared.');
+    if (typeof renderClients==='function') renderClients();
+  } catch(e){
+    if(btn){ btn.textContent='Save home details'; btn.disabled=false; }
+    if (typeof showToast==='function') showToast('Could not save. Try again.');
+  }
+}
+window.ntWalkthroughSave = ntWalkthroughSave;
+
+async function ntWalkthroughClear(uid){
+  if(!confirm('Remove the home details captured for this client?')) return;
+  try {
+    await fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'home-intake-clear'}, body: JSON.stringify({ uid:uid }) });
+    if (typeof showToast==='function') showToast('Cleared.');
+    if (typeof renderClients==='function') renderClients();
+  } catch(e){}
+}
+window.ntWalkthroughClear = ntWalkthroughClear;
+
 async function ntEnroll(uid, btn, isRefresh){
   if(!uid) return;
   var b = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(x){return x.uid===uid;}) : null;
