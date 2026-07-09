@@ -2715,6 +2715,14 @@ textarea{resize:vertical;min-height:68px;}
     <!-- ONBOARDING TRACKER -->
     <div id="team-onboarding-container"></div>
 
+    <!-- ONBOARDING PROGRAM EDITOR (leader-only) — lives here at the bottom of Team rather than as a
+         top-level menu item, since it's edited rarely. Opens the same full-screen editor. -->
+    <div id="team-ob-editor-row" style="display:none;border-top:0.5px solid var(--border);margin-top:14px;padding-top:14px;">
+      <div style="font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:3px;">Onboarding program</div>
+      <div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">The steps, videos, and tasks new agents work through. Assign it to an agent from their client card.</div>
+      <button class="btn btn-sm" onclick="obEditFromTeam()" style="display:inline-flex;align-items:center;gap:6px;">&#9881;&#65039; Edit onboarding program</button>
+    </div>
+
   </div>
 
   <!-- OWNER ADMIN PANEL -->
@@ -24462,8 +24470,9 @@ window.obLoad = obLoad;
 async function obCheckAssigned() {
   var btn = document.getElementById('nb-onboarding');
   if (!btn || !isAgent) return;
-  // Show if profile has onboardingAssigned or if team leader
-  var assigned = (userProfile && userProfile.onboardingAssigned) || isTeamLeader();
+  // Trainees (agents assigned an onboarding trail) see it in the menu to follow their own progress.
+  // Leaders no longer get it here — they edit the program from the Team tab, where it now lives.
+  var assigned = !!(userProfile && userProfile.onboardingAssigned);
   btn.style.display = assigned ? 'block' : 'none';
 }
 // ── GLOBAL SEARCH ──
@@ -25553,6 +25562,10 @@ window.obSaveEdits = obSaveEdits;
 
 // ── TEAM ONBOARDING VIEW ──
 async function renderTeamOnboarding(containerId) {
+  if (containerId !== 'team-onboarding-modal-container'){
+    var _obEd = document.getElementById('team-ob-editor-row');
+    if (_obEd) _obEd.style.display = (typeof isTeamLeader==='function' && isTeamLeader()) ? 'block' : 'none';
+  }
   var container = document.getElementById(containerId || 'team-onboarding-container');
   if (!container) return;
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading...</div>';
@@ -25841,6 +25854,15 @@ window.teamChatToggleMute = teamChatToggleMute;
 window.renderTeamOnboarding = renderTeamOnboarding;
 function renderTeamOnboardingInModal(){ return renderTeamOnboarding('team-onboarding-modal-container'); }
 window.renderTeamOnboardingInModal = renderTeamOnboardingInModal;
+
+// Open the onboarding editor from the Team tab (its new home). Ensures steps are loaded first —
+// obLoad runs at login, but guard anyway so the editor never opens empty.
+async function obEditFromTeam(){
+  if (!isTeamLeader()) return;
+  if (!_obSteps){ try { await obLoad(); } catch(e){} }
+  obOpenEditor();
+}
+window.obEditFromTeam = obEditFromTeam;
 
 async function obNudge(uid, name) {
   var myName = ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || 'Your mentor';
