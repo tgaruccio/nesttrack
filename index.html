@@ -2718,9 +2718,12 @@ textarea{resize:vertical;min-height:68px;}
     <!-- ONBOARDING PROGRAM EDITOR (leader-only) — lives here at the bottom of Team rather than as a
          top-level menu item, since it's edited rarely. Opens the same full-screen editor. -->
     <div id="team-ob-editor-row" style="display:none;border-top:0.5px solid var(--border);margin-top:14px;padding-top:14px;">
-      <div style="font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:3px;">Onboarding program</div>
-      <div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:10px;">The steps, videos, and tasks new agents work through. Assign it to an agent from their client card.</div>
-      <button class="btn btn-sm" onclick="obEditFromTeam()" style="display:inline-flex;align-items:center;gap:6px;">&#9881;&#65039; Edit onboarding program</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+        <div style="font-size:12.5px;font-weight:600;color:var(--text);">Onboarding program</div>
+        <button class="btn btn-sm" onclick="obEditFromTeam()" style="display:inline-flex;align-items:center;gap:6px;">&#9881;&#65039; Edit</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:12px;">The full trail new agents work through. Assign it to an agent from their client card.</div>
+      <div id="team-ob-preview"></div>
     </div>
 
   </div>
@@ -25103,20 +25106,27 @@ function obGetThumb(step) {
   return '';
 }
 
-function renderOnboarding() {
-  if (!_obSteps) { obLoad().then(renderOnboarding); return; }
-  var container = document.getElementById('onboarding-container');
+function renderOnboarding(opts) {
+  opts = opts || {};
+  var targetId = opts.container || 'onboarding-container';
+  var preview = !!opts.preview;   // leader viewing the program: no personal progress, no edit-in-place
+  if (!_obSteps) { obLoad().then(function(){ renderOnboarding(opts); }); return; }
+  var container = document.getElementById(targetId);
   if (!container) return;
 
   var steps = _obSteps;
   var total = steps.length;
-  var done = steps.filter(function(s){ return _obProgress[s.id]; }).length;
+  // In preview, nobody's progress applies — it's the program itself, not a trainee's run through it.
+  var prog = preview ? {} : _obProgress;
+  var done = steps.filter(function(s){ return prog[s.id]; }).length;
   var pct = total ? Math.round(done/total*100) : 0;
 
-  var bar = document.getElementById('ob-progress-bar');
-  if (bar) bar.style.width = pct+'%';
-  var pill = document.getElementById('ob-progress-pill');
-  if (pill) pill.textContent = done+'/'+total+' Complete';
+  if (!preview){
+    var bar = document.getElementById('ob-progress-bar');
+    if (bar) bar.style.width = pct+'%';
+    var pill = document.getElementById('ob-progress-pill');
+    if (pill) pill.textContent = done+'/'+total+' Complete';
+  }
 
   var weeks = {}, weekOrder = [];
   steps.forEach(function(s) {
@@ -25129,7 +25139,7 @@ function renderOnboarding() {
 
   weekOrder.forEach(function(week, wi) {
     var wData = weeks[week];
-    var wDone = wData.steps.filter(function(s){ return _obProgress[s.id]; }).length;
+    var wDone = wData.steps.filter(function(s){ return prog[s.id]; }).length;
     var wTotal = wData.steps.length;
     var allDone = wDone === wTotal;
     var color = weekColors[wi % weekColors.length];
@@ -25137,7 +25147,7 @@ function renderOnboarding() {
     // Smart default: completed weeks collapsed, first incomplete week open, rest collapsed
     var firstIncompleteWi = weekOrder.findIndex(function(w){
       var wd = weeks[w];
-      return wd.steps.filter(function(s){ return _obProgress[s.id]; }).length < wd.steps.length;
+      return wd.steps.filter(function(s){ return prog[s.id]; }).length < wd.steps.length;
     });
     var isOpen = (wi === firstIncompleteWi) || (firstIncompleteWi === -1 && wi === weekOrder.length-1);
     // Check localStorage for user override
@@ -25161,7 +25171,7 @@ function renderOnboarding() {
       + '<div id="'+collapseId+'" style="display:'+(isOpen?'block':'none')+';">';
 
     wData.steps.forEach(function(s, si) {
-      var isDone = !!_obProgress[s.id];
+      var isDone = !!prog[s.id];
       var thumb = obGetThumb(s);
 
       html += '<div style="background:var(--surface);border:1.5px solid '+(isDone?color:'var(--border)')+';border-radius:12px;margin-bottom:12px;overflow:hidden;transition:box-shadow 0.15s,transform 0.15s;" onmouseover="this.style.boxShadow=\'0 4px 16px rgba(0,0,0,0.10)\';this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.boxShadow=\'\';this.style.transform=\'\'\'">';
@@ -25555,6 +25565,7 @@ async function obSaveEdits() {
     var overlay = document.getElementById('ob-editor-overlay');
     if (overlay) overlay.remove();
     renderOnboarding();
+    if (document.getElementById('team-ob-preview')) renderOnboarding({container:'team-ob-preview', preview:true});
     showDealToast('&#10003; Onboarding content saved!', null, null);
   } catch(e) { alert('Save failed: '+e.message); }
 }
@@ -25564,7 +25575,13 @@ window.obSaveEdits = obSaveEdits;
 async function renderTeamOnboarding(containerId) {
   if (containerId !== 'team-onboarding-modal-container'){
     var _obEd = document.getElementById('team-ob-editor-row');
-    if (_obEd) _obEd.style.display = (typeof isTeamLeader==='function' && isTeamLeader()) ? 'block' : 'none';
+    var _lead = (typeof isTeamLeader==='function' && isTeamLeader());
+    if (_obEd) _obEd.style.display = _lead ? 'block' : 'none';
+    // Draw the whole program read-only so the leader can see it, not just edit it.
+    if (_lead && document.getElementById('team-ob-preview')){
+      if (!_obSteps){ obLoad().then(function(){ renderOnboarding({container:'team-ob-preview', preview:true}); }); }
+      else renderOnboarding({container:'team-ob-preview', preview:true});
+    }
   }
   var container = document.getElementById(containerId || 'team-onboarding-container');
   if (!container) return;
