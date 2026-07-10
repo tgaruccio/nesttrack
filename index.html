@@ -31672,6 +31672,11 @@ async function ntSubmitEnroll(){
     loanAmount:num(gv('nt-en-loan')), ownerOwed:num(gv('nt-en-owed')),
     ownerRate:num(gv('nt-en-rate')), loanTerm:(gv('nt-en-term')==='15'?'15':'30'),
     setupHome: !!((document.getElementById('nt-en-setuphome')||{}).checked),
+    // The report/email must come FROM the contact's ASSIGNED agent — not whoever is enrolling.
+    // (A lender or team leader can enroll a home the assigned agent owns; branding follows assignment.)
+    agentId: (b && b.agentId) || '',
+    coAgentId: (b && b.coAgentId) || '',
+    lenderId: (b && b.lenderId && b.lenderId !== 'none') ? b.lenderId : '',
     uid:uid
   };
   var goEl=document.getElementById('nt-enroll-go');
