@@ -17360,7 +17360,7 @@ function _registerSegment(name){
   // Persist to agent config (best-effort)
   try {
     var aid=(userProfile&&userProfile.agentId)|| '';   // per-agent: segments are private to each agent, not shared team-wide
-    fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'), { list:_managedSegments, updatedAt:fb.serverTimestamp() }, {merge:true});
+    fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'), { list:_managedSegments, memberOwned:true, updatedAt:fb.serverTimestamp() }, {merge:true});
   } catch(e){}
 }
 window._registerSegment=_registerSegment;
@@ -17369,20 +17369,34 @@ async function _loadManagedSegments(){
   try {
     var myId=(userProfile&&userProfile.agentId)|| '';
     var teamId=(userProfile&&userProfile.teamId)|| '';
-    // Per-agent: read MY segment list. Segments are private to each agent, not shared team-wide.
-    var snap=await fb.getDoc(fb.doc(fb.db,'agents',myId,'config','segments'));
-    if(snap.exists() && Array.isArray(snap.data().list)){
-      _managedSegments=snap.data().list;
-    } else if(teamId && teamId!==myId){
-      // One-time migration: segments used to live under the TEAM doc. If I have no per-agent list yet,
-      // pull the old team list once and re-save it under my agent id so my segments don't disappear.
-      try {
-        var tSnap=await fb.getDoc(fb.doc(fb.db,'agents',teamId,'config','segments'));
-        if(tSnap.exists() && Array.isArray(tSnap.data().list) && tSnap.data().list.length){
-          _managedSegments=tSnap.data().list;
-          try { await fb.setDoc(fb.doc(fb.db,'agents',myId,'config','segments'), { list:_managedSegments, updatedAt:fb.serverTimestamp() }, {merge:true}); } catch(e){}
-        }
-      } catch(e){}
+    var _leader = (typeof isTeamLeader==='function' && isTeamLeader()) || (typeof isOwner==='function' && isOwner());
+    if(_leader){
+      // Leader/owner: MY managed list. Read it; if empty, one-time-migrate the old team-stored list
+      // (which the leader authored) into my agent doc so my segments don't disappear.
+      var snap=await fb.getDoc(fb.doc(fb.db,'agents',myId,'config','segments'));
+      if(snap.exists() && Array.isArray(snap.data().list)){
+        _managedSegments=snap.data().list;
+      } else if(teamId && teamId!==myId){
+        try {
+          var tSnap=await fb.getDoc(fb.doc(fb.db,'agents',teamId,'config','segments'));
+          if(tSnap.exists() && Array.isArray(tSnap.data().list) && tSnap.data().list.length){
+            _managedSegments=tSnap.data().list;
+            try { await fb.setDoc(fb.doc(fb.db,'agents',myId,'config','segments'), { list:_managedSegments, updatedAt:fb.serverTimestamp() }, {merge:true}); } catch(e){}
+          }
+        } catch(e){}
+      }
+    } else {
+      // Team MEMBER: segments are private and NEVER inherited from the team/leader. Their dropdown
+      // fills from their own contacts + smart plans; the managed list only holds segments THEY create.
+      // (One-time correction: an earlier build wrongly copied the leader's list into members' docs.
+      //  Clear any such inherited list so member dropdowns stop showing the leader's segments.)
+      var mSnap=await fb.getDoc(fb.doc(fb.db,'agents',myId,'config','segments'));
+      if(mSnap.exists() && Array.isArray(mSnap.data().list) && !mSnap.data().memberOwned){
+        _managedSegments=[];
+        try { await fb.setDoc(fb.doc(fb.db,'agents',myId,'config','segments'), { list:[], memberOwned:true, updatedAt:fb.serverTimestamp() }, {merge:true}); } catch(e){}
+      } else if(mSnap.exists() && Array.isArray(mSnap.data().list)){
+        _managedSegments=mSnap.data().list;   // segments this member legitimately created (memberOwned flag set)
+      }
     }
   } catch(e){}
   // Refresh any segment UI that may have rendered before this finished
@@ -17475,7 +17489,7 @@ async function deleteSegment(seg){
   _managedSegments=(_managedSegments||[]).filter(function(x){ return x!==seg; });
   try{
     var aid=(userProfile&&userProfile.agentId)|| '';   // per-agent: write to MY segment doc, not the team's
-    await fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'),{ list:_managedSegments, updatedAt:fb.serverTimestamp() },{merge:true});
+    await fb.setDoc(fb.doc(fb.db,'agents',aid,'config','segments'),{ list:_managedSegments, memberOwned:true, updatedAt:fb.serverTimestamp() },{merge:true});
   }catch(e){}
   renderSegmentManager();
   if(typeof renderBuyers==='function') renderBuyers();
