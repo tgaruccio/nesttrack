@@ -52,6 +52,13 @@ h1,h2,h3{margin:0;font-family:'Fraunces',Georgia,serif;font-weight:600;letter-sp
 .agent img{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.35)}
 .agent .a-name{font-size:13px;font-weight:600;line-height:1.15}
 .agent .a-role{font-size:11px;color:#A9C6B7}
+.lender-block{margin-top:16px;display:flex;align-items:center;gap:12px;background:var(--ivory);border:1px solid var(--line);border-radius:var(--r-sm);padding:12px 14px}
+.lender-block img{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:0 0 44px}
+.lender-block .l-body{flex:1;min-width:0}
+.lender-block .l-label{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:2px}
+.lender-block .l-name{font-size:14px;font-weight:600;color:var(--pine);line-height:1.2}
+.lender-block .l-co{font-size:12px;color:var(--ink-soft)}
+.lender-block a.l-cta{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--sage);text-decoration:none;white-space:nowrap}
 .addr{margin-top:26px;font-size:13px;color:#BFD6CA;font-weight:500;letter-spacing:.01em}
 .valwrap{margin-top:6px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
 .value{font-size:clamp(46px,12vw,74px);font-weight:600;color:#fff;line-height:.95}
@@ -261,7 +268,7 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
       <div class="rcell hero-cell"><div class="k">You could target a home around</div><div class="v num" id="afPrice">—</div></div>
       <div class="rcell"><div class="k">Est. monthly payment (PITI)</div><div class="v num" id="afPayment">—</div></div>
     </div>
-    <div class="assump" id="afNote">Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>Tom can connect you with a lender for exact numbers.</b></div>
+    <div class="assump" id="afNote">Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>Your agent can connect you with a lender for exact numbers.</b></div>
   </div>
 
   <!-- REFINANCE -->
@@ -280,6 +287,15 @@ input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;bac
       <button class="btn ghost" id="ownerRateSave" onclick="saveOwnerRate()" style="padding:9px 16px;font-size:13px">Save my rate</button>
     </div>
     <p class="muted" id="rateNote" style="font-size:13px;margin-top:14px;display:none"></p>
+    <div class="lender-block" id="lenderBlock" style="display:none">
+      <img id="lenderPhoto" src="" alt="">
+      <div class="l-body">
+        <div class="l-label">Your loan officer</div>
+        <div class="l-name" id="lenderName"></div>
+        <div class="l-co" id="lenderCo"></div>
+      </div>
+      <a class="l-cta" id="lenderCta" href="#">Ask about rates →</a>
+    </div>
     <div class="assump">30- and 15-year rates are current national averages (Freddie Mac). Your rate is what you enter here — it's used to tailor your move-up and refinance guidance.</div>
   </div>
 
@@ -339,9 +355,10 @@ function renderInsight(ins){
 
   var h=ins.hook, t='';
   if(h){
-    if(h.type==='pmi_ready')       t='You put '+h.downPct+'% down. You\u2019re at '+h.equityPct+'% equity now, which usually means you can ask your lender to drop the mortgage insurance \u2014 often around '+fmt(h.monthly)+' a month.';
+    var _lo = (window._lenderFirst) ? window._lenderFirst : 'your lender';
+    if(h.type==='pmi_ready')       t='You put '+h.downPct+'% down. You\u2019re at '+h.equityPct+'% equity now, which usually means you can ask '+_lo+' to drop the mortgage insurance \u2014 often around '+fmt(h.monthly)+' a month.';
     else if(h.type==='pmi_close')  t='You put '+h.downPct+'% down and you\u2019re at '+h.equityPct+'% equity. About '+fmt(h.away)+' more and you can likely drop the mortgage insurance.';
-    else if(h.type==='refi')       t='You\u2019re paying '+h.yourRate+'%. The average today is '+h.todayRate+'%. On your balance that\u2019s roughly '+fmt(h.monthly)+' a month.';
+    else if(h.type==='refi')       t='You\u2019re paying '+h.yourRate+'%. The average today is '+h.todayRate+'%. On your balance that\u2019s roughly '+fmt(h.monthly)+' a month'+(window._lenderFirst?' \u2014 worth a quick call with '+window._lenderFirst:'')+'.';
     else if(h.type==='equity_strong') t='You\u2019re sitting on '+fmt(h.equity)+' of equity \u2014 '+h.equityPct+'% of your home. That\u2019s borrowing power, or a bigger next home.';
   }
   if(rEl && t){
@@ -407,6 +424,22 @@ function hydrate(d){
   if(call){ if(ag.phone){ call.href='tel:'+String(ag.phone).replace(/[^0-9+]/g,''); call.textContent='Call '+window._agentFirst; } else { call.style.display='none'; } }
   setTxt('footAgent', (ag.name||'') + (ag.role? ' · '+ag.role : ''));
 
+  // Assigned lender (co-brand). Only present when the client card has an assigned lender.
+  // Agent stays primary everywhere; the lender owns the finance moments (rates, refi, PMI).
+  var ld = d.lender || null;
+  window._lender = ld;
+  window._lenderFirst = ld ? (ld.firstName || (ld.name||'').split(' ')[0] || '') : '';
+  var lb = document.getElementById('lenderBlock');
+  if(lb && ld && ld.name){
+    setTxt('lenderName', ld.name);
+    setTxt('lenderCo', ld.company || ld.role || '');
+    var lim=document.getElementById('lenderPhoto');
+    if(lim){ lim.src = ld.photo || ('https://ui-avatars.com/api/?name='+encodeURIComponent(ld.name)+'&background=185FA5&color=fff&bold=true'); }
+    var lcta=document.getElementById('lenderCta');
+    if(lcta){ lcta.href = _lenderContactHref(ld); }
+    lb.style.display='flex';
+  } else if(lb){ lb.style.display='none'; }
+
   // Prefill: loan-balance placeholder + affordability down payment = equity, rate = live market rate.
   var oi=document.getElementById('owedInput'); if(oi && DATA.owed) oi.placeholder = 'Currently est. '+fmt(DATA.owed);
   var afDown=document.getElementById('afDown'); if(afDown && DATA.equity>0) afDown.value = fmt(DATA.equity);
@@ -426,9 +459,9 @@ function renderOwnerRate(){
     if(note && mkt!=null){
       note.style.display='block';
       if(r < mkt - 0.25){
-        note.innerHTML = 'You\'re sitting on a rate <b>below today\'s market</b> — a strong reason to keep this mortgage and tap equity another way (HELOC or a move-up) rather than refinance. '+(window._agentFirst||'Your agent')+' and a lender can walk through the options.';
+        note.innerHTML = 'You\'re sitting on a rate <b>below today\'s market</b> — a strong reason to keep this mortgage and tap equity another way (HELOC or a move-up) rather than refinance. '+(window._agentFirst||'Your agent')+' and '+(window._lenderFirst||'a lender')+' can walk through the options.';
       } else if(r > mkt + 0.25){
-        note.innerHTML = 'Your rate is <b>above today\'s market</b> — it may be worth exploring a refinance. '+(window._agentFirst||'Your agent')+' can connect you with a lender to run the numbers.';
+        note.innerHTML = 'Your rate is <b>above today\'s market</b> — it may be worth exploring a refinance. '+(window._lenderFirst ? window._lenderFirst+' can run the numbers for you.' : (window._agentFirst||'Your agent')+' can connect you with a lender to run the numbers.');
       } else {
         note.innerHTML = 'Your rate is right around today\'s market. '+(window._agentFirst||'Your agent')+' can help you weigh a refinance vs. a move-up.';
       }
@@ -483,7 +516,7 @@ function calcAfford(){
   var price=Math.max(0, loan+down);
   setTxt('afPrice', fmtK(price));
   setTxt('afPayment', fmt(maxPITI)+'/mo');
-  if(note) note.innerHTML='Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>'+(window._agentFirst||'Your agent')+' can connect you with a lender for exact numbers.</b>';
+  if(note) note.innerHTML='Uses a 43% debt-to-income guideline, your down payment, and the rate above. Taxes, insurance, and PMI are estimated. <b>'+(window._lenderFirst ? window._lenderFirst+' can give you exact numbers.' : (window._agentFirst||'Your agent')+' can connect you with a lender for exact numbers.')+'</b>';
 }
 ['afIncome','afDebts','afDown','afRate'].forEach(function(id){
   var el=document.getElementById(id); if(el) el.addEventListener('input', calcAfford);
@@ -538,6 +571,14 @@ function checkin(v){
       .then(function(r){ return r.json(); }).then(function(j){ done(j&&j.ok); }).catch(function(){ done(false); });
   } else { done(false); }
 }
+// Where a lender CTA points: booking link → email → phone. Degrades gracefully.
+function _lenderContactHref(ld){
+  if(!ld) return '#';
+  if(ld.calendly) return ld.calendly;
+  if(ld.email) return 'mailto:'+ld.email+'?subject='+encodeURIComponent('Question about my mortgage');
+  if(ld.phone) return 'tel:'+String(ld.phone).replace(/[^0-9+]/g,'');
+  return '#';
+}
 function contactAgent(){
   var who=window._agentFirst||'your agent';
   var t=getToken();
@@ -562,7 +603,8 @@ function contactAgent(){
         { address:'1420 Bassett Rd', sub:'Sold last month · 3 bd / 2 ba · 2,100 sqft', price:441000 },
         { address:'27655 Center Ridge Rd', sub:'Sold 6 weeks ago · 4 bd / 3 ba · 2,520 sqft', price:472000 }
       ],
-      agent:{ name:'Tom Garuccio', firstName:'Tom', role:'The Garuccio Group at Real', phone:'440-555-0100', photo:'' }
+      agent:{ name:'Tom Garuccio', firstName:'Tom', role:'The Garuccio Group at Real', phone:'440-555-0100', photo:'' },
+      lender:{ name:'Jamie Lender', firstName:'Jamie', company:'Summit Mortgage', role:'Loan Officer', phone:'440-555-0200', email:'jamie@summitmtg.com', photo:'' }
     });
     return;
   }
