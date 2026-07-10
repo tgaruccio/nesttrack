@@ -13368,8 +13368,9 @@ function canAccessBuyer(buyer) {
   // Agent access: buyer assigned to this agent OR co-agent
   if (isAgent && buyer.agentId === userProfile.agentId) return true;
   if (isAgent && buyer.coAgentId && buyer.coAgentId === userProfile.agentId) return true;
-  // Lender access: buyer assigned to this lender
-  if (isLender && (buyer.lenderId === userProfile.lenderId || (!buyer.lenderId && userProfile.lenderId === 'tom'))) return true;
+  // Lender access: buyer EXPLICITLY assigned to this lender (never unassigned — no bleed)
+  var _lid = (userProfile && userProfile.lenderId) || _teamDefaultLender();
+  if (isLender && !!_lid && _lid !== 'none' && buyer.lenderId === _lid) return true;
   return false;
 }
 
@@ -13606,25 +13607,31 @@ async function loadBuyersForAgent() {
         });
       } catch(e) { console.log('coAgent query err:', e.message); }
     }
-    // Also load clients where this user is assigned as lender/mortgage LO
+    // Also load clients (any role) where this user is assigned as lender/mortgage LO — shared contacts.
     if (isLender && !(isOwner() && _adminShowAll)) {
       try {
         var lenderId = userProfile.lenderId || _teamDefaultLender();
-        var lQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==','buyer'), fb.where('lenderId','==',lenderId));
-        var lSnap = await fb.getDocs(lQ);
-        lSnap.forEach(d => {
-          if (!allBuyers.find(function(b){ return b.uid === d.id; })) {
-            allBuyers.push({ uid: d.id, ...d.data() });
+        if (lenderId && lenderId !== 'none') {
+          var lenderRoles = ['buyer','contact','seller'];
+          for (var li = 0; li < lenderRoles.length; li++) {
+            var lQ = fb.query(fb.collection(fb.db,'users'), fb.where('role','==',lenderRoles[li]), fb.where('lenderId','==',lenderId));
+            var lSnap = await fb.getDocs(lQ);
+            lSnap.forEach(d => {
+              if (!allBuyers.find(function(b){ return b.uid === d.id; })) {
+                allBuyers.push({ uid: d.id, ...d.data() });
+              }
+            });
           }
-        });
+        }
       } catch(e) { console.log('lender query err:', e.message); }
     }
     // myBuyers always respects the current view mode
+    var _myLid = (userProfile && userProfile.lenderId) || _teamDefaultLender();
     myBuyers = allBuyers.filter(function(b) {
       if (isOwner() && _adminShowAll) return true;
       return b.agentId === userProfile.agentId
         || b.coAgentId === userProfile.agentId
-        || (isLender && b.lenderId === (userProfile.lenderId || _teamDefaultLender()));
+        || (isLender && !!_myLid && _myLid !== 'none' && b.lenderId === _myLid);   // explicit lender-id match only
     });
   } catch(e) { console.error('loadBuyers', e); }
 }
@@ -13658,9 +13665,12 @@ async function renderBuyers() {
     adminToggleBtn.style.color = _adminShowAll ? '#fff' : '';
     adminToggleBtn.style.borderColor = _adminShowAll ? '#1D9E75' : '';
   }
+  var _myLenderId = (userProfile && userProfile.lenderId) || _teamDefaultLender();
   myBuyers = allBuyers.filter(function(b) {
     if (isOwner() && _adminShowAll) return true;
-    return b.agentId === userProfile.agentId || b.coAgentId === userProfile.agentId;
+    return b.agentId === userProfile.agentId
+      || b.coAgentId === userProfile.agentId
+      || (isLender && !!_myLenderId && _myLenderId !== 'none' && b.lenderId === _myLenderId);   // shared: I'm the assigned lender (explicit id match only — never unassigned)
   });
   if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
   if (window._crmFilter && window._crmFilter !== 'all') {
