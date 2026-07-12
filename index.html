@@ -2879,8 +2879,7 @@ textarea{resize:vertical;min-height:68px;}
       <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
         <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">🔗 Connect a Lead Source <span style="font-weight:400;color:var(--text3);">(bring leads IN)</span></label>
         <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Your personal lead email. Set it as the lead-notification address in Zillow, Clever, Realtor.com, etc. — or auto-forward your leads to it — and they drop into NestTrack automatically, assigned to you (or your team pool if routing is on). <strong>Keep it private</strong> — it's tied to your account.</div>
-        <div id="lead-link-wrap" style="display:none;">
-          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Your lead email</div>
+        <div id="lead-link-wrap" style="display:none;">          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Your lead email</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <input type="text" id="lead-email-addr" readonly onclick="this.select()" style="flex:1;font-size:12px;font-family:monospace;background:var(--surface);"/>
             <button type="button" class="btn btn-sm btn-g" onclick="copyLeadField('lead-email-addr','lead-email-copy')" id="lead-email-copy">Copy</button>
@@ -14691,6 +14690,8 @@ function switchAgentTab(tab) {
     if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
     if (pp) pp.style.display='flex';
     renderAgentProfileEditor();
+    // Lead addresses are just addresses — no reason to hide them behind a click. Show them all.
+    try { if(typeof revealLeadLink==='function') revealLeadLink(); } catch(e){}
     try { if(typeof renderLeadInboxes==='function') renderLeadInboxes(); } catch(e){}
   } else if (tab==='offers') {
     if (otb) { otb.style.background='var(--green)'; otb.style.color='#fff'; }
@@ -28609,12 +28610,22 @@ window.copyLeadField = copyLeadField;
 // One address per lead source. Each carries a segment; the worker stamps that segment on every
 // lead arriving at it. The segment then drives smart plans + team routing, exactly as it does for
 // a manually-added contact. The primary lead address above is untouched (no segment).
-function renderLeadInboxes(){
+async function renderLeadInboxes(){
   var wrap = document.getElementById('lead-inbox-list');
   if (!wrap) return;
+  // Read straight from the user doc — userProfile may be a stale snapshot that predates this field.
   var list = (userProfile && Array.isArray(userProfile.leadInboxes)) ? userProfile.leadInboxes : [];
+  try {
+    if (currentUser && currentUser.uid){
+      var snap = await fb.getDoc(fb.doc(fb.db,'users',currentUser.uid));
+      if (snap.exists()){
+        var d = snap.data();
+        if (Array.isArray(d.leadInboxes)) { list = d.leadInboxes; if (userProfile) userProfile.leadInboxes = list; }
+      }
+    }
+  } catch(e){}
   if (!list.length){
-    wrap.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No segment addresses yet.</div>';
+    wrap.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:4px 0;">No segment addresses yet — add one to route a lead source into a segment.</div>';
     return;
   }
   wrap.innerHTML = list.map(function(ib, i){
