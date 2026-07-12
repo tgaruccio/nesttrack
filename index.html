@@ -6041,6 +6041,9 @@ function renderAgentProfileEditor() {
   // Load schedule blocks
   if (_scheduleBlocks.length) { scheduleRender(); }
   else { scheduleLoad(); }
+  // Lead addresses — render here (not on the tab switch) so they show no matter how Profile is reached.
+  try { if (typeof revealLeadLink === 'function') revealLeadLink(); } catch(e){}
+  try { if (typeof renderLeadInboxes === 'function') renderLeadInboxes(); } catch(e){}
 }
 
 function convertGoogleDriveImageUrl(url) {
@@ -14690,9 +14693,6 @@ function switchAgentTab(tab) {
     if (pb) { pb.style.background='var(--green)'; pb.style.color='#fff'; }
     if (pp) pp.style.display='flex';
     renderAgentProfileEditor();
-    // Lead addresses are just addresses — no reason to hide them behind a click. Show them all.
-    try { if(typeof revealLeadLink==='function') revealLeadLink(); } catch(e){}
-    try { if(typeof renderLeadInboxes==='function') renderLeadInboxes(); } catch(e){}
   } else if (tab==='offers') {
     if (otb) { otb.style.background='var(--green)'; otb.style.color='#fff'; }
     if (otp) otp.style.display='flex';
