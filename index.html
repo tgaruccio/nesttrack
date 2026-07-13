@@ -3807,9 +3807,23 @@ function setupPlacesAC(inputId) {
   if (!input || input.dataset.acReady) return;
   input.dataset.acReady = '1';
   input.setAttribute('autocomplete','off');
-  var dd=null, curPreds=[], active=-1, debounce=null, reqSeq=0;
+  var dd=null, curPreds=[], active=-1, debounce=null, reqSeq=0, justChose=false;
   function closeDD(){ if(dd){ dd.remove(); dd=null; } curPreds=[]; active=-1; }
-  function position(){ if(!dd) return; var r=input.getBoundingClientRect(); dd.style.left=(r.left+window.scrollX)+'px'; dd.style.top=(r.bottom+window.scrollY+2)+'px'; dd.style.width=r.width+'px'; }
+  function position(){
+    if(!dd) return;
+    var r=input.getBoundingClientRect();
+    dd.style.left=(r.left+window.scrollX)+'px';
+    dd.style.width=r.width+'px';
+    // Flip above the input when there isn't room below — otherwise the list lands on top of the
+    // OK/Next button underneath it, and the only way out is clicking off the field.
+    var ddH = dd.offsetHeight || 240;
+    var below = window.innerHeight - r.bottom;
+    if (below < ddH + 12 && r.top > ddH + 12) {
+      dd.style.top = (r.top + window.scrollY - ddH - 2) + 'px';
+    } else {
+      dd.style.top = (r.bottom + window.scrollY + 2) + 'px';
+    }
+  }
   function highlight(){ if(!dd) return; Array.prototype.forEach.call(dd.children, function(it,i){ it.style.background = (i===active)?'#F3F4F6':'#fff'; }); }
   function render(preds){
     closeDD();
@@ -3845,10 +3859,18 @@ function setupPlacesAC(inputId) {
       } catch(e){}
     }
     catch(e){ input.value=p.text; }
+    // We're about to fire an 'input' event so downstream save handlers see the new value. That event
+    // would otherwise re-trigger the autocomplete query, which reopens the dropdown ON TOP of the
+    // OK/Next button a beat after the user picked an address. Suppress our own event, kill any
+    // pending debounce, and bump reqSeq so an in-flight request can't render stale predictions.
+    justChose = true;
+    clearTimeout(debounce);
+    reqSeq++;
     input.dispatchEvent(new Event('input',{bubbles:true}));
     input.dispatchEvent(new Event('change',{bubbles:true}));
     _placesSession=null; // a selection ends the billing session
     closeDD();
+    setTimeout(function(){ justChose = false; }, 0);   // clears once our synthetic event has flushed
   }
   async function query(v){
     if(!v || v.trim().length<3){ closeDD(); return; }
@@ -3862,7 +3884,7 @@ function setupPlacesAC(inputId) {
       render(preds);
     } catch(e){ console.log('addr autocomplete:', e && (e.message||e)); closeDD(); }
   }
-  input.addEventListener('input', function(){ var v=input.value; clearTimeout(debounce); debounce=setTimeout(function(){ query(v); }, 250); });
+  input.addEventListener('input', function(){ if(justChose) return; var v=input.value; clearTimeout(debounce); debounce=setTimeout(function(){ query(v); }, 250); });
   input.addEventListener('keydown', function(e){
     if(!dd) return;
     if(e.key==='ArrowDown'){ e.preventDefault(); active=Math.min(active+1,curPreds.length-1); highlight(); }
@@ -3893,6 +3915,13 @@ function promptAddress(message, current){
     card.querySelector('#addr-prompt-cancel').addEventListener('click', function(){ done(null); });
     card.querySelector('#addr-prompt-ok').addEventListener('click', function(){ done(input.value.trim()); });
     ov.addEventListener('mousedown', function(e){ if(e.target===ov) done(null); });
+    // Once an address is picked from the dropdown, move focus to OK. The list is gone by then, and
+    // the user's next action is to confirm — so Enter just works instead of leaving them stuck.
+    input.addEventListener('change', function(){
+      if (input.dataset.addrFromGoogle === '1') {
+        setTimeout(function(){ try{ card.querySelector('#addr-prompt-ok').focus(); }catch(_){ } }, 60);
+      }
+    });
     input.addEventListener('keydown', function(e){ if(e.key==='Enter'){ if(document.querySelector('.nt-addr-dd')) return; e.preventDefault(); done(input.value.trim()); } else if(e.key==='Escape'){ done(null); } });
     setTimeout(function(){ input.focus(); try{ setupPlacesAC(aid); }catch(_){ } }, 30);
   });
