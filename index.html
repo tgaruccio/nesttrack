@@ -4464,19 +4464,22 @@ document.addEventListener('DOMContentLoaded', initAuthScreen);
 // Reset the native app-icon badge to 0. Works via the Median bridge (native app); no-op on web.
 // Called when the app opens and whenever it returns to the foreground.
 function clearAppBadge(){
-  // Local clear — instant, but only zeroes the number painted on the device. OneSignal's server
-  // counter keeps climbing, so on its own this gets overwritten by the next push.
+  // Local clear — instant, zeroes the number painted on the device. Call BOTH bridges: the Median
+  // one only repaints the icon, while the OneSignal one also tells its SDK. Previously this was an
+  // if/else, so it always took the first and never reached the second.
   try {
     if (typeof median !== 'undefined' && median) {
       if (median.notifications && typeof median.notifications.setAppIconBadge === 'function') {
         median.notifications.setAppIconBadge({ number: 0 });
-      } else if (median.onesignal && typeof median.onesignal.setBadgeCount === 'function') {
+      }
+      if (median.onesignal && typeof median.onesignal.setBadgeCount === 'function') {
         median.onesignal.setBadgeCount({ count: 0 });
       }
     }
   } catch(e){ /* web / bridge unavailable — nothing to clear */ }
-  // Server clear — the part that actually sticks. Tells OneSignal to SetTo:0 so the next push
-  // resumes from zero instead of the old total. Fire-and-forget; needs the logged-in uid.
+  // Server clear — the part that actually sticks. Resets our own badge counter, so the next push
+  // sends SetTo:1 instead of resuming from an old total. Ordinary HTTP; it can't be silently
+  // dropped the way a background push can.
   try {
     if (typeof currentUser !== 'undefined' && currentUser && currentUser.uid && typeof PROXY_URL !== 'undefined'){
       fetch(PROXY_URL, { method:'POST', headers:{'Content-Type':'application/json','X-Action':'clear-badge'}, body: JSON.stringify({ uid: currentUser.uid }) }).catch(function(){});
