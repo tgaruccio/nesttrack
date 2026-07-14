@@ -8415,7 +8415,7 @@ function renderEmailEditorList() {
           +'<div id="ee-body-'+d.key+'" style="display:none;padding:14px;border-top:1px solid var(--border);background:var(--surface2);">'
           +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Variables: <code>{{FIRST_NAME}}</code> <code>{{AGENT_NAME}}</code> — these get replaced automatically at send time. Do not delete them.</div>'
           +'<label class="flabel">Subject</label>'
-          +'<input type="text" id="ee-subj-'+d.key+'" value="'+partnerEsc(currentSubj)+'" style="width:100%;font-size:13px;margin-bottom:10px;"/>'
+          +'<input type="text" id="ee-subj-'+d.key+'" value="'+subjectText(currentSubj)+'" style="width:100%;font-size:13px;margin-bottom:10px;"/>'
           +(d.type==='maint' ? _maintScheduleControls(d) : '')
           +'<label class="flabel">Body</label>'
           +'<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm) var(--r-sm) 0 0;padding:6px 8px;display:flex;gap:4px;flex-wrap:wrap;">'
@@ -10329,7 +10329,7 @@ var SELLER_STEP_EMAILS = {
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">' + agentName + ' is reviewing the final settlement statement with you. Every deduction — commission, title fees, taxes, payoff — is itemized. Know exactly what you\'re walking away with before you sit at the closing table.</p>'
         + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Compare to your net sheet estimate — numbers should be close</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Confirm mortgage payoff amount is accurate</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Bring photo ID to closing</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">You\'ll sign the deed, settlement statement, and transfer documents</li></ul>';
     }},
-  13: { subject: 'It\'s Official &#x1F389; — Your Home is Sold!',
+  13: { subject: 'It\'s Official \u{1F389} — Your Home is Sold!',   // real emoji, NOT &#x1F389; — subject lines are plain text and would show the entity verbatim
     body: function(first, agentName, googleReviewUrl) {
       var reviewBox = googleReviewUrl
         ? '<div style="background:#f9f9f9;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;margin:20px 0;">'
@@ -11158,6 +11158,13 @@ window.emailAgent = emailAgent;
 
 function phoneDigits(phone) { return (phone || '').replace(/[^0-9]/g,''); }
 function partnerEsc(v) { return String(v || '').replace(/[&<>\"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]; }); }
+// Subject lines are PLAIN TEXT, not HTML. Running them through partnerEsc() turned an apostrophe
+// or ampersand in an address into "&#39;" / "&amp;" — which the mail client shows literally, so a
+// forwarded offer arrived with a string of symbols in the subject. Use this for subjects instead:
+// it strips anything dangerous for a header (newlines) but never HTML-escapes.
+function subjectText(v){ return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim(); }
+window.subjectText = subjectText;
+
 function partnerActionButtons(p) {
   const phone = phoneDigits(p.phone);
   const buttons = [];
@@ -22535,7 +22542,7 @@ async function confirmSendOffer(listingId, offerId) {
 
     // 5. Emails in background — non-blocking
     fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:clientToList(client), cc:sorCc, subject:'New Offer on '+partnerEsc(listing.address||''), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
+      body:JSON.stringify({to:clientToList(client), cc:sorCc, subject:'New Offer on '+subjectText(listing.address||''), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
 
     if (o.agentEmail) {
       var confirmHtml = '<div style="font-family:Georgia,serif;max-width:500px;margin:0 auto;">'
@@ -22554,7 +22561,7 @@ async function confirmSendOffer(listingId, offerId) {
         +'<a href="https://nesttrack.io" style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:8px 18px;border-radius:20px;font-size:12px;font-weight:600;">Start your free trial →</a>'
         +'</div></div>';
       fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+partnerEsc(listing.address||''), html:confirmHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
+        body:JSON.stringify({to:o.agentEmail, subject:'Offer Submitted — '+subjectText(listing.address||''), html:confirmHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
     }
 
   } catch(e) {
@@ -22788,7 +22795,7 @@ async function submitPublicOffer(listingId) {
             +'</div></div>';
           await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
             body:JSON.stringify({to:agentEmail,
-              subject:'🏠 New Offer — '+partnerEsc(lData.address||'')+' ('+partnerEsc(data.offerPrice||'')+')',
+              subject:'🏠 New Offer — '+subjectText(lData.address||'')+' ('+subjectText(data.offerPrice||'')+')',
               from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml(), html:alertHtml})});
           // Push to agent
           // Push to agent
@@ -22893,7 +22900,7 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
       +'<div style="font-size:13px;color:#888;">Sent automatically via Nest Track</div>'
       +'</div></div>';
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:clientToList(client), subject:'New Offer on '+partnerEsc(listingData.address||''), html:emailHtml})});
+      body:JSON.stringify({to:clientToList(client), subject:'New Offer on '+subjectText(listingData.address||''), html:emailHtml})});
     await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
     if (listingData.clientUid) {
       sendPushToUser(listingData.clientUid, 'New Offer 🎉', 'An offer has come in on '+(listingData.address||'your listing')+'. Check the app to review it.');
@@ -23058,7 +23065,7 @@ async function emailComparisonToClient(listingId) {
   showEmailPreview(client.email, 'Offer Comparison — '+partnerEsc(listing.address||''), emailHtml, async function(finalHtml, ccValue) {
     try {
       await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-        body:JSON.stringify({to:clientToList(client), subject:'Offer Comparison — '+partnerEsc(listing.address||''), html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml()})});
+        body:JSON.stringify({to:clientToList(client), subject:'Offer Comparison — '+subjectText(listing.address||''), html:finalHtml||emailHtml, from:agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml()})});
       alert('Comparison emailed to '+clientFirst+'!');
     } catch(e) { alert('Failed to send: '+e.message); }
   });
@@ -23709,7 +23716,7 @@ async function assignShowing(idx) {
       +'</div></div>';
 
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:clientToList(buyer), subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml()})});
+      body:JSON.stringify({to:clientToList(buyer), subject:'Showing Confirmed — '+subjectText(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml()})});
     sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
 
     // 4. Save assignment to Firestore so inbox remembers
@@ -23829,7 +23836,7 @@ async function assignShowingToBuyer(evKey) {
       +'<div style="font-size:14px;font-weight:600;">'+agentName+'</div>'
       +'</div></div>';
     fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-      body:JSON.stringify({to:clientToList(buyer), subject:'Showing Confirmed — '+partnerEsc(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
+      body:JSON.stringify({to:clientToList(buyer), subject:'Showing Confirmed — '+subjectText(ev.address||'Property'), html:emailHtml, from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml()})}).catch(function(){});
 
     // 4. Push to client
     sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
@@ -29224,7 +29231,7 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
     showEmailPreview(client.email, 'Transaction Update: '+partnerEsc(taskLabel), emailHtml, async function(finalHtml, ccValue) {
       try {
         await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
-          body:JSON.stringify({to:clientToList(client), subject:'Transaction Update: '+partnerEsc(taskLabel), html:finalHtml||emailHtml})});
+          body:JSON.stringify({to:clientToList(client), subject:'Transaction Update: '+subjectText(taskLabel), html:finalHtml||emailHtml})});
       } catch(e) { console.log('Task email send err:', e.message); }
     });
   } catch(e) { console.log('Task email err:', e.message); }
