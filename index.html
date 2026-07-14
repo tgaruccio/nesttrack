@@ -3666,7 +3666,7 @@ textarea{resize:vertical;min-height:68px;}
 <!-- FIREBASE + APP SCRIPT -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, setPersistence, browserLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection, collectionGroup, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, increment } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getDatabase, ref, push, onChildAdded, onValue, set as rtSet, serverTimestamp as rtServerTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 import { getStorage, ref as storageRef, deleteObject, listAll, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js";
@@ -3687,7 +3687,16 @@ const auth = getAuth(fbApp);
 // Keep users signed in across tab closes, browser restarts, and app restarts (until they log out).
 // Without this, Firebase can silently fall back to weaker persistence — especially in the mobile
 // webview wrapper — and log people out. Fire-and-forget; must run before any sign-in.
-try { setPersistence(auth, browserLocalPersistence).catch(function(e){ console.log('setPersistence:', e && e.message); }); } catch(e){ console.log('setPersistence threw:', e && e.message); }
+// IndexedDB first, localStorage as fallback. iOS WKWebView (the Median wrapper) evicts localStorage
+// under storage pressure and on some app updates — which silently signed people out. IndexedDB
+// survives that. The promise is awaited by the auth gate below so no sign-in races the setting.
+window._authReady = (async function(){
+  try { await setPersistence(auth, indexedDBLocalPersistence); return 'indexeddb'; }
+  catch(e1){
+    try { await setPersistence(auth, browserLocalPersistence); return 'local'; }
+    catch(e2){ console.log('setPersistence failed:', e2 && e2.message); return 'none'; }
+  }
+})();
 const db = getFirestore(fbApp);
 const rtdb = getDatabase(fbApp);
 const storage = getStorage(fbApp);
@@ -4378,7 +4387,7 @@ window.addEventListener('message', function(e) {
   } catch(err) {}
 });
 
-function _firebaseInit() {
+async function _firebaseInit() {
   if (!window.fb) return;
   console.log('Firebase ready');
   // Listen for Chime iframe height updates
@@ -4395,6 +4404,11 @@ function _firebaseInit() {
   // Auth listener
   // Check for public offer page hash FIRST before auth
   if (checkOfferHash()) return;
+
+  // Don't attach the auth listener until persistence has actually been applied. Otherwise a restored
+  // session can be read (or a fresh sign-in written) against the default store before IndexedDB is
+  // in place — which is one way a login silently fails to stick across app launches.
+  try { if (window._authReady) await window._authReady; } catch(e){}
 
   fb.onAuthStateChanged(fb.auth, async user => {
     if (user) {
@@ -8772,6 +8786,19 @@ window.renderYourTitleCo = renderYourTitleCo;
 async function showApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
+
+  // ── LAND ON A PAGE FIRST ────────────────────────────────────────────────────
+  // Everything below this point is a long chain of awaits (contacts, roster, to-dos, schedule,
+  // deals...). The navigation used to sit at the BOTTOM of that chain, so if any one of those
+  // loads was slow, hung, or threw — which is exactly what a cold app start does — showApp() never
+  // reached it and the user got a blank screen with a working menu. Navigating up front means the
+  // page is always there; the data fills in behind it as each load returns.
+  try {
+    var _boot = isAgent ? 'agent-dash' : (isLender ? 'agent-dash' : 'home');
+    var _bootEl = document.querySelector('[data-pg=' + (isAgent || isLender ? 'agent' : 'home') + ']');
+    if (document.getElementById('page-' + _boot)) go(_boot, _bootEl);
+  } catch(e) { console.log('boot nav:', e && e.message); }
+
   // Set user info
   const initials = ((userProfile.firstName||'')[0]||'') + ((userProfile.lastName||'')[0]||'');
   document.getElementById('user-avatar').textContent = initials.toUpperCase() || 'U';
@@ -8823,8 +8850,34 @@ async function showApp() {
   loadAgentPartners(userProfile.agentId|| '').then(function(){ renderPartners('all'); });
   renderEducation();
   buildMortgageDropdown();
-  if (isAgent || isLender) { await loadBuyersForAgent(); if(isAgent){await _ensureRosterForUser();syncHardcodedAgentsToFirestore();backfillTeamFields();await todoLoad();await scheduleLoad();injectScheduleBlocks();obLoad();checkMentorStatus();checkOpenHouseLeads();loadCustomEmailTemplates();loadMaintSchedule();teamChatInit();if(typeof _loadManagedSegments==='function')_loadManagedSegments();if(_dealsLoaded)injectDealReminders();else loadDeals().then(injectDealReminders);} _handleLeadDeepLink(); } _handlePageDeepLink(); _handleNtDashDeepLink(); if(typeof maybeStartWelcomeFlow==='function') maybeStartWelcomeFlow();
-  await loadAgentPartners(userProfile.agentId|| '');
+  // Data loads. Each is wrapped so a single failure (slow cold start, offline, a bad doc) can't
+  // abort showApp() and leave the user on a blank page — the page itself is already up.
+  if (isAgent || isLender) {
+    try { await loadBuyersForAgent(); } catch(e){ console.log('loadBuyers:', e && e.message); }
+    if (isAgent) {
+      try { await _ensureRosterForUser(); } catch(e){}
+      try { syncHardcodedAgentsToFirestore(); } catch(e){}
+      try { backfillTeamFields(); } catch(e){}
+      try { await todoLoad(); } catch(e){ console.log('todoLoad:', e && e.message); }
+      try { await scheduleLoad(); } catch(e){}
+      try { injectScheduleBlocks(); } catch(e){}
+      try { obLoad(); } catch(e){}
+      try { checkMentorStatus(); } catch(e){}
+      try { checkOpenHouseLeads(); } catch(e){}
+      try { loadCustomEmailTemplates(); } catch(e){}
+      try { loadMaintSchedule(); } catch(e){}
+      try { teamChatInit(); } catch(e){}
+      try { if(typeof _loadManagedSegments==='function') _loadManagedSegments(); } catch(e){}
+      try { if(_dealsLoaded) injectDealReminders(); else loadDeals().then(injectDealReminders).catch(function(){}); } catch(e){}
+      // Data's in — repaint the dashboard that's already on screen.
+      try { if (typeof renderAgentDashboard === 'function') renderAgentDashboard(); } catch(e){}
+    }
+    try { _handleLeadDeepLink(); } catch(e){}
+  }
+  try { _handlePageDeepLink(); } catch(e){}
+  try { _handleNtDashDeepLink(); } catch(e){}
+  try { if(typeof maybeStartWelcomeFlow==='function') maybeStartWelcomeFlow(); } catch(e){}
+  try { await loadAgentPartners(userProfile.agentId|| ''); } catch(e){}
   if (isAgent) runSilentPurge();
   // Show welcome modal for first-time agents
   if (isAgent && window._showAgentWelcome) {
@@ -8844,9 +8897,13 @@ async function showApp() {
     var startLabel = document.getElementById('sidebar-start-label');
     if (startLabel) startLabel.style.display = 'none';
     setTimeout(function() {
-      go('agent-dash', agentBtn);
+      // The boot nav at the top of showApp() already landed us on the dashboard. Only navigate
+      // again if something went wrong and no page is active — and never stomp a deep link that
+      // sent the user somewhere specific (e.g. opening the app from a push notification).
+      var _active = document.querySelector('.page.active');
+      if (!_active) go('agent-dash', agentBtn);
       watchThreadsInbox();
-      setTimeout(renderAgentDashboard, 1500);
+      setTimeout(function(){ try { renderAgentDashboard(); } catch(e){} }, 1500);
     }, 100);
     setTimeout(function(){
       if (typeof _loadBillTiers==='function') _loadBillTiers();
