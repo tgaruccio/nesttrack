@@ -11818,6 +11818,7 @@ function linkifyText(s){
   out = out.replace(/(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})(?![^<]*<\/a>)/g, function(m){
     return '<a href="tel:' + m.replace(/\D/g,'') + '" style="color:inherit;text-decoration:underline;">' + m + '</a>';
   });
+  out = out.replace(/\n/g, '<br>');   // keep the sender's line breaks
   return out;
 }
 window.linkifyText = linkifyText;
@@ -15849,12 +15850,11 @@ function _postStepToChat(clientUid, isSeller, stepNum){
 window._postStepToChat = _postStepToChat;
 
 // Escape, linkify URLs, and honor line breaks in chat bubbles.
+// Kept as a name other call sites use, but there is now ONE linkifier for every chat surface.
+// It used to only catch full http(s):// URLs — so a bare www. link, an email, or a phone number
+// stayed dead text, and team chat didn't linkify at all. All of them go through linkifyText now.
 function _renderChatText(t){
-  t = (t==null) ? '' : String(t);
-  var esc = (typeof partnerEsc==='function') ? partnerEsc(t) : t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  esc = esc.replace(/(https?:\/\/[^\s<]+)/g, function(u){ return '<a href="'+u+'" target="_blank" rel="noopener" style="color:var(--green-dk);text-decoration:underline;word-break:break-all;">'+u+'</a>'; });
-  esc = esc.replace(/\n/g,'<br>');
-  return esc;
+  return linkifyText(t == null ? '' : String(t));
 }
 window._renderChatText = _renderChatText;
 
@@ -26038,7 +26038,7 @@ function teamChatInit() {
     if (msg.photoUrl) {
       bubble.innerHTML = senderLabel + '<img src="'+msg.photoUrl+'" style="max-width:180px;border-radius:8px;display:block;cursor:pointer;" onclick="window.open(\''+msg.photoUrl+'\',\'_blank\')" /><div class="ts">'+time+'</div>';
     } else {
-      bubble.innerHTML = senderLabel + escapeHtml(msg.text||'') + '<div class="ts">'+time+'</div>';
+      bubble.innerHTML = senderLabel + linkifyText(msg.text||'') + '<div class="ts">'+time+'</div>';
     }
 
     wrapper.appendChild(bubble);
