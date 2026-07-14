@@ -30,6 +30,15 @@
   --text: #1a1a18; --text2: #5a5a54; --text3: #9a9a90;
   --r: 10px; --r-sm: 7px;
 }
+
+/* Long-press to copy. In-app WebViews (Median) suppress iOS's callout menu by default, so a
+   long-press on a phone number or email gave you nothing. Re-enable the callout and text
+   selection on contact links and chat bubbles so press-and-hold offers Call / Copy again. */
+a[href^="tel:"], a[href^="mailto:"], a[href^="sms:"], .bubble, .selectable {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
 @media(prefers-color-scheme:dark){
   :root{
     --bg:#1c1c1a;--surface:#252523;--surface2:#2e2e2b;
@@ -11737,6 +11746,61 @@ window.getAIRecs = getAIRecs;
 
 // ─── CHAT ───
 function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);}); }
+
+// Turn URLs, emails, and phone numbers in a plain-text message into tappable links.
+// SAFETY: escape FIRST, then linkify the escaped text. The patterns only match characters that
+// survive escaping, so nothing a user types can inject markup - the anchors are the only HTML added.
+function linkifyText(s){
+  var out = escapeHtml(s);
+  out = out.replace(/\b((?:https?:\/\/|www\.)[^\s<]+?)(?=[.,;:!?)\]]*(?:\s|$))/gi, function(m){
+    var href = /^www\./i.test(m) ? ('https://' + m) : m;
+    return '<a href="' + href.replace(/&amp;/g,'&') + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;">' + m + '</a>';
+  });
+  out = out.replace(/\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b(?![^<]*<\/a>)/gi, '<a href="mailto:$1" style="color:inherit;text-decoration:underline;">$1</a>');
+  out = out.replace(/(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})(?![^<]*<\/a>)/g, function(m){
+    return '<a href="tel:' + m.replace(/\D/g,'') + '" style="color:inherit;text-decoration:underline;">' + m + '</a>';
+  });
+  return out;
+}
+window.linkifyText = linkifyText;
+
+// Press-and-hold a phone/email link to copy it. The CSS above re-enables iOS's native callout, but
+// in-app WebViews sometimes still swallow it — so this guarantees the behavior everywhere: hold for
+// ~550ms on a tel:/mailto:/sms: link and the value lands on the clipboard with a toast.
+(function(){
+  var timer=null, held=false;
+  function valueOf(a){
+    var h=a.getAttribute('href')||'';
+    return h.replace(/^(tel:|mailto:|sms:)/i,'').trim();
+  }
+  function start(e){
+    var a = e.target.closest && e.target.closest('a[href^="tel:"],a[href^="mailto:"],a[href^="sms:"]');
+    if(!a) return;
+    held=false;
+    clearTimeout(timer);
+    timer=setTimeout(function(){
+      held=true;
+      var v=valueOf(a);
+      if(!v) return;
+      try {
+        if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(v); }
+        else { var t=document.createElement('textarea'); t.value=v; t.style.position='fixed'; t.style.opacity='0'; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+        if(typeof showToast==='function') showToast('Copied ' + v);
+        if(navigator.vibrate) navigator.vibrate(15);
+      } catch(_){}
+    }, 550);
+  }
+  function cancel(){ clearTimeout(timer); }
+  document.addEventListener('touchstart', start, {passive:true});
+  document.addEventListener('touchend', function(e){
+    cancel();
+    // A long-press copied it — don't ALSO place the call / open the mail app.
+    if(held){ e.preventDefault(); held=false; }
+  });
+  document.addEventListener('touchmove', cancel, {passive:true});
+  document.addEventListener('mousedown', start);
+  document.addEventListener('mouseup', cancel);
+})();
 // JS-string-safe escape for values dropped inside onclick="fn('...')" — protects against both
 // breakout (XSS) and legit apostrophes (e.g. O'Brien) that would otherwise break the call.
 function _jsq(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/</g,'\\x3c').replace(/>/g,'\\x3e'); }
@@ -14843,7 +14907,7 @@ function openAgentInboxChat(buyerUid, buyerName, buyerPhone) {
     wrapper.style.cssText='display:flex;flex-direction:column;align-items:'+(isMine?'flex-end':'flex-start')+';';
     var bubble=document.createElement('div');
     bubble.className='bubble '+(isMine?'me':'them');
-    bubble.innerHTML=escapeHtml(msg.text)+'<div class="ts">'+time+'</div>';
+    bubble.innerHTML=linkifyText(msg.text)+'<div class="ts">'+time+'</div>';
     wrapper.appendChild(bubble); msgsEl.appendChild(wrapper);
     msgsEl.scrollTop=msgsEl.scrollHeight;
   });
@@ -15076,7 +15140,7 @@ function openAgentDM(otherUid, name, agentShortId){
     var wrapper=document.createElement('div');
     wrapper.style.cssText='display:flex;flex-direction:column;align-items:'+(isMine?'flex-end':'flex-start')+';';
     var bubble=document.createElement('div'); bubble.className='bubble '+(isMine?'me':'them');
-    bubble.innerHTML=escapeHtml(msg.text||'')+'<div class="ts">'+time+'</div>';
+    bubble.innerHTML=linkifyText(msg.text||'')+'<div class="ts">'+time+'</div>';
     wrapper.appendChild(bubble); el.appendChild(wrapper); el.scrollTop=el.scrollHeight;
   });
 }
