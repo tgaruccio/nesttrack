@@ -25860,19 +25860,27 @@ async function renderTeamOnboarding(containerId) {
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px;">Loading...</div>';
   try {
     var myAgentId = userProfile.agentId || '';
+    // WHO MAY SEE ANOTHER AGENT'S ONBOARDING PROGRESS: the team leader, and that agent's assigned
+    // mentor. Nobody else — a teammate's progress is not peer-visible.
+    //
+    // This gate lives in the FILTER, not the UI. Earlier fixes hid the panel or locked the editor,
+    // but the record filter still said "same team → show", so the data kept leaking to whichever
+    // surface rendered it. Enforce it here and it cannot leak from any surface.
+    var _isLead = (typeof isTeamLeader === 'function' && isTeamLeader());
+    var _obMyTeam = (userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
     var snap = await fb.getDocs(fb.collection(fb.db,'agent_onboarding'));
     if (snap.empty) { container.innerHTML = ''; return; }
     var records = [];
     snap.forEach(function(d){ var r=d.data(); r.uid=d.id; records.push(r); });
-    var _obMyTeam = (userProfile&&(userProfile.teamId||userProfile.agentId))|| '';
     var filtered = records.filter(function(r){
       var ae = (DEFAULT_AGENTS||[]).find(function(a){ return a.id===r.agentId; });
       // Prefer fields stored ON the record (reliable); fall back to DEFAULT_AGENTS.
       var recMentor = (r.mentorAgentId !== undefined && r.mentorAgentId !== null) ? r.mentorAgentId : (ae && ae.mentorAgentId) || null;
       var recTeam = r.teamId || (ae && typeof agentTeamId==='function' ? agentTeamId(ae) : null);
-      if (recTeam && recTeam === _obMyTeam) return true;   // on my team
-      if (recMentor && recMentor === myAgentId) return true; // someone I personally mentor
-      return false;
+      if (r.agentId === myAgentId) return true;                        // always my own record
+      if (recMentor && recMentor === myAgentId) return true;           // an agent I personally mentor
+      if (_isLead && recTeam && recTeam === _obMyTeam) return true;    // leader sees their whole team
+      return false;                                                    // a peer's progress is private
     });
     if (!filtered.length) { container.innerHTML = (containerId==='team-onboarding-modal-container') ? '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12.5px;">No onboarding in progress yet. Assign onboarding to a new agent and they\'ll show up here.</div>' : ''; return; }
     var total = OB_DEFAULT_STEPS ? OB_DEFAULT_STEPS.length : 0;
