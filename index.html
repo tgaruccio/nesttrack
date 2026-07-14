@@ -14845,6 +14845,10 @@ function switchAgentTab(tab) {
     initTeamStatsYearSelect();
     renderTeamOnboarding();
     teamChatInit();
+    // teamChatInit() bails out on every call after the first (`if (teamChatListener) return;`), so
+    // the scroll inside it only ever ran once. Messages stay in the DOM from the live listener, and
+    // reopening the tab left you parked at the top. Scroll here instead — this runs on every open.
+    scrollChatToBottom('team-chat-messages');
     loadTeamStats().then(function(){
       // Hide tab only if the team leader has turned off member visibility
       var ttsb2 = document.getElementById('agent-tab-teamstats');
@@ -25839,6 +25843,9 @@ function teamChatApplyCollapsed(collapsed){
   if (msgs) msgs.style.display = collapsed ? 'none' : '';
   if (row) row.style.display = collapsed ? 'none' : '';
   if (chev) chev.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+  // Expanding reveals a container that was display:none — its scrollHeight was 0 the whole time it
+  // was hidden, so any earlier scroll was a no-op. Re-pin to the newest message now that it's real.
+  if (!collapsed && msgs && typeof scrollChatToBottom === 'function') scrollChatToBottom(msgs);
 }
 function teamChatToggleCollapse(){
   var collapsed = localStorage.getItem('nt_teamchat_collapsed') === '1';
