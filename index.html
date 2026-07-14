@@ -2977,25 +2977,6 @@ textarea{resize:vertical;min-height:68px;}
     </div>
 
     <!-- CARD: PREFERENCES -->
-    <div class="card" id="profile-card-prefs" style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div style="width:36px;height:36px;border-radius:9px;background:#F1EFE8;border:1px solid #D8D3C4;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">&#9881;&#65039;</div>
-          <div>
-          <div style="font-size:15px;font-weight:600;">Preferences</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Notification settings.</div>
-          </div>
-        </div>
-        <button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save</button>
-      </div>
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-          <input type="checkbox" id="ap-digest" checked style="width:18px;height:18px;cursor:pointer;flex-shrink:0;"/>
-          <span><span style="font-size:13px;font-weight:600;color:var(--text2);">Weekly TC digest email</span><br><span style="font-size:11px;color:var(--text3);">Monday-morning summary of your deals&rsquo; open &amp; overdue coordinator tasks</span></span>
-        </label>
-      </div>
-    </div>
-
     <!-- CARD: ACCOUNT / SECURITY -->
     <div class="card" id="profile-card-account" style="display:flex;flex-direction:column;gap:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
@@ -3003,9 +2984,15 @@ textarea{resize:vertical;min-height:68px;}
           <div style="width:36px;height:36px;border-radius:9px;background:#EEF2FF;border:1px solid #C7D2FE;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">&#128274;</div>
           <div>
           <div style="font-size:15px;font-weight:600;">Account</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Change your password.</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Password, reply-to email, notifications.</div>
           </div>
         </div>
+      </div>
+      <div style="padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--border);">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="ap-digest" checked style="width:18px;height:18px;cursor:pointer;flex-shrink:0;"/>
+          <span><span style="font-size:13px;font-weight:600;color:var(--text2);">Weekly TC digest email</span><br><span style="font-size:11px;color:var(--text3);">Monday-morning summary of your deals&rsquo; open &amp; overdue coordinator tasks</span></span>
+        </label>
       </div>
       <div style="font-size:12.5px;color:var(--text2);margin-bottom:12px;line-height:1.5;">We&rsquo;ll email a secure link to set a new password. It goes to your login email.</div>
       <div><button class="btn btn-sm btn-g" onclick="changePassword()">Send password reset link</button></div>
@@ -6056,21 +6043,24 @@ function dpGenerate(pkgId){
 window.dpGenerate=dpGenerate;
 
 // ── PROFILE / SETTINGS TABS ──────────────────────────────────────────────────
-// Nine stacked cards was a wall. Split by JOB, not by feature: "Profile" is what a client sees;
+// Ten stacked cards was a wall. Split by JOB, not by feature: "Profile" is what a client sees;
 // "Settings" is the machinery. Nothing inside the cards moved — they're grouped and shown/hidden,
 // so every field id and save handler is exactly where it was.
+//
+// `long: true` marks the two cards that run for pages (the video library and the email template
+// editor). Those start collapsed — nobody wants to scroll past forty templates to reach Account.
 var PROF_TABS = {
   profile: [
     { id:'profile-card-profile',   label:'You' },
     { id:'profile-card-signature', label:'Signature' },
     { id:'profile-card-booking',   label:'Links' },
-    { id:'profile-card-videos',    label:'Videos' }
+    { id:'profile-card-videos',    label:'Videos',  long:true },
+    { id:'email-editor-card',      label:'Emails',  long:true }
   ],
   settings: [
     { id:'profile-card-integrations', label:'Integrations' },
     { id:'profile-card-netsheet',     label:'Net sheet' },
     { id:'profile-card-schedule',     label:'Schedule' },
-    { id:'profile-card-prefs',        label:'Preferences' },
     { id:'profile-card-account',      label:'Account' }
   ]
 };
@@ -6080,8 +6070,8 @@ function profTab(which){
   _profTab = (which === 'settings') ? 'settings' : 'profile';
   try { localStorage.setItem('nt_prof_tab', _profTab); } catch(e){}
   ['profile','settings'].forEach(function(t){
-    var btn = document.getElementById('prof-tab-' + t);
     var on = (t === _profTab);
+    var btn = document.getElementById('prof-tab-' + t);
     if (btn){
       btn.style.borderBottom = '2px solid ' + (on ? 'var(--green-dk)' : 'transparent');
       btn.style.color = on ? 'var(--green-dk)' : 'var(--text3)';
@@ -6089,13 +6079,59 @@ function profTab(which){
     }
     (PROF_TABS[t]||[]).forEach(function(s){
       var el = document.getElementById(s.id);
-      if (el) el.style.display = on ? 'flex' : 'none';
+      if (!el) return;
+      el.style.display = on ? 'flex' : 'none';
+      if (on && s.long) _profMakeCollapsible(el, s.id, s.label);
     });
   });
   renderProfJump();
   renderProfNudge();
 }
 window.profTab = profTab;
+
+// The video library and email-template editor are enormous. Fold their BODY away behind their own
+// header, so the card still shows (you can see it exists, and the jump nav can reach it) but it
+// doesn't put four feet of scroll between you and the next section. Open state is remembered.
+function _profMakeCollapsible(card, id, label){
+  if (card.dataset.collapsibleReady === '1'){ return; }
+  var header = card.firstElementChild;             // the card's title row
+  if (!header) return;
+  // Everything after the header row is the body.
+  var body = [];
+  for (var i = 1; i < card.children.length; i++) body.push(card.children[i]);
+  if (!body.length) return;
+
+  var open = false;
+  try { open = localStorage.getItem('nt_prof_open_' + id) === '1'; } catch(e){}
+
+  var chev = document.createElement('span');
+  chev.id = 'prof-chev-' + id;
+  chev.style.cssText = 'font-size:13px;color:var(--text3);margin-left:auto;padding-left:10px;flex-shrink:0;';
+  chev.innerHTML = open ? '&#9662;' : '&#9656;';
+  header.appendChild(chev);
+  header.style.cursor = 'pointer';
+  header.style.marginBottom = open ? '14px' : '0';
+  header.style.paddingBottom = open ? '14px' : '0';
+  header.style.borderBottom = open ? '1px solid var(--border)' : 'none';
+
+  var apply = function(o){
+    body.forEach(function(el){ el.style.display = o ? '' : 'none'; });
+    chev.innerHTML = o ? '&#9662;' : '&#9656;';
+    header.style.marginBottom = o ? '14px' : '0';
+    header.style.paddingBottom = o ? '14px' : '0';
+    header.style.borderBottom = o ? '1px solid var(--border)' : 'none';
+    try { localStorage.setItem('nt_prof_open_' + id, o ? '1' : '0'); } catch(e){}
+  };
+  apply(open);
+
+  header.addEventListener('click', function(e){
+    // Don't swallow clicks on a Save button or an input that happens to live in the header.
+    if (e.target.closest('button, input, select, textarea, a')) return;
+    open = !open;
+    apply(open);
+  });
+  card.dataset.collapsibleReady = '1';
+}
 
 // Jump nav for the active tab.
 function renderProfJump(){
@@ -6109,7 +6145,16 @@ function renderProfJump(){
 }
 function profJumpTo(id){
   var el = document.getElementById(id);
-  if (el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  if (!el) return;
+  // If it's one of the collapsed long cards, open it — jumping to a closed header is useless.
+  try {
+    var isLong = (PROF_TABS[_profTab]||[]).some(function(s){ return s.id === id && s.long; });
+    if (isLong && localStorage.getItem('nt_prof_open_' + id) !== '1'){
+      var hdr = el.firstElementChild;
+      if (hdr) hdr.click();
+    }
+  } catch(e){}
+  if (el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 window.profJumpTo = profJumpTo;
 
@@ -8511,7 +8556,12 @@ function renderEmailEditorList() {
   var card = document.getElementById('email-editor-card');
   var list = document.getElementById('email-editor-list');
   if (!card || !list) return;
-  card.style.display = 'flex';
+  // This used to force display:flex unconditionally, which made the card appear on BOTH profile
+  // tabs — it was overriding the tab logic every time the profile re-rendered. Respect the tab.
+  card.style.display = (typeof _profTab === 'undefined' || _profTab === 'profile') ? 'flex' : 'none';
+  // This runs async (after templates load), so it can land AFTER profTab() has already folded the
+  // card away. Re-apply the collapse so a slow template load doesn't pop it back open.
+  try { if (typeof _profMakeCollapsible === 'function' && card.style.display === 'flex') _profMakeCollapsible(card, 'email-editor-card', 'Emails'); } catch(e){}
 
   var groups = ['Buyer','Seller','Mortgage','Home maintenance'];
   list.innerHTML = groups.map(function(grp) {
