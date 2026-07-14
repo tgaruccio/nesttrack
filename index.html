@@ -7212,6 +7212,7 @@ async function loadTeamActivity() {
       dlSnap.forEach(function(d){
         var dd = d.data();
         if (dd.closed) return;
+        if (dd.isPracticeDeal) return;   // onboarding sample data — never counts as a real deal
         if (dd.agentId && dd.agentId !== a.id) return; // skip misfiled deals not actually owned by this agent
         var st = (typeof dealStatusFromStep === 'function') ? dealStatusFromStep(dd) : '';
         if (st === 'Pipeline') act.dealPipeline++;
@@ -13564,6 +13565,32 @@ function canAccessBuyer(buyer) {
   return false;
 }
 
+// Delete every deal belonging to a client. Called before the client doc itself is removed.
+//
+// Why this queries Firestore instead of the in-memory _deals array: the old single-delete filtered
+// `_deals`, which is only populated once the Deal Tracker has loaded. Delete a client from the
+// contact list before then — or via bulk delete, which skipped deal cleanup entirely — and the deal
+// doc survived with its client gone. Those orphans are invisible on the agent's own dashboard (it
+// joins deals to clients, so a missing client hides the deal) but they still get counted by the
+// team view, the leaderboard, and the weekly digest, which read deal docs directly.
+async function deleteDealsForClient(uid, agentId) {
+  if (!uid) return 0;
+  var aid = agentId || (userProfile && userProfile.agentId) || '';
+  if (!aid) return 0;
+  var n = 0;
+  try {
+    var q = fb.query(fb.collection(fb.db, 'agents', aid, 'deals'), fb.where('clientUid', '==', uid));
+    var snap = await fb.getDocs(q);
+    for (var i = 0; i < snap.docs.length; i++) {
+      try { await fb.deleteDoc(fb.doc(fb.db, 'agents', aid, 'deals', snap.docs[i].id)); n++; } catch(e){}
+    }
+  } catch(e) { console.log('deleteDealsForClient:', e && e.message); }
+  // Keep the in-memory list honest too, so the tracker doesn't show a deal that's gone.
+  try { if (typeof _deals !== 'undefined') _deals = (_deals||[]).filter(function(d){ return d.clientUid !== uid; }); } catch(e){}
+  return n;
+}
+window.deleteDealsForClient = deleteDealsForClient;
+
 async function deleteKnownBuyerSubcollections(uid) {
   const subcollections = ['properties', 'tours', 'messages', 'documents'];
   for (const sub of subcollections) {
@@ -17179,15 +17206,10 @@ async function deleteBuyer(uid) {
   const msg = `Delete ${name}?\n\nThis removes the buyer profile from this portal and deletes their saved homes/tours stored under that profile. It does NOT delete their Firebase Authentication login. If they sign in again, a new profile may be created.`;
   if (!confirm(msg)) return;
   try {
-    // Delete any deals belonging to this client FIRST — otherwise the deal doc orphans in the
-    // database (client gone, deal remains, still stamped with an agentId) and pollutes stats/digests.
-    try {
-      var _clientDeals = (_deals||[]).filter(function(d){ return d.clientUid === uid; });
-      for (var _i=0; _i<_clientDeals.length; _i++){
-        try { await fb.deleteDoc(_dealDoc(_clientDeals[_i].id)); } catch(_e){ console.log('deal cleanup:', _e && _e.message); }
-      }
-      _deals = (_deals||[]).filter(function(d){ return d.clientUid !== uid; });
-    } catch(_e){ console.log('client-deal cleanup:', _e && _e.message); }
+    // Delete this client's deals FIRST. Queries Firestore rather than the in-memory _deals array —
+    // that array is empty until the Deal Tracker has loaded, so the old version silently missed and
+    // left orphaned deal docs behind (invisible to the agent, still counted by team stats/digests).
+    try { await deleteDealsForClient(uid, (b && b.agentId) || userProfile.agentId); } catch(_e){ console.log('deal cleanup:', _e && _e.message); }
     await deleteKnownBuyerSubcollections(uid);
     await fb.deleteDoc(fb.doc(fb.db, 'users', uid));
     allBuyers = allBuyers.filter(x => x.uid !== uid);
@@ -17832,6 +17854,9 @@ async function massDeleteContacts(){
     var b=(allBuyers||[]).find(function(x){return x.uid===uid;});
     if(b && typeof canAccessBuyer==='function' && !canAccessBuyer(b)){ fail++; continue; }
     try{
+      // Same cleanup the single delete does — this path had none, so every bulk-deleted client left
+      // its deals behind as orphans that still counted in team stats and the weekly digest.
+      try { await deleteDealsForClient(uid, (b && b.agentId) || userProfile.agentId); } catch(e){}
       if(typeof deleteKnownBuyerSubcollections==='function') await deleteKnownBuyerSubcollections(uid);
       await fb.deleteDoc(fb.doc(fb.db,'users',uid));
       ok++;
