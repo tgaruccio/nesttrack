@@ -2775,6 +2775,23 @@ textarea{resize:vertical;min-height:68px;}
   <div id="agent-profile-panel" style="display:none;flex-direction:column;gap:16px;">
   <div id="agent-profile-editor" style="display:none;flex-direction:column;gap:16px;" data-profile-card="1">
 
+    <!-- TAB BAR: splits "what clients see" from "the machinery". Cards themselves are untouched —
+         they're just shown/hidden by group, so every field id and save handler still works. -->
+    <div id="prof-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:-4px;">
+      <button type="button" id="prof-tab-profile" onclick="profTab('profile')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid var(--green-dk);font-size:14px;font-weight:700;color:var(--green-dk);cursor:pointer;font-family:inherit;">Profile</button>
+      <button type="button" id="prof-tab-settings" onclick="profTab('settings')" style="padding:10px 20px;background:none;border:none;border-bottom:2px solid transparent;font-size:14px;font-weight:600;color:var(--text3);cursor:pointer;font-family:inherit;">Settings</button>
+    </div>
+
+    <!-- Names a consequence, not a chore. Only appears when something is actually missing. -->
+    <div id="prof-nudge" style="display:none;background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--r);padding:12px 14px;align-items:center;gap:10px;">
+      <span style="font-size:18px;flex-shrink:0;">&#9888;&#65039;</span>
+      <div id="prof-nudge-text" style="flex:1;font-size:13px;color:#92400E;line-height:1.5;"></div>
+      <button type="button" class="btn btn-sm" onclick="profNudgeFix()" style="white-space:nowrap;flex-shrink:0;">Fix now</button>
+    </div>
+
+    <!-- Jump nav — tap to scroll to a section instead of hunting -->
+    <div id="prof-jump" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+
     <!-- BILLING (subscription owner) -->
     <div id="team-billing-box" style="display:none;"></div>
 
@@ -6038,6 +6055,101 @@ function dpGenerate(pkgId){
 }
 window.dpGenerate=dpGenerate;
 
+// ── PROFILE / SETTINGS TABS ──────────────────────────────────────────────────
+// Nine stacked cards was a wall. Split by JOB, not by feature: "Profile" is what a client sees;
+// "Settings" is the machinery. Nothing inside the cards moved — they're grouped and shown/hidden,
+// so every field id and save handler is exactly where it was.
+var PROF_TABS = {
+  profile: [
+    { id:'profile-card-profile',   label:'You' },
+    { id:'profile-card-signature', label:'Signature' },
+    { id:'profile-card-booking',   label:'Links' },
+    { id:'profile-card-videos',    label:'Videos' }
+  ],
+  settings: [
+    { id:'profile-card-integrations', label:'Integrations' },
+    { id:'profile-card-netsheet',     label:'Net sheet' },
+    { id:'profile-card-schedule',     label:'Schedule' },
+    { id:'profile-card-prefs',        label:'Preferences' },
+    { id:'profile-card-account',      label:'Account' }
+  ]
+};
+var _profTab = 'profile';
+
+function profTab(which){
+  _profTab = (which === 'settings') ? 'settings' : 'profile';
+  try { localStorage.setItem('nt_prof_tab', _profTab); } catch(e){}
+  ['profile','settings'].forEach(function(t){
+    var btn = document.getElementById('prof-tab-' + t);
+    var on = (t === _profTab);
+    if (btn){
+      btn.style.borderBottom = '2px solid ' + (on ? 'var(--green-dk)' : 'transparent');
+      btn.style.color = on ? 'var(--green-dk)' : 'var(--text3)';
+      btn.style.fontWeight = on ? '700' : '600';
+    }
+    (PROF_TABS[t]||[]).forEach(function(s){
+      var el = document.getElementById(s.id);
+      if (el) el.style.display = on ? 'flex' : 'none';
+    });
+  });
+  renderProfJump();
+  renderProfNudge();
+}
+window.profTab = profTab;
+
+// Jump nav for the active tab.
+function renderProfJump(){
+  var wrap = document.getElementById('prof-jump');
+  if (!wrap) return;
+  wrap.innerHTML = (PROF_TABS[_profTab]||[]).map(function(s){
+    var st = _profSectionStatus(s.id);
+    var dot = st.done ? '' : '<span style="width:6px;height:6px;border-radius:50%;background:#F59E0B;display:inline-block;margin-left:5px;vertical-align:middle;"></span>';
+    return '<button type="button" onclick="profJumpTo(\'' + s.id + '\')" style="font-size:13px;padding:6px 12px;border-radius:var(--r);background:var(--surface2);color:var(--text2);border:1px solid var(--border);cursor:pointer;font-family:inherit;">' + escapeHtml(s.label) + dot + '</button>';
+  }).join('');
+}
+function profJumpTo(id){
+  var el = document.getElementById(id);
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+window.profJumpTo = profJumpTo;
+
+// What "done" means per section. Deliberately not a percentage — a vague progress bar gets ignored;
+// a named gap ("no signature") gets fixed.
+function _profSectionStatus(id){
+  var a = (typeof currentAgent === 'function') ? (currentAgent() || {}) : {};
+  var val = function(k){ return String(a[k] || '').trim(); };
+  switch(id){
+    case 'profile-card-profile':   return { done: !!(val('name') && (val('photoUrl') || val('photo')) && val('mailingAddress')) };
+    case 'profile-card-signature': return { done: !!(val('signature') || val('bio')) };
+    case 'profile-card-booking':   return { done: !!(val('calendly') || val('googleReviewUrl')) };
+    case 'profile-card-videos':    return { done: !!(typeof _agentVideos !== 'undefined' && _agentVideos && _agentVideos.length) };
+    default: return { done: true };   // Settings sections are optional by design — never nag about them
+  }
+}
+
+// The nudge names what's happening RIGHT NOW as a result of the gap, not a task to complete.
+// "Complete your profile" is a chore. "Your emails are going out without a signature" is a problem.
+function renderProfNudge(){
+  var box = document.getElementById('prof-nudge');
+  var txt = document.getElementById('prof-nudge-text');
+  if (!box || !txt) return;
+  if (_profTab !== 'profile'){ box.style.display = 'none'; return; }
+  var a = (typeof currentAgent === 'function') ? (currentAgent() || {}) : {};
+  var v = function(k){ return String(a[k] || '').trim(); };
+  var gaps = [];
+  if (!v('mailingAddress')) gaps.push({ t:'a mailing address (anti-spam law requires one on every email you send)', id:'profile-card-profile' });
+  if (!v('signature') && !v('bio')) gaps.push({ t:'a signature', id:'profile-card-signature' });
+  if (!v('photoUrl') && !v('photo')) gaps.push({ t:'your photo', id:'profile-card-profile' });
+  if (!gaps.length){ box.style.display = 'none'; return; }
+  var list = gaps.map(function(g){ return g.t; });
+  var phrase = list.length === 1 ? list[0] : (list.slice(0,-1).join(', ') + ' or ' + list[list.length-1]);
+  txt.textContent = 'Your client emails are going out without ' + phrase + '.';
+  window._profNudgeTarget = gaps[0].id;
+  box.style.display = 'flex';
+}
+function profNudgeFix(){ profJumpTo(window._profNudgeTarget || 'profile-card-profile'); }
+window.profNudgeFix = profNudgeFix;
+
 function renderAgentProfileEditor() {
   if (isAgent) {
     loadCustomEmailTemplates().then(function(){ return loadMaintSchedule(); }).then(renderEmailEditorList);
@@ -6101,6 +6213,12 @@ function renderAgentProfileEditor() {
   // Lead addresses — render here (not on the tab switch) so they show no matter how Profile is reached.
   try { if (typeof revealLeadLink === 'function') revealLeadLink(); } catch(e){}
   try { if (typeof renderLeadInboxes === 'function') renderLeadInboxes(); } catch(e){}
+  // Apply the Profile/Settings split. Restores whichever tab you were last on.
+  try {
+    var _saved = 'profile';
+    try { _saved = localStorage.getItem('nt_prof_tab') || 'profile'; } catch(e){}
+    profTab(_saved);
+  } catch(e){}
 }
 
 function convertGoogleDriveImageUrl(url) {
