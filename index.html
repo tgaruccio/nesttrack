@@ -7233,6 +7233,7 @@ function _gsWriteDismiss(){
   var el = document.getElementById('gs-widget');
   if (el) el.remove();
 }
+window._gsWriteDismiss = _gsWriteDismiss;
 
 function gsRender(){
   var el = document.getElementById('gs-widget');
@@ -7242,6 +7243,23 @@ function gsRender(){
   var doneCount = required.filter(function(i){ return i.done; }).length;
 
   if (doneCount === required.length) {
+    var optPending = items.some(function(i){ return i.optional && !i.done; });
+    if (optPending) {
+      // Required steps done, optional listing still open: celebrate, point at it, and let THEM
+      // close it — don't vanish mid-thought. Dismiss only writes when they tap Done.
+      el.innerHTML = '<div style="width:280px;background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:14px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);">'
+        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'
+        + '<span style="font-size:20px;">🎉</span>'
+        + '<div style="flex:1;font-size:13px;font-weight:600;">You\'re all set — every step done!</div>'
+        + '</div>'
+        + '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;">One optional item for later: add a listing to the <b>Offer Manager</b> when you get one.</div>'
+        + '<div style="display:flex;gap:8px;">'
+        + '<button onclick="gsGoOffers()" style="flex:1;font-size:12px;font-weight:600;padding:7px 0;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;">Take a look</button>'
+        + '<button onclick="_gsWriteDismiss()" style="flex:1;font-size:12px;font-weight:600;padding:7px 0;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;">Done</button>'
+        + '</div>'
+        + '</div>';
+      return;
+    }
     if (_gsCelebrated) return;
     _gsCelebrated = true;
     el.innerHTML = '<div style="background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:14px;padding:14px 18px;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;gap:10px;max-width:280px;">'
@@ -8791,7 +8809,6 @@ function openBizCardHub(){
     '<div style="padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;">'
       +'<button onclick="document.getElementById(\'bizcard-hub\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:0;">\u2190</button>'
       +'<div style="flex:1;font-size:15px;font-weight:600;">\uD83D\uDCF1 My Business Card</div>'
-      +'<button class="btn btn-sm" onclick="openBizCardEditor(true)">\u270E Edit</button>'
     +'</div>'
     +'<div style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;">'
       // Share actions FIRST — the primary thing
@@ -8807,8 +8824,11 @@ function openBizCardHub(){
           +'<button class="btn" style="flex:1;" onclick="openBizCard()">Open in new tab</button>'
         +'</div>'
       +'</div>'
-      // Live preview of the actual card
-      +'<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 8px;">Preview</div>'
+      // Live preview of the actual card — Edit lives HERE, attached to the thing it edits.
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin:0 2px 8px;">'
+        +'<span style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;">Preview</span>'
+        +'<button class="btn btn-sm btn-g" onclick="openBizCardEditor(true)">\u270E Edit my card</button>'
+      +'</div>'
       +'<div style="border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:#f6f8f7;">'
         +'<iframe src="'+url+'" style="width:100%;height:560px;border:0;display:block;" loading="lazy"></iframe>'
       +'</div>'
@@ -31688,6 +31708,15 @@ async function lpSaveTemplate(t){
         +'<button class="btn btn-sm" onclick="lpCopyUrl(\''+url+'\')">\uD83D\uDCCB Copy link</button>'
         +'<a class="btn btn-sm" href="'+url+'" target="_blank" style="text-decoration:none;">Open</a>'
       +'</div>';
+    // The link renders below the fold on long forms — bring it to the user, don't make them hunt.
+    setTimeout(function(){
+      try {
+        share.scrollIntoView({ behavior:'smooth', block:'center' });
+        share.style.transition='box-shadow .3s';
+        share.style.boxShadow='0 0 0 3px #93C5FD';
+        setTimeout(function(){ share.style.boxShadow='none'; }, 1600);
+      } catch(e){}
+    }, 100);
     if(typeof showDealToast==='function') showDealToast('Landing page saved!',null,null);
   }catch(e){ alert('Save failed: '+e.message); }
 }
@@ -32007,6 +32036,14 @@ async function lpSaveListing(lid){
         +'<button class="btn btn-sm" onclick="lpCopyUrl(\''+url+'\')">\uD83D\uDCCB Copy link</button>'
         +'<a class="btn btn-sm" href="'+url+'" target="_blank" style="text-decoration:none;">Open</a>'
       +'</div>';
+    setTimeout(function(){
+      try {
+        share.scrollIntoView({ behavior:'smooth', block:'center' });
+        share.style.transition='box-shadow .3s';
+        share.style.boxShadow='0 0 0 3px #93C5FD';
+        setTimeout(function(){ share.style.boxShadow='none'; }, 1600);
+      } catch(e){}
+    }, 100);
     if(typeof showDealToast==='function') showDealToast('Listing page saved!',null,null);
   }catch(e){ alert('Save failed: '+e.message); }
 }
