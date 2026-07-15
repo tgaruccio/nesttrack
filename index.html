@@ -6095,9 +6095,7 @@ function renderProfJump(){
   var wrap = document.getElementById('prof-jump');
   if (!wrap) return;
   wrap.innerHTML = (PROF_TABS[_profTab]||[]).map(function(s){
-    var st = _profSectionStatus(s.id);
-    var dot = st.done ? '' : '<span style="width:6px;height:6px;border-radius:50%;background:#F59E0B;display:inline-block;margin-left:5px;vertical-align:middle;"></span>';
-    return '<button type="button" onclick="profJumpTo(\'' + s.id + '\')" style="font-size:13px;padding:6px 12px;border-radius:var(--r);background:var(--surface2);color:var(--text2);border:1px solid var(--border);cursor:pointer;font-family:inherit;">' + escapeHtml(s.label) + dot + '</button>';
+    return '<button type="button" onclick="profJumpTo(\'' + s.id + '\')" style="font-size:13px;padding:6px 12px;border-radius:var(--r);background:var(--surface2);color:var(--text2);border:1px solid var(--border);cursor:pointer;font-family:inherit;">' + escapeHtml(s.label) + '</button>';
   }).join('');
 }
 function profJumpTo(id){
@@ -6121,7 +6119,7 @@ function _profSectionStatus(id){
   var a = (typeof currentAgent === 'function') ? (currentAgent() || {}) : {};
   var val = function(k){ return String(a[k] || '').trim(); };
   switch(id){
-    case 'profile-card-profile':   return { done: !!(val('name') && (val('photoUrl') || val('photo')) && val('mailingAddress')) };
+    case 'profile-card-profile':   return { done: !!(val('name') && (val('photoUrl') || val('photo'))) };
     case 'profile-card-signature': return { done: !!(val('signature') || val('bio')) };
     case 'profile-card-booking':   return { done: !!(val('calendly') || val('googleReviewUrl')) };
     case 'profile-card-videos':    return { done: !!(typeof _agentVideos !== 'undefined' && _agentVideos && _agentVideos.length) };
@@ -6132,22 +6130,10 @@ function _profSectionStatus(id){
 // The nudge names what's happening RIGHT NOW as a result of the gap, not a task to complete.
 // "Complete your profile" is a chore. "Your emails are going out without a signature" is a problem.
 function renderProfNudge(){
+  // Retired: the Get Started corner widget owns setup guidance now, and the old anti-spam framing
+  // was wrong — mailing address is only needed for the Thanks.io integration. Keep the element hidden.
   var box = document.getElementById('prof-nudge');
-  var txt = document.getElementById('prof-nudge-text');
-  if (!box || !txt) return;
-  if (_profTab !== 'profile'){ box.style.display = 'none'; return; }
-  var a = (typeof currentAgent === 'function') ? (currentAgent() || {}) : {};
-  var v = function(k){ return String(a[k] || '').trim(); };
-  var gaps = [];
-  if (!v('mailingAddress')) gaps.push({ t:'a mailing address (anti-spam law requires one on every email you send)', id:'profile-card-profile' });
-  if (!v('signature') && !v('bio')) gaps.push({ t:'a signature', id:'profile-card-signature' });
-  if (!v('photoUrl') && !v('photo')) gaps.push({ t:'your photo', id:'profile-card-profile' });
-  if (!gaps.length){ box.style.display = 'none'; return; }
-  var list = gaps.map(function(g){ return g.t; });
-  var phrase = list.length === 1 ? list[0] : (list.slice(0,-1).join(', ') + ' or ' + list[list.length-1]);
-  txt.textContent = 'Your client emails are going out without ' + phrase + '.';
-  window._profNudgeTarget = gaps[0].id;
-  box.style.display = 'flex';
+  if (box) box.style.display = 'none';
 }
 function profNudgeFix(){ profJumpTo(window._profNudgeTarget || 'profile-card-profile'); }
 window.profNudgeFix = profNudgeFix;
@@ -7161,6 +7147,177 @@ window.showHelp = showHelp;
 // Back-compat: existing dots call showProfileHelp('showingtime'|'zapier')
 function showProfileHelp(type){ return showHelp(type); }
 window.showProfileHelp = showProfileHelp;
+
+// ─── GET STARTED CORNER WIDGET ─────────────────────────────────────────────
+// Floating bottom-right checklist for new agents. Spawned by dismissing the welcome
+// modal (and on every boot until finished or dismissed). Auto-detects completion from
+// real data — no manual check-off. Permanently dismissible via users/{uid}.gsDismissed.
+var _gsMin = (function(){ try { return localStorage.getItem('nt_gs_min') !== '0'; } catch(e){ return true; } })();
+var _gsHasLp = null;        // landing-page existence, resolved async once per session
+var _gsLpChecked = false;
+var _gsCelebrated = false;
+
+function _gsRealClients(){
+  return ((typeof allBuyers !== 'undefined' && allBuyers) || []).filter(function(b){ return b && !b.isPracticeClient; });
+}
+
+function _gsItems(){
+  var a = (typeof currentAgent === 'function') ? (currentAgent() || {}) : {};
+  var v = function(k){ return String(a[k] || '').trim(); };
+  var real = _gsRealClients();
+  var subs = [];
+  if (!v('photoUrl') && !v('photo')) subs.push({ t:'Add your photo', card:'profile-card-profile', help:'profile' });
+  if (!v('signature') && !v('bio')) subs.push({ t:'Signature — optional, NestTrack already signs with your name & contact', card:'profile-card-signature', help:'signature' });
+  if (!v('mailingAddress')) subs.push({ t:'Mailing address — only needed for Thanks.io mailers', card:'profile-card-profile', help:'profile' });
+  return [
+    { t:'Set up your profile', help:'profile', done: !!(v('name') && (v('photoUrl') || v('photo'))),
+      nav:'gsGoProfile()', subs: subs },
+    { t:'Add your first client', help:'clients', done: real.length > 0, nav:'gsGoAddClient()' },
+    { t:'Start them on a buyer or seller journey', help:'deals',
+      done: real.some(function(b){ return (Number(b.currentStep)||0) > 0 || (Number(b.currentSellerStep)||0) > 0; }),
+      nav:'gsGoClients()' },
+    { t:'Enroll a client in NestTracker', help:'nesttracker',
+      done: real.some(function(b){ return !!b.ntEnrolled; }), nav:'gsGoClients()' },
+    { t:'Launch a landing page', help:'landingpages', done: _gsHasLp === true, nav:'gsGoLanding()' }
+  ];
+}
+
+function gsGoProfile(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('profile'); profTab('profile'); } catch(e){} }
+function gsGoProfileCard(cardId){ gsGoProfile(); setTimeout(function(){ try { profJumpTo(cardId); } catch(e){} }, 350); }
+function gsGoClients(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('buyers'); } catch(e){} }
+function gsGoAddClient(){ gsGoClients(); setTimeout(function(){ try { openAddContactModal(); } catch(e){} }, 300); }
+function gsGoLanding(){ try { openLandingPages(); } catch(e){} }
+window.gsGoProfile = gsGoProfile; window.gsGoProfileCard = gsGoProfileCard;
+window.gsGoClients = gsGoClients; window.gsGoAddClient = gsGoAddClient; window.gsGoLanding = gsGoLanding;
+
+function _gsHelpBtn(key){
+  return '<span onclick="event.stopPropagation();showHelp(\''+key+'\')" title="What is this?" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>';
+}
+
+async function _gsCheckLp(){
+  if (_gsLpChecked) return;
+  _gsLpChecked = true;
+  try {
+    var agentId = (userProfile && userProfile.agentId) || '';
+    if (!agentId) { _gsHasLp = false; return; }
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'landing_pages'), fb.where('agentId', '==', agentId), fb.limit(1)));
+    _gsHasLp = !snap.empty;
+  } catch(e) { _gsHasLp = false; }
+  gsRefresh();
+}
+
+function gsSetMin(min){
+  _gsMin = !!min;
+  try { localStorage.setItem('nt_gs_min', _gsMin ? '1' : '0'); } catch(e){}
+  gsRender();
+}
+window.gsSetMin = gsSetMin;
+
+async function gsDismiss(){
+  if (!confirm('Hide the Get Started checklist for good?')) return;
+  _gsWriteDismiss();
+}
+window.gsDismiss = gsDismiss;
+
+function _gsWriteDismiss(){
+  if (userProfile) userProfile.gsDismissed = true;
+  try { if (currentUser) fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { gsDismissed: true }).catch(function(){}); } catch(e){}
+  var el = document.getElementById('gs-widget');
+  if (el) el.remove();
+}
+
+function gsRender(){
+  var el = document.getElementById('gs-widget');
+  if (!el) return;
+  var items = _gsItems();
+  var doneCount = items.filter(function(i){ return i.done; }).length;
+
+  if (doneCount === items.length) {
+    if (_gsCelebrated) return;
+    _gsCelebrated = true;
+    el.innerHTML = '<div style="background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:14px;padding:14px 18px;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;gap:10px;max-width:280px;">'
+      + '<span style="font-size:20px;">🎉</span>'
+      + '<div style="flex:1;font-size:13px;font-weight:600;">You\'re all set — every step done!</div>'
+      + '<button onclick="document.getElementById(\'gs-widget\').remove()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:0;">✕</button>'
+      + '</div>';
+    if (userProfile) userProfile.gsDismissed = true;
+    try { if (currentUser) fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { gsDismissed: true }).catch(function(){}); } catch(e){}
+    setTimeout(function(){ var w = document.getElementById('gs-widget'); if (w) w.remove(); }, 8000);
+    return;
+  }
+
+  if (_gsMin) {
+    var pct = Math.round((doneCount / items.length) * 100);
+    el.innerHTML = '<button onclick="gsSetMin(false)" style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:99px;padding:8px 14px;box-shadow:0 2px 10px rgba(0,0,0,0.14);cursor:pointer;font-family:inherit;">'
+      + '<span style="width:18px;height:18px;border-radius:50%;background:conic-gradient(var(--green) 0% '+pct+'%, var(--surface2) '+pct+'% 100%);display:inline-flex;align-items:center;justify-content:center;"><span style="width:11px;height:11px;border-radius:50%;background:var(--surface);"></span></span>'
+      + '<span style="font-size:12.5px;font-weight:600;color:var(--text);">Get started · '+doneCount+'/'+items.length+'</span>'
+      + '</button>';
+    return;
+  }
+
+  var rows = items.map(function(it){
+    var head;
+    if (it.done) {
+      head = '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
+        + '<span style="color:var(--green);font-size:15px;flex-shrink:0;">✔</span>'
+        + '<span style="flex:1;font-size:12.5px;color:var(--text3);text-decoration:line-through;">'+it.t+'</span>'
+        + '</div>';
+    } else {
+      head = '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
+        + '<span style="color:var(--text3);font-size:15px;flex-shrink:0;">○</span>'
+        + '<span style="flex:1;font-size:12.5px;color:var(--text);">'+it.t+'</span>'
+        + _gsHelpBtn(it.help)
+        + '<button onclick="'+it.nav+'" style="font-size:11px;font-weight:600;padding:3px 9px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;white-space:nowrap;">Go →</button>'
+        + '</div>';
+    }
+    var subRows = '';
+    if (!it.done && it.subs && it.subs.length) {
+      subRows = it.subs.map(function(s){
+        return '<div onclick="gsGoProfileCard(\''+s.card+'\')" style="display:flex;align-items:center;gap:7px;padding:4px 0 4px 23px;cursor:pointer;">'
+          + '<span style="color:var(--text3);font-size:11px;flex-shrink:0;">→</span>'
+          + '<span style="flex:1;font-size:11px;color:var(--text2);line-height:1.4;">'+s.t+'</span>'
+          + _gsHelpBtn(s.help)
+          + '</div>';
+      }).join('');
+    }
+    return head + subRows;
+  }).join('');
+
+  el.innerHTML = '<div style="width:280px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;box-shadow:0 4px 18px rgba(0,0,0,0.16);">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+    + '<span style="font-size:13px;font-weight:600;">Get started · '+doneCount+' of '+items.length+'</span>'
+    + '<span style="display:flex;gap:10px;align-items:center;">'
+    + '<button onclick="gsSetMin(true)" title="Minimize" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:0;line-height:1;">–</button>'
+    + '<button onclick="gsDismiss()" title="Hide for good" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0;line-height:1;">✕</button>'
+    + '</span></div>'
+    + '<div style="height:5px;background:var(--surface2);border-radius:3px;margin-bottom:8px;overflow:hidden;"><div style="height:100%;width:'+Math.round((doneCount/items.length)*100)+'%;background:var(--green);border-radius:3px;"></div></div>'
+    + rows
+    + '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);text-align:center;">'
+    + '<span onclick="openM(\'agent-welcome-modal\')" style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline;">Replay the walkthrough video</span>'
+    + '</div>'
+    + '</div>';
+}
+
+function gsRefresh(){
+  if (document.getElementById('gs-widget')) gsRender();
+}
+window.gsRefresh = gsRefresh;
+
+function gsInit(expand){
+  if (!isAgent || !userProfile || userProfile.gsDismissed) return;
+  _gsCheckLp();
+  var el = document.getElementById('gs-widget');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gs-widget';
+    el.style.cssText = 'position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));right:16px;z-index:760;';
+    document.body.appendChild(el);
+  }
+  if (expand) { _gsMin = false; try { localStorage.setItem('nt_gs_min', '0'); } catch(e){} }
+  gsRender();
+}
+window.gsInit = gsInit;
+// ─── END GET STARTED WIDGET ────────────────────────────────────────────────
 
 // ── FIRST-LOGIN INSTALL NUDGE (mobile only, shows until installed) ──
 function _isStandalone(){
@@ -9009,6 +9166,8 @@ async function showApp() {
   if (isAgent && window._showAgentWelcome) {
     window._showAgentWelcome = false;
     setTimeout(function(){ openM('agent-welcome-modal'); }, 800);
+  } else {
+    try { if (isAgent) setTimeout(function(){ gsInit(); }, 1200); } catch(e){}
   }
   setTimeout(function(){ if(typeof maybeShowInstallNudge==='function') maybeShowInstallNudge(); }, 1600);
   setupChatHead();
@@ -9271,6 +9430,7 @@ function go(page, el) {
   document.getElementById('page-' + page).classList.add('active');
   if (el) el.classList.add('active');
   closeSidebar(); // always close drawer on mobile after nav
+  try { if (typeof gsRefresh === 'function') gsRefresh(); } catch(e){}
   // Show floating save button only on IDX search page
   const floatBtn = document.getElementById('float-save-btn');
   if (floatBtn) floatBtn.style.display = page === 'idx' ? 'block' : 'none';
@@ -19223,6 +19383,8 @@ function dismissAgentWelcome() {
   if (currentUser) {
     fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), { welcomeSeen: true }).catch(function(){});
   }
+  // Hand off to the Get Started checklist — the persistent half of this button.
+  try { if (typeof gsInit === 'function') gsInit(true); } catch(e){}
 }
 window.dismissAgentWelcome = dismissAgentWelcome;
 
