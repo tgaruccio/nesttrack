@@ -9241,6 +9241,7 @@ async function showApp() {
       try { syncHardcodedAgentsToFirestore(); } catch(e){}
       try { backfillTeamFields(); } catch(e){}
       try { await todoLoad(); } catch(e){ console.log('todoLoad:', e && e.message); }
+      try { injectApptReminders(); } catch(e){}
       try { await scheduleLoad(); } catch(e){}
       try { injectScheduleBlocks(); } catch(e){}
       try { obLoad(); } catch(e){}
@@ -16731,11 +16732,13 @@ async function sendPreApprovalEmail() {
 }
 window.sendPreApprovalEmail = sendPreApprovalEmail;
 
+var _todoDismissedAppt = [];
 async function todoLoad() {
   if (!currentUser) return;
   try {
     var snap = await fb.getDoc(fb.doc(fb.db, 'agent_todos', _profileUid()));
     _todos = snap.exists() ? (snap.data().items || []) : [];
+    _todoDismissedAppt = snap.exists() ? (snap.data().dismissedAppt || []) : [];
     todoRender();
     todoScheduleReminderCheck();
     // Refresh dashboard todo count if visible
@@ -16747,6 +16750,41 @@ async function todoLoad() {
   } catch(e) { console.log('todoLoad:', e.message); }
 }
 window.todoLoad = todoLoad;
+
+// Appointments are the source of truth for their to-dos. The list is saved as one whole
+// document, so a stale device can clobber a freshly added appointment to-do (lost write).
+// This reconciler re-injects the to-do for any upcoming appointment that's missing one —
+// self-healing — while honoring deliberate deletions via the dismissed list.
+async function injectApptReminders(){
+  try {
+    var agentId = (userProfile && userProfile.agentId) || '';
+    if (!agentId) return;
+    var snap = await fb.getDocs(fb.collection(fb.db, 'agents', agentId, 'appointments'));
+    var cutoff = Date.now() - 86400000; // today's appointments still count
+    var changed = false;
+    snap.forEach(function(d){
+      var a = d.data();
+      if (!a || !a.date) return;
+      var t = new Date(a.date).getTime();
+      if (isNaN(t) || t < cutoff) return;                    // upcoming only
+      var id = 'appt-' + d.id;
+      if ((_todoDismissedAppt || []).indexOf(id) !== -1) return;  // user removed it on purpose
+      if (_todos.some(function(x){ return x.id === id; })) return; // already there
+      _todos.unshift({
+        id: id,
+        text: a.type + (a.clientName ? ' — ' + a.clientName : '') + (a.address ? ' @ ' + a.address : '') + '  ' + (a.timeStr || ''),
+        date: String(a.date).split('T')[0],
+        time: a.timeStr || '',
+        done: false,
+        createdAt: Date.now(),
+        apptId: d.id,
+      });
+      changed = true;
+    });
+    if (changed) { await todoSave(); todoRender(); }
+  } catch(e){ console.log('apptReminders:', e && e.message); }
+}
+window.injectApptReminders = injectApptReminders;
 
 var TC_LEAD_DAYS = 1; // TC tasks only hit the to-do list this many days before they're due
 function injectDealReminders() {
@@ -16847,7 +16885,7 @@ window.syncTCReminders = syncTCReminders;
 async function todoSave() {
   if (!currentUser) return;
   try {
-    await fb.setDoc(fb.doc(fb.db, 'agent_todos', _profileUid()), { items: _todos, updatedAt: Date.now() });
+    await fb.setDoc(fb.doc(fb.db, 'agent_todos', _profileUid()), { items: _todos, dismissedAppt: _todoDismissedAppt || [], updatedAt: Date.now() });
     todoUpdateBadge();
   } catch(e) { console.log('todoSave:', e.message); alert('Could not save your to-do change \u2014 check your connection and try again.'); }
 }
@@ -16998,7 +17036,10 @@ async function todoToggle(id) {
   if (completed.length > 10) {
     completed.sort(function(a,b){ return (a.doneAt||0)-(b.doneAt||0); });
     var oldest = completed.slice(0, completed.length - 10);
-    oldest.forEach(function(x){ _todos = _todos.filter(function(y){ return y.id !== x.id; }); });
+    oldest.forEach(function(x){
+      if (String(x.id).indexOf('appt-') === 0 && (_todoDismissedAppt || []).indexOf(x.id) === -1) _todoDismissedAppt.push(x.id);
+      _todos = _todos.filter(function(y){ return y.id !== x.id; });
+    });
   }
   _todos.sort(function(a,b){ return a.done === b.done ? 0 : a.done ? 1 : -1; });
   await todoSave();
@@ -17008,6 +17049,7 @@ window.todoToggle = todoToggle;
 
 async function todoDelete(id) {
   var realId = (window._todoMap && window._todoMap[id]) || id;
+  if (String(realId).indexOf('appt-') === 0 && (_todoDismissedAppt || []).indexOf(realId) === -1) _todoDismissedAppt.push(realId);
   _todos = _todos.filter(function(t){ return t.id !== realId; });
   await todoSave();
   todoRender();
@@ -17044,6 +17086,19 @@ function openCalendarSheet(evt){
 }
 window.openCalendarSheet = openCalendarSheet;
 
+// Open a URL outside the app. window.open is silently swallowed by iOS popup
+// blocking and the Median webview — the Median JS bridge (when present) or a real
+// anchor click are what actually work.
+function _calOpenExternal(u){
+  try {
+    if (window.median && median.window && typeof median.window.open === 'function') { median.window.open(u); return; }
+  } catch(e){}
+  var a = document.createElement('a');
+  a.href = u; a.target = '_blank'; a.rel = 'noopener';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ try { document.body.removeChild(a); } catch(e){} }, 500);
+}
+
 function _calGo(which){
   var evt = window._calEvt || {};
   var sheet = document.getElementById('cal-sheet'); if (sheet) sheet.remove();
@@ -17056,7 +17111,7 @@ function _calGo(which){
       + '&dates=' + dates
       + (evt.location ? '&location=' + encodeURIComponent(evt.location) : '')
       + (evt.details ? '&details=' + encodeURIComponent(evt.details) : '');
-    window.open(u, '_blank');
+    _calOpenExternal(u);
     return;
   }
   // Apple / Outlook
@@ -17067,7 +17122,12 @@ function _calGo(which){
       + '&end=' + encodeURIComponent(evt.allDay ? _calFmtDate(new Date(evt.start.getTime()+86400000)) : _calFmtUTC(evt.end || new Date(evt.start.getTime()+3600000)))
       + '&allday=' + (evt.allDay ? '1' : '0')
       + (evt.location ? '&loc=' + encodeURIComponent(evt.location) : '');
-    window.location.href = q; // https + text/calendar headers → native Add to Calendar sheet
+    // In the Median app, hand the ics to the system (external Safari shows the native
+    // Add-to-Calendar sheet); in the browser, direct navigation does the same.
+    try {
+      if (window.median && median.window && typeof median.window.open === 'function') { median.window.open(q); return; }
+    } catch(e){}
+    window.location.href = q;
     return;
   }
   _calBlobFallback(evt);
@@ -23964,6 +24024,7 @@ async function _commitAppt(appt, sendEmail) {
       apptId: ref.id,
     });
     await todoSave();
+    try { todoRender(); } catch(e){}
   } catch(e) { console.log('Todo save err:', e.message); }
 
   // 3. Offer calendar add — chooser sheet (Google = instant, Apple/Outlook = ics)
