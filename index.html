@@ -4772,18 +4772,76 @@ async function _ensureRosterForUser(){
     if (!userProfile.teamRole && typeof agentTeamRole==='function') userProfile.teamRole = agentTeamRole(meRec);
     if (!userProfile.teamId && typeof agentTeamId==='function') userProfile.teamId = agentTeamId(meRec);
   } else {
-    // Solo agent whose own record never loaded — inject it so the roster always shows at least them.
-    DEFAULT_AGENTS.push({
-      id: meId,
-      name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || userProfile.email || meId,
-      role: (userProfile.teamRole==='leader'||userProfile.teamRole==='owner') ? 'Team Leader' : 'REALTOR\u00AE',
-      email: userProfile.email || '',
-      teamRole: userProfile.teamRole || 'member',
-      teamId: userProfile.teamId || meId
-    });
+    // Not in the roster by id — before injecting a duplicate, look for an existing roster
+    // record with this user's EMAIL. Invite/login paths can mint different ids for the same
+    // person, which puts a locked twin of them on the leaderboard and forks their stats.
+    var meEmail = String(userProfile.email||'').toLowerCase();
+    var emailRec = meEmail ? (DEFAULT_AGENTS||[]).find(function(a){ return a.id !== meId && String(a.email||'').toLowerCase() === meEmail; }) : null;
+    if (emailRec) {
+      try { await _healRosterIdDrift(emailRec, meId); } catch(e){ console.log('roster heal:', e && e.message); }
+      if (!userProfile.teamRole && typeof agentTeamRole==='function') userProfile.teamRole = agentTeamRole(emailRec);
+      if (!userProfile.teamId && typeof agentTeamId==='function') userProfile.teamId = agentTeamId(emailRec);
+    } else {
+      // True solo agent whose own record never loaded — inject it so the roster shows at least them.
+      DEFAULT_AGENTS.push({
+        id: meId,
+        name: ((userProfile.firstName||'')+' '+(userProfile.lastName||'')).trim() || userProfile.email || meId,
+        role: (userProfile.teamRole==='leader'||userProfile.teamRole==='owner') ? 'Team Leader' : 'REALTOR\u00AE',
+        email: userProfile.email || '',
+        teamRole: userProfile.teamRole || 'member',
+        teamId: userProfile.teamId || meId
+      });
+    }
   }
 }
 window._ensureRosterForUser = _ensureRosterForUser;
+
+// Heal roster id drift: the login agentId owns all the user's working data (clients, deals,
+// activity subcollections), so the LOGIN id wins — re-key the roster record to it and merge
+// any leaderboard stats saved under the old id. Idempotent; runs on the affected user's login.
+async function _healRosterIdDrift(rec, newId){
+  var oldId = rec.id;
+  if (!oldId || oldId === newId) return;
+  // 1) Re-key the roster record (team_agents docs are keyed by agent id)
+  await fb.setDoc(fb.doc(fb.db,'team_agents', newId), Object.assign({}, rec, { id: newId }), { merge:true });
+  try { await fb.deleteDoc(fb.doc(fb.db,'team_agents', oldId)); } catch(e){}
+  rec.id = newId; // fix the in-memory roster record too
+  // 2) Merge leaderboard stats under the old key into the new key, every year
+  var thisYear = new Date().getFullYear();
+  for (var y = thisYear; y >= 2023; y--) {
+    try {
+      var ref = _tsYearRef(y);
+      var snap = await fb.getDoc(ref);
+      if (!snap.exists()) continue;
+      var data = snap.data() || {};
+      if (!data[oldId]) continue;
+      var o = data[oldId], n = data[newId] || {};
+      data[newId] = Object.assign({}, o, n, {
+        units:  (o.units||0)  + (n.units||0),
+        volume: (o.volume||0) + (n.volume||0),
+        sales:     (o.sales||[]).concat(n.sales||[]),
+        netPayLog: (o.netPayLog||[]).concat(n.netPayLog||[])
+      });
+      delete data[oldId];
+      await fb.setDoc(ref, data); // full rewrite drops the orphaned key
+    } catch(e){ console.log('stat heal '+y+':', e && e.message); }
+  }
+  // 3) Carry over the leaderboard visibility flag if the leader had set one
+  try {
+    var sref = _tsSettingsRef();
+    var ssnap = await fb.getDoc(sref);
+    if (ssnap.exists()) {
+      var sd = ssnap.data() || {};
+      if (sd.leaderboard && Object.prototype.hasOwnProperty.call(sd.leaderboard, oldId)) {
+        var lb = Object.assign({}, sd.leaderboard);
+        if (!Object.prototype.hasOwnProperty.call(lb, newId)) lb[newId] = lb[oldId];
+        delete lb[oldId];
+        await fb.setDoc(sref, { leaderboard: lb }, { merge:true });
+      }
+    }
+  } catch(e){ console.log('flag heal:', e && e.message); }
+  console.log('Healed roster id drift:', oldId, '->', newId);
+}
 
 async function loadUserProfile() {
   // Load any dynamically added agents first
