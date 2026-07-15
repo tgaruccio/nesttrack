@@ -17014,32 +17014,102 @@ async function todoDelete(id) {
 }
 window.todoDelete = todoDelete;
 
+// ─── ADD-TO-CALENDAR CHOOSER ───────────────────────────────────────────────
+// Blob .ics downloads can't trigger the native calendar sheet on iOS (file → Files app dance).
+// This sheet offers: Google Calendar (URL deep link, instant, no file) and Apple/Outlook.
+// Apple is one-tap ONLY when the proxy worker serves the ics over https with the right
+// headers — flip CAL_WORKER_ICS to true after adding the ics route to the worker.
+// Until then the Apple button falls back to the old blob download.
+var CAL_WORKER_ICS = false;
+
+function _calFmtUTC(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
+function _calFmtDate(d){ return d.toISOString().slice(0,10).replace(/-/g,''); }
+
+function openCalendarSheet(evt){
+  // evt: { title, start:Date, end:Date, location, details, allDay }
+  window._calEvt = evt;
+  var old = document.getElementById('cal-sheet'); if (old) old.remove();
+  var el = document.createElement('div');
+  el.id = 'cal-sheet';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+  el.innerHTML = '<div style="background:var(--surface);border-radius:16px 16px 0 0;width:100%;max-width:440px;padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px));">'
+    +'<div style="font-size:14px;font-weight:600;margin-bottom:2px;">Add to calendar</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(evt.title||'')+'</div>'
+    +'<button onclick="_calGo(\'google\')" class="btn btn-g" style="width:100%;margin-bottom:8px;">Google Calendar</button>'
+    +'<button onclick="_calGo(\'apple\')" class="btn" style="width:100%;margin-bottom:8px;">Apple / Outlook</button>'
+    +'<button onclick="document.getElementById(\'cal-sheet\').remove()" style="width:100%;background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:8px;font-family:inherit;">Not now</button>'
+    +'</div>';
+  el.addEventListener('click', function(e){ if (e.target === el) el.remove(); });
+  document.body.appendChild(el);
+}
+window.openCalendarSheet = openCalendarSheet;
+
+function _calGo(which){
+  var evt = window._calEvt || {};
+  var sheet = document.getElementById('cal-sheet'); if (sheet) sheet.remove();
+  if (which === 'google') {
+    var dates = evt.allDay
+      ? _calFmtDate(evt.start) + '/' + _calFmtDate(new Date(evt.start.getTime() + 86400000))
+      : _calFmtUTC(evt.start) + '/' + _calFmtUTC(evt.end || new Date(evt.start.getTime() + 3600000));
+    var u = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+      + '&text=' + encodeURIComponent(evt.title||'')
+      + '&dates=' + dates
+      + (evt.location ? '&location=' + encodeURIComponent(evt.location) : '')
+      + (evt.details ? '&details=' + encodeURIComponent(evt.details) : '');
+    window.open(u, '_blank');
+    return;
+  }
+  // Apple / Outlook
+  if (CAL_WORKER_ICS) {
+    var q = PROXY_URL + '/?action=ics'
+      + '&title=' + encodeURIComponent(evt.title||'')
+      + '&start=' + encodeURIComponent(evt.allDay ? _calFmtDate(evt.start) : _calFmtUTC(evt.start))
+      + '&end=' + encodeURIComponent(evt.allDay ? _calFmtDate(new Date(evt.start.getTime()+86400000)) : _calFmtUTC(evt.end || new Date(evt.start.getTime()+3600000)))
+      + '&allday=' + (evt.allDay ? '1' : '0')
+      + (evt.location ? '&loc=' + encodeURIComponent(evt.location) : '');
+    window.location.href = q; // https + text/calendar headers → native Add to Calendar sheet
+    return;
+  }
+  _calBlobFallback(evt);
+}
+window._calGo = _calGo;
+
+function _calBlobFallback(evt){
+  var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//EN','BEGIN:VEVENT',
+    'UID:'+(evt.uid || ('nt-'+Date.now()))+'@nesttrack',
+    'DTSTAMP:'+_calFmtUTC(new Date())];
+  if (evt.allDay) {
+    lines.push('DTSTART;VALUE=DATE:'+_calFmtDate(evt.start));
+    lines.push('DTEND;VALUE=DATE:'+_calFmtDate(new Date(evt.start.getTime()+86400000)));
+  } else {
+    lines.push('DTSTART:'+_calFmtUTC(evt.start));
+    lines.push('DTEND:'+_calFmtUTC(evt.end || new Date(evt.start.getTime()+3600000)));
+  }
+  lines.push('SUMMARY:'+(evt.title||''));
+  if (evt.location) lines.push('LOCATION:'+evt.location);
+  lines.push('END:VEVENT','END:VCALENDAR');
+  var blob = new Blob([lines.join('\r\n')],{type:'text/calendar;charset=utf-8'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = (evt.title||'event').replace(/\s+/g,'-')+'.ics';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+// ─── END ADD-TO-CALENDAR ───────────────────────────────────────────────────
+
 function todoDownloadICS(sid) {
   var realId = (window._todoMap && window._todoMap[sid]) || sid;
   var todo = _todos.find(function(t){ return t.id === realId; });
   if (!todo || !todo.date) return;
-  var d = todo.date.replace(/-/g,'');
-  var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//Todo//EN'];
-  lines.push('BEGIN:VEVENT');
-  lines.push('UID:todo-'+todo.id+'@nesttrack');
-  if (todo.time) {
-    var dt = todo.date + 'T' + todo.time.replace(':','') + '00';
-    lines.push('DTSTART:' + dt);
-    lines.push('DTEND:' + dt);
-  } else {
-    lines.push('DTSTART;VALUE=DATE:' + d);
-    lines.push('DTEND;VALUE=DATE:' + d);
-  }
-  lines.push('SUMMARY:' + todo.text);
-  lines.push('END:VEVENT');
-  lines.push('END:VCALENDAR');
-  var blob = new Blob([lines.join('\r\n')], {type:'text/calendar'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'task.ics';
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 100);
+  var hasTime = !!todo.time;
+  var start = hasTime ? new Date(todo.date + 'T' + todo.time) : new Date(todo.date + 'T00:00');
+  openCalendarSheet({
+    uid: 'todo-'+todo.id,
+    title: todo.text,
+    start: start,
+    end: hasTime ? new Date(start.getTime() + 3600000) : null,
+    allDay: !hasTime
+  });
 }
 function todoSetReminder(sid) {
   var realId = (window._todoMap && window._todoMap[sid]) || sid;
@@ -23896,31 +23966,18 @@ async function _commitAppt(appt, sendEmail) {
     await todoSave();
   } catch(e) { console.log('Todo save err:', e.message); }
 
-  // 3. Generate ICS — wrapped separately so it never crashes the save
+  // 3. Offer calendar add — chooser sheet (Google = instant, Apple/Outlook = ics)
   try {
     var dt = new Date(appt.date);
     var dtEnd = new Date(dt.getTime() + 60*60*1000);
-    function icsDate(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
-    var icsContent = [
-      'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//NestTrack//EN',
-      'BEGIN:VEVENT',
-      'UID:appt-'+ref.id+'@nesttrack',
-      'DTSTAMP:'+icsDate(new Date()),
-      'DTSTART:'+icsDate(dt),
-      'DTEND:'+icsDate(dtEnd),
-      'SUMMARY:'+appt.type+(appt.clientName?' - '+appt.clientName:''),
-      appt.address ? 'LOCATION:'+appt.address : '',
-      'END:VEVENT','END:VCALENDAR'
-    ].filter(Boolean).join('\r\n');
-    var blob = new Blob([icsContent],{type:'text/calendar;charset=utf-8'});
-    var icsUrl = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = icsUrl;
-    a.download = (appt.type+(appt.clientName?'-'+appt.clientName:'')).replace(/\s+/g,'-')+'.ics';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(icsUrl); }, 1000);
-  } catch(e) { console.log('ICS generation err:', e.message); }
+    openCalendarSheet({
+      uid: 'appt-'+ref.id,
+      title: appt.type + (appt.clientName ? ' - ' + appt.clientName : ''),
+      start: dt, end: dtEnd,
+      location: appt.address || '',
+      details: appt.clientName ? ('Client: ' + appt.clientName) : ''
+    });
+  } catch(e) { console.log('Calendar sheet err:', e.message); }
 
   // 4. Send email if approved
   if (sendEmail && appt.clientEmail) {
