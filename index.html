@@ -7090,6 +7090,8 @@ var HELP_DEFAULTS = {
   marketing:   { title:'How to use Marketing', body:'<strong>To use it:</strong> this is your hub for staying in front of people — send branded emails, run Smart Plans, and generate marketing pieces. <strong>Where it connects:</strong> it pulls from your Clients list and their segments, so you can target the right group (past clients, sphere, leads) without building lists by hand.' },
   onboarding:  { title:'How to use Onboarding', body:'<strong>To use it:</strong> work through the checklist to set up your account — profile, integrations, branding. Team leaders can hit <em>Edit</em> to customize the steps and categories for their agents. <strong>Where it connects:</strong> your progress shows on the team’s accountability dashboard, so leaders can see who’s set up and who needs a nudge.' },
   leaderboard: { title:'How to use the Team Leaderboard', body:'<strong>To use it:</strong> it ranks your team by units and volume for the year, pulled from everyone’s deals. Team leaders can export CSV, send standings to the team, set lead routing, and manage the roster. <strong>Where it connects:</strong> the numbers come straight from the Deal Tracker, so as agents close deals the board updates itself — no manual scorekeeping.' },
+  teamwalkthrough: { title:'Run your whole team on NestTrack', body:'<strong>What you get as a leader:</strong> invite agents to your team, assign them an onboarding trail so they ramp fast, talk in team chat, track everyone on the leaderboard, manage team financials, and route incoming leads to the right agent automatically. <strong>Where to start:</strong> invite your first member from this tab — everything else lights up as your team grows.' },
+  onboarding: { title:'Your team onboarding', body:'<strong>What it is:</strong> a step-by-step ramp your team leader assigned to get you producing fast. <strong>To use it:</strong> open My Onboarding, work the steps in order, and check each one off — your leader sees your progress. It counts toward your Get Started checklist until every step is done.' },
   profile:     { title:'How to set up your Profile', body:'<strong>To use it:</strong> fill in your photo, bio, and contact info, set your branding, and (if you’re the subscription owner) manage billing here. <strong>Where it connects:</strong> your profile info flows onto your clients’ Your Agent card, your branded emails, and your landing pages — so setting it up once makes everything you send look consistent and professional.' },
   todos:       { title:'How the To-Do List works', body:'<strong>What it does:</strong> your running task list across every deal and client — nothing falls through the cracks. <strong>How to use it:</strong> tasks are added automatically as deals move (a new stage, an unread client message, an upcoming date) and you can add your own anytime. Check them off as you go; overdue items float to the top. <strong>Where it connects:</strong> it’s wired to your deal timelines and reminders, and the AI Transaction Coordinator drops its tracked tasks here too — so your to-dos, your deadlines, and the AI TC all live in one place.' },
   referrals:   { title:'How to Send Referrals', body:'<strong>What it does:</strong> pass a client to another agent (an out-of-area move, a different specialty) and keep a record of it. <strong>How to use it:</strong> open Send Referrals, pick the contact, and send — the agent on the other end gets the client’s info. <strong>Where it connects:</strong> it pulls from your Clients list, so a referral goes out with the details you already have on file — and you stay in the loop as the referring agent.' },
@@ -7226,7 +7228,7 @@ function _gsItems(){
   if (!v('photoUrl') && !v('photo')) subs.push({ t:'Add your photo', card:'profile-card-profile', help:'profile' });
   if (!v('signature') && !v('bio')) subs.push({ t:'Signature — optional, NestTrack already signs with your name & contact', card:'profile-card-signature', help:'signature' });
   if (!v('mailingAddress')) subs.push({ t:'Mailing address — only needed for Thanks.io mailers', card:'profile-card-profile', help:'profile' });
-  return [
+  var out = [
     { t:'Set up your profile', help:'profile', done: !!(v('name') && (v('photoUrl') || v('photo'))),
       nav:'gsGoProfile()', subs: subs },
     { t:'Add your first client', help:'clients', done: real.length > 0, nav:'gsGoAddClient()' },
@@ -7240,6 +7242,19 @@ function _gsItems(){
     { t:'Add a listing to the Offer Manager', help:'offers', optional: true,
       done: _gsHasListing === true, nav:'gsGoOffers()' }
   ];
+  // Team members with a leader-assigned onboarding trail: it's REQUIRED and tracks
+  // live step progress — "started" isn't the bar, completed is.
+  if (userProfile && userProfile.teamRole === 'member' && userProfile.onboardingAssigned) {
+    var obSteps = (typeof _obSteps !== 'undefined' && _obSteps) ? _obSteps : ((typeof _obDefaultSteps === 'function') ? _obDefaultSteps() : []);
+    var obDone = obSteps.filter(function(s){ return (typeof _obProgress !== 'undefined') && _obProgress && _obProgress[s.id]; }).length;
+    out.splice(1, 0, {
+      t: 'Complete your team onboarding', help: 'onboarding',
+      badge: obSteps.length ? (obDone + ' of ' + obSteps.length + ' steps') : '',
+      done: obSteps.length > 0 && obDone === obSteps.length,
+      nav: 'gsGoMyOnboarding()'
+    });
+  }
+  return out;
 }
 
 function gsGoProfile(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('profile'); profTab('profile'); } catch(e){} }
@@ -7247,6 +7262,22 @@ function gsGoProfileCard(cardId){ gsGoProfile(); setTimeout(function(){ try { pr
 function gsGoClients(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('buyers'); } catch(e){} }
 function gsGoAddClient(){ gsGoClients(); setTimeout(function(){ try { openAddContactModal(); } catch(e){} }, 300); }
 function gsGoBizCard(){ try { openBizCardHub(); } catch(e){} }
+function gsGoMyOnboarding(){ try { go('onboarding', document.querySelector('[data-pg=onboarding]')); } catch(e){} }
+window.gsGoMyOnboarding = gsGoMyOnboarding;
+
+// Exit question: are they going to run a team? ✕ counts as no. Yes lands them on the
+// Team tab (chat, leaderboard, financials, team onboarding, lead routing) with the
+// walkthrough video opening on arrival. The answer persists as gsTeamIntent.
+async function gsTeamAnswer(ans){
+  if (userProfile) { userProfile.gsTeamIntent = ans; userProfile.gsDismissed = true; }
+  try { if (currentUser) fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), { gsTeamIntent: ans, gsDismissed: true }).catch(function(){}); } catch(e){}
+  var w = document.getElementById('gs-widget'); if (w) w.remove();
+  if (ans === 'yes') {
+    try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('team'); } catch(e){}
+    setTimeout(function(){ try { showHelp('teamwalkthrough'); } catch(e){} }, 600);
+  }
+}
+window.gsTeamAnswer = gsTeamAnswer;
 function gsGoOffers(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('offers'); } catch(e){} }
 window.gsGoProfile = gsGoProfile; window.gsGoProfileCard = gsGoProfileCard;
 window.gsGoClients = gsGoClients; window.gsGoAddClient = gsGoAddClient;
@@ -7303,6 +7334,24 @@ function gsRender(){
 
   if (doneCount === required.length) {
     var optPending = items.some(function(i){ return i.optional && !i.done; });
+    var isLeaderRole = userProfile && (userProfile.teamRole === 'leader' || userProfile.teamRole === 'owner');
+    if (isLeaderRole && !userProfile.gsTeamIntent) {
+      // Exit question — one card, one tap. ✕ counts as "just me". The answer persists.
+      el.innerHTML = '<div style="width:290px;background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:14px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);position:relative;">'
+        + '<button onclick="gsTeamAnswer(\'no\')" title="Just me" style="position:absolute;top:10px;right:12px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0;line-height:1;">✕</button>'
+        + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding-right:16px;">'
+        + '<span style="font-size:20px;">🎉</span>'
+        + '<div style="flex:1;font-size:13px;font-weight:600;">You\'re all set — every step done!</div>'
+        + '</div>'
+        + '<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:10px;">One last thing — are you a team leader (or planning to be)? NestTrack runs your whole team: invites, training, accountability, the leaderboard.</div>'
+        + (optPending ? '<div style="font-size:10.5px;color:var(--text3);margin-bottom:10px;">PS — add a listing to the Offer Manager whenever you get one.</div>' : '')
+        + '<div style="display:flex;gap:8px;">'
+        + '<button onclick="gsTeamAnswer(\'yes\')" style="flex:1;font-size:12px;font-weight:600;padding:7px 0;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;">Show me how</button>'
+        + '<button onclick="gsTeamAnswer(\'no\')" style="flex:1;font-size:12px;font-weight:600;padding:7px 0;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;">Just me</button>'
+        + '</div>'
+        + '</div>';
+      return;
+    }
     if (optPending) {
       // Required steps done, optional listing still open: celebrate, point at it, and let THEM
       // close it — don't vanish mid-thought. Dismiss only writes when they tap Done.
@@ -7350,12 +7399,13 @@ function gsRender(){
         + '</div>';
     } else {
       var optTag = it.optional ? ' <span style="font-size:10px;color:var(--text3);">(optional — when you have one)</span>' : '';
+      var badge = it.badge ? ' <span style="font-size:10px;color:#854F0B;font-weight:600;white-space:nowrap;">'+it.badge+'</span>' : '';
       var goStyle = it.optional
         ? 'font-size:11px;font-weight:600;padding:3px 9px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;white-space:nowrap;'
         : 'font-size:11px;font-weight:600;padding:3px 9px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;white-space:nowrap;';
       head = '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
         + '<span style="color:var(--text3);font-size:15px;flex-shrink:0;">○</span>'
-        + '<span style="flex:1;font-size:12.5px;color:'+(it.optional?'var(--text2)':'var(--text)')+';">'+it.t+optTag+'</span>'
+        + '<span style="flex:1;font-size:12.5px;color:'+(it.optional?'var(--text2)':'var(--text)')+';">'+it.t+optTag+badge+'</span>'
         + _gsHelpBtn(it.help)
         + '<button onclick="'+it.nav+'" style="'+goStyle+'">Go →</button>'
         + '</div>';
