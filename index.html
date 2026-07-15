@@ -17020,7 +17020,7 @@ window.todoDelete = todoDelete;
 // Apple is one-tap ONLY when the proxy worker serves the ics over https with the right
 // headers — flip CAL_WORKER_ICS to true after adding the ics route to the worker.
 // Until then the Apple button falls back to the old blob download.
-var CAL_WORKER_ICS = false;
+var CAL_WORKER_ICS = true; // /api/v1/ics route is live on the worker — deploy the worker BEFORE this file
 
 function _calFmtUTC(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
 function _calFmtDate(d){ return d.toISOString().slice(0,10).replace(/-/g,''); }
@@ -17061,8 +17061,8 @@ function _calGo(which){
   }
   // Apple / Outlook
   if (CAL_WORKER_ICS) {
-    var q = PROXY_URL + '/?action=ics'
-      + '&title=' + encodeURIComponent(evt.title||'')
+    var q = PROXY_URL + '/api/v1/ics'
+      + '?title=' + encodeURIComponent(evt.title||'')
       + '&start=' + encodeURIComponent(evt.allDay ? _calFmtDate(evt.start) : _calFmtUTC(evt.start))
       + '&end=' + encodeURIComponent(evt.allDay ? _calFmtDate(new Date(evt.start.getTime()+86400000)) : _calFmtUTC(evt.end || new Date(evt.start.getTime()+3600000)))
       + '&allday=' + (evt.allDay ? '1' : '0')
