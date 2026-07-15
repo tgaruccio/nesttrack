@@ -7153,8 +7153,6 @@ window.showProfileHelp = showProfileHelp;
 // modal (and on every boot until finished or dismissed). Auto-detects completion from
 // real data — no manual check-off. Permanently dismissible via users/{uid}.gsDismissed.
 var _gsMin = (function(){ try { return localStorage.getItem('nt_gs_min') !== '0'; } catch(e){ return true; } })();
-var _gsHasLp = null;        // landing-page existence, resolved async once per session
-var _gsLpChecked = false;
 var _gsCelebrated = false;
 
 function _gsRealClients(){
@@ -7178,7 +7176,10 @@ function _gsItems(){
       nav:'gsGoClients()' },
     { t:'Enroll a client in NestTracker', help:'nesttracker',
       done: real.some(function(b){ return !!b.ntEnrolled; }), nav:'gsGoClients()' },
-    { t:'Launch a landing page', help:'landingpages', done: _gsHasLp === true, nav:'gsGoLanding()' }
+    { t:'Set up your virtual business card', help:'businesscard',
+      done: !!(userProfile && userProfile.gsBizCardSeen), nav:'gsGoBizCard()' },
+    { t:'Add a listing to the Offer Manager', help:'offers', optional: true,
+      done: _gsHasListing === true, nav:'gsGoOffers()' }
   ];
 }
 
@@ -7186,24 +7187,31 @@ function gsGoProfile(){ try { go('agent', document.querySelector('[data-pg=agent
 function gsGoProfileCard(cardId){ gsGoProfile(); setTimeout(function(){ try { profJumpTo(cardId); } catch(e){} }, 350); }
 function gsGoClients(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('buyers'); } catch(e){} }
 function gsGoAddClient(){ gsGoClients(); setTimeout(function(){ try { openAddContactModal(); } catch(e){} }, 300); }
-function gsGoLanding(){ try { openLandingPages(); } catch(e){} }
+function gsGoBizCard(){ try { openBizCardHub(); } catch(e){} }
+function gsGoOffers(){ try { go('agent', document.querySelector('[data-pg=agent]')); switchAgentTab('offers'); } catch(e){} }
 window.gsGoProfile = gsGoProfile; window.gsGoProfileCard = gsGoProfileCard;
-window.gsGoClients = gsGoClients; window.gsGoAddClient = gsGoAddClient; window.gsGoLanding = gsGoLanding;
+window.gsGoClients = gsGoClients; window.gsGoAddClient = gsGoAddClient;
+window.gsGoBizCard = gsGoBizCard; window.gsGoOffers = gsGoOffers;
 
 function _gsHelpBtn(key){
   return '<span onclick="event.stopPropagation();showHelp(\''+key+'\')" title="What is this?" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>';
 }
 
-async function _gsCheckLp(){
-  if (_gsLpChecked) return;
-  _gsLpChecked = true;
+var _gsHasListing = null;    // offer-manager listing existence, rechecked with a TTL so mid-session progress clears
+var _gsListingCheckedAt = 0;
+
+async function _gsCheckListing(){
+  if (_gsHasListing === true) return;                       // done is done — stop querying
+  if (Date.now() - _gsListingCheckedAt < 90000) return;     // recheck at most every 90s
+  _gsListingCheckedAt = Date.now();
   try {
     var agentId = (userProfile && userProfile.agentId) || '';
-    if (!agentId) { _gsHasLp = false; return; }
-    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'landing_pages'), fb.where('agentId', '==', agentId), fb.limit(1)));
-    _gsHasLp = !snap.empty;
-  } catch(e) { _gsHasLp = false; }
-  gsRefresh();
+    if (!agentId) { _gsHasListing = false; return; }
+    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'offer_listings'), fb.where('agentId', '==', agentId), fb.limit(1)));
+    var found = !snap.empty;
+    if (found !== _gsHasListing) { _gsHasListing = found; gsRefresh(); }
+    else _gsHasListing = found;
+  } catch(e) { if (_gsHasListing === null) _gsHasListing = false; }
 }
 
 function gsSetMin(min){
@@ -7230,9 +7238,10 @@ function gsRender(){
   var el = document.getElementById('gs-widget');
   if (!el) return;
   var items = _gsItems();
-  var doneCount = items.filter(function(i){ return i.done; }).length;
+  var required = items.filter(function(i){ return !i.optional; });
+  var doneCount = required.filter(function(i){ return i.done; }).length;
 
-  if (doneCount === items.length) {
+  if (doneCount === required.length) {
     if (_gsCelebrated) return;
     _gsCelebrated = true;
     el.innerHTML = '<div style="background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:14px;padding:14px 18px;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:flex;align-items:center;gap:10px;max-width:280px;">'
@@ -7247,10 +7256,10 @@ function gsRender(){
   }
 
   if (_gsMin) {
-    var pct = Math.round((doneCount / items.length) * 100);
+    var pct = Math.round((doneCount / required.length) * 100);
     el.innerHTML = '<button onclick="gsSetMin(false)" style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--green-md,#9FE1CB);border-radius:99px;padding:8px 14px;box-shadow:0 2px 10px rgba(0,0,0,0.14);cursor:pointer;font-family:inherit;">'
       + '<span style="width:18px;height:18px;border-radius:50%;background:conic-gradient(var(--green) 0% '+pct+'%, var(--surface2) '+pct+'% 100%);display:inline-flex;align-items:center;justify-content:center;"><span style="width:11px;height:11px;border-radius:50%;background:var(--surface);"></span></span>'
-      + '<span style="font-size:12.5px;font-weight:600;color:var(--text);">Get started · '+doneCount+'/'+items.length+'</span>'
+      + '<span style="font-size:12.5px;font-weight:600;color:var(--text);">Get started · '+doneCount+'/'+required.length+'</span>'
       + '</button>';
     return;
   }
@@ -7263,11 +7272,15 @@ function gsRender(){
         + '<span style="flex:1;font-size:12.5px;color:var(--text3);text-decoration:line-through;">'+it.t+'</span>'
         + '</div>';
     } else {
+      var optTag = it.optional ? ' <span style="font-size:10px;color:var(--text3);">(optional — when you have one)</span>' : '';
+      var goStyle = it.optional
+        ? 'font-size:11px;font-weight:600;padding:3px 9px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:var(--r-sm);cursor:pointer;font-family:inherit;white-space:nowrap;'
+        : 'font-size:11px;font-weight:600;padding:3px 9px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;white-space:nowrap;';
       head = '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;">'
         + '<span style="color:var(--text3);font-size:15px;flex-shrink:0;">○</span>'
-        + '<span style="flex:1;font-size:12.5px;color:var(--text);">'+it.t+'</span>'
+        + '<span style="flex:1;font-size:12.5px;color:'+(it.optional?'var(--text2)':'var(--text)')+';">'+it.t+optTag+'</span>'
         + _gsHelpBtn(it.help)
-        + '<button onclick="'+it.nav+'" style="font-size:11px;font-weight:600;padding:3px 9px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);cursor:pointer;font-family:inherit;white-space:nowrap;">Go →</button>'
+        + '<button onclick="'+it.nav+'" style="'+goStyle+'">Go →</button>'
         + '</div>';
     }
     var subRows = '';
@@ -7285,12 +7298,12 @@ function gsRender(){
 
   el.innerHTML = '<div style="width:280px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;box-shadow:0 4px 18px rgba(0,0,0,0.16);">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
-    + '<span style="font-size:13px;font-weight:600;">Get started · '+doneCount+' of '+items.length+'</span>'
+    + '<span style="font-size:13px;font-weight:600;">Get started · '+doneCount+' of '+required.length+'</span>'
     + '<span style="display:flex;gap:10px;align-items:center;">'
-    + '<button onclick="gsSetMin(true)" title="Minimize" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:0;line-height:1;">–</button>'
     + '<button onclick="gsDismiss()" title="Hide for good" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0;line-height:1;">✕</button>'
+    + '<button onclick="gsSetMin(true)" title="Minimize" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:0;line-height:1;">–</button>'
     + '</span></div>'
-    + '<div style="height:5px;background:var(--surface2);border-radius:3px;margin-bottom:8px;overflow:hidden;"><div style="height:100%;width:'+Math.round((doneCount/items.length)*100)+'%;background:var(--green);border-radius:3px;"></div></div>'
+    + '<div style="height:5px;background:var(--surface2);border-radius:3px;margin-bottom:8px;overflow:hidden;"><div style="height:100%;width:'+Math.round((doneCount/required.length)*100)+'%;background:var(--green);border-radius:3px;"></div></div>'
     + rows
     + '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);text-align:center;">'
     + '<span onclick="openM(\'agent-welcome-modal\')" style="font-size:11px;color:var(--text3);cursor:pointer;text-decoration:underline;">Replay the walkthrough video</span>'
@@ -7299,13 +7312,13 @@ function gsRender(){
 }
 
 function gsRefresh(){
-  if (document.getElementById('gs-widget')) gsRender();
+  if (document.getElementById('gs-widget')) { _gsCheckListing(); gsRender(); }
 }
 window.gsRefresh = gsRefresh;
 
 function gsInit(expand){
   if (!isAgent || !userProfile || userProfile.gsDismissed) return;
-  _gsCheckLp();
+  _gsCheckListing();
   var el = document.getElementById('gs-widget');
   if (!el) {
     el = document.createElement('div');
@@ -8762,6 +8775,14 @@ function _bcAgentId(){
 function bizCardUrl(){ return CARD_BASE_URL + '?id=' + encodeURIComponent(_bcAgentId()); }
 
 function openBizCardHub(){
+  // Get Started checklist: seeing your card once counts as set up — it's live from your profile already.
+  try {
+    if (userProfile && !userProfile.gsBizCardSeen) {
+      userProfile.gsBizCardSeen = true;
+      if (currentUser) fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), { gsBizCardSeen: true }).catch(function(){});
+      if (typeof gsRefresh === 'function') setTimeout(gsRefresh, 400);
+    }
+  } catch(e){}
   var url = bizCardUrl();
   var ov=document.createElement('div');
   ov.id='bizcard-hub';
