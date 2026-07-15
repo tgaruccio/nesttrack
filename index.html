@@ -527,6 +527,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="onboarding" onclick="go('onboarding',this)" id="nb-onboarding" style="display:none;">🎓 My Onboarding</button>
 
     <div class="ns">Outreach</div>
+    <button class="nb" onclick="go('agent',document.querySelector('[data-pg=agent]'));switchAgentTab('showings')">📅 Showings &amp; Appts</button>
     <button class="nb" data-pg="marketing" onclick="go('marketing',this)">📣 Marketing</button>
     <button class="nb" data-pg="newsletter" onclick="go('newsletter',this)">📧 Email</button>
     <button class="nb" onclick="closeSidebar();openBizCardHub()">💳 Business Card</button>
@@ -2577,7 +2578,7 @@ textarea{resize:vertical;min-height:68px;}
   <div id="appt-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:16px;">
     <div style="background:var(--surface);border-radius:var(--r);width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);">
-        <div style="font-size:15px;font-weight:600;">Add Appointment</div>
+        <div style="font-size:15px;font-weight:600;" id="appt-modal-title">Add Appointment</div>
         <button onclick="dismissApptModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3);">&#10005;</button>
       </div>
       <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
@@ -2628,7 +2629,7 @@ textarea{resize:vertical;min-height:68px;}
         </div>
         <div id="appt-error" style="display:none;font-size:12px;color:#E24B4A;font-weight:500;"></div>
         <div style="display:flex;gap:8px;padding-top:4px;">
-          <button class="btn btn-g" onclick="saveAppt()" style="flex:1;">Save Appointment</button>
+          <button class="btn btn-g" onclick="saveAppt()" style="flex:1;" id="appt-save-btn">Save Appointment</button>
           <button class="btn" onclick="dismissApptModal()">Cancel</button>
         </div>
       </div>
@@ -2656,7 +2657,7 @@ textarea{resize:vertical;min-height:68px;}
   <!-- SHOWINGS TAB -->
   <div id="agent-showings-panel" style="display:none;flex-direction:column;gap:12px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-      <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text3);">ShowingTime sync + manual showings <span onclick="showHelp('showings')" title="What is this? How does it connect?" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
+      <div onclick="toggleShowingsSection()" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text3);cursor:pointer;user-select:none;"><span id="showings-caret" style="font-size:11px;">▾</span><span style="font-weight:600;color:var(--text);">🔑 Showings</span><span id="showings-count"></span><span style="margin-left:2px;">ShowingTime sync + manual</span> <span onclick="event.stopPropagation();showHelp('showings')" title="What is this? How does it connect?" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
       <button class="btn btn-sm btn-g" onclick="openManualShowingModal()">+ Add Showing</button>
     </div>
     <div id="showing-inbox"></div>
@@ -23795,6 +23796,15 @@ async function renderShowingInbox() {
   }
 
   el.innerHTML = html;
+  // Update the header count + re-apply the user's collapsed preference
+  try {
+    var _sc = document.getElementById('showings-count');
+    if (_sc) {
+      var _n = el.querySelectorAll('input[id^="showing-client-"]').length;
+      _sc.textContent = _n ? '\u00b7 ' + _n : '';
+    }
+    if (localStorage.getItem('nt_showings_collapsed') === '1') toggleShowingsSection(true);
+  } catch(e){}
 }
 window.renderShowingInbox = renderShowingInbox;
 
@@ -23805,8 +23815,24 @@ window.renderShowingInbox = renderShowingInbox;
 
 var _pendingApptData = null; // stores appt data while email is being reviewed
 
+function toggleShowingsSection(force){
+  var inbox = document.getElementById('showing-inbox');
+  var caret = document.getElementById('showings-caret');
+  if (!inbox) return;
+  var collapse = (typeof force === 'boolean') ? force : inbox.style.display !== 'none';
+  inbox.style.display = collapse ? 'none' : '';
+  if (caret) caret.textContent = collapse ? '\u25B8' : '\u25BE';
+  try { localStorage.setItem('nt_showings_collapsed', collapse ? '1' : '0'); } catch(e){}
+}
+window.toggleShowingsSection = toggleShowingsSection;
+
 function openApptModal() {
   window._apptReturnToClientUid = null;
+  window._editingApptId = null;
+  var titleEl2 = document.getElementById('appt-modal-title');
+  if (titleEl2) titleEl2.textContent = 'Add Appointment';
+  var saveBtn = document.getElementById('appt-save-btn');
+  if (saveBtn) saveBtn.textContent = 'Save Appointment';
   var search = document.getElementById('appt-client-search');
   if (search) { search.value = ''; }
   var hidden = document.getElementById('appt-client');
@@ -23915,7 +23941,9 @@ async function saveAppt() {
   var clientEmail2 = buyer ? (buyer.email2||'') : '';
 
   // Build the appt record
+  var _editId = window._editingApptId || null;
   var apptRecord = {
+    _editId:     _editId,
     clientUid:   clientUid,
     clientName:  clientName,
     clientEmail: clientEmail,
@@ -23938,7 +23966,7 @@ async function saveAppt() {
   var emoji = typeEmojis[apptType] || '📌';
   var emailHtml = '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
     +'<div style="background:#1D9E75;padding:22px 26px;border-radius:10px 10px 0 0;">'
-    +'<div style="font-size:22px;font-weight:300;color:#fff;">'+emoji+' Appointment Confirmed</div>'
+    +'<div style="font-size:22px;font-weight:300;color:#fff;">'+emoji+' Appointment '+(_editId?'Updated':'Confirmed')+'</div>'
     +'<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">Nest Track'+(_agentBrokerage()?' · '+_agentBrokerage():'')+'</div>'
     +'</div>'
     +'<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
@@ -23958,7 +23986,7 @@ async function saveAppt() {
     +'</div></div>';
 
   apptRecord._emailHtml = emailHtml;
-  apptRecord._emailSubject = emoji+' '+apptType+' — '+dateStr+' at '+timeStr;
+  apptRecord._emailSubject = emoji+' '+(_editId?'Updated: ':'')+apptType+' — '+dateStr+' at '+timeStr;
 
   if (sendEmail && clientEmail) {
     // Show email preview for agent approval
@@ -24006,43 +24034,69 @@ async function _commitAppt(appt, sendEmail) {
   var agentId = appt.agentId || userProfile.agentId || '';
 
   // 1. Save to Firestore FIRST — this must succeed before anything else
+  var isEdit = !!appt._editId;
   var ref;
   try {
-    ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'appointments'), {
-      clientUid:   appt.clientUid,
-      clientName:  appt.clientName,
-      clientEmail: appt.clientEmail,
-      type:        appt.type,
-      date:        appt.date,
-      dateStr:     appt.dateStr,
-      timeStr:     appt.timeStr,
-      address:     appt.address||'',
-      notes:       appt.notes||'',
-      agentName:   appt.agentName||'',
-      agentEmail:  appt.agentEmail||'',
-      emailSent:   sendEmail,
-      createdAt:   fb.serverTimestamp(),
-    });
+    if (isEdit) {
+      await fb.setDoc(fb.doc(fb.db,'agents',agentId,'appointments', appt._editId), {
+        clientUid:   appt.clientUid,
+        clientName:  appt.clientName,
+        clientEmail: appt.clientEmail,
+        type:        appt.type,
+        date:        appt.date,
+        dateStr:     appt.dateStr,
+        timeStr:     appt.timeStr,
+        address:     appt.address||'',
+        notes:       appt.notes||'',
+        emailSent:   sendEmail,
+        updatedAt:   fb.serverTimestamp(),
+      }, { merge:true });
+      ref = { id: appt._editId };
+      window._editingApptId = null;
+    } else {
+      ref = await fb.addDoc(fb.collection(fb.db,'agents',agentId,'appointments'), {
+        clientUid:   appt.clientUid,
+        clientName:  appt.clientName,
+        clientEmail: appt.clientEmail,
+        type:        appt.type,
+        date:        appt.date,
+        dateStr:     appt.dateStr,
+        timeStr:     appt.timeStr,
+        address:     appt.address||'',
+        notes:       appt.notes||'',
+        agentName:   appt.agentName||'',
+        agentEmail:  appt.agentEmail||'',
+        emailSent:   sendEmail,
+        createdAt:   fb.serverTimestamp(),
+      });
+    }
   } catch(e) {
     alert('Failed to save appointment: '+e.message);
     return;
   }
 
-  // Log the appointment to the client's Communications history
-  try { if (appt.clientUid) logEmailActivity(appt.clientUid, appt.type + ' \u2014 ' + appt.dateStr + (appt.timeStr ? (' at ' + appt.timeStr) : ''), 'appointment'); } catch(e){}
+  // Log the appointment to the client's Communications history (new appointments only)
+  try { if (!isEdit && appt.clientUid) logEmailActivity(appt.clientUid, appt.type + ' \u2014 ' + appt.dateStr + (appt.timeStr ? (' at ' + appt.timeStr) : ''), 'appointment'); } catch(e){}
 
-  // 2. Add to To-Do list
+  // 2. Add to To-Do list (or update the linked to-do on edit)
   try {
     var todoText = appt.type+(appt.clientName?' — '+appt.clientName:'')+(appt.address?' @ '+appt.address:'')+'  '+appt.timeStr;
-    _todos.unshift({
-      id: 'appt-'+ref.id,
-      text: todoText,
-      date: appt.date.split('T')[0],
-      time: appt.timeStr,
-      done: false,
-      createdAt: Date.now(),
-      apptId: ref.id,
-    });
+    var existingTodo = _todos.find(function(t){ return t.id === 'appt-'+ref.id; });
+    if (existingTodo) {
+      existingTodo.text = todoText;
+      existingTodo.date = appt.date.split('T')[0];
+      existingTodo.time = appt.timeStr;
+    } else if ((_todoDismissedAppt||[]).indexOf('appt-'+ref.id) === -1) {
+      _todos.unshift({
+        id: 'appt-'+ref.id,
+        text: todoText,
+        date: appt.date.split('T')[0],
+        time: appt.timeStr,
+        done: false,
+        createdAt: Date.now(),
+        apptId: ref.id,
+      });
+    }
     await todoSave();
     try { todoRender(); } catch(e){}
   } catch(e) { console.log('Todo save err:', e.message); }
@@ -24136,6 +24190,7 @@ async function renderApptList() {
     }
 
     var typeEmojis = {'Meeting':'📋','Walkthrough':'🚶','Final Walkthrough':'🏁','Signing':'✍️','Inspection':'🔍','Appraisal':'📐','Open House':'🏡','Other':'📌'};
+    window._apptCache = appts;
     el.innerHTML = appts.map(function(a) {
       var dt = new Date(a.date);
       var dayStr = dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
@@ -24152,7 +24207,11 @@ async function renderApptList() {
         +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(a.timeStr||'')+(a.address?' · '+partnerEsc(a.address):'')+'</div>'
         +(a.clientName?'<div style="font-size:12px;color:var(--purple-dk);margin-top:3px;font-weight:500;">'+partnerEsc(a.clientName)+'</div>':'')
         +(a.notes?'<div style="font-size:11px;color:var(--text3);margin-top:2px;font-style:italic;">'+partnerEsc(a.notes)+'</div>':'')
-        +'<button onclick="deleteAppt(\''+a.id+'\',\''+partnerEsc(a.clientName||'')+'\',\'appt-'+a.id+'\')" style="margin-top:7px;background:none;border:none;font-size:11px;color:#E24B4A;cursor:pointer;padding:0;">Remove</button>'
+        +'<div style="display:flex;gap:14px;margin-top:7px;align-items:center;">'
+        +'<button onclick="editAppt(\''+a.id+'\')" style="background:none;border:none;font-size:11px;color:var(--green-dk);cursor:pointer;padding:0;font-weight:600;">\u270E Edit</button>'
+        +'<button onclick="apptToCalendar(\''+a.id+'\')" style="background:none;border:none;font-size:11px;color:var(--green-dk);cursor:pointer;padding:0;font-weight:600;">\uD83D\uDCC5 Calendar</button>'
+        +'<button onclick="deleteAppt(\''+a.id+'\',\''+partnerEsc(a.clientName||'')+'\',\'appt-'+a.id+'\')" style="background:none;border:none;font-size:11px;color:#E24B4A;cursor:pointer;padding:0;">Remove</button>'
+        +'</div>'
         +'</div></div></div>';
     }).join('');
   } catch(e) {
@@ -24174,6 +24233,60 @@ async function deleteAppt(docId, clientName, todoId) {
   } catch(e) { alert('Failed: '+e.message); }
 }
 window.deleteAppt = deleteAppt;
+
+// Edit an existing appointment: same modal, prefilled, saves over the same doc.
+function editAppt(id){
+  var a = (window._apptCache||[]).find(function(x){ return x.id === id; });
+  if (!a) return;
+  openApptModal(); // resets fields + edit state
+  window._editingApptId = id;
+  var titleEl = document.getElementById('appt-modal-title');
+  if (titleEl) titleEl.textContent = 'Edit Appointment';
+  var saveBtn = document.getElementById('appt-save-btn');
+  if (saveBtn) saveBtn.textContent = 'Save Changes';
+  setTimeout(function(){
+    var search = document.getElementById('appt-client-search');
+    var hidden = document.getElementById('appt-client');
+    if (search) search.value = a.clientName || '';
+    if (hidden) hidden.value = a.clientUid || '';
+    var typeSel = document.getElementById('appt-type');
+    var typeCustom = document.getElementById('appt-type-custom');
+    if (typeSel) {
+      var hasOpt = false;
+      for (var i = 0; i < typeSel.options.length; i++) { if (typeSel.options[i].value === a.type) { hasOpt = true; break; } }
+      typeSel.value = hasOpt ? a.type : 'Other';
+      if (!hasOpt && typeCustom) { typeCustom.value = a.type || ''; typeCustom.style.display = 'block'; }
+      else if (typeCustom) { typeCustom.value = ''; typeCustom.style.display = 'none'; }
+    }
+    var dt = new Date(a.date);
+    if (!isNaN(dt.getTime())) {
+      var dEl = document.getElementById('appt-date');
+      if (dEl) dEl.value = dt.getFullYear()+'-'+('0'+(dt.getMonth()+1)).slice(-2)+'-'+('0'+dt.getDate()).slice(-2);
+      var tEl = document.getElementById('appt-time');
+      if (tEl) tEl.value = ('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2);
+    }
+    var addrEl = document.getElementById('appt-address');
+    if (addrEl) addrEl.value = a.address || '';
+    var notesEl = document.getElementById('appt-notes');
+    if (notesEl) notesEl.value = a.notes || '';
+  }, 60);
+}
+window.editAppt = editAppt;
+
+// Add an already-made appointment to the calendar via the chooser sheet.
+function apptToCalendar(id){
+  var a = (window._apptCache||[]).find(function(x){ return x.id === id; });
+  if (!a) return;
+  var dt = new Date(a.date);
+  openCalendarSheet({
+    uid: 'appt-'+a.id,
+    title: (a.type||'Appointment') + (a.clientName ? ' - ' + a.clientName : ''),
+    start: dt, end: new Date(dt.getTime() + 3600000),
+    location: a.address || '',
+    details: a.clientName ? ('Client: ' + a.clientName) : ''
+  });
+}
+window.apptToCalendar = apptToCalendar;
 
 
 // ── Assign a showing to a client ──
