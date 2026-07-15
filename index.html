@@ -537,7 +537,6 @@ textarea{resize:vertical;min-height:68px;}
     <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
     <button class="nb" data-pg="agent-preapproval" onclick="go('agent-preapproval',this)">📧 Send Pre-Approval</button>
     <button class="nb" onclick="closeSidebar();openReferralModal()">🤝 Send Referrals</button>
-    <button class="nb" data-pg="partners" onclick="go('partners',this)">🤝 Preferred Partners</button>
     <button class="nb" data-pg="doc-templates" onclick="go('doc-templates',this)" id="nb-doctemplates" style="display:none;">📄 Doc Templates</button>
 
     <button class="nb" onclick="enterClientPreview()" style="color:var(--green-dk);font-weight:500;margin-top:6px;">👁️ Preview as Client</button>
@@ -2521,7 +2520,7 @@ textarea{resize:vertical;min-height:68px;}
     <button id="agent-tab-offers" onclick="switchAgentTab('offers')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 Offers <span id="offers-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;margin-left:2px;"></span></button>
     <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 Showings</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📊 Seller Reports</button>
-    <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🤝 Partners</button>
+    <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="display:none;flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🤝 Partners</button>
     <button id="agent-tab-teamstats" onclick="switchAgentTab('teamstats')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;position:relative;">🏆 Team <span id="ad-team-chat-badge" style="display:none;position:absolute;top:4px;right:4px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;">!</span></button>
     <button id="agent-tab-finances" onclick="switchAgentTab('finances')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">&#128181; Finances</button>
   </div>
@@ -3176,7 +3175,11 @@ textarea{resize:vertical;min-height:68px;}
   <div class="mbox" style="max-width:640px;">
     <div class="mhdr">
       <div class="mtitle">Send Referral Recommendations <span onclick="showHelp('referrals')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);vertical-align:middle;">?</span></div>
+      <button class="btn btn-sm" onclick="toggleRefPartnerEditor()" id="ref-edit-toggle" style="margin-left:auto;margin-right:8px;flex-shrink:0;">✎ Edit list</button>
       <button class="xbtn" onclick="closeM('referral-modal')">&#x2715;</button>
+    </div>
+    <div id="ref-partner-editor-wrap" style="display:none;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--surface2);">
+      <div id="ref-partner-editor"></div>
     </div>
     <div style="padding:16px 22px 22px;display:flex;flex-direction:column;gap:16px;">
       <div id="ref-step1">
@@ -11821,8 +11824,8 @@ function _editorCatGroup(title, partners, controlsFor){
       }).join('')
     + '</div>';
 }
-function renderAgentPartnersEditor() {
-  var el = document.getElementById('agent-partners-editor');
+function renderAgentPartnersEditor(containerId) {
+  var el = document.getElementById(containerId || 'agent-partners-editor');
   if (!el) return;
   var leader = _partnerIsLeaderView() || (typeof isTeamLeader==='function' && isTeamLeader());
   var owner = (typeof isOwner==='function' && isOwner());
@@ -12055,9 +12058,28 @@ function refUpdateCatHeader(cat) {
 }
 window.refUpdateCatHeader = refUpdateCatHeader;
 
+function toggleRefPartnerEditor(){
+  var wrap = document.getElementById('ref-partner-editor-wrap');
+  var toggle = document.getElementById('ref-edit-toggle');
+  if (!wrap) return;
+  var opening = wrap.style.display === 'none';
+  wrap.style.display = opening ? 'block' : 'none';
+  if (toggle) toggle.textContent = opening ? '✓ Done editing' : '✎ Edit list';
+  if (opening) {
+    renderAgentPartnersEditor('ref-partner-editor');
+  } else {
+    // Closed: reflect any add/remove into the send list
+    refBuildCatChips();
+    refBuildCatList(_refFilter);
+  }
+}
+window.toggleRefPartnerEditor = toggleRefPartnerEditor;
+
 async function openReferralModal() {
   // Load partners if not yet loaded
   if (!agentPartners.length) await loadAgentPartners(userProfile.agentId|| '');
+  var _ew = document.getElementById('ref-partner-editor-wrap'); if (_ew) _ew.style.display = 'none';
+  var _et = document.getElementById('ref-edit-toggle'); if (_et) _et.textContent = '✎ Edit list';
   _refStep = 1; _refChecked = {}; // all start unchecked
   document.getElementById('ref-step1').style.display = 'block';
   document.getElementById('ref-step2').style.display = 'none';
