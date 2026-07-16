@@ -3622,10 +3622,14 @@ textarea{resize:vertical;min-height:68px;}
 </script>
 
 <!-- PDF.js (render templates on canvas) + pdf-lib (fill flat PDFs) for Doc Templates -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" defer></script>
 <script>
-  if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+  // pdf.js loads deferred now (it no longer blocks first paint). Configure its worker once
+  // it's actually available instead of assuming it's ready at parse time.
+  window.addEventListener('DOMContentLoaded', function(){
+    if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+  });
 </script>
 
 <!-- FIREBASE + APP SCRIPT -->
@@ -9295,8 +9299,20 @@ async function showApp() {
     try { await loadBuyersForAgent(); } catch(e){ console.log('loadBuyers:', e && e.message); }
     if (isAgent) {
       try { await _ensureRosterForUser(); } catch(e){}
-      try { syncHardcodedAgentsToFirestore(); } catch(e){}
-      try { backfillTeamFields(); } catch(e){}
+      // These are one-time migrations (they no-op once everything's synced), but they still
+      // do a Firestore read per agent every run. Gate them so they fire at most once a week
+      // per device instead of on every single login — big win on the owner's boot time.
+      try {
+        var _lastSync = parseInt(localStorage.getItem('nt_maint_sync') || '0', 10);
+        if (Date.now() - _lastSync > 7*24*60*60*1000) {
+          localStorage.setItem('nt_maint_sync', String(Date.now()));
+          try { syncHardcodedAgentsToFirestore(); } catch(e){}
+          try { backfillTeamFields(); } catch(e){}
+        }
+      } catch(e){
+        try { syncHardcodedAgentsToFirestore(); } catch(e2){}
+        try { backfillTeamFields(); } catch(e2){}
+      }
       try { await todoLoad(); } catch(e){ console.log('todoLoad:', e && e.message); }
       try { injectApptReminders(); } catch(e){}
       try { await scheduleLoad(); } catch(e){}
