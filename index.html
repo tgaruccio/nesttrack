@@ -14416,15 +14416,19 @@ async function renderBuyers() {
     adminToggleBtn.style.borderColor = _adminShowAll ? '#1D9E75' : '';
   }
   var _myLenderId = (userProfile && userProfile.lenderId) || _teamDefaultLender();
+  // myBuyers = the agent's FULL client list (ownership-scoped only). Every other feature in the
+  // app reads this, so the Clients-page search/segment/status filters must NOT mutate it — they
+  // go into _displayBuyers below. This stops filters from leaking into Messages/Appts/pickers.
   myBuyers = allBuyers.filter(function(b) {
     if (isOwner() && _adminShowAll) return true;
     return b.agentId === userProfile.agentId
       || b.coAgentId === userProfile.agentId
       || (isLender && !!_myLenderId && _myLenderId !== 'none' && b.lenderId === _myLenderId);   // shared: I'm the assigned lender (explicit id match only — never unassigned)
   });
-  if (search) myBuyers = myBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
+  var _displayBuyers = myBuyers.slice(); // Clients-page view only — filters apply here, not to myBuyers
+  if (search) _displayBuyers = _displayBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
   if (window._crmFilter && window._crmFilter !== 'all') {
-    myBuyers = myBuyers.filter(function(b){
+    _displayBuyers = _displayBuyers.filter(function(b){
       var s = getClientStatus(b);
       if (window._crmFilter === 'past') return s === 'past' || s === 'closed';
       return s === window._crmFilter;
@@ -14449,7 +14453,7 @@ async function renderBuyers() {
     }).join('') + '<option value="__add__">+ Add new segment…</option>';
   }
   if (window._segmentFilter && window._segmentFilter !== 'all') {
-    myBuyers = myBuyers.filter(function(b){ return (b.segment||'') === window._segmentFilter; });
+    _displayBuyers = _displayBuyers.filter(function(b){ return (b.segment||'') === window._segmentFilter; });
   }
 
   // Active-filter banner: make it OBVIOUS when the list is narrowed, so nobody thinks
@@ -14465,28 +14469,28 @@ async function renderBuyers() {
     _fb.style.display = 'block';
     _fb.innerHTML = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;margin-bottom:8px;">'
       + '<span style="font-size:12px;color:#92400E;font-weight:600;">Filtered \u2014 '+active.join(' \u00b7 ')+'</span>'
-      + '<span style="font-size:12px;color:#92400E;">showing '+myBuyers.length+'</span>'
+      + '<span style="font-size:12px;color:#92400E;">showing '+_displayBuyers.length+'</span>'
       + '<button onclick="clearClientFilters()" style="margin-left:auto;background:#92400E;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">Clear filters</button>'
       + '</div>';
   })();
 
-  // Mass-select: track shown uids, prune selection to only what's visible (filtered-only)
-  window._shownContactUids = myBuyers.map(function(b){ return b.uid; });
+  // Mass-select: track shown uids, prune selection to only what's visible (filtered display only)
+  window._shownContactUids = _displayBuyers.map(function(b){ return b.uid; });
   Object.keys(window._selectedContacts||{}).forEach(function(uid){
     if (window._shownContactUids.indexOf(uid) < 0) delete window._selectedContacts[uid];
   });
 
-  const total = myBuyers.length;
-  const inProcess = myBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
-  const closed = myBuyers.filter(b => (b.currentStep||1) === 11).length;
-  const newThisMonth = myBuyers.filter(b => { try { const d = b.createdAt?.toDate?.() || new Date(b.createdAt); return d > new Date(Date.now()-30*86400000); } catch { return false; } }).length;
+  const total = _displayBuyers.length;
+  const inProcess = _displayBuyers.filter(b => (b.currentStep||1) > 1 && (b.currentStep||1) < 11).length;
+  const closed = _displayBuyers.filter(b => (b.currentStep||1) === 11).length;
+  const newThisMonth = _displayBuyers.filter(b => { try { const d = b.createdAt?.toDate?.() || new Date(b.createdAt); return d > new Date(Date.now()-30*86400000); } catch { return false; } }).length;
   document.getElementById('agent-stats').innerHTML = `
     <div class="dstat"><div class="dnum">${total}</div><div class="dlbl">${teamLeader?'Team Buyers':'My Buyers'}</div></div>
     <div class="dstat"><div class="dnum">${inProcess}</div><div class="dlbl">In Process</div></div>
     <div class="dstat"><div class="dnum">${closed}</div><div class="dlbl">Closed</div></div>
     <div class="dstat"><div class="dnum">${newThisMonth}</div><div class="dlbl">New (30d)</div></div>`;
 
-  document.getElementById('buyer-list').innerHTML = myBuyers.length ? myBuyers.map(b => {
+  document.getElementById('buyer-list').innerHTML = _displayBuyers.length ? _displayBuyers.map(b => {
     const initials = ((b.firstName||'')[0]||'')+((b.lastName||'')[0]||'');
     const step = TIMELINE_STEPS[(b.currentStep||1)-1];
     const agent = DEFAULT_AGENTS.find(a => a.id === b.agentId);
