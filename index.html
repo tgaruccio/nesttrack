@@ -9314,7 +9314,6 @@ async function showApp() {
         try { backfillTeamFields(); } catch(e2){}
       }
       try { await todoLoad(); } catch(e){ console.log('todoLoad:', e && e.message); }
-      try { injectApptReminders(); } catch(e){}
       try { await scheduleLoad(); } catch(e){}
       try { injectScheduleBlocks(); } catch(e){}
       try { obLoad(); } catch(e){}
@@ -16857,41 +16856,6 @@ async function todoLoad() {
   } catch(e) { console.log('todoLoad:', e.message); }
 }
 window.todoLoad = todoLoad;
-
-// Appointments are the source of truth for their to-dos. The list is saved as one whole
-// document, so a stale device can clobber a freshly added appointment to-do (lost write).
-// This reconciler re-injects the to-do for any upcoming appointment that's missing one —
-// self-healing — while honoring deliberate deletions via the dismissed list.
-async function injectApptReminders(){
-  try {
-    var agentId = (userProfile && userProfile.agentId) || '';
-    if (!agentId) return;
-    var snap = await fb.getDocs(fb.collection(fb.db, 'agents', agentId, 'appointments'));
-    var cutoff = Date.now() - 86400000; // today's appointments still count
-    var changed = false;
-    snap.forEach(function(d){
-      var a = d.data();
-      if (!a || !a.date) return;
-      var t = new Date(a.date).getTime();
-      if (isNaN(t) || t < cutoff) return;                    // upcoming only
-      var id = 'appt-' + d.id;
-      if ((_todoDismissedAppt || []).indexOf(id) !== -1) return;  // user removed it on purpose
-      if (_todos.some(function(x){ return x.id === id; })) return; // already there
-      _todos.unshift({
-        id: id,
-        text: a.type + (a.clientName ? ' — ' + a.clientName : '') + (a.address ? ' @ ' + a.address : '') + '  ' + (a.timeStr || ''),
-        date: String(a.date).split('T')[0],
-        time: a.timeStr || '',
-        done: false,
-        createdAt: Date.now(),
-        apptId: d.id,
-      });
-      changed = true;
-    });
-    if (changed) { await todoSave(); todoRender(); }
-  } catch(e){ console.log('apptReminders:', e && e.message); }
-}
-window.injectApptReminders = injectApptReminders;
 
 var TC_LEAD_DAYS = 1; // TC tasks only hit the to-do list this many days before they're due
 function injectDealReminders() {
