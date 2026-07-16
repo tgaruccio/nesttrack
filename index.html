@@ -14495,10 +14495,11 @@ async function renderBuyers() {
     const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
     const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
-    // Clear, always-visible portal status so it's obvious whether a client is on the platform.
+    // Clear, always-visible portal status via the single source of truth (getPortalStatus).
     var _portalBadge = (function(){
-      if (b.pending === true) return '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">\u25CF Invited \u00b7 not accepted</span>';
-      if (b.portalAccess === true || b.portalUid) return '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">\u2713 On platform</span>';
+      var st = getPortalStatus(b);
+      if (st === 'invited') return '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">\u25CF Invited \u00b7 not accepted</span>';
+      if (st === 'active') return '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">\u2713 On platform</span>';
       return '<span style="font-size:10px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">Not invited</span>';
     })();
     var stepInfo;
@@ -17548,9 +17549,18 @@ async function openBuyerDetail(uid, scrollTo) {
             </div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px;">Editing a field updates the full address above.</div>
           </div>
-          ${(()=>{ var active=b.portalAccess; var invited=b.inviteSent||active; return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+(active?'<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">✓ Active</span>':(invited?'<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:2px 10px;font-weight:500;">📨 Pending</span>':''))+'<button onclick="openPortalInviteModal(\''+uid+'\',\''+partnerEsc((b.firstName||'')+' '+(b.lastName||'')).trim()+'\')" style="background:'+(invited?'var(--surface)':'var(--green)')+';color:'+(invited?'var(--text2)':'#fff')+';border:1px solid '+(invited?'var(--border)':'var(--green)')+';border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">'+(invited?'↺ Resend Invite':'✉ Invite to Portal')+'</button></div>'; })()}
+          ${(()=>{ var st=getPortalStatus(b); var nm=partnerEsc((b.firstName||'')+' '+(b.lastName||'')).trim();
+            var pill = st==='active'
+              ? '<span style="font-size:11px;background:var(--green-lt);color:var(--green-dk);border-radius:20px;padding:2px 10px;font-weight:500;">\u2713 On platform</span>'
+              : (st==='invited'
+                ? '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:2px 10px;font-weight:500;">\uD83D\uDCE8 Invited \u00b7 not accepted</span>'
+                : '<span style="font-size:11px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);border-radius:20px;padding:2px 10px;font-weight:500;">Not invited</span>');
+            var btn = st==='active'
+              ? ''
+              : '<button onclick="openPortalInviteModal(\''+uid+'\',\''+nm+'\')" style="background:'+(st==='invited'?'var(--surface)':'var(--green)')+';color:'+(st==='invited'?'var(--text2)':'#fff')+';border:1px solid '+(st==='invited'?'var(--border)':'var(--green)')+';border-radius:20px;padding:3px 12px;font-size:11px;font-weight:600;cursor:pointer;">'+(st==='invited'?'\u21BA Resend Invite':'\u2709 Invite to Portal')+'</button>';
+            return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+pill+btn+'</div>'; })()}
           ${(()=>{ var hasDeal = (_deals||[]).some(function(d){ return d.clientUid===uid; }); return hasDeal ? '<span style="font-size:11px;background:#EFF6FF;color:#1D4ED8;border-radius:20px;padding:2px 10px;font-weight:500;cursor:pointer;" onclick="go(\'agent\',document.querySelector(\'[data-pg=agent]\'));setTimeout(function(){switchAgentTab(\'deals\')},200);">🏠 In Deal Tracker</span>' : ''; })()}
-          ${b.pending?`<div style='margin-top:6px;display:flex;align-items:center;gap:8px;'><span style='font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;'>Invite Pending</span><button onclick='resendInvite("${uid}")' style='font-size:11px;background:none;border:1px solid #D97706;color:#92400E;border-radius:10px;padding:2px 8px;cursor:pointer;'>Resend Invite</button></div>`:''}
+
         </div>
       </div>
       <button class="xbtn" onclick="closeM('buyer-modal')" style="position:relative;z-index:10;">✕</button>
@@ -30385,6 +30395,20 @@ function getClientStatus(b) {
 }
 window.getClientStatus = getClientStatus;
 
+// Single source of truth for a client's portal state — every surface (list badge, client
+// card, filters) must use THIS, so the three states are consistent no matter which invite
+// path created the record. Two invite flows exist and historically wrote different fields:
+//   createContact/createInvite → pending:true
+//   sendPortalInvite           → invitedAt + inviteCode (no pending)
+// so we treat ANY invite marker as "invited," and portalAccess/portalUid as "accepted."
+function getPortalStatus(b){
+  if (!b) return 'none';
+  if (b.portalAccess === true || b.portalUid) return 'active';   // accepted, on the platform
+  if (b.pending === true || b.inviteCode || b.invitedAt || b.inviteSent) return 'invited'; // sent, not accepted
+  return 'none';                                                  // never invited
+}
+window.getPortalStatus = getPortalStatus;
+
 function setCRMFilter(filter) {
   window._crmFilter = filter;
   ['all','active','pipeline','nurture','cold','past','contact'].forEach(function(f) {
@@ -33441,12 +33465,12 @@ async function sendPortalInvite() {
     mentorAgentId: mentorAgentId || null
   });
 
-  // Mark contact as invited
-  var updateData = { invitedAt: fb.serverTimestamp(), inviteCode: code };
+  // Mark contact as invited — write ALL the flags every surface reads, so status is consistent.
+  var updateData = { invitedAt: fb.serverTimestamp(), inviteCode: code, pending: true, inviteSent: true };
   if (includeOnboarding) updateData.onboardingAssigned = true;
   if (mentorAgentId) updateData.mentorAgentId = mentorAgentId;
   await fb.updateDoc(fb.doc(fb.db, 'users', uid), updateData);
-  if (b) { b.inviteCode = code; if (includeOnboarding) b.onboardingAssigned = true; if (mentorAgentId) b.mentorAgentId = mentorAgentId; }
+  if (b) { b.inviteCode = code; b.pending = true; b.inviteSent = true; b.invitedAt = Date.now(); if (includeOnboarding) b.onboardingAssigned = true; if (mentorAgentId) b.mentorAgentId = mentorAgentId; }
 
   var ctaBtn = '<div style="text-align:center;margin:28px 0;"><a href="'+link+'" style="background:#1D9E75;color:#fff;padding:14px 38px;border-radius:30px;font-size:15px;text-decoration:none;display:inline-block;font-weight:500;">Create My Account →</a></div>'
     +'<p style="font-size:12px;color:#aaa;text-align:center;margin:-16px 0 20px;">Tap above to create your account — takes about a minute.</p>';
