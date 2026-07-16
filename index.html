@@ -33305,6 +33305,14 @@ async function createContact() {
     await loadBuyersForAgent();
     renderBuyers();
     setTimeout(function(){ closeM('invite-modal'); }, 1500);
+    // Normal add: drop the user straight onto the new client's card so they can start a
+    // journey / add to NestTracker without having to search for who they just created.
+    // (The guided-onboarding path below opens it too, with its coach mark — don't double up.)
+    if(!window._wfOnboarding){
+      setTimeout(function(){
+        try { if(typeof openBuyerDetail==='function') openBuyerDetail(contactId); } catch(e){}
+      }, 1550);
+    }
     // Onboarding hand-off: open the brand-new client's card so they SEE where each journey starts
     // (Start Buyer / Seller Journey, Add to NestTracker). The card teaches the flow — no bubbles needed.
     if(window._wfOnboarding){
