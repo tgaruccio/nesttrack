@@ -12452,7 +12452,8 @@ function watchChat(buyerIdOverride) {
 
     var bubble = document.createElement('div');
     bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
-    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+'</div>' : '';
+    var _roleTag = (msg.senderRole && msg.senderRole!=='buyer' && msg.senderRole!=='agent') ? ' \u00b7 '+msg.senderRole : '';
+    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+escapeHtml(_roleTag)+'</div>' : '';
     bubble.innerHTML = senderLabel + _renderChatText(msg.text) + '<div class="ts">' + time + '</div>';
     wrapper.appendChild(bubble);
     messagesEl.appendChild(wrapper);
@@ -12507,12 +12508,21 @@ function sendChatMessage() {
 
   var chatRef = fb.ref(fb.rtdb, 'chats/' + currentChatRoom + '/messages');
   var senderName = ((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'');
+  // Precise role so the client (and everyone) can see who's who in the group thread.
+  var senderRole = 'buyer';
+  if (isLender) senderRole = 'lender';
+  else if (isAgent) {
+    var _cid = currentChatRoom ? currentChatRoom.replace('chat_','') : '';
+    var _cb = (allBuyers||[]).find(function(x){ return x.uid===_cid; });
+    senderRole = (_cb && _cb.coAgentId && _cb.coAgentId === (userProfile&&userProfile.agentId)) ? 'co-agent' : 'agent';
+  }
   fb.push(chatRef, {
     text: text,
     senderId: currentUser.uid,
     senderName: senderName.trim(),
+    senderRole: senderRole,
     ts: Date.now(),
-    role: isAgent ? 'agent' : 'buyer'
+    role: (isAgent || isLender) ? 'agent' : 'buyer'
   }).then(function() {
     input.value = '';
     input.style.height = 'auto';
@@ -12628,19 +12638,24 @@ function setupChatHead() {
     if (avatarEl) avatarEl.textContent = initials;
     if (withEl) withEl.textContent = a.name || 'Your Agent';
     if (roleEl) roleEl.textContent = (a.role||'REALTOR\u00ae');
-    // Show team members in chat header
+    // Show the full group in the chat header — like team chat, the client sees everyone here.
     var teamEl = document.getElementById('chat-team');
     if (teamEl && userProfile) {
       var teamParts = [];
+      // Primary agent (the person whose name is already in the header) is the first participant.
+      if (a && a.name) teamParts.push(a.name + ' (agent)');
       if (userProfile.coAgentId) {
         var coE = DEFAULT_AGENTS.find(function(x){ return x.id===userProfile.coAgentId; });
-        if (coE) teamParts.push((coE.firstName||coE.name)+' (co-agent)');
+        if (coE) teamParts.push((coE.name||coE.firstName)+' (co-agent)');
       }
-      if (userProfile.lenderId) {
-        var lenE = DEFAULT_AGENTS.find(function(x){ return x.id===userProfile.lenderId; });
-        if (lenE) teamParts.push((lenE.firstName||lenE.name)+' (lender)');
+      var _lid = userProfile.lenderId;
+      if (_lid && _lid !== 'none') {
+        var lenE = (assignedLender && (assignedLender.id===_lid))
+          ? assignedLender
+          : DEFAULT_LENDERS.find(function(x){ return x.id===_lid; });
+        if (lenE && (lenE.name||lenE.firstName)) teamParts.push((lenE.name||lenE.firstName)+' (lender)');
       }
-      teamEl.textContent = teamParts.length ? '👥 Also here: ' + teamParts.join(' · ') : '';
+      teamEl.textContent = teamParts.length > 1 ? '\uD83D\uDC65 In this chat: ' + teamParts.join(' \u00b7 ') : '';
     }
     var chatRoomId = getChatRoomId(null);
     currentChatRoom = chatRoomId;
@@ -26771,7 +26786,8 @@ function teamChatInit() {
 
     var bubble = document.createElement('div');
     bubble.className = 'bubble ' + (isMine ? 'me' : 'them');
-    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+'</div>' : '';
+    var _roleTag = (msg.senderRole && msg.senderRole!=='buyer' && msg.senderRole!=='agent') ? ' \u00b7 '+msg.senderRole : '';
+    var senderLabel = (!isMine && msg.senderName) ? '<div style="font-size:10px;font-weight:600;color:var(--green-dk);margin-bottom:2px;">'+escapeHtml(msg.senderName)+escapeHtml(_roleTag)+'</div>' : '';
 
     if (msg.photoUrl) {
       bubble.innerHTML = senderLabel + '<img src="'+msg.photoUrl+'" style="max-width:180px;border-radius:8px;display:block;cursor:pointer;" onclick="window.open(\''+msg.photoUrl+'\',\'_blank\')" /><div class="ts">'+time+'</div>';
