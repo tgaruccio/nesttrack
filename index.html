@@ -9239,7 +9239,7 @@ async function showApp() {
   // page is always there; the data fills in behind it as each load returns.
   try {
     var _boot = isAgent ? 'agent-dash' : (isLender ? 'agent-dash' : 'home');
-    var _bootEl = document.querySelector('[data-pg=' + (isAgent || isLender ? 'agent' : 'home') + ']');
+    var _bootEl = document.querySelector('[data-pg=' + _boot + ']');
     if (document.getElementById('page-' + _boot)) go(_boot, _bootEl);
   } catch(e) { console.log('boot nav:', e && e.message); }
 
@@ -16737,14 +16737,14 @@ function renderDashTasks() {
     window._todoMap[sid] = t.id;
     out += '<div class="dash-task-row" style="display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:0.5px solid var(--border);">'
       + '<div class="dash-chk" data-sid="' + sid + '" style="width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border2);flex-shrink:0;cursor:pointer;background:var(--surface);"></div>'
-      + '<div style="flex:1;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + partnerEsc(t.text) + '</div>'
+      + '<div style="flex:1;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + partnerEsc(t.text) + (t.clientName ? ' <span style="color:var(--green-dk);font-weight:500;">\u00b7 ' + partnerEsc(t.clientName) + '</span>' : '') + '</div>'
       + (t.date ? '<div style="font-size:11px;color:var(--text3);flex-shrink:0;">' + t.date + '</div>' : '')
       + '</div>';
   });
   doneTasks.forEach(function(t) {
     out += '<div style="display:flex;align-items:center;gap:10px;padding:8px 16px;opacity:0.45;">'
       + '<div style="width:18px;height:18px;border-radius:4px;flex-shrink:0;background:var(--green);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;">&#10003;</div>'
-      + '<div style="flex:1;font-size:13px;text-decoration:line-through;color:var(--text2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + partnerEsc(t.text) + '</div>'
+      + '<div style="flex:1;font-size:13px;text-decoration:line-through;color:var(--text2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + partnerEsc(t.text) + (t.clientName ? ' \u00b7 ' + partnerEsc(t.clientName) : '') + '</div>'
       + '</div>';
   });
   el.innerHTML = out;
