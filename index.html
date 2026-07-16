@@ -2564,6 +2564,7 @@ textarea{resize:vertical;min-height:68px;}
     <button class="btn btn-sm" id="mass-clear-btn" onclick="clearContactSelection()" style="display:none;">Clear</button>
     <button class="btn btn-sm" id="mass-delete-btn" onclick="massDeleteContacts()" style="display:none;background:#C0392B;color:#fff;border-color:#C0392B;">&#128465; Delete</button>
   </div>
+  <div id="client-filter-banner" style="display:none;"></div>
   <div id="buyer-list" style="display:flex;flex-direction:column;gap:8px;"></div>
   </div><!-- /agent-buyers-panel -->
 
@@ -14451,6 +14452,24 @@ async function renderBuyers() {
     myBuyers = myBuyers.filter(function(b){ return (b.segment||'') === window._segmentFilter; });
   }
 
+  // Active-filter banner: make it OBVIOUS when the list is narrowed, so nobody thinks
+  // clients "disappeared." One tap clears everything back to the full list.
+  (function(){
+    var _fb = document.getElementById('client-filter-banner');
+    if (!_fb) return;
+    var active = [];
+    if (search) active.push('search \u201C'+search+'\u201D');
+    if (window._crmFilter && window._crmFilter !== 'all') active.push('status: '+window._crmFilter);
+    if (window._segmentFilter && window._segmentFilter !== 'all') active.push('segment: '+window._segmentFilter);
+    if (!active.length) { _fb.style.display = 'none'; _fb.innerHTML = ''; return; }
+    _fb.style.display = 'block';
+    _fb.innerHTML = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;padding:8px 12px;margin-bottom:8px;">'
+      + '<span style="font-size:12px;color:#92400E;font-weight:600;">Filtered \u2014 '+active.join(' \u00b7 ')+'</span>'
+      + '<span style="font-size:12px;color:#92400E;">showing '+myBuyers.length+'</span>'
+      + '<button onclick="clearClientFilters()" style="margin-left:auto;background:#92400E;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;">Clear filters</button>'
+      + '</div>';
+  })();
+
   // Mass-select: track shown uids, prune selection to only what's visible (filtered-only)
   window._shownContactUids = myBuyers.map(function(b){ return b.uid; });
   Object.keys(window._selectedContacts||{}).forEach(function(uid){
@@ -14476,6 +14495,12 @@ async function renderBuyers() {
     const coAgentLine = coAgent ? `<div class="buyer-meta" style="color:var(--text3);font-size:10.5px;">Co-agent: ${coAgent.name}</div>` : '';
     const notesPreview = b.agentNotes ? `<div style="font-size:11px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;">📝 ${b.agentNotes.substring(0,40)}${b.agentNotes.length>40?'...':''}</div>` : '';
     const isPending = b.pending === true;
+    // Clear, always-visible portal status so it's obvious whether a client is on the platform.
+    var _portalBadge = (function(){
+      if (b.pending === true) return '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">\u25CF Invited \u00b7 not accepted</span>';
+      if (b.portalAccess === true || b.portalUid) return '<span style="font-size:10px;background:var(--green-lt);color:var(--green-dk);border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">\u2713 On platform</span>';
+      return '<span style="font-size:10px;background:var(--surface2);color:var(--text3);border:1px solid var(--border);border-radius:10px;padding:2px 7px;font-weight:600;white-space:nowrap;">Not invited</span>';
+    })();
     var stepInfo;
     if (isPending) {
       stepInfo = '<span style="font-size:11px;background:#FEF3C7;color:#92400E;border-radius:10px;padding:2px 8px;font-weight:500;">&#9679; Invited</span>';
@@ -14518,6 +14543,7 @@ async function renderBuyers() {
       <div style="flex:1;min-width:0;">
         <div class="buyer-name">${partnerEsc((b.firstName||'')+' '+(b.lastName||''))}</div>
         <div class="buyer-meta">${escapeHtml(b.email||'')} ${b.phone?'· '+escapeHtml(b.phone):''}</div>
+        <div style="margin-top:3px;">${_portalBadge}</div>
         <div>${crmStatusPill(b)}${b.segment?' <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;background:#EEF2FF;color:#4F46E5;">&#127991; '+b.segment+'</span>':''}</div>
         ${agentLine}${coAgentLine}
         ${(()=>{ var ctBtns=''; if(b.phone||b.email){ ctBtns='<div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap;">'; if(b.phone) ctBtns+='<a href="tel:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128222; Call</a>'; if(b.phone) ctBtns+=' <a href="sms:'+b.phone.replace(/[^0-9]/g,'')+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#128172; Text</a>'; if(b.email) ctBtns+=' <a href="mailto:'+b.email+'" onclick="event.stopPropagation()" style="background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:3px 9px;font-size:10.5px;text-decoration:none;">&#9993; Email</a>'; if(!b.pending) ctBtns+=' <button onclick="event.stopPropagation();go(\'messages\',document.querySelector(\'[data-pg=messages]\'));setTimeout(function(){openMsgThread(\''+b.uid+'\')},400);" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:3px 9px;font-size:10.5px;cursor:pointer;">&#128172; Message</button>'; ctBtns+='</div>'; } return ctBtns; })()}
@@ -30373,6 +30399,15 @@ function setCRMFilter(filter) {
 window.setCRMFilter = setCRMFilter;
 
 window._segmentFilter = 'all';
+function clearClientFilters(){
+  window._segmentFilter = 'all';
+  var s = document.getElementById('buyer-search'); if (s) s.value = '';
+  var seg = document.getElementById('segment-filter'); if (seg) seg.value = 'all';
+  // setCRMFilter resets _crmFilter AND restyles the status chips, then re-renders.
+  if (typeof setCRMFilter === 'function') { setCRMFilter('all'); }
+  else { window._crmFilter = 'all'; renderBuyers(); }
+}
+window.clearClientFilters = clearClientFilters;
 function setSegmentFilter(v){
   if(v==='__add__'){
     var name=prompt('Name the new segment (e.g. FSBO, Expired, Past Clients):');
