@@ -4548,24 +4548,39 @@ async function signUp() {
       } catch(x) { console.log('Agent invite lookup failed', x); }
     }
 
-    // Check for existing contact record with same email (agent-created before signup)
+    // Check for existing contact record with same email (agent-created before signup).
+    // CRITICAL: agent-created contacts historically stored the email with original casing
+    // (e.g. "JamesBlaha32@gmail.com"), while this query normalizes to lowercase. An exact
+    // match therefore MISSED mixed-case contacts and created a DUPLICATE account on accept.
+    // Fix: pull candidates and compare case-insensitively, and also try the exact-case query,
+    // so we always find and claim the pending record instead of spawning a second one.
     let existingContact = null;
+    var _emailLc = email.toLowerCase();
     try {
-      const emailQuery = fb.query(
-        fb.collection(fb.db, 'users'),
-        fb.where('email', '==', email.toLowerCase())
-      );
-      const emailSnaps = await fb.getDocs(emailQuery);
-      emailSnaps.forEach(function(d) {
-        // Skip the new auth record itself and pending records
-        if (d.id !== cred.user.uid) {
-          const data = d.data();
-          // Only merge if this looks like an agent-created contact (has agentId, not a full auth account)
-          if (data.agentId && !data.portalUid) {
-            existingContact = { uid: d.id, ...data };
-          }
-        }
-      });
+      // Firestore string equality is case-SENSITIVE, and agent-created contacts historically
+      // stored the email with original casing (e.g. "JamesBlaha32@gmail.com"). A lowercase
+      // query therefore missed them and a DUPLICATE account was created on accept. We can't
+      // know the stored casing, so gather candidates from BOTH the lowercase query AND any
+      // in-memory client list, then match case-insensitively in code.
+      var _candidates = [];
+      try {
+        var _snapLc = await fb.getDocs(fb.query(fb.collection(fb.db,'users'), fb.where('email','==',_emailLc)));
+        _snapLc.forEach(function(d){ _candidates.push({ id:d.id, data:d.data() }); });
+      } catch(e){}
+      // Fallback: scan all users for a case-insensitive email match (covers mixed-case records
+      // the equality query can't reach). Bounded—this only runs once, at accept time.
+      try {
+        var _allSnap = await fb.getDocs(fb.collection(fb.db,'users'));
+        _allSnap.forEach(function(d){ _candidates.push({ id:d.id, data:d.data() }); });
+      } catch(e){}
+      for (var _i=0; _i<_candidates.length; _i++) {
+        var _c = _candidates[_i];
+        if (existingContact) break;
+        if (_c.id === cred.user.uid) continue;                       // not the just-created auth record
+        var data = _c.data;
+        if (!data || (data.email||'').toLowerCase() !== _emailLc) continue; // case-insensitive email match
+        if (data.agentId && !data.portalUid) existingContact = { uid: _c.id, ...data }; // agent-created contact, not a full account
+      }
     } catch(x) { console.log('Email contact lookup:', x); }
 
     // Build the new profile — merge existing contact data if found
@@ -18731,6 +18746,7 @@ async function createInvite() {
   var first = document.getElementById('inv-first').value.trim();
   var last = document.getElementById('inv-last').value.trim();
   var email = document.getElementById('inv-email').value.trim();
+  email = (email||'').toLowerCase(); // normalize so invite-accept email match never misses on casing
   var phone = (document.getElementById('inv-phone')||{}).value||'';
   var agentId = document.getElementById('inv-agent').value;
   var invLenderEl = document.getElementById('inv-lender');
@@ -33270,6 +33286,7 @@ async function createContact() {
   var first = document.getElementById('inv-first').value.trim();
   var last  = document.getElementById('inv-last').value.trim();
   var email = document.getElementById('inv-email').value.trim();
+  email = (email||'').toLowerCase(); // normalize so invite-accept email match never misses on casing
   var phone = (document.getElementById('inv-phone')||{}).value || '';
   var address = (document.getElementById('inv-address')||{}).value || '';
   var notes = ((document.getElementById('inv-notes')||{}).value || '').trim();
