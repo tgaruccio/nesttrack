@@ -4387,7 +4387,15 @@ async function _firebaseInit() {
     if (user) {
       currentUser = user;
       if (window._signupInProgress) return;
-      await loadUserProfile();
+      // Never let a slow/hung profile read strand an already-authenticated user on the login
+      // screen. If loadUserProfile doesn't resolve in 8s, show the app anyway — showApp's own
+      // data loads are individually guarded, so a partial load still lands on a usable page.
+      try {
+        await Promise.race([
+          loadUserProfile(),
+          new Promise(function(res){ setTimeout(res, 8000); })
+        ]);
+      } catch(e) { console.log('profile load:', e && e.message); }
       showApp();
       // Cold-launch badge reset. The visibilitychange handler runs before currentUser exists, so
       // its server clear no-ops; do it here now that we have the uid.
@@ -4790,7 +4798,9 @@ async function syncHardcodedAgentsToFirestore() {
 async function _ensureRosterForUser(){
   // The first loadTeamAgents() ran before userProfile existed, so it defaulted to team 'tom'.
   // Re-run it now that the profile (and its teamId) is known, so the agent's real team loads.
+  // Lenders load here too (deferred out of loadUserProfile so login isn't blocked behind them).
   try { await loadTeamAgents(); } catch(e){}
+  try { await loadTeamLenders(); } catch(e){}
   if (!userProfile || !userProfile.agentId) return;
   var meId = userProfile.agentId;
   var meRec = (DEFAULT_AGENTS||[]).find(function(a){ return a.id === meId; });
@@ -4871,9 +4881,10 @@ async function _healRosterIdDrift(rec, newId){
 }
 
 async function loadUserProfile() {
-  // Load any dynamically added agents first
-  await loadTeamAgents();
-  await loadTeamLenders();
+  // NOTE: team/lender rosters used to load here with two awaits BEFORE the user's own profile,
+  // which blocked login behind everyone else's data (slow cold-starts sat on the login screen).
+  // loadTeamAgents re-runs in _ensureRosterForUser once the profile/teamId is known anyway, so
+  // we load the user's OWN profile first and let the rosters follow non-blocking.
   try {
     const snap = await fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid));
     if (snap.exists()) {
