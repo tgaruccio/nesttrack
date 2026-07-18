@@ -425,7 +425,12 @@ textarea{resize:vertical;min-height:68px;}
 </div>
 
 <!-- LOGIN SCREEN -->
-<div class="login-screen" id="login-screen">
+<div class="auth-splash" id="auth-splash" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:var(--ivory,#F4EFE6);z-index:99999;">
+  <div style="font-family:'Fraunces',serif;font-size:38px;font-weight:300;color:var(--green-dk,#0F6E56);letter-spacing:-1px;">Nest Track</div>
+  <div style="width:26px;height:26px;border:3px solid rgba(15,110,86,0.25);border-top-color:var(--green,#1D9E75);border-radius:50%;animation:authspin 0.7s linear infinite;"></div>
+</div>
+<style>@keyframes authspin{to{transform:rotate(360deg);}}</style>
+<div class="login-screen" id="login-screen" style="display:none;">
   <div class="login-card">
     <div class="brand-stack">
       <div style="font-family:'Fraunces',serif;font-size:42px;font-weight:300;color:var(--green-dk);letter-spacing:-1px;">Nest Track</div>
@@ -4387,15 +4392,22 @@ async function _firebaseInit() {
     if (user) {
       currentUser = user;
       if (window._signupInProgress) return;
-      // Never let a slow/hung profile read strand an already-authenticated user on the login
-      // screen. If loadUserProfile doesn't resolve in 8s, show the app anyway — showApp's own
-      // data loads are individually guarded, so a partial load still lands on a usable page.
-      try {
-        await Promise.race([
-          loadUserProfile(),
-          new Promise(function(res){ setTimeout(res, 8000); })
-        ]);
-      } catch(e) { console.log('profile load:', e && e.message); }
+      // The profile load is what sets isAgent/isLender — showApp picks the view from those.
+      // If we render BEFORE it finishes, isAgent is false and the user wrongly lands on the
+      // client/home view (the "logged in as client after a hang" bug). So we must WAIT for the
+      // profile — but never hang forever: retry a slow/failed load rather than rendering the
+      // wrong role. Each attempt is time-boxed; role is known before we ever call showApp().
+      var _loaded = false;
+      for (var _try = 0; _try < 3 && !_loaded; _try++) {
+        try {
+          _loaded = await Promise.race([
+            loadUserProfile().then(function(){ return true; }),
+            new Promise(function(res){ setTimeout(function(){ res(false); }, 6000); })
+          ]);
+        } catch(e) { console.log('profile load attempt '+_try+':', e && e.message); }
+        // If the load resolved but role still isn't set (partial read), treat as not-loaded so we retry.
+        if (_loaded && !isAgent && !isLender && !(userProfile && userProfile.role)) _loaded = false;
+      }
       showApp();
       // Cold-launch badge reset. The visibilitychange handler runs before currentUser exists, so
       // its server clear no-ops; do it here now that we have the uid.
@@ -4989,6 +5001,7 @@ async function loadUserProfile() {
 }
 
 function showLogin() {
+  var _sp = document.getElementById('auth-splash'); if (_sp) _sp.style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').classList.remove('active');
 }
@@ -9254,6 +9267,7 @@ window.renderYourTitleCo = renderYourTitleCo;
 
 
 async function showApp() {
+  var _sp = document.getElementById('auth-splash'); if (_sp) _sp.style.display = 'none';
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
 
