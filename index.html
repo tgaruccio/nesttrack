@@ -4892,6 +4892,41 @@ async function _healRosterIdDrift(rec, newId){
   console.log('Healed roster id drift:', oldId, '->', newId);
 }
 
+// Background duplicate-contact merge — pulled out of the login critical path so it never
+// slows a boot. Agents never have this situation (it's for a client who signed up without the
+// invite link), so it bails immediately for them. Runs a few seconds after the app is showing.
+async function _mergeOrphanContactInBackground(){
+  try {
+    if (!currentUser || !userProfile) return;
+    if (isAgent || isLender || userProfile.role === 'agent' || userProfile.role === 'lender') return; // agents/lenders never need this
+    var mergeQuery = fb.query(fb.collection(fb.db, 'users'), fb.where('email', '==', (currentUser.email||'').toLowerCase()));
+    var mergeSnaps = await fb.getDocs(mergeQuery);
+    for (const d of mergeSnaps.docs) {
+      if (d.id === currentUser.uid) continue;
+      var contact = d.data();
+      if (!contact.agentId || contact.portalUid) continue;
+      var patch = {};
+      if (contact.agentId && !userProfile.agentId) patch.agentId = contact.agentId;
+      if (contact.coAgentId && !userProfile.coAgentId) patch.coAgentId = contact.coAgentId;
+      if (contact.journeyType && userProfile.journeyType === 'buyer') patch.journeyType = contact.journeyType;
+      if (contact.currentStep > (userProfile.currentStep||1)) patch.currentStep = contact.currentStep;
+      if (contact.currentSellerStep > (userProfile.currentSellerStep||0)) patch.currentSellerStep = contact.currentSellerStep;
+      if (contact.currentMortgageStep > (userProfile.currentMortgageStep||0)) patch.currentMortgageStep = contact.currentMortgageStep;
+      var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
+        'buyerIsCash','sellerIsCash','crmStatus','notes','mortLAName','mortLAEmail','mortLACCEnabled'];
+      copyFields.forEach(function(f){ if (contact[f] !== undefined && userProfile[f] === undefined) patch[f] = contact[f]; });
+      if (Object.keys(patch).length) {
+        patch.portalUid = currentUser.uid;
+        await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), patch);
+        Object.assign(userProfile, patch);
+        console.log('Merged contact record fields (bg):', Object.keys(patch));
+      }
+      try { await fb.deleteDoc(fb.doc(fb.db, 'users', d.id)); } catch(x) {}
+    }
+  } catch(x) { console.log('bg merge:', x && x.message); }
+}
+window._mergeOrphanContactInBackground = _mergeOrphanContactInBackground;
+
 async function loadUserProfile() {
   // NOTE: team/lender rosters used to load here with two awaits BEFORE the user's own profile,
   // which blocked login behind everyone else's data (slow cold-starts sat on the login screen).
@@ -4904,41 +4939,12 @@ async function loadUserProfile() {
       if (userProfile.buyerContractDates) userProfile.buyerContractDates = Object.assign({}, userProfile.buyerContractDates);
       if (userProfile.sellerContractDates) userProfile.sellerContractDates = Object.assign({}, userProfile.sellerContractDates);
 
-      // Check if an agent-created contact record exists for this email that hasn't been merged yet
-      // This handles the case where the client signed up without using the invite link
-      try {
-        var mergeQuery = fb.query(
-          fb.collection(fb.db, 'users'),
-          fb.where('email', '==', currentUser.email.toLowerCase())
-        );
-        var mergeSnaps = await fb.getDocs(mergeQuery);
-        mergeSnaps.forEach(async function(d) {
-          if (d.id === currentUser.uid) return; // skip self
-          var contact = d.data();
-          if (!contact.agentId || contact.portalUid) return; // skip other auth accounts
-          // Found an unmerged contact record — merge key fields in
-          var patch = {};
-          if (contact.agentId && !userProfile.agentId) patch.agentId = contact.agentId;
-          if (contact.coAgentId && !userProfile.coAgentId) patch.coAgentId = contact.coAgentId;
-          if (contact.journeyType && userProfile.journeyType === 'buyer') patch.journeyType = contact.journeyType;
-          if (contact.currentStep > (userProfile.currentStep||1)) patch.currentStep = contact.currentStep;
-          if (contact.currentSellerStep > (userProfile.currentSellerStep||0)) patch.currentSellerStep = contact.currentSellerStep;
-          if (contact.currentMortgageStep > (userProfile.currentMortgageStep||0)) patch.currentMortgageStep = contact.currentMortgageStep;
-          var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
-            'buyerIsCash','sellerIsCash','crmStatus','notes','mortLAName','mortLAEmail','mortLACCEnabled'];
-          copyFields.forEach(function(f) {
-            if (contact[f] !== undefined && userProfile[f] === undefined) patch[f] = contact[f];
-          });
-          if (Object.keys(patch).length) {
-            patch.portalUid = currentUser.uid;
-            await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), patch);
-            Object.assign(userProfile, patch);
-            console.log('Merged contact record fields:', Object.keys(patch));
-          }
-          // Delete orphan
-          try { await fb.deleteDoc(fb.doc(fb.db, 'users', d.id)); } catch(x) {}
-        });
-      } catch(x) { console.log('Contact merge check:', x); }
+      // Duplicate-contact merge check moved OUT of the login critical path. It was running a
+      // full users-collection email query (+ possible writes) on EVERY login before the role was
+      // even set — adding seconds to every boot, including agents who never need it. It only
+      // matters for a client who signed up without the invite link, so run it in the background
+      // after the app is already showing. Fire-and-forget; it patches userProfile if it finds one.
+      setTimeout(function(){ _mergeOrphanContactInBackground(); }, 3000);
 
       // Check if this email is one of the team agents
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
