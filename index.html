@@ -430,6 +430,21 @@ textarea{resize:vertical;min-height:68px;}
   <div style="width:26px;height:26px;border:3px solid rgba(15,110,86,0.25);border-top-color:var(--green,#1D9E75);border-radius:50%;animation:authspin 0.7s linear infinite;"></div>
 </div>
 <style>@keyframes authspin{to{transform:rotate(360deg);}}</style>
+<script>
+// FAILSAFE: the auth splash is only cleared by showApp/showLogin/public-page handlers. If a
+// visitor lands on some path that does none of those (public links, deep links, an auth hiccup),
+// they'd stare at a spinner forever. Never let that happen — clear it unconditionally after 12s.
+setTimeout(function(){
+  var s = document.getElementById('auth-splash');
+  if (s && s.style.display !== 'none') {
+    s.style.display = 'none';
+    var l = document.getElementById('login-screen');
+    var appOn = document.getElementById('app') && document.getElementById('app').classList.contains('active');
+    var offerOn = document.getElementById('page-offer-submit') && document.getElementById('page-offer-submit').style.display === 'block';
+    if (l && !appOn && !offerOn) l.style.display = 'flex';
+  }
+}, 12000);
+</script>
 <div class="login-screen" id="login-screen" style="display:none;">
   <div class="login-card">
     <div class="brand-stack">
@@ -3709,6 +3724,10 @@ window.dispatchEvent(new Event('firebase-ready'));
     var loginEl = document.getElementById('login-screen');
     var appEl   = document.getElementById('app');
     var offerEl = document.getElementById('page-offer-submit');
+    // Public page — no login happens here, so nothing would otherwise hide the auth splash
+    // (it only clears in showApp/showLogin). Clear it now or the offer page sits behind it.
+    var splashEl = document.getElementById('auth-splash');
+    if (splashEl) splashEl.style.display = 'none';
     if (offerEl) {
       offerEl.style.display = 'block';
       var inner = document.getElementById('offer-submit-inner');
@@ -23307,6 +23326,8 @@ async function loadPublicOfferPage(code) {
   var page = document.getElementById('page-offer-submit');
   var inner = document.getElementById('offer-submit-inner');
   if (!page || !inner) return;
+  // Public page: make sure the auth splash isn't sitting on top of it.
+  var _asp = document.getElementById('auth-splash'); if (_asp) _asp.style.display = 'none';
 
   // Show offer page full-screen over everything (fixed position, z-index:999)
   page.style.display = 'block';
