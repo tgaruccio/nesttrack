@@ -437,13 +437,17 @@ textarea{resize:vertical;min-height:68px;}
 setTimeout(function(){
   var s = document.getElementById('auth-splash');
   if (s && s.style.display !== 'none') {
+    // NEVER show the login screen to someone who is actually signed in, or while the auth/profile
+    // load is still running — that was the "spinning forever, then login screen" bug. Only a
+    // genuinely logged-out visitor should ever land on the login form from here.
+    if (window._authInProgress || window._isAuthed) return;
     s.style.display = 'none';
     var l = document.getElementById('login-screen');
     var appOn = document.getElementById('app') && document.getElementById('app').classList.contains('active');
     var offerOn = document.getElementById('page-offer-submit') && document.getElementById('page-offer-submit').style.display === 'block';
     if (l && !appOn && !offerOn) l.style.display = 'flex';
   }
-}, 12000);
+}, 15000);
 </script>
 <div class="login-screen" id="login-screen" style="display:none;">
   <div class="login-card">
@@ -4410,28 +4414,39 @@ async function _firebaseInit() {
   fb.onAuthStateChanged(fb.auth, async user => {
     if (user) {
       currentUser = user;
+      window._isAuthed = true;
       if (window._signupInProgress) return;
       // The profile load is what sets isAgent/isLender — showApp picks the view from those.
       // If we render BEFORE it finishes, isAgent is false and the user wrongly lands on the
-      // client/home view (the "logged in as client after a hang" bug). So we must WAIT for the
-      // profile — but never hang forever: retry a slow/failed load rather than rendering the
-      // wrong role. Each attempt is time-boxed; role is known before we ever call showApp().
+      // client/home view. So we wait for the profile — but the wait must stay SHORTER than the
+      // splash failsafe below, or the failsafe fires mid-load and shows a login screen to an
+      // already-authenticated user. Max here: 2 x 5s = 10s, failsafe at 15s.
+      window._authInProgress = true;
       var _loaded = false;
-      for (var _try = 0; _try < 3 && !_loaded; _try++) {
+      for (var _try = 0; _try < 2 && !_loaded; _try++) {
         try {
           _loaded = await Promise.race([
             loadUserProfile().then(function(){ return true; }),
-            new Promise(function(res){ setTimeout(function(){ res(false); }, 6000); })
+            new Promise(function(res){ setTimeout(function(){ res(false); }, 5000); })
           ]);
         } catch(e) { console.log('profile load attempt '+_try+':', e && e.message); }
         // If the load resolved but role still isn't set (partial read), treat as not-loaded so we retry.
         if (_loaded && !isAgent && !isLender && !(userProfile && userProfile.role)) _loaded = false;
+      }
+      window._authInProgress = false;
+      if (!_loaded && !isAgent && !isLender && !(userProfile && userProfile.role)) {
+        // Authenticated, but we still don't know the role. Rendering now would show the WRONG
+        // view, and showing login would be a lie — they're signed in. Offer an honest retry.
+        _authSplashRetry();
+        return;
       }
       showApp();
       // Cold-launch badge reset. The visibilitychange handler runs before currentUser exists, so
       // its server clear no-ops; do it here now that we have the uid.
       try { clearAppBadge(); } catch(e){}
     } else {
+      window._isAuthed = false;
+      window._authInProgress = false;
       showLogin();
     }
   });
@@ -5024,6 +5039,18 @@ async function loadUserProfile() {
     await loadAssignedAgentProfile();
   } catch (e) { console.error('Profile load failed', e); }
 }
+
+// Authenticated, but the profile (and therefore the role) wouldn't load. Rendering would show
+// the wrong view and a login screen would be a lie — so say what's happening and offer a retry.
+function _authSplashRetry(){
+  var s = document.getElementById('auth-splash');
+  if (!s) { showApp(); return; }
+  s.style.display = 'flex';
+  s.innerHTML = '<div style="font-family:\'Fraunces\',serif;font-size:34px;font-weight:300;color:var(--green-dk,#0F6E56);letter-spacing:-1px;">Nest Track</div>'
+    + '<div style="font-size:14px;color:var(--text2,#6B6B6B);text-align:center;max-width:280px;line-height:1.5;">Having trouble loading your profile. Check your connection and try again.</div>'
+    + '<button onclick="location.reload()" style="background:var(--green,#1D9E75);color:#fff;border:none;border-radius:8px;padding:10px 22px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">Retry</button>';
+}
+window._authSplashRetry = _authSplashRetry;
 
 function showLogin() {
   var _sp = document.getElementById('auth-splash'); if (_sp) _sp.style.display = 'none';
