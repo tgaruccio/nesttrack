@@ -5002,6 +5002,14 @@ async function loadUserProfile() {
       const lg = _matchBelongsToMe ? _emailLender : null;
       if (lg) { isLender = true; userProfile.lenderId = lg.id; }
       else if (userProfile.role === 'lender') { isLender = true; }
+      // Clients resolve assignedAgent/assignedLender from the rosters below. Agents and lenders
+      // get the rosters loaded by _ensureRosterForUser after render, but CLIENTS have no such
+      // path — so without this they'd fall back to a blank agent whenever their agent was added
+      // dynamically (i.e. every new subscriber; the hardcoded team masked this).
+      if (!isAgent && !isLender) {
+        try { await loadTeamAgents(); } catch(e){}
+        try { await loadTeamLenders(); } catch(e){}
+      }
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || normalizeAgent(null);
       // Find assigned lender — null if none (no fallback to Tom). No lender = no mortgage trail.
