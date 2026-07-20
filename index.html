@@ -15476,9 +15476,22 @@ function exitManageAs(){
 async function applyManageAsOverride(){
   var target=null; try{ target=localStorage.getItem('nt_manage_as'); }catch(e){}
   if(!target) return;
-  if(typeof isOwner!=='function' || !isOwner()){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; } // only the real owner can impersonate
+  // isOwner() deliberately returns FALSE while _manageAsId is set (so the impersonated session
+  // behaves as that agent, not as the owner). That means a SECOND pass through this function —
+  // which the boot path can trigger — would fail its own owner check and wipe the key, silently
+  // cancelling the impersonation. If we've already validated and applied this exact target,
+  // don't re-run the ownership check.
+  var _alreadyOn = (window._manageAsId === target);
+  if(!_alreadyOn && (typeof isOwner!=='function' || !isOwner())){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; } // only the real owner can impersonate
   var ag=(DEFAULT_AGENTS||[]).find(function(a){return a.id===target;});
-  if(!ag || ag.id===(userProfile&&userProfile.agentId)){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; }
+  // Guard against managing-as your OWN account — but only when this is a genuine self-target.
+  // If we're already impersonating this agent (the boot path can run loadUserProfile more than
+  // once), userProfile.agentId is ALREADY the target, and clearing here would silently cancel
+  // the impersonation and drop the owner back into their own profile.
+  if (!ag) { try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; }
+  if (ag.id === (userProfile && userProfile.agentId) && !(userProfile && userProfile._impersonated)) {
+    try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return;
+  }
   // Resolve the target agent's OWN profile/login doc (keyed by their uid) so we edit THEIR data, not the owner's.
   var td=null, tdId=null;
   try{
