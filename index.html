@@ -17709,7 +17709,11 @@ async function openBuyerDetail(uid, scrollTo) {
       // "Which property?" picker once there are 2+), so offer another rather than hiding this.
       var _closed=_bd.every(function(d){return d.closed;});
       return `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="startAnotherJourney('${uid}','buyer')" style="width:100%;font-size:13px;">➕ Start Another Buyer Journey</button><div style="font-size:11px;color:var(--text3);margin-top:5px;text-align:center;">${_bd.length} existing${_closed?' (closed)':''} — they'll pick the property in their portal</div></div>`; })()}
-    ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','seller')" style="width:100%;font-size:13px;background:#D97706;color:#fff;border-color:#D97706;">🏡 Start Seller Journey</button></div>`}
+    ${(()=>{ var _sd=(typeof _deals!=='undefined'?_deals:[]).filter(function(d){return d.clientUid===uid&&d.dealType==='seller';});
+      if(!_sd.length) return `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','seller')" style="width:100%;font-size:13px;background:#D97706;color:#fff;border-color:#D97706;">🏡 Start Seller Journey</button></div>`;
+      // Same as buyer: repeat sellers (investors flipping, multi-property owners) get another.
+      var _closed=_sd.every(function(d){return d.closed;});
+      return `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="startAnotherJourney('${uid}','seller')" style="width:100%;font-size:13px;">➕ Start Another Seller Journey</button><div style="font-size:11px;color:var(--text3);margin-top:5px;text-align:center;">${_sd.length} existing${_closed?' (closed)':''} — they'll pick the property in their portal</div></div>`; })()}
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
@@ -30168,13 +30172,16 @@ async function addToDealTracker(uid, dealType, forceNew) {
     return;
   }
   var name = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
-  var addr = dealType==='seller'
+  // A deliberately-new journey must NOT inherit the previous property's address or its contract
+  // dates — those live in the old deal and belong to it. Start blank so the agent fills in the
+  // new property. (Normal first-time creation still pulls from the client record as before.)
+  var addr = forceNew ? null : (dealType==='seller'
     ? (b.listingAddress||b.propertyAddress||b.mailingAddress||null)
-    : (b.propertyAddress||null);
+    : (b.propertyAddress||null));
   // Pull dates from client contract dates
-  var clientDates = dealType==='seller'
+  var clientDates = forceNew ? {} : (dealType==='seller'
     ? (b.sellerContractDates || {})
-    : (b.buyerContractDates || b.contractDates || {});
+    : (b.buyerContractDates || b.contractDates || {}));
   var data = {
     clientName: name, clientUid: uid, dealType: dealType,
     address: addr,
