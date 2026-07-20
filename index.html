@@ -4962,10 +4962,16 @@ async function _mergeOrphanContactInBackground(){
 window._mergeOrphanContactInBackground = _mergeOrphanContactInBackground;
 
 async function loadUserProfile() {
-  // NOTE: team/lender rosters used to load here with two awaits BEFORE the user's own profile,
-  // which blocked login behind everyone else's data (slow cold-starts sat on the login screen).
-  // loadTeamAgents re-runs in _ensureRosterForUser once the profile/teamId is known anyway, so
-  // we load the user's OWN profile first and let the rosters follow non-blocking.
+  // The team/lender rosters MUST load before the rest of this function. Deferring them for speed
+  // caused a whole class of bugs, because DEFAULT_AGENTS/DEFAULT_LENDERS only contain the
+  // hardcoded team until loadTeamAgents() fills in everyone added via Firestore:
+  //   - manage-as silently failed for any non-hardcoded agent (target "not found" -> key wiped)
+  //   - clients (and new-subscriber agents) resolved a BLANK assignedAgent
+  // Tom's own team is hardcoded, which masked all of it. The real login-speed wins were moving
+  // the duplicate-merge to the background and gating the maintenance jobs — both kept. This
+  // stays synchronous on purpose.
+  try { await loadTeamAgents(); } catch(e){}
+  try { await loadTeamLenders(); } catch(e){}
   try {
     const snap = await fb.getDoc(fb.doc(fb.db, 'users', currentUser.uid));
     if (snap.exists()) {
@@ -5002,14 +5008,6 @@ async function loadUserProfile() {
       const lg = _matchBelongsToMe ? _emailLender : null;
       if (lg) { isLender = true; userProfile.lenderId = lg.id; }
       else if (userProfile.role === 'lender') { isLender = true; }
-      // Clients resolve assignedAgent/assignedLender from the rosters below. Agents and lenders
-      // get the rosters loaded by _ensureRosterForUser after render, but CLIENTS have no such
-      // path — so without this they'd fall back to a blank agent whenever their agent was added
-      // dynamically (i.e. every new subscriber; the hardcoded team masked this).
-      if (!isAgent && !isLender) {
-        try { await loadTeamAgents(); } catch(e){}
-        try { await loadTeamLenders(); } catch(e){}
-      }
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || normalizeAgent(null);
       // Find assigned lender — null if none (no fallback to Tom). No lender = no mortgage trail.
@@ -15492,6 +15490,13 @@ async function applyManageAsOverride(){
   var _alreadyOn = (window._manageAsId === target);
   if(!_alreadyOn && (typeof isOwner!=='function' || !isOwner())){ try{ localStorage.removeItem('nt_manage_as'); }catch(e){} return; } // only the real owner can impersonate
   var ag=(DEFAULT_AGENTS||[]).find(function(a){return a.id===target;});
+  if (!ag) {
+    // Safety net: never conclude an agent "doesn't exist" off a possibly-stale roster. Only the
+    // hardcoded team is present until loadTeamAgents() runs, so refresh once before giving up —
+    // otherwise impersonating any Firestore-added agent silently wipes the key.
+    try { await loadTeamAgents(); } catch(e){}
+    ag = (DEFAULT_AGENTS||[]).find(function(a){return a.id===target;});
+  }
   // Guard against managing-as your OWN account — but only when this is a genuine self-target.
   // If we're already impersonating this agent (the boot path can run loadUserProfile more than
   // once), userProfile.agentId is ALREADY the target, and clearing here would silently cancel
