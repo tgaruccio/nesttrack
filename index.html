@@ -17703,7 +17703,12 @@ async function openBuyerDetail(uid, scrollTo) {
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128196;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Transactions</div></div>
     ${renderClientDealsSection(uid)}
-    ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='buyer';})) ? '' : `<div id="coach-journey" data-coach="journey" style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`}
+    ${(()=>{ var _bd=(typeof _deals!=='undefined'?_deals:[]).filter(function(d){return d.clientUid===uid&&d.dealType==='buyer';});
+      if(!_bd.length) return `<div id="coach-journey" data-coach="journey" style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','buyer')" style="width:100%;font-size:13px;background:var(--green);color:#fff;border-color:var(--green);">🏠 Start Buyer Journey</button></div>`;
+      // Repeat client / investor: the portal already supports multiple purchases (it shows a
+      // "Which property?" picker once there are 2+), so offer another rather than hiding this.
+      var _closed=_bd.every(function(d){return d.closed;});
+      return `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="startAnotherJourney('${uid}','buyer')" style="width:100%;font-size:13px;">➕ Start Another Buyer Journey</button><div style="font-size:11px;color:var(--text3);margin-top:5px;text-align:center;">${_bd.length} existing${_closed?' (closed)':''} — they'll pick the property in their portal</div></div>`; })()}
     ${(typeof _deals!=='undefined' && _deals.some(function(d){return d.clientUid==='${uid}'&&d.dealType==='seller';})) ? '' : `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="addToDealTracker('${uid}','seller')" style="width:100%;font-size:13px;background:#D97706;color:#fff;border-color:#D97706;">🏡 Start Seller Journey</button></div>`}
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
@@ -30121,14 +30126,28 @@ async function sendTaskCompleteEmail(uid, taskLabel) {
 window.sendTaskCompleteEmail = sendTaskCompleteEmail;
 
 
-async function addToDealTracker(uid, dealType) {
+// Deliberately start an ADDITIONAL journey for a repeat client (investor buying again, etc).
+// Confirms first so a second deal is never created by a stray tap.
+async function startAnotherJourney(uid, dealType){
+  var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
+  var nm = b ? ((b.firstName||'')+' '+(b.lastName||'')).trim() : 'this client';
+  var n = (typeof _deals!=='undefined'?_deals:[]).filter(function(d){ return d.clientUid===uid && d.dealType===dealType; }).length;
+  if (!confirm('Start another '+dealType+' journey for '+nm+'?\n\nTheir existing '+n+' stays exactly as it is — this adds a new one starting at step 1. They\'ll be able to switch between properties in their portal.')) return;
+  await addToDealTracker(uid, dealType, true);
+}
+window.startAnotherJourney = startAnotherJourney;
+
+async function addToDealTracker(uid, dealType, forceNew) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
   if (!b) return;
   var agentId = userProfile.agentId|| '';
   if (!_dealsLoaded) await loadDeals();
-  // Check memory first
-  var existing = _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
-  if (!existing) {
+  // forceNew = the agent deliberately asked for ANOTHER journey (repeat client / investor).
+  // The client portal already supports this: _clientDealPicker shows a "Which property?"
+  // dropdown once 2+ deals of a type exist, and the trail reads the active deal's own step.
+  // So we skip the find-existing shortcut entirely and create a genuinely new deal.
+  var existing = forceNew ? null : _deals.find(function(d){ return d.clientUid===uid && d.dealType===dealType; });
+  if (!existing && !forceNew) {
     // Double-check Firestore to prevent duplicates from stale memory
     try {
       var fsChk = await fb.getDocs(fb.query(_dealCol(),
@@ -30163,7 +30182,7 @@ async function addToDealTracker(uid, dealType) {
     closingDate: clientDates.closingDate || null,
     inspectionDate: clientDates.inspectionDeadline || null,
     status: dealType==='seller' ? 'On Market' : 'Under Contract',
-    step: (dealType==='seller' ? (b.currentSellerStep||0) : (b.currentStep||0)) || 1,
+    step: forceNew ? 1 : ((dealType==='seller' ? (b.currentSellerStep||0) : (b.currentStep||0)) || 1),
     checklist: [], notes: '', agentId: agentId,
   };
   // Practice/onboarding deal: pre-fill a sample sale price so the close popup needs no typing, and flag
