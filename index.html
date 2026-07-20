@@ -5015,6 +5015,17 @@ async function loadUserProfile() {
       // Mark the install owner so security rules can grant platform god-mode to THEM only,
       // not to every team-owner (a lender-owner is teamRole:'owner' but NOT a platform owner).
       if (typeof isPlatformOwner === 'function' && isPlatformOwner()) { _laPatch.platformOwner = true; userProfile.platformOwner = true; }
+      // portalAccess:true is only written by the signup-via-invite-link flow, so a client who got
+      // their account any other way shows as "Invited · not accepted" forever even though they log
+      // in daily. A successful login IS acceptance — self-heal it here (clients only; agents and
+      // lenders have no portal semantics). Runs once: the guard skips it when already set.
+      if (!isAgent && !isLender && userProfile.role !== 'agent' && userProfile.role !== 'lender'
+          && userProfile.portalAccess !== true) {
+        _laPatch.portalAccess = true;
+        _laPatch.portalUid = currentUser.uid;
+        _laPatch.pending = false;
+        userProfile.portalAccess = true; userProfile.portalUid = currentUser.uid; userProfile.pending = false;
+      }
       try { await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), _laPatch); } catch(x){}
       _registerAgentPush();
       try { oneSignalRegister(); } catch(e){}
