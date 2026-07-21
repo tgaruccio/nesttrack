@@ -8252,7 +8252,7 @@ async function sendToTeam(finalHtml, subject, agents) {
       agentSnap.forEach(async function(doc) {
         await fetch(PROXY_URL, {
           method:'POST', headers:{'Content-Type':'application/json','X-Action':'onesignal-push'},
-          body: JSON.stringify({ uid: doc.id, title: '\U0001F3C6 Team Update', body: subject, url: 'https://app.nesttrack.io' })
+          body: JSON.stringify({ uid: doc.id, title: '🏆 Team Update', body: subject, url: 'https://app.nesttrack.io' })
         });
       });
     } catch(e){ errors.push(agent.name+' push'); }
@@ -10773,7 +10773,7 @@ var BUYER_STEP_EMAILS = {
         + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Compare it line-by-line to your original Loan Estimate — most numbers should match</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Confirm the exact amount you need to bring to closing (cashier\'s check or wire)</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Bring photo ID and any remaining documents your lender requests</li></ul>'
         + '<div style=\"background:#FEF3C7;border-left:3px solid #F59E0B;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#92400E;\">⚠️ If wiring closing funds — ALWAYS verify wire instructions by phone with the title company before sending. Call the number on their official website, not from the email.</div>';
     }},
-  11: { subject: 'You\'re a Homeowner \U0001F389 — Congratulations!',
+  11: { subject: 'You\'re a Homeowner 🎉 — Congratulations!',
     body: function(first, agentName, googleReviewUrl) {
       var reviewBox = googleReviewUrl
         ? '<div style="background:#f9f9f9;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;margin:20px 0;">'
@@ -11729,7 +11729,21 @@ function partnerEsc(v) { return String(v || '').replace(/[&<>\"']/g, function(c)
 // or ampersand in an address into "&#39;" / "&amp;" — which the mail client shows literally, so a
 // forwarded offer arrived with a string of symbols in the subject. Use this for subjects instead:
 // it strips anything dangerous for a header (newlines) but never HTML-escapes.
-function subjectText(v){ return String(v == null ? '' : v).replace(/[\r\n]+/g, ' ').trim(); }
+function subjectText(v){
+  var s = String(v == null ? '' : v);
+  // Subject lines are PLAIN TEXT — an HTML entity like &#x1F389; ships literally and the
+  // recipient sees the raw code instead of the emoji. Decode any entity that slipped into a
+  // subject (hex, decimal, or named) before sending, so this can't recur no matter which
+  // template introduces one.
+  if (s.indexOf('&') !== -1) {
+    try {
+      var _ta = document.createElement('textarea');
+      _ta.innerHTML = s;
+      s = _ta.value;
+    } catch(e){}
+  }
+  return s.replace(/[\r\n]+/g, ' ').trim();
+}
 window.subjectText = subjectText;
 
 function partnerActionButtons(p) {
@@ -23353,12 +23367,12 @@ async function confirmSendOffer(listingId, offerId) {
 
     // 3. Push to seller client
     if (ctx.listing && ctx.listing.clientUid) {
-      sendPushToUser(ctx.listing.clientUid, 'New Offer \U0001F389', 'An offer has come in on '+(ctx.listing.address||'your listing')+'. Check the app to review it.');
+      sendPushToUser(ctx.listing.clientUid, 'New Offer 🎉', 'An offer has come in on '+(ctx.listing.address||'your listing')+'. Check the app to review it.');
     }
 
     // 4. Push to listing agent (you)
     if (currentUser) {
-      sendPushToUser(currentUser.uid, '\U0001F4CB New Offer Received', (o.offerPrice||'An offer')+' on '+(ctx.listing&&ctx.listing.address||'your listing'));
+      sendPushToUser(currentUser.uid, '📋 New Offer Received', (o.offerPrice||'An offer')+' on '+(ctx.listing&&ctx.listing.address||'your listing'));
     }
 
     // 5. Emails in background — non-blocking
@@ -24799,16 +24813,35 @@ window.assignShowing = assignShowing;
 
 
 // Debug helper for ShowingTime issues
+// Filters the manual-showing client dropdown as you type. Keeps the <select> (so the save path
+// reading ms-client.value is untouched) and just rebuilds its options from the cached list.
+function msFilterClients(){
+  var sel = document.getElementById('ms-client');
+  if (!sel) return;
+  var q = ((document.getElementById('ms-client-search')||{}).value||'').trim().toLowerCase();
+  var list = window._msClients || [];
+  var keep = sel.value; // preserve the current pick if it still matches
+  var matches = q ? list.filter(function(c){
+    return (c.name||'').toLowerCase().indexOf(q) !== -1 || (c.email||'').toLowerCase().indexOf(q) !== -1;
+  }) : list;
+  sel.innerHTML = '<option value="">'
+    + (q && !matches.length ? '-- No matches --' : '-- Select client --') + '</option>'
+    + matches.map(function(c){ return '<option value="'+c.uid+'">'+partnerEsc(c.name)+'</option>'; }).join('');
+  if (keep && matches.some(function(c){ return c.uid === keep; })) sel.value = keep;
+  // One match while searching → select it, so you can type and go straight to Save.
+  else if (q && matches.length === 1) sel.value = matches[0].uid;
+}
+window.msFilterClients = msFilterClients;
+
 function openManualShowingModal() {
   if (!myBuyers || !myBuyers.length) { alert('No clients loaded.'); return; }
-  var sel = document.getElementById('ms-client');
-  if (sel) {
-    sel.innerHTML = '<option value="">-- Select client --</option>'
-      + (allBuyers||myBuyers||[]).map(function(b){
-          var n = ((b.firstName||'')+' '+(b.lastName||'')).trim()||b.email;
-          return '<option value="'+b.uid+'">'+partnerEsc(n)+'</option>';
-        }).join('');
-  }
+  // Cache the full list so the search box can filter without re-querying.
+  window._msClients = (allBuyers||myBuyers||[]).map(function(b){
+    return { uid: b.uid, name: ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email || '', email: b.email||'' };
+  }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  var searchEl = document.getElementById('ms-client-search');
+  if (searchEl) searchEl.value = '';
+  msFilterClients();
   // Default date to today
   var dateEl = document.getElementById('ms-date');
   if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
@@ -34519,6 +34552,7 @@ window.showEmailPreview = showEmailPreview;
     <div style="padding:16px 20px;display:flex;flex-direction:column;gap:12px;">
       <div>
         <label class="flabel">Client</label>
+        <input type="text" id="ms-client-search" placeholder="&#128269; Search clients..." oninput="msFilterClients()" style="width:100%;font-size:13px;margin-bottom:6px;" autocomplete="off" />
         <select id="ms-client" style="width:100%;font-size:13px;"><option value="">-- Select client --</option></select>
       </div>
       <div>
