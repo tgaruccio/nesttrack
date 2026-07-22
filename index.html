@@ -22186,6 +22186,18 @@ async function renderOfferManager() {
     renderOfferCards();
   }
 }
+// Formats an audit timestamp for the offer card — this is the receipt an agent shows when a
+// buyer's agent claims their offer was never presented, so it needs date AND time.
+function _offerStamp(ms){
+  try {
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+      + ' at ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  } catch(e){ return ''; }
+}
+window._offerStamp = _offerStamp;
+
 function _offerCardHtml(l) {
   var offerCount = l.offerCount || 0;
   var badge = offerCount > 0
@@ -22643,6 +22655,8 @@ async function viewOffers(listingId) {
           + '<div style="font-size:15px;font-weight:700;color:var(--green-dk);">'+(o.offerPrice||'—')+'</div>'
           + '<div style="font-size:12px;color:var(--text2);">'+partnerEsc(o.agentName||'')+(o.agentBrokerage?' · '+partnerEsc(o.agentBrokerage):'')+'</div>'
           + '<div style="font-size:11px;color:var(--text3);">Submitted '+ts+'</div>'
+          + (o.presentedAt ? '<div style="font-size:11px;color:var(--green-dk);font-weight:600;margin-top:3px;">\u2713 Presented to seller \u00b7 '+_offerStamp(o.presentedAt)+'</div>' : '')
+          + (o.agentNotifiedAt ? '<div style="font-size:11px;color:var(--text3);margin-top:1px;">Confirmation emailed to '+partnerEsc(o.agentEmail||'buyer\u2019s agent')+' \u00b7 '+_offerStamp(o.agentNotifiedAt)+'</div>' : '')
           + '</div>'
           + '<select onchange="updateOfferStatus(\''+listingId+'\',\''+o.id+'\',this.value)" style="font-size:12px;padding:4px 8px;border-radius:20px;border:1.5px solid '+sc.border+';background:'+sc.bg+';color:'+sc.color+';font-weight:600;">'
           + OFFER_STATUSES.map(function(s){ return '<option value="'+s+'"'+(s===(o.status||'Received')?' selected':'')+'>'+s+'</option>'; }).join('')
@@ -23357,7 +23371,14 @@ async function confirmSendOffer(listingId, offerId) {
   if (sendBtn) { sendBtn.disabled=true; sendBtn.textContent='Sending...'; }
   try {
     // 1. Update Firestore immediately — fast
-    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
+    // Audit trail: record WHEN the offer was presented to the seller and that the submitting
+    // agent was notified. Agents get accused of not presenting offers — this is the receipt,
+    // visible in Offer Manager instead of buried in the email provider's logs.
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{
+      status:'Under Review',
+      presentedAt: Date.now(),
+      agentNotifiedAt: Date.now()
+    });
 
     // 2. Show confirmation right away — no more waiting
     var overlay = document.getElementById('sor-overlay');
@@ -23738,7 +23759,14 @@ async function autoSendOfferToClient(listingId, offerId, listingData) {
       +'</div></div>';
     await fetch(PROXY_URL,{method:'POST',headers:{'Content-Type':'application/json','X-Action':'email'},
       body:JSON.stringify({to:clientToList(client), subject:'New Offer on '+subjectText(listingData.address||''), html:emailHtml})});
-    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{status:'Under Review'});
+    // Audit trail: record WHEN the offer was presented to the seller and that the submitting
+    // agent was notified. Agents get accused of not presenting offers — this is the receipt,
+    // visible in Offer Manager instead of buried in the email provider's logs.
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',listingId,'offers',offerId),{
+      status:'Under Review',
+      presentedAt: Date.now(),
+      agentNotifiedAt: Date.now()
+    });
     if (listingData.clientUid) {
       sendPushToUser(listingData.clientUid, 'New Offer 🎉', 'An offer has come in on '+(listingData.address||'your listing')+'. Check the app to review it.');
     }
