@@ -17848,6 +17848,8 @@ async function openBuyerDetail(uid, scrollTo) {
       <button class="btn btn-g" onclick="agentChatWith('${uid}')">Chat with Client</button>
       <button class="btn" onclick="todoAddForClient('${uid}','${_jsq(((b.firstName||'')+' '+(b.lastName||'')).trim())}')">＋ Task</button>
       <button class="btn" onclick="openApptModalForClient('${uid}','${_jsq(((b.firstName||'')+' '+(b.lastName||'')).trim())}')">📅 Appt</button>
+      ${(typeof isTeamLeader==='function' && isTeamLeader() && (typeof _myTeamAgents==='function' ? _myTeamAgents().length > 1 : false))
+        ? `<button class="btn" onclick="pushClientToTeam('${uid}')" title="Release this lead to your team — first to claim wins">👥 Send to Team</button>` : ''}
       <button class="btn" onclick="deleteBuyer('${uid}')" style="color:var(--red-dk);border-color:#F7C1C1;">Delete</button>
     </div>
     </div>
@@ -18037,6 +18039,59 @@ async function setBuyerDocs(uid) {
   const name = document.getElementById('bd-docs-name').value.trim();
   try { await fb.updateDoc(fb.doc(fb.db, 'users', uid), { docFolderUrl: url, docFolderName: name }); alert('Folder linked!'); } catch(e) { alert('Failed: '+e.message); }
 }
+// Release an EXISTING client to the team as a claimable lead. At add-time this is an either/or
+// radio (route to team OR keep it yourself), and picking "keep" used to be permanent. This gives
+// leaders the same option afterwards — for a mis-click, or a lead they've decided not to work.
+// Sending removes your copy on purpose: the worker creates a claimable lead, and if your record
+// stayed, whoever claims it would end up as a duplicate of the same person.
+async function pushClientToTeam(uid){
+  var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
+  if (!b) { alert('Client not found.'); return; }
+  if (typeof isTeamLeader !== 'function' || !isTeamLeader()) { alert('Only team leaders can send leads to the team.'); return; }
+  var nm = ((b.firstName||'')+' '+(b.lastName||'')).trim() || b.email || 'this client';
+
+  // Anything already in motion shouldn't be silently thrown away.
+  var hasDeal = (typeof _deals!=='undefined' && (_deals||[]).some(function(d){ return d.clientUid===uid; }));
+  var inJourney = ((b.currentStep||0) > 1) || ((b.currentSellerStep||0) > 0);
+  if (hasDeal || inJourney) {
+    if (!confirm(nm+' already has an active journey or deal.\n\nSending them to the team removes your copy — that progress will be lost.\n\nAre you sure?')) return;
+  }
+  if (!confirm('Send '+nm+' to your team as a claimable lead?\n\n\u2022 Your teammates are notified — first to claim wins\n\u2022 '+nm+' is removed from YOUR client list\n\nThis is the same as choosing "Send to team" when adding a contact.')) return;
+
+  try {
+    var r = await fetch(PROXY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Action':'distribute-lead'},
+      body: JSON.stringify({
+        firstName: b.firstName||'', lastName: b.lastName||'', email: b.email||'',
+        phone: b.phone||'', address: b.propertyAddress||b.mailingAddress||'',
+        source: b.segment || 'Reassigned', notes: b.notes||'', segment: b.segment||'',
+        teamId: (userProfile&&(userProfile.teamId||userProfile.agentId))|| '',
+        mode: 'blast'
+      })
+    });
+    var j = await r.json().catch(function(){ return {}; });
+    if (!(r.ok && j.ok)) {
+      if ((j.error||'').indexOf('rotation') !== -1) {
+        alert('No rotation set yet. Open Team \u2192 \u26A1 Lead Routing and pick which agents receive leads, then try again.');
+      } else {
+        alert('Could not send to team: ' + (j.error || j.reason || 'unknown error'));
+      }
+      return;
+    }
+    // Sent — now remove our copy so a claim can't create a duplicate of the same person.
+    try { await deleteDealsForClient(uid, (b && b.agentId) || userProfile.agentId); } catch(e){ console.log('deal cleanup:', e && e.message); }
+    try { await deleteKnownBuyerSubcollections(uid); } catch(e){}
+    try { await fb.deleteDoc(fb.doc(fb.db, 'users', uid)); } catch(e){}
+    allBuyers = (allBuyers||[]).filter(function(x){ return x.uid !== uid; });
+    closeM('buyer-modal');
+    await loadBuyersForAgent();
+    renderBuyers();
+    alert(nm + ' sent to the team. First to claim wins.');
+  } catch(e){ alert('Could not send to team: ' + (e && e.message)); }
+}
+window.pushClientToTeam = pushClientToTeam;
+
 async function deleteBuyer(uid) {
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) { alert('Buyer not found.'); return; }
