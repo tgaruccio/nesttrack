@@ -29700,15 +29700,23 @@ async function saveLeadDist(){
   }
   var btn = document.getElementById('ld-save-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+  // Prune the rotation to agents who are ACTUALLY on the team right now. The saved array could
+  // contain stale ids the picker never shows (e.g. hardcoded-seed duplicates like 'taylor' when
+  // the real account is 'taylorkaczur'). Those have no checkbox, so deselecting couldn't remove
+  // them — and they'd keep receiving blasts. Only keep ids present in the live team roster.
+  var _validIds = ((typeof _myTeamAgents==='function') ? _myTeamAgents() : []).map(function(a){ return a.id; });
+  var _cleanRotation = (Array.isArray(_leadDistCfg.rotation) ? _leadDistCfg.rotation : [])
+    .filter(function(id){ return _validIds.indexOf(id) !== -1; });
   var payload = {
     enabled: !!_leadDistCfg.enabled,
     mode: (_leadDistCfg.mode === 'roundrobin') ? 'roundrobin' : 'blast',
     scope: (_leadDistCfg.scope === 'segments') ? 'segments' : 'all',
     segments: Array.isArray(_leadDistCfg.segments) ? _leadDistCfg.segments : [],
-    rotation: Array.isArray(_leadDistCfg.rotation) ? _leadDistCfg.rotation : [],
+    rotation: _cleanRotation,
     teamId: _leadDistTeamId(),
     updatedAt: fb.serverTimestamp()
   };
+  _leadDistCfg.rotation = _cleanRotation;
   try {
     await fb.setDoc(fb.doc(fb.db,'agent_config','leadDist_'+_leadDistTeamId()), payload, {merge:true});
     closeM('lead-dist-modal');
