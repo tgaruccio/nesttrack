@@ -27592,7 +27592,7 @@ async function srPrefillFromLastReport(listingId, l) {
     _srCurrent.carried        = true;
 
     srShowCarryBanner(carried, false, skipped);
-    if (typeof srSwitchTab === 'function') srSwitchTab(_srCurrent._activeTab || 'showings');
+    _srRerender(_srCurrent._activeTab || 'showings');
   } catch(e) { console.log('srPrefillFromLastReport:', e.message); }
 }
 window.srPrefillFromLastReport = srPrefillFromLastReport;
@@ -27608,6 +27608,24 @@ function srShowCarryBanner(carried, statsOnly, skipped) {
   el.style.display = 'block';
 }
 window.srShowCarryBanner = srShowCarryBanner;
+
+// Re-render a tab WITHOUT srSwitchTab's save step. srSwitchTab reads the DOM into
+// _srCurrent before rendering, so calling it right after setting state overwrites that
+// state with the stale values still on screen. Anything that sets _srCurrent and then
+// needs a redraw must come through here instead.
+function _srRerender(tab) {
+  _srCurrent._activeTab = tab;
+  var content = document.getElementById('sr-tab-content');
+  if (!content) return;
+  if (tab==='showings')      content.innerHTML = srTabShowings();
+  else if (tab==='online')   content.innerHTML = srTabOnline();
+  else if (tab==='activity') content.innerHTML = srTabActivity();
+  else if (tab==='nextweek') content.innerHTML = srTabNextWeek();
+  else if (tab==='comps')  { content.innerHTML = srTabComps(); srWireCompAC(); }
+  else if (tab==='message')  content.innerHTML = srTabMessage();
+  srUpdateBottomBtn();
+}
+window._srRerender = _srRerender;
 
 function srSwitchTab(tab) {
   var tabs = ['showings','online','activity','nextweek','comps','message'];
@@ -28152,7 +28170,7 @@ async function srParseComps() {
         _srCurrent.compsActive = (_srCurrent.compsActive||[]).concat([row]); addedA++;
       }
     });
-    srSwitchTab('comps');
+    _srRerender('comps');
     var st2 = document.getElementById('sr-comp-parse-status');
     if (st2) {
       st2.textContent = 'Added ' + addedA + ' active and ' + addedS + ' sold'
@@ -28438,7 +28456,7 @@ function srDraftVerdict() {
   _srCurrent.verdictStatus   = dg.status;
   _srCurrent.verdictMeaning  = t.m;
   _srCurrent.verdictConsider = t.c;
-  srSwitchTab('message');
+  _srRerender('message');
 }
 window.srDraftVerdict = srDraftVerdict;
 
