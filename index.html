@@ -22239,12 +22239,10 @@ async function renderOfferManager() {
     html += '<div class="notice">No active listings yet. Create one to generate an offer submission link.</div>';
     el.innerHTML = html;
   } else {
-    if (_nClosed) {
       html += '<div style="display:flex;gap:0;margin-bottom:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">'
         + '<button id="offer-tab-active" onclick="switchOfferTab(\'active\')" style="flex:1;padding:8px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:'+(_offerTab==='closed'?'var(--surface2)':'var(--green)')+';color:'+(_offerTab==='closed'?'var(--text2)':'#fff')+';">Active ('+_nActive+')</button>'
         + '<button id="offer-tab-closed" onclick="switchOfferTab(\'closed\')" style="flex:1;padding:8px 4px;font-size:12px;font-weight:600;border:none;border-left:1px solid var(--border);cursor:pointer;background:'+(_offerTab==='closed'?'var(--green)':'var(--surface2)')+';color:'+(_offerTab==='closed'?'#fff':'var(--text2)')+';">Closed ('+_nClosed+')</button>'
         + '</div>';
-    } else { _offerTab = 'active'; }
     html += '<div style="margin:4px 0 10px;"><input id="offer-search" type="text" placeholder="Search by client or address..." oninput="_offerSearch=this.value;renderOfferCards();" value="'+(_offerSearch||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
     html += '<div id="offer-cards-container"></div>';
     el.innerHTML = html;
@@ -22621,24 +22619,76 @@ window.archiveListing = archiveListing;
 // A listing whose deal has closed is no longer a live listing: it moves to the Offer Manager's
 // Closed tab, drops out of Seller Reports, and the 120-day purge deletes it outright. Deal
 // Tracker stays the permanent record — document retention is a brokerage job, not the CRM's.
+// Street number + first street-name token, same convention srMatchShowings uses.
+function _addrKey(a) {
+  var parts = String(a || '').trim().split(/[\s,]+/);
+  if (parts.length < 2) return '';
+  return (parts[0] + ' ' + parts[1]).toLowerCase();
+}
+
+// Find the Offer Manager listing behind a deal. offerListingId is only set by three
+// flows (listing auto-creates a deal, the Go Live link prompt, Create Deal from a
+// listing card), so a deal built straight in Deal Tracker has no link \u2014 fall back to
+// client, then address, and backfill the link so it is direct next time.
+async function _listingIdForDeal(deal) {
+  if (!deal) return '';
+  if (deal.offerListingId) return deal.offerListingId;
+  var agentId = (userProfile && userProfile.agentId) || '';
+  if (!agentId) return '';
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db, 'offer_listings'), fb.where('agentId', '==', agentId)));
+    var rows = [];
+    snap.forEach(function(d){ rows.push({ id: d.id, data: d.data() }); });
+
+    var hit = deal.clientUid && rows.find(function(r){
+      return r.data.clientUid === deal.clientUid && r.data.active !== false;
+    });
+
+    if (!hit) {
+      var b   = (window.allBuyers || []).find(function(x){ return x.uid === deal.clientUid; });
+      var key = _addrKey(deal.address
+        || deal.listingAddress
+        || (b && (b.listingAddress || b.propertyAddress))
+        || '');
+      if (key) hit = rows.find(function(r){
+        return r.data.active !== false && _addrKey(r.data.address) === key;
+      });
+    }
+
+    if (!hit) { console.log('_listingIdForDeal: no Offer Manager listing matches deal', deal.id); return ''; }
+
+    deal.offerListingId = hit.id;
+    try { await fb.updateDoc(_dealDoc(deal.id), { offerListingId: hit.id }); } catch(e){}
+    console.log('_listingIdForDeal: linked deal', deal.id, '\u2192 listing', hit.id);
+    return hit.id;
+  } catch(e) { console.log('_listingIdForDeal:', e.message); return ''; }
+}
+window._listingIdForDeal = _listingIdForDeal;
+
 async function markListingClosedForDeal(deal) {
-  if (!deal || !deal.offerListingId) return;
+  var lid = await _listingIdForDeal(deal);
+  if (!lid) return;
   var stamp = new Date().toISOString().split('T')[0];
   try {
-    await fb.updateDoc(fb.doc(fb.db,'offer_listings',deal.offerListingId), { closedAt: stamp });
-    var l = (_listings||[]).find(function(x){ return x.id===deal.offerListingId; });
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',lid), { closedAt: stamp });
+    var l = (_listings||[]).find(function(x){ return x.id===lid; });
     if (l) l.closedAt = stamp;
+    console.log('Listing', lid, 'moved to the Closed tab.');
+    if (typeof renderOfferManager==='function' && document.getElementById('agent-offers-editor')) renderOfferManager();
   } catch(e) { console.log('markListingClosedForDeal:', e.message); }
 }
 window.markListingClosedForDeal = markListingClosedForDeal;
 
-// Deal moved back off Closed — the listing becomes live again.
+// Deal moved back off Closed \u2014 the listing becomes live again.
 async function reopenListingForDeal(deal) {
-  if (!deal || !deal.offerListingId) return;
+  var lid = await _listingIdForDeal(deal);
+  if (!lid) return;
   try {
-    await fb.updateDoc(fb.doc(fb.db,'offer_listings',deal.offerListingId), { closedAt: '' });
-    var l = (_listings||[]).find(function(x){ return x.id===deal.offerListingId; });
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',lid), { closedAt: '' });
+    var l = (_listings||[]).find(function(x){ return x.id===lid; });
     if (l) l.closedAt = '';
+    if (typeof renderOfferManager==='function' && document.getElementById('agent-offers-editor')) renderOfferManager();
   } catch(e) { console.log('reopenListingForDeal:', e.message); }
 }
 window.reopenListingForDeal = reopenListingForDeal;
