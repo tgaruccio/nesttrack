@@ -27497,7 +27497,10 @@ function srOpenBuilderWithListing(listingId, l) {
     compsActive: [],
     compsSold: [],
     prevStats: null,
-    carried: false
+    carried: false,
+    verdictStatus: '',
+    verdictMeaning: '',
+    verdictConsider: ''
   };
 
   // Load offers for this listing
@@ -27741,6 +27744,10 @@ function srSaveCurrentTab() {
     if (v) _srCurrent.videoUrl = v.value;
     if (n) _srCurrent.personalNote = n.value;
     if (s) _srCurrent.subject = s.value;
+    var vm = document.getElementById('sr-verdict-meaning');
+    var vc = document.getElementById('sr-verdict-consider');
+    if (vm) _srCurrent.verdictMeaning  = vm.value;
+    if (vc) _srCurrent.verdictConsider = vc.value;
     // videoThumbUrl saved by srUploadVideoThumb directly
   }
 }
@@ -27869,18 +27876,48 @@ async function srGenerateFeedbackSummary() {
     }
     if (btn) btn.textContent = 'Summarizing\u2026';
     var addr = (_srCurrent.listing && _srCurrent.listing.address) || '';
-    var prompt = 'You are an expert listing agent writing a showing-feedback summary FOR YOUR SELLER, based on a ShowingTime Listing Activity Report.\n\n'
-      + (addr ? ('PROPERTY: ' + addr + '\n\n') : '')
-      + 'REPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
-      + 'Write a clear, honest, seller-facing summary. Structure it as:\n'
-      + '1. One opening line on overall activity (number of showings, traffic level and trend).\n'
-      + '2. The 2-3 most common themes in the feedback (e.g. price, condition, specific objections), noting roughly how often each came up.\n'
-      + '3. A couple of short, representative direct quotes from agent comments.\n'
-      + '4. A brief, neutral "What this suggests" paragraph framing the options to discuss (e.g. price vs. condition) without being pushy or alarming.\n\n'
-      + 'Plain English, direct but constructive. No greeting and no signature \u2014 this drops straight into a report. Keep it under about 250 words.';
-    var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1100, messages: [{ role: 'user', content: prompt }] });
+    var dg = _srDiagnose();
+    var lst = _srCurrent.listing || {};
+    var price = lst.listPrice || lst.price || '';
+    var comps = (_srCurrent.compsActive||[]).concat(_srCurrent.compsSold||[])
+      .slice(0,8).map(function(c){ return '- ' + c.address + ' ' + (c.price||'') + ' ' + (c.sqft||'') + 'sf'; }).join('\n');
+
+    var prompt = 'You are an experienced listing agent writing two sections of a weekly seller report from a ShowingTime Listing Activity Report.\n\n'
+      + (addr ? ('PROPERTY: ' + addr + '\n') : '')
+      + (price ? ('LIST PRICE: ' + price + '\n') : '')
+      + 'THIS WEEK: ' + dg.showings + ' showings, ' + dg.views + ' online views, ' + dg.offers + ' offers'
+      + (dg.dom!==null ? (', ' + dg.dom + ' days on market') : '') + '\n'
+      + (dg.prevViews!==null ? ('LAST WEEK: ' + dg.prevViews + ' online views, ' + dg.prevShowings + ' showings\n') : 'No prior report \u2014 first week.\n')
+      + 'SIGNALS DETECTED: ' + dg.signals.join('; ') + '\n'
+      + (comps ? ('COMPARABLES:\n' + comps + '\n') : '')
+      + '\nREPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
+      + 'Return three pieces:\n\n'
+      + '1. "feedback" \u2014 a seller-facing summary of the showing feedback: one opening line on overall activity and trend, then the 2-3 most common themes with roughly how often each came up, then a couple of short representative quotes from agent comments. Do NOT include advice or recommendations here; that belongs in the next two fields. Under about 200 words.\n\n'
+      + '2. "meaning" \u2014 what the numbers and the feedback together actually say, in plain language. If online traffic dropped, explain that the surge a new listing gets naturally fades after the first couple of weeks, so they do not panic. Honest, never spin. Under 70 words.\n\n'
+      + '3. "consider" \u2014 the specific decision in front of the seller this week: hold steady, adjust price, address condition or staging, or widen showing availability. Name ONE primary option and say why, drawing on what the feedback actually said. If a price move is warranted, note that buyers filter searches at round numbers, so sitting just above a threshold hides the home from a whole bracket. Under 70 words.\n\n'
+      + 'No greeting, no signature, no bullet points, no markdown.\n'
+      + 'Respond with ONLY raw JSON: {"feedback":"...","meaning":"...","consider":"..."}';
+
+    var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1600, messages: [{ role: 'user', content: prompt }] });
     var out = (d && d.content && d.content[0] && d.content[0].text) || '';
-    _srCurrent.feedbackSummary = out.trim();
+    var parsed = null;
+    try { parsed = JSON.parse(out.replace(/```json|```/g,'').trim()); } catch(pe) { parsed = null; }
+
+    if (parsed && parsed.feedback) {
+      _srCurrent.feedbackSummary = String(parsed.feedback).trim();
+      // Status stays deterministic \u2014 the AI writes the words, the data makes the call.
+      _srCurrent.verdictStatus   = dg.status;
+      _srCurrent.verdictMeaning  = String(parsed.meaning  || '').trim();
+      _srCurrent.verdictConsider = String(parsed.consider || '').trim();
+    } else {
+      // Unparseable response: keep the prose as the summary and fall back to the
+      // free template for the verdict rather than losing the whole call.
+      _srCurrent.feedbackSummary = out.trim();
+      var tf = _srVerdictTemplate(dg);
+      _srCurrent.verdictStatus   = dg.status;
+      _srCurrent.verdictMeaning  = tf.m;
+      _srCurrent.verdictConsider = tf.c;
+    }
     var wrap = document.getElementById('sr-feedback-summary-wrap');
     if (wrap) wrap.style.display = 'block';
     var ta = document.getElementById('sr-feedback-summary');
@@ -28103,7 +28140,40 @@ function srAddCompRow(type) {
 window.srAddCompRow = srAddCompRow;
 
 function srTabMessage() {
-  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
+  // The verdict sits here because it's the last stop before sending — every number
+  // is already entered by the time the agent reaches it.
+  var dg = _srDiagnose();
+  var cur = _srCurrent.verdictStatus || '';
+  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Where We Stand</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">The data alone doesn\'t tell your seller what to do. This is the part that does.</div>';
+
+  html += '<div style="font-size:11.5px;color:var(--text3);background:var(--surface2);border-radius:var(--r);padding:8px 10px;margin-bottom:10px;line-height:1.55;">'
+    + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
+    + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
+    + '</div>';
+
+  html += '<div style="display:flex;gap:6px;margin-bottom:10px;">';
+  ['ontrack','watching','adjust'].forEach(function(k){
+    var v = SR_VERDICTS[k];
+    var on = (cur === k);
+    html += '<button id="sr-vb-'+k+'" onclick="srSetVerdict(\''+k+'\')" style="flex:1;padding:9px 4px;font-size:11px;font-weight:600;border:1px solid '+(on?v.pill:'var(--border)')+';border-radius:var(--r);cursor:pointer;background:'+(on?v.bg:'var(--surface)')+';color:'+(on?v.text:'var(--text2)')+';">'+v.label+'</button>';
+  });
+  html += '</div>';
+
+  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:10px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px;">Fill from this week\'s numbers</button>';
+
+  html += '<div style="margin-bottom:10px;">'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">What this means</label>'
+    + '<textarea id="sr-verdict-meaning" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
+    + '</div>';
+
+  html += '<div style="margin-bottom:18px;">'
+    + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">What to consider</label>'
+    + '<textarea id="sr-verdict-consider" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">Leave both blank to skip this section entirely. Generating from your ShowingTime PDF on the Showings tab fills this in too, using the actual buyer feedback.</div>'
+    + '</div>';
+
+  html += '<div style="border-top:1px solid var(--border);padding-top:14px;font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
 
   html += '<div style="margin-bottom:14px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Email Subject</label>'
@@ -28125,7 +28195,138 @@ function srTabMessage() {
   return html;
 }
 
+// Read this week's numbers and decide which way the listing is trending. Deterministic
+// on purpose — the AI writes the wording, but the call comes from the actual data so two
+// agents with the same numbers get the same verdict.
+var SR_VERDICTS = {
+  ontrack:  { label:'On track',            bg:'#F0FDF4', pill:'#157A5A', text:'#065F46' },
+  watching: { label:'Watching closely',    bg:'#FAEEDA', pill:'#B45309', text:'#633806' },
+  adjust:   { label:'Recommend adjusting', bg:'#FAECE7', pill:'#C2410C', text:'#7C2D12' }
+};
+
+function _srDiagnose() {
+  var kept = (_srCurrent.showings||[]).filter(function(s){ return s.keep!==false && (s.date||s.agent); }).length;
+  var showings = kept || (_srCurrent.quickShowingCount||0);
+  var views    = _srTotalViews();
+  var offers   = (_srCurrent.offers||[]).length;
+  var domRaw   = srDom(_srCurrent.listing||{});
+  var dom      = (typeof domRaw === 'number') ? domRaw : null;
+  var ps       = _srCurrent.prevStats || null;
+  var pv       = (ps && typeof ps.totalViews === 'number') ? ps.totalViews : null;
+  var pshow    = (ps && typeof ps.showings   === 'number') ? ps.showings   : null;
+
+  var status = 'ontrack';
+  var signals = [];
+  var primary = 'steady';
+
+  if (offers > 0) {
+    signals.push(offers + ' offer' + (offers!==1?'s':'') + ' in hand');
+    primary = 'offers';
+  } else if (showings >= 12) {
+    signals.push('heavy showing traffic and still no offers — points at price against condition, and the feedback says which');
+    status = 'adjust';
+    primary = 'heavy';
+  } else if (showings === 0 && dom !== null && dom >= 10) {
+    signals.push('no showings at all this week — that is the signal to act on, whatever the online numbers say');
+    status = 'adjust';
+    primary = 'noshow';
+  } else if (views >= 150 && showings <= 1) {
+    signals.push('plenty of people finding it online but almost nobody booking — first-glance appeal or price, not exposure');
+    status = 'watching';
+    primary = 'notbooking';
+  } else if (views > 0 && views < 60 && showings <= 1) {
+    signals.push('low online traffic and low showings — exposure or price band, check the search-filter thresholds');
+    status = 'adjust';
+    primary = 'lowtraffic';
+  }
+
+  if (pv !== null && pv > 0 && views < pv * 0.6) {
+    signals.push('online views down sharply from ' + pv + ' last week');
+    if (status === 'ontrack') status = 'watching';
+  }
+  if (pshow !== null && showings > pshow) signals.push('showings up from ' + pshow + ' last week');
+  if (dom !== null && dom > 45 && offers === 0) {
+    signals.push(dom + ' days on market with no offers yet');
+    status = 'adjust';
+    primary = 'dom45';
+  }
+  if (!signals.length) signals.push('steady week, nothing out of the ordinary');
+
+  return { status:status, primary:primary, showings:showings, views:views, offers:offers, dom:dom,
+           prevViews:pv, prevShowings:pshow, signals:signals };
+}
+window._srDiagnose = _srDiagnose;
+
 // Total online views across every portal — used by the email and by the saved stats.
+// Writes the verdict from the numbers alone — no API call. This covers the ordinary
+// week. The AI version only earns its cost when there's real buyer feedback to fold in.
+function _srVerdictTemplate(dg) {
+  var sh = dg.showings, vw = dg.views, of = dg.offers, dm = dg.dom;
+  var n = function(v, w){ return v + ' ' + w + (v!==1?'s':''); };
+  var week = 'This week the home had ' + n(sh,'showing') + ' and ' + n(vw,'online view') + '.';
+  var drop = (dg.prevViews !== null && vw < dg.prevViews * 0.6)
+    ? ' Online views are down from ' + dg.prevViews + ' last week. That fade is normal — the burst of attention a new listing gets tapers after the first couple of weeks, and from here traffic comes from buyers actively shopping your price range rather than people browsing.'
+    : '';
+  var T = {
+    offers: {
+      m: week + ' We have ' + n(of,'offer') + ' in hand, which is the outcome all of this was aimed at.',
+      c: 'Focus now shifts to terms, not exposure — price, financing strength, contingencies and timeline. I will walk you through how each offer compares before you decide.'
+    },
+    heavy: {
+      m: week + ' That is heavy traffic, and traffic that heavy without an offer usually means buyers like the house enough to walk through it but something stops them at the decision.' + drop,
+      c: 'With this many people through the door, the question is price against condition rather than exposure. The showing feedback points to which one. Worth sitting down this week to look at both.'
+    },
+    noshow: {
+      m: week + ' No showings at all is the number that matters here, whatever the online activity looks like.' + drop,
+      c: 'When nobody is booking, the listing is not competing with the other homes buyers are seeing at this price. That is usually price position or how the home presents in the first two photos. I would like to talk through both this week.'
+    },
+    notbooking: {
+      m: week + ' People are finding the home online but very few are booking a showing, which tells us exposure is not the problem.' + drop,
+      c: 'When views are strong and showings are not, buyers are ruling the home out from the photos and the price before they ever walk in. That points at the lead photo and the price positioning rather than anything inside the house.'
+    },
+    lowtraffic: {
+      m: week + ' Both the online traffic and the showing count are light.' + drop,
+      c: 'Buyers set price caps on their searches at round numbers, so a home sitting just above one is invisible to an entire bracket. Worth checking where we land against the nearest threshold.'
+    },
+    dom45: {
+      m: week + ' We are at ' + dm + ' days on market without an offer.' + drop,
+      c: 'At this point on the calendar it is worth a real conversation about a change, regardless of how any single week looked. Let us find time this week.'
+    },
+    steady: {
+      m: week + ' Nothing unusual either direction — a steady week.' + drop,
+      c: 'No change needed right now. I will keep the marketing running and flag it early if the numbers start moving the wrong way.'
+    }
+  };
+  return T[dg.primary] || T.steady;
+}
+window._srVerdictTemplate = _srVerdictTemplate;
+
+function srSetVerdict(k) {
+  _srCurrent.verdictStatus = (_srCurrent.verdictStatus === k) ? '' : k;
+  ['ontrack','watching','adjust'].forEach(function(x){
+    var b = document.getElementById('sr-vb-'+x);
+    if (!b) return;
+    var v = SR_VERDICTS[x], on = (_srCurrent.verdictStatus === x);
+    b.style.background  = on ? v.bg : 'var(--surface)';
+    b.style.color       = on ? v.text : 'var(--text2)';
+    b.style.borderColor = on ? v.pill : 'var(--border)';
+  });
+}
+window.srSetVerdict = srSetVerdict;
+
+// Fills the verdict from the numbers instantly, with no API call. The ShowingTime
+// button on the Showings tab is the one that spends a call, and it already had to.
+function srDraftVerdict() {
+  srSaveCurrentTab();
+  var dg = _srDiagnose();
+  var t  = _srVerdictTemplate(dg);
+  _srCurrent.verdictStatus   = dg.status;
+  _srCurrent.verdictMeaning  = t.m;
+  _srCurrent.verdictConsider = t.c;
+  srSwitchTab('message');
+}
+window.srDraftVerdict = srDraftVerdict;
+
 function _srTotalViews() {
   var oa = (_srCurrent && _srCurrent.onlineActivity) || {};
   var t = 0;
@@ -28244,6 +28445,27 @@ function srBuildEmailHtml() {
     html += '</div>';
   });
   html += '</div></div>';
+
+  // Where we stand — the interpretation layer. Numbers above, meaning here.
+  var vk = _srCurrent.verdictStatus;
+  var vv = SR_VERDICTS[vk];
+  if (vv && ((_srCurrent.verdictMeaning||'').trim() || (_srCurrent.verdictConsider||'').trim())) {
+    html += '<div style="background:'+vv.bg+';padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
+    html += '<div style="margin-bottom:10px;">'
+      + '<span style="background:'+vv.pill+';color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;">'+vv.label+'</span>'
+      + '<span style="font-size:14px;font-weight:700;color:'+vv.text+';margin-left:8px;">Where We Stand</span>'
+      + '</div>';
+    if ((_srCurrent.verdictMeaning||'').trim()) {
+      html += '<div style="font-size:13px;line-height:1.7;color:'+vv.text+';margin-bottom:12px;">'+_srCurrent.verdictMeaning.replace(/\n/g,'<br/>')+'</div>';
+    }
+    if ((_srCurrent.verdictConsider||'').trim()) {
+      html += '<div style="background:#fff;border-radius:8px;padding:12px 14px;">'
+        + '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:5px;">What to consider</div>'
+        + '<div style="font-size:13px;line-height:1.65;color:#333;">'+_srCurrent.verdictConsider.replace(/\n/g,'<br/>')+'</div>'
+        + '</div>';
+    }
+    html += '</div>';
+  }
 
   // Online presence
   var filledPlatforms = [
@@ -28479,6 +28701,13 @@ async function srSendReport() {
           customNextWeek: _srCurrent.customNextWeek || '',
           compsActive:    _srCurrent.compsActive    || [],
           compsSold:      _srCurrent.compsSold      || []
+        },
+        // Recorded for history only — srPrefillFromLastReport never carries these,
+        // because last week's read is not this week's read.
+        verdict: {
+          status:   _srCurrent.verdictStatus   || '',
+          meaning:  _srCurrent.verdictMeaning  || '',
+          consider: _srCurrent.verdictConsider || ''
         },
         stats: {
           totalViews:  _srTotalViews(),
