@@ -27499,6 +27499,7 @@ function srOpenBuilderWithListing(listingId, l) {
     prevStats: null,
     carried: false,
     verdictStatus: '',
+    verdictEdited: false,
     verdictMeaning: '',
     verdictConsider: ''
   };
@@ -27625,7 +27626,7 @@ function srSwitchTab(tab) {
   else if (tab==='online') content.innerHTML = srTabOnline();
   else if (tab==='activity') content.innerHTML = srTabActivity();
   else if (tab==='nextweek') content.innerHTML = srTabNextWeek();
-  else if (tab==='comps') content.innerHTML = srTabComps();
+  else if (tab==='comps') { content.innerHTML = srTabComps(); srWireCompAC(); }
   else if (tab==='message') content.innerHTML = srTabMessage();
   srUpdateBottomBtn();
 }
@@ -27903,6 +27904,7 @@ async function srGenerateFeedbackSummary() {
     var parsed = null;
     try { parsed = JSON.parse(out.replace(/```json|```/g,'').trim()); } catch(pe) { parsed = null; }
 
+    _srCurrent.verdictEdited = false;
     if (parsed && parsed.feedback) {
       _srCurrent.feedbackSummary = String(parsed.feedback).trim();
       // Status stays deterministic \u2014 the AI writes the words, the data makes the call.
@@ -28092,12 +28094,95 @@ function srCompRow(type, data) {
     + '</div>';
 }
 
+var _srCompAcSeq = 0;
+
+// setupPlacesAC keys off element id, but comp inputs are class-only and the rows are
+// rebuilt on every tab switch — so hand out ids here and re-wire after each render.
+// The helper's own dataset.acReady guard makes re-calling safe.
+function srWireCompAC() {
+  if (typeof setupPlacesAC !== 'function') return;
+  Array.prototype.forEach.call(document.querySelectorAll('.sr-comp-addr'), function(el){
+    if (!el.id) el.id = 'sr-comp-addr-' + (++_srCompAcSeq);
+    try { setupPlacesAC(el.id); } catch(e){}
+  });
+}
+window.srWireCompAC = srWireCompAC;
+
+// Paste a comp search straight out of Matrix; one AI call splits it into rows and
+// sorts active from sold. Rows are APPENDED, so anything already typed survives.
+async function srParseComps() {
+  var ta = document.getElementById('sr-comp-paste');
+  var st = document.getElementById('sr-comp-parse-status');
+  var btn = document.getElementById('sr-comp-parse-btn');
+  var text = ta ? ta.value.trim() : '';
+  if (!text) { if (st) st.textContent = 'Paste your comp results above first.'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Reading\u2026'; }
+  if (st) { st.textContent = ''; st.style.color = 'var(--text3)'; }
+  try {
+    srSaveCurrentTab();
+    var prompt = 'Extract every property from this pasted real estate comparable search.\n\n'
+      + 'PASTED TEXT:\n' + text.slice(0, 12000) + '\n\n'
+      + 'For each property return: address, price (keep the $ and commas as written), sqft (digits only), '
+      + 'beds (as bed/bath, e.g. "3/2"), status ("active" or "sold" \u2014 anything pending, contingent or under contract counts as active), '
+      + 'and notes (sold date or anything else short and useful, else empty string).\n'
+      + 'Skip header rows, totals, averages and page furniture. If a field is missing use an empty string.\n'
+      + 'Respond with ONLY raw JSON, no markdown fences: {"comps":[{"address":"","price":"","sqft":"","beds":"","status":"","notes":""}]}';
+    var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 2000, messages: [{ role:'user', content: prompt }] });
+    var raw = (d && d.content && d.content[0] && d.content[0].text) || '';
+    var parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+    var rows = (parsed && parsed.comps) || [];
+    if (!rows.length) throw new Error('no properties found in that text');
+
+    var seen = {};
+    (_srCurrent.compsActive||[]).concat(_srCurrent.compsSold||[]).forEach(function(c){
+      seen[_addrKey(c.address)] = true;
+    });
+    var addedA = 0, addedS = 0, dupes = 0;
+    rows.forEach(function(r){
+      var addr = String(r.address||'').trim();
+      if (!addr) return;
+      var key = _addrKey(addr);
+      if (key && seen[key]) { dupes++; return; }
+      if (key) seen[key] = true;
+      var row = { address:addr, url:'', price:String(r.price||''), sqft:String(r.sqft||''),
+                  beds:String(r.beds||''), condition:'', notes:String(r.notes||'') };
+      if (String(r.status||'').toLowerCase().indexOf('sold') !== -1) {
+        _srCurrent.compsSold = (_srCurrent.compsSold||[]).concat([row]); addedS++;
+      } else {
+        _srCurrent.compsActive = (_srCurrent.compsActive||[]).concat([row]); addedA++;
+      }
+    });
+    srSwitchTab('comps');
+    var st2 = document.getElementById('sr-comp-parse-status');
+    if (st2) {
+      st2.textContent = 'Added ' + addedA + ' active and ' + addedS + ' sold'
+        + (dupes ? ' \u00b7 skipped ' + dupes + ' already listed' : '') + '. Check the numbers before sending.';
+      st2.style.color = 'var(--green)';
+    }
+  } catch(e) {
+    if (st) { st.textContent = 'Could not read that: ' + (e && e.message ? e.message : e) + '. Try pasting the results rows on their own.'; st.style.color = '#C2410C'; }
+  } finally {
+    var b2 = document.getElementById('sr-comp-parse-btn');
+    if (b2) { b2.disabled = false; b2.textContent = 'Parse comps'; }
+  }
+}
+window.srParseComps = srParseComps;
+
 function srTabComps() {
   var active = _srCurrent.compsActive || [];
   var sold = _srCurrent.compsSold || [];
 
   var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Market Comparables</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:14px;">Add active listings and recent sales to give your seller market context. Only shows in email if filled in.</div>';
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Add active listings and recent sales to give your seller market context. Only shows in email if filled in.</div>';
+
+  // Paste straight from Matrix rather than typing seven fields per row.
+  html += '<div style="background:var(--surface2);border-radius:var(--r);padding:10px 12px;margin-bottom:16px;">'
+    + '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">\uD83D\uDCCB Paste from MLS</div>'
+    + '<textarea id="sr-comp-paste" rows="4" placeholder="Run your comp search in Matrix, highlight the results rows, copy, and paste here..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;"></textarea>'
+    + '<div style="display:flex;gap:8px;align-items:center;margin-top:6px;">'
+    + '<button id="sr-comp-parse-btn" onclick="srParseComps()" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:11.5px;font-weight:600;cursor:pointer;flex-shrink:0;">Parse comps</button>'
+    + '<span id="sr-comp-parse-status" style="font-size:11px;color:var(--text3);line-height:1.4;"></span>'
+    + '</div></div>';
 
   // Active on market
   html += '<div style="margin-bottom:16px;">'
@@ -28136,6 +28221,7 @@ function srAddCompRow(type) {
   var div = document.createElement('div');
   div.innerHTML = srCompRow(type, null);
   container.appendChild(div.firstChild);
+  srWireCompAC();
 }
 window.srAddCompRow = srAddCompRow;
 
@@ -28164,13 +28250,13 @@ function srTabMessage() {
 
   html += '<div style="margin-bottom:10px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">What this means</label>'
-    + '<textarea id="sr-verdict-meaning" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
+    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
     + '</div>';
 
   html += '<div style="margin-bottom:18px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">What to consider</label>'
-    + '<textarea id="sr-verdict-consider" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
-    + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">Leave both blank to skip this section entirely. Generating from your ShowingTime PDF on the Showings tab fills this in too, using the actual buyer feedback.</div>'
+    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">Tap a status to rewrite the wording; once you edit the text yourself it stays put. Leave both blank to skip this section entirely. Generating from your ShowingTime PDF on the Showings tab fills this in too, using the actual buyer feedback.</div>'
     + '</div>';
 
   html += '<div style="border-top:1px solid var(--border);padding-top:14px;font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
@@ -28260,7 +28346,7 @@ window._srDiagnose = _srDiagnose;
 // Total online views across every portal — used by the email and by the saved stats.
 // Writes the verdict from the numbers alone — no API call. This covers the ordinary
 // week. The AI version only earns its cost when there's real buyer feedback to fold in.
-function _srVerdictTemplate(dg) {
+function _srVerdictTemplate(dg, forceStatus) {
   var sh = dg.showings, vw = dg.views, of = dg.offers, dm = dg.dom;
   var n = function(v, w){ return v + ' ' + w + (v!==1?'s':''); };
   var week = 'This week the home had ' + n(sh,'showing') + ' and ' + n(vw,'online view') + '.';
@@ -28297,20 +28383,48 @@ function _srVerdictTemplate(dg) {
       c: 'No change needed right now. I will keep the marketing running and flag it early if the numbers start moving the wrong way.'
     }
   };
+  // Agent overrode the computed status — speak to the status they chose, not the
+  // signal the data found, or the pill and the paragraph end up contradicting.
+  var S = {
+    ontrack: {
+      m: week + ' Nothing in this week calls for a change.' + drop,
+      c: 'Holding the current plan. I will keep the marketing running and raise it early if the numbers start moving the wrong way.'
+    },
+    watching: {
+      m: week + ' Worth watching closely rather than acting on yet.' + drop,
+      c: 'No change this week. I want another week of data before we decide anything — I will flag it straight away if the trend holds.'
+    },
+    adjust: {
+      m: week + ' Taken together, this is the point to talk about a change.' + drop,
+      c: 'I would like to sit down this week and look at price against condition. Let us find time.'
+    }
+  };
+  if (forceStatus && forceStatus !== dg.status) return S[forceStatus] || S.ontrack;
   return T[dg.primary] || T.steady;
 }
 window._srVerdictTemplate = _srVerdictTemplate;
 
 function srSetVerdict(k) {
-  _srCurrent.verdictStatus = (_srCurrent.verdictStatus === k) ? '' : k;
+  var next = (_srCurrent.verdictStatus === k) ? '' : k;
+  _srCurrent.verdictStatus = next;
   ['ontrack','watching','adjust'].forEach(function(x){
     var b = document.getElementById('sr-vb-'+x);
     if (!b) return;
-    var v = SR_VERDICTS[x], on = (_srCurrent.verdictStatus === x);
+    var v = SR_VERDICTS[x], on = (next === x);
     b.style.background  = on ? v.bg : 'var(--surface)';
     b.style.color       = on ? v.text : 'var(--text2)';
     b.style.borderColor = on ? v.pill : 'var(--border)';
   });
+  // Rewrite the wording to match the status — but never clobber the agent's own words.
+  if (next && !_srCurrent.verdictEdited) {
+    var t = _srVerdictTemplate(_srDiagnose(), next);
+    _srCurrent.verdictMeaning  = t.m;
+    _srCurrent.verdictConsider = t.c;
+    var vm = document.getElementById('sr-verdict-meaning');
+    var vc = document.getElementById('sr-verdict-consider');
+    if (vm) vm.value = t.m;
+    if (vc) vc.value = t.c;
+  }
 }
 window.srSetVerdict = srSetVerdict;
 
@@ -28318,6 +28432,7 @@ window.srSetVerdict = srSetVerdict;
 // button on the Showings tab is the one that spends a call, and it already had to.
 function srDraftVerdict() {
   srSaveCurrentTab();
+  _srCurrent.verdictEdited = false;
   var dg = _srDiagnose();
   var t  = _srVerdictTemplate(dg);
   _srCurrent.verdictStatus   = dg.status;
