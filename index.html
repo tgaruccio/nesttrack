@@ -22165,6 +22165,7 @@ window.showBrowserNotification = showBrowserNotification;
 
 var _listings = []; // agent's active listings with offers
 var _offerSearch = '';
+var _offerTab = 'active';   // Offer Manager view: 'active' | 'closed'
 
 // ── Default offer fields ──
 var DEFAULT_OFFER_FIELDS = [
@@ -22231,10 +22232,19 @@ async function renderOfferManager() {
     + '<div style="font-size:14px;font-weight:500;flex:1;">Offer Management</div>'
     + '<button class="btn btn-sm btn-g" onclick="openNewListingModal()">+ New Listing</button>' + '<button class="btn btn-sm" onclick="manualPurge()" style="font-size:11px;">&#x1F5D1; Purge Old (120d)</button>'
     + '</div>';
+  // Listings whose deal has closed move to the Closed tab (see markListingClosedForDeal).
+  var _nActive = _listings.filter(function(l){ return !l.closedAt; }).length;
+  var _nClosed = _listings.length - _nActive;
   if (!_listings.length) {
     html += '<div class="notice">No active listings yet. Create one to generate an offer submission link.</div>';
     el.innerHTML = html;
   } else {
+    if (_nClosed) {
+      html += '<div style="display:flex;gap:0;margin-bottom:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">'
+        + '<button id="offer-tab-active" onclick="switchOfferTab(\'active\')" style="flex:1;padding:8px 4px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:'+(_offerTab==='closed'?'var(--surface2)':'var(--green)')+';color:'+(_offerTab==='closed'?'var(--text2)':'#fff')+';">Active ('+_nActive+')</button>'
+        + '<button id="offer-tab-closed" onclick="switchOfferTab(\'closed\')" style="flex:1;padding:8px 4px;font-size:12px;font-weight:600;border:none;border-left:1px solid var(--border);cursor:pointer;background:'+(_offerTab==='closed'?'var(--green)':'var(--surface2)')+';color:'+(_offerTab==='closed'?'#fff':'var(--text2)')+';">Closed ('+_nClosed+')</button>'
+        + '</div>';
+    } else { _offerTab = 'active'; }
     html += '<div style="margin:4px 0 10px;"><input id="offer-search" type="text" placeholder="Search by client or address..." oninput="_offerSearch=this.value;renderOfferCards();" value="'+(_offerSearch||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
     html += '<div id="offer-cards-container"></div>';
     el.innerHTML = html;
@@ -22253,12 +22263,41 @@ function _offerStamp(ms){
 }
 window._offerStamp = _offerStamp;
 
+// Days until the 120-day purge deletes a closed listing outright.
+function _offerPurgeIn(closedAt) {
+  try {
+    var d = new Date(closedAt + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    var gone = Math.ceil(120 - ((Date.now() - d.getTime()) / 86400000));
+    return gone > 0 ? gone : 0;
+  } catch(e) { return null; }
+}
+
 function _offerCardHtml(l) {
   var offerCount = l.offerCount || 0;
   var badge = offerCount > 0
     ? '<span style="background:#E24B4A;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:6px;">'+offerCount+' offer'+(offerCount!==1?'s':'')+'</span>'
     : '<span style="font-size:11px;color:var(--text3);margin-left:6px;">No offers yet</span>';
   var link = location.origin + location.pathname + '#offer=' + l.code;
+  // A closed listing is a read-only record on its way out — no offer link, no QR, no new deal.
+  if (l.closedAt) {
+    var _left = _offerPurgeIn(l.closedAt);
+    var _when = '';
+    try { _when = new Date(l.closedAt + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch(e){}
+    return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;opacity:0.85;">'
+      + '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      + (l.photoUrl ? '<img src="'+l.photoUrl+'" style="width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0;filter:grayscale(1);"/>' : '<div style="width:60px;height:60px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">\uD83C\uDFE0</div>')
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text);">'+partnerEsc(l.address)+'</div>'
+      + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(l.clientName||'')+'</div>'
+      + '<div style="margin-top:4px;"><span style="background:var(--surface2);color:var(--text2);border-radius:10px;padding:2px 8px;font-size:11px;font-weight:600;">Closed'+(_when?' \u00b7 '+_when:'')+'</span>'
+      + (offerCount ? '<span style="font-size:11px;color:var(--text3);margin-left:6px;">'+offerCount+' offer'+(offerCount!==1?'s':'')+' on file</span>' : '')+'</div>'
+      + (_left !== null ? '<div style="font-size:11px;color:var(--text3);margin-top:4px;">Deletes automatically in '+_left+' day'+(_left!==1?'s':'')+' \u2014 the closed deal stays in Deal Tracker.</div>' : '')
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">'
+      + '<button class="btn btn-sm" onclick="viewOffers(\''+l.id+'\')">\uD83D\uDCCB View Offers</button>'
+      + '<button class="btn btn-sm" onclick="archiveListing(\''+l.id+'\')" style="color:#E24B4A;">Delete now</button>'
+      + '</div></div></div></div>';
+  }
   return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:10px;">'
     + '<div style="display:flex;align-items:flex-start;gap:10px;">'
     + (l.photoUrl ? '<img src="'+l.photoUrl+'" style="width:60px;height:60px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>' : '<div style="width:60px;height:60px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🏠</div>')
@@ -22279,10 +22318,28 @@ function _offerCardHtml(l) {
 function renderOfferCards() {
   var c = document.getElementById('offer-cards-container'); if (!c) return;
   var q = (_offerSearch||'').trim().toLowerCase();
-  var list = _listings.filter(function(l){ if(!q) return true; return (((l.address||'')+' '+(l.clientName||'')).toLowerCase().indexOf(q)!==-1); });
-  c.innerHTML = list.length ? list.map(_offerCardHtml).join('') : '<div class="notice" style="text-align:center;font-size:12px;color:var(--text3);">No listings match that search.</div>';
+  var wantClosed = (_offerTab === 'closed');
+  var list = _listings.filter(function(l){
+    if (!!l.closedAt !== wantClosed) return false;
+    if(!q) return true;
+    return (((l.address||'')+' '+(l.clientName||'')).toLowerCase().indexOf(q)!==-1);
+  });
+  var _empty = wantClosed ? 'No closed listings.' : 'No listings match that search.';
+  c.innerHTML = list.length ? list.map(_offerCardHtml).join('') : '<div class="notice" style="text-align:center;font-size:12px;color:var(--text3);">'+_empty+'</div>';
 }
 window.renderOfferCards = renderOfferCards;
+
+// Offer Manager Active / Closed toggle. Closed = the linked deal reached Closed in Deal
+// Manager; the listing stays readable here until the 120-day purge removes it for good.
+function switchOfferTab(tab) {
+  _offerTab = (tab === 'closed') ? 'closed' : 'active';
+  var a = document.getElementById('offer-tab-active');
+  var c = document.getElementById('offer-tab-closed');
+  if (a) { a.style.background = (_offerTab==='closed') ? 'var(--surface2)' : 'var(--green)'; a.style.color = (_offerTab==='closed') ? 'var(--text2)' : '#fff'; }
+  if (c) { c.style.background = (_offerTab==='closed') ? 'var(--green)' : 'var(--surface2)'; c.style.color = (_offerTab==='closed') ? '#fff' : 'var(--text2)'; }
+  renderOfferCards();
+}
+window.switchOfferTab = switchOfferTab;
 
 function copyOfferLink(encoded) {
   var link = decodeURIComponent(encoded);
@@ -22560,6 +22617,32 @@ async function archiveListing(id) {
 }
 window.archiveListing = archiveListing;
 
+// ── Closed deal → listing lifecycle ──
+// A listing whose deal has closed is no longer a live listing: it moves to the Offer Manager's
+// Closed tab, drops out of Seller Reports, and the 120-day purge deletes it outright. Deal
+// Tracker stays the permanent record — document retention is a brokerage job, not the CRM's.
+async function markListingClosedForDeal(deal) {
+  if (!deal || !deal.offerListingId) return;
+  var stamp = new Date().toISOString().split('T')[0];
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',deal.offerListingId), { closedAt: stamp });
+    var l = (_listings||[]).find(function(x){ return x.id===deal.offerListingId; });
+    if (l) l.closedAt = stamp;
+  } catch(e) { console.log('markListingClosedForDeal:', e.message); }
+}
+window.markListingClosedForDeal = markListingClosedForDeal;
+
+// Deal moved back off Closed — the listing becomes live again.
+async function reopenListingForDeal(deal) {
+  if (!deal || !deal.offerListingId) return;
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'offer_listings',deal.offerListingId), { closedAt: '' });
+    var l = (_listings||[]).find(function(x){ return x.id===deal.offerListingId; });
+    if (l) l.closedAt = '';
+  } catch(e) { console.log('reopenListingForDeal:', e.message); }
+}
+window.reopenListingForDeal = reopenListingForDeal;
+
 // ── Auto-cleanup: purge listings archived/closed > 120 days ago ──
 async function purgeOldListings() {
   var now          = new Date();
@@ -22586,6 +22669,27 @@ async function purgeOldListings() {
       // (archiveListing handles this — nothing to do here for active:false)
 
       if (data.active) {
+        // ── RULE 2A: deal closed + 120 days past → delete the listing outright ──
+        // Deal Tracker keeps the closed deal; the CRM is not document storage.
+        var closedOn = data.closedAt ? new Date(data.closedAt + 'T00:00:00') : null;
+        if (closedOn && !isNaN(closedOn.getTime()) && closedOn < cutoff120) {
+          var cSnap = await fb.getDocs(fb.collection(fb.db, 'offer_listings', lid, 'offers'));
+          var cDel  = [];
+          cSnap.forEach(function(od) {
+            if (od.data().pdfPath) {
+              try {
+                cDel.push(fb.deleteObject(fb.storageRef(fb.storage, od.data().pdfPath))
+                  .catch(function(e){ console.log('PDF delete skipped:', e.message); }));
+              } catch(e){}
+            }
+            cDel.push(fb.deleteDoc(fb.doc(fb.db, 'offer_listings', lid, 'offers', od.id)));
+          });
+          if (cDel.length) await Promise.all(cDel);
+          await fb.deleteDoc(fb.doc(fb.db, 'offer_listings', lid));
+          fullDeleted++;
+          continue;
+        }
+
         // ── RULE 2: Active + has offers + closing date > 120 days past ──
         // Delete PDFs only, keep listing and offer documents
         var offSnap = await fb.getDocs(fb.collection(fb.db, 'offer_listings', lid, 'offers'));
@@ -22644,7 +22748,7 @@ async function runSilentPurge() {
 window.runSilentPurge = runSilentPurge;
 
 async function manualPurge() {
-  if (!confirm('Run cleanup now?\n\n• Active listings with offers where closing date is 120+ days past: PDFs deleted, listing kept\n• Active listings with no offers created 365+ days ago: fully deleted\n• Archived listings are deleted immediately when archived\n\nThis cannot be undone.')) return;
+  if (!confirm('Run cleanup now?\n\n• Closed listings 120+ days past closing: fully deleted (the closed deal stays in Deal Tracker)\n• Active listings with offers where closing date is 120+ days past: PDFs deleted, listing kept\n• Active listings with no offers created 365+ days ago: fully deleted\n• Archived listings are deleted immediately when archived\n\nThis cannot be undone.')) return;
   var btn = event && event.target;
   if (btn) btn.disabled = true;
   var result = await purgeOldListings();
@@ -25458,7 +25562,8 @@ function renderSellerReports() {
     loadShowingTimeFeed() // Always fetch fresh for seller reports
   ]).then(function(results) {
     _srListings = [];
-    results[0].forEach(function(d){ _srListings.push({id:d.id,...d.data()}); });
+    // A closed listing gets no more weekly seller reports.
+    results[0].forEach(function(d){ var _l = {id:d.id,...d.data()}; if (!_l.closedAt) _srListings.push(_l); });
     _srShowings = results[1] || [];
     console.log('SR Debug - Total showings from feed:', _srShowings.length);
     if (_srShowings.length) {
@@ -27545,12 +27650,11 @@ function srTabShowings() {
   // Reverse prospecting
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px;">'
     + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Reverse Prospecting</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Paste your Matrix reverse prospecting results below. AI will count the agents automatically.</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Paste your Matrix reverse prospecting results below. The agent count updates automatically as you paste.</div>'
     + '<textarea id="sr-rp-paste" placeholder="Paste reverse prospecting text from Matrix here..." style="width:100%;box-sizing:border-box;font-size:12px;height:80px;resize:vertical;margin-bottom:8px;" oninput="srCountRP()"></textarea>'
     + '<div style="display:flex;align-items:center;gap:10px;">'
     + '<div style="font-size:13px;font-weight:500;">Agents reached: <span id="sr-rp-display" style="color:var(--green);font-weight:700;">0</span></div>'
     + '<input type="hidden" id="sr-rp-count" value="'+(_srCurrent.reverseProspecting||0)+'"/>'
-    + '<button onclick="srCountRPWithAI()" style="background:var(--green);color:#fff;border:none;border-radius:20px;padding:5px 12px;font-size:11px;cursor:pointer;">Count with AI</button>'
     + '</div>'
     + '</div>';
 
@@ -27654,34 +27758,6 @@ async function srGenerateFeedbackSummary() {
 }
 window.srGenerateFeedbackSummary = srGenerateFeedbackSummary;
 
-async function srCountRPWithAI() {
-  var el = document.getElementById('sr-rp-paste');
-  if (!el || !el.value.trim()) { alert('Paste your reverse prospecting text first.'); return; }
-  var btn = document.querySelector('button[onclick="srCountRPWithAI()"]');
-  if (btn) { btn.disabled=true; btn.textContent='Counting...'; }
-  try {
-    var resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:100,
-        messages:[{role:'user',content:'Count the number of unique agents/entries in this reverse prospecting list. Reply with ONLY the number, nothing else.\n\n'+el.value}]
-      })
-    });
-    var data = await resp.json();
-    var num = parseInt((data.content[0].text||'').trim());
-    if (!isNaN(num)) {
-      var display = document.getElementById('sr-rp-display');
-      var hidden = document.getElementById('sr-rp-count');
-      if (display) display.textContent = num;
-      if (hidden) hidden.value = num;
-      _srCurrent.reverseProspecting = num;
-    }
-  } catch(e) { alert('AI count failed. Try the manual count.'); }
-  if (btn) { btn.disabled=false; btn.textContent='Count with AI'; }
-}
-window.srCountRPWithAI = srCountRPWithAI;
 
 function srSaveLink(key, val) {
   if (!_srCurrent || !_srCurrent.onlineActivity || !_srCurrent.onlineActivity[key]) return;
@@ -28427,7 +28503,7 @@ function renderDealCards(deals) {
       +'<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);">'
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openBuyerDetail(\''+deal.clientUid+'\')">\ud83d\udc64 '+partnerEsc(deal.clientName||'Client')+'</button>':'')
       +(deal.clientUid?'<button class="btn btn-sm btn-g" onclick="openDealRoom(\''+deal.clientUid+'\')">\ud83d\udcac Chat</button>':'')
-      +(deal.listingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
+      +(deal.offerListingId?'<button class="btn btn-sm" onclick="switchAgentTab(\'offers\');renderOfferManager()">\ud83d\udccb Offers</button>':'')
       +'<button class="btn btn-sm" onclick="editDealAddress(\''+deal.id+'\')">\ud83d\udccd '+(deal.dealType==='seller'?'Address':'Offer Sent')+'</button>'
       +(deal.clientUid?'<button class="btn btn-sm" onclick="emailDealDates(\''+deal.id+'\')" style="font-size:11px;">\u2709\ufe0f Send Timeline</button>':'')
       +'<select onchange="setDealType(\''+deal.id+'\',this.value)" title="Deal type" style="font-size:11px;padding:4px 6px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;"><option value="buyer"'+(deal.dealType!=='seller'?' selected':'')+'>\ud83d\udd0d Buyer</option><option value="seller"'+(deal.dealType==='seller'?' selected':'')+'>\ud83c\udfe1 Seller</option></select>'
@@ -28454,6 +28530,11 @@ function updateDealField(dealId, field, value) {
   }
   if (field === 'status' && value === 'Closed' && !deal.lbExported && typeof offerDealToLeaderboard==='function') {
     offerDealToLeaderboard(deal);
+  }
+  // Retire / revive the linked Offer Manager listing alongside the deal's status.
+  if (field === 'status' && deal.offerListingId) {
+    if (value === 'Closed') { if (typeof markListingClosedForDeal==='function') markListingClosedForDeal(deal); }
+    else if (typeof reopenListingForDeal==='function') reopenListingForDeal(deal);
   }
 }
 window.updateDealField = updateDealField;
@@ -28770,6 +28851,10 @@ async function setDealStep(dealId, next) {
   var justListed = (isSeller && next===6 && cur<6);
   if (justClosed) _activeFilter = 'closed';
   if (justClosed) { try { window.dispatchEvent(new CustomEvent('nt-deal-closed', {detail:{dealId:dealId}})); } catch(e){} }
+  // Retire the linked Offer Manager listing when the deal closes; revive it if it moves back.
+  var justReopened = (!isSeller && cur>=11 && next<11) || (isSeller && cur>=13 && next<13);
+  if (justClosed && typeof markListingClosedForDeal==='function') markListingClosedForDeal(deal);
+  if (justReopened && typeof reopenListingForDeal==='function') reopenListingForDeal(deal);
   filterDeals(_activeFilter);
   // Follow the deal to its new tab — scroll to it + highlight, so it's never lost in the list.
   if (justUC || justClosed || justListed) {
