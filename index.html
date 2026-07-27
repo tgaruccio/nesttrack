@@ -25560,6 +25560,31 @@ var SR_ACTIVITY = {
   ]
 };
 
+// Activity items that happen ONCE — listing setup or a transaction milestone.
+// They still appear (collapsed) in the builder, but they never carry forward to
+// next week's report: telling a seller you attended closing twice is worse than
+// making them re-check a box.
+var SR_ONCE = {};
+[
+  'Listed on MLS — syndicated to 500+ websites, portals and brokerage networks',
+  'Active on all major platforms: Zillow, Realtor.com, Homes.com, Trulia',
+  'Sent Just Listed postcards to neighborhood',
+  'Created and distributed property flyer',
+  'Produced professional video walkthrough',
+  'Created virtual tour',
+  'Drone photography/video',
+  'Listed on luxury/specialty networks',
+  'Hosted broker/agent open house',
+  'Negotiated inspection response and repair credits',
+  'Reviewed appraisal results and negotiated response',
+  'Opened escrow and coordinated with title company',
+  'Reviewed closing disclosure',
+  'Coordinated and attended final walkthrough',
+  'Prepared all closing day logistics',
+  'Attended closing'
+].forEach(function(t){ SR_ONCE[t] = true; });
+window.SR_ONCE = SR_ONCE;
+
 var SR_NEXT_WEEK = [
   'Open house scheduled',
   'Broker/agent open house planned',
@@ -27470,7 +27495,9 @@ function srOpenBuilderWithListing(listingId, l) {
     pdfAttachBase64: null,
     pdfAttachName: null,
     compsActive: [],
-    compsSold: []
+    compsSold: [],
+    prevStats: null,
+    carried: false
   };
 
   // Load offers for this listing
@@ -27507,6 +27534,8 @@ function srOpenBuilderWithListing(listingId, l) {
     + '<button id="sr-tab-btn-comps" onclick="srSwitchTab(\'comps\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Comps</button>'
     + '<button id="sr-tab-btn-message" onclick="srSwitchTab(\'message\')" style="flex:1;padding:10px 4px;font-size:11.5px;font-weight:600;background:var(--surface2);color:var(--text2);border:none;border-left:1px solid var(--border);cursor:pointer;">Message</button>'
     + '</div>'
+    // Carry-forward notice (filled by srPrefillFromLastReport)
+    + '<div id="sr-carry-banner" style="display:none;background:#FAEEDA;color:#633806;font-size:11.5px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;"></div>'
     // Tab content
     + '<div id="sr-tab-content" style="flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch;"></div>'
     // Bottom bar
@@ -27517,8 +27546,64 @@ function srOpenBuilderWithListing(listingId, l) {
 
   document.body.appendChild(overlay);
   srSwitchTab('showings');
+  srPrefillFromLastReport(listingId, l);
 }
 window.srOpenBuilderWithListing = srOpenBuilderWithListing;
+
+// Prefill this week's report from the last one sent for this listing, so week 2
+// onward is editing deltas instead of rebuilding from a blank slate. One-time
+// items are dropped, and anything that must be fresh each week (personal note,
+// video, buyer feedback) is deliberately NOT carried.
+async function srPrefillFromLastReport(listingId, l) {
+  if (!l || !l.clientUid) return;
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db,'users',l.clientUid,'sellerReports'));
+    var rows = [];
+    snap.forEach(function(d){ var r = d.data(); if (r.listingId === listingId) rows.push(r); });
+    if (!rows.length) return;
+    // Sorted in code rather than orderBy so no composite index is needed.
+    rows.sort(function(a,b){
+      var ta = (a.sentAt && a.sentAt.toDate) ? a.sentAt.toDate().getTime() : 0;
+      var tb = (b.sentAt && b.sentAt.toDate) ? b.sentAt.toDate().getTime() : 0;
+      return tb - ta;
+    });
+    var last = rows[0];
+    _srCurrent.prevStats = last.stats || null;
+    var d0 = last.draft;
+    if (!d0) { srShowCarryBanner(0, true); return; }
+
+    var carried = 0, skipped = 0;
+    Object.keys(d0.checkedItems||{}).forEach(function(k){
+      if (!d0.checkedItems[k]) return;
+      var item = k.split('::')[1] || '';
+      if (SR_ONCE[item]) { skipped++; return; }
+      _srCurrent.checkedItems[k] = true;
+      carried++;
+    });
+    _srCurrent.customItems    = d0.customItems    || {};
+    _srCurrent.nextWeek       = d0.nextWeek       || {};
+    _srCurrent.customNextWeek = d0.customNextWeek || '';
+    _srCurrent.compsActive    = d0.compsActive    || [];
+    _srCurrent.compsSold      = d0.compsSold      || [];
+    _srCurrent.carried        = true;
+
+    srShowCarryBanner(carried, false, skipped);
+    if (typeof srSwitchTab === 'function') srSwitchTab(_srCurrent._activeTab || 'showings');
+  } catch(e) { console.log('srPrefillFromLastReport:', e.message); }
+}
+window.srPrefillFromLastReport = srPrefillFromLastReport;
+
+function srShowCarryBanner(carried, statsOnly, skipped) {
+  var el = document.getElementById('sr-carry-banner');
+  if (!el) return;
+  var msg = statsOnly
+    ? 'Last week\'s numbers loaded for comparison.'
+    : carried + ' item' + (carried!==1?'s':'') + ' carried from last week — review before sending.'
+      + (skipped ? ' ' + skipped + ' one-time item' + (skipped!==1?'s':'') + ' left unchecked.' : '');
+  el.innerHTML = '<span style="font-weight:600;">Carried forward</span> · ' + msg;
+  el.style.display = 'block';
+}
+window.srShowCarryBanner = srShowCarryBanner;
 
 function srSwitchTab(tab) {
   var tabs = ['showings','online','activity','nextweek','comps','message'];
@@ -27875,13 +27960,35 @@ function srTabActivity() {
       + '</button>'
       + '<div id="sr-cat-'+catKey+'" style="display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:8px;">';
 
-    items.forEach(function(item, i) {
+    // Keep the original index — srSaveCurrentTab reads sr-act-<cat>-<i> against SR_ACTIVITY.
+    function _actRow(item, i) {
       var checked = _srCurrent.checkedItems[cat+'::'+item] ? 'checked' : '';
-      html += '<label style="display:flex;align-items:flex-start;gap:10px;padding:9px 6px;cursor:pointer;border-bottom:0.5px solid var(--border);">'
+      return '<label style="display:flex;align-items:flex-start;gap:10px;padding:9px 6px;cursor:pointer;border-bottom:0.5px solid var(--border);">'
         + '<input type="checkbox" id="sr-act-'+catKey+'-'+i+'" '+checked+' style="margin-top:2px;flex-shrink:0;width:18px;height:18px;cursor:pointer;"/>'
         + '<span style="font-size:13px;line-height:1.5;">'+item+'</span>'
         + '</label>';
+    }
+    var onceRows = '', onceCount = 0, onceChecked = 0;
+    items.forEach(function(item, i) {
+      if (SR_ONCE[item]) {
+        onceRows += _actRow(item, i);
+        onceCount++;
+        if (_srCurrent.checkedItems[cat+'::'+item]) onceChecked++;
+      } else {
+        html += _actRow(item, i);
+      }
     });
+    if (onceCount) {
+      // Expanded when something in here is already ticked, so nothing checked is hidden.
+      var openOnce = onceChecked > 0;
+      html += '<div style="padding:6px;">'
+        + '<button onclick="srToggleOnce(\''+catKey+'\')" style="width:100%;background:none;border:none;text-align:left;padding:6px 0;font-size:11.5px;color:var(--text3);cursor:pointer;">'
+        + (openOnce ? '−' : '+') + ' ' + onceCount + ' one-time setup item' + (onceCount!==1?'s':'')
+        + (onceChecked ? ' · '+onceChecked+' checked' : '')
+        + '</button>'
+        + '<div id="sr-once-'+catKey+'" style="display:'+(openOnce?'block':'none')+';">' + onceRows + '</div>'
+        + '</div>';
+    }
 
     html += '<div style="padding:8px 6px;">'
       + '<input type="text" id="sr-custom-'+catKey+'" placeholder="Add your own..." value="'+partnerEsc(_srCurrent.customItems[cat]||'')+'" style="width:100%;box-sizing:border-box;font-size:12px;"/>'
@@ -27890,6 +27997,16 @@ function srTabActivity() {
   });
   return html;
 }
+
+function srToggleOnce(catKey) {
+  var el = document.getElementById('sr-once-'+catKey);
+  if (!el) return;
+  var open = el.style.display==='none';
+  el.style.display = open ? 'block' : 'none';
+  var btn = el.previousElementSibling;
+  if (btn) btn.textContent = (open ? '−' : '+') + btn.textContent.slice(1);
+}
+window.srToggleOnce = srToggleOnce;
 
 function srToggleCat(catKey) {
   var el = document.getElementById('sr-cat-'+catKey);
@@ -28008,6 +28125,16 @@ function srTabMessage() {
   return html;
 }
 
+// Total online views across every portal — used by the email and by the saved stats.
+function _srTotalViews() {
+  var oa = (_srCurrent && _srCurrent.onlineActivity) || {};
+  var t = 0;
+  ['zillow','realtor','redfin','homes','social'].forEach(function(p){
+    t += (parseInt(oa[p] && oa[p].views) || 0);
+  });
+  return t;
+}
+
 function srBuildEmailHtml() {
   srSaveCurrentTab();
   var l = _srCurrent.listing;
@@ -28028,9 +28155,8 @@ function srBuildEmailHtml() {
   }).length : (_srCurrent.quickShowingCount||0);
 
   // Totals
-  var totalViews = 0;
   var oa = _srCurrent.onlineActivity;
-  ['zillow','realtor','redfin','homes','social'].forEach(function(p){ totalViews += (parseInt(oa[p]&&oa[p].views)||0); });
+  var totalViews = _srTotalViews();
 
   // Checked activity items
   var checkedByCategory = {};
@@ -28091,17 +28217,30 @@ function srBuildEmailHtml() {
   // Big stats
   html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
   html += '<div style="display:grid;grid-template-columns:repeat('+(offerCount>0?5:4)+',1fr);gap:12px;text-align:center;">';
+  // Week-over-week wording, not percentages — plain numbers keep the seller on the
+  // question instead of arguing with the math. Only shown once a prior report exists.
+  var ps = _srCurrent.prevStats || null;
+  function deltaHtml(cur, prev) {
+    if (prev === null || prev === undefined || isNaN(prev)) return '';
+    var d = cur - prev;
+    var txt, col;
+    if (d > 0)      { txt = '▲ up from '   + prev; col = '#157A5A'; }
+    else if (d < 0) { txt = '▼ down from ' + prev; col = '#B45309'; }
+    else            { txt = 'no change';           col = '#9CA3AF'; }
+    return '<div style="font-size:9.5px;color:'+col+';margin-top:3px;line-height:1.3;">'+txt+'</div>';
+  }
   var stats = [
-    {label:'Showings This Week', value:thisWeekCount, color:green},
+    {label:'Showings This Week', value:thisWeekCount, color:green, prev: ps ? ps.showings : null},
     {label:'Total Showings', value:totalShowings, color:'#1D4ED8'},
     {label:'Days on Market', value:dom, color:'#D97706'},
-    {label:'Total Online Views', value:totalViews, color:'#7C3AED'}
+    {label:'Total Online Views', value:totalViews, color:'#7C3AED', prev: ps ? ps.totalViews : null}
   ];
-  if (offerCount > 0) stats.push({label:'Offers Received', value:offerCount, color:'#E24B4A'});
+  if (offerCount > 0) stats.push({label:'Offers Received', value:offerCount, color:'#E24B4A', prev: ps ? ps.offers : null});
   stats.forEach(function(s) {
     html += '<div style="background:#F9FAFB;border-radius:10px;padding:14px 8px;">';
     html += '<div style="font-size:28px;font-weight:800;color:'+s.color+';">'+s.value+'</div>';
     html += '<div style="font-size:10px;color:#888;margin-top:2px;line-height:1.3;">'+s.label+'</div>';
+    html += deltaHtml(s.value, (s.prev===undefined?null:s.prev));
     html += '</div>';
   });
   html += '</div></div>';
@@ -28331,7 +28470,22 @@ async function srSendReport() {
         showingCount: keptShowings || (_srCurrent.quickShowingCount||0),
         reverseProspecting: _srCurrent.reverseProspecting||0,
         agentId: userProfile.agentId|| '',
-        emailHtml: emailHtml
+        emailHtml: emailHtml,
+        // Snapshot for next week: draft prefills the builder, stats drive the deltas.
+        draft: {
+          checkedItems:   _srCurrent.checkedItems   || {},
+          customItems:    _srCurrent.customItems    || {},
+          nextWeek:       _srCurrent.nextWeek       || {},
+          customNextWeek: _srCurrent.customNextWeek || '',
+          compsActive:    _srCurrent.compsActive    || [],
+          compsSold:      _srCurrent.compsSold      || []
+        },
+        stats: {
+          totalViews:  _srTotalViews(),
+          showings:    keptShowings || (_srCurrent.quickShowingCount||0),
+          offers:      (_srCurrent.offers||[]).length,
+          rp:          _srCurrent.reverseProspecting||0
+        }
       };
       await fb.addDoc(fb.collection(fb.db,'users',client.uid,'sellerReports'), reportData);
 
