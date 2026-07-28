@@ -27789,39 +27789,15 @@ function srTabShowings() {
     + '<input type="hidden" id="sr-rp-count" value="'+(_srCurrent.reverseProspecting||0)+'"/>'
     + '</div>';
 
-  // ---- 3. Showings: quick count, the list and manual add all in one box ----
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + stepHead(3,'Showings','Pulled from your calendar. No calendar showings? The ShowingTime PDF above fills them in \u2014 or add them by hand.');
-
-  html += '<div id="sr-showings-list">';
-  s.forEach(function(sh, i) {
-    html += '<div class="sr-showing-row" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-      + '<input type="checkbox" class="sr-sh-keep" checked style="flex-shrink:0;" title="Include in report"/>'
-      + '<input type="date" class="sr-sh-date" value="'+sh.date+'" style="font-size:12px;flex:1;min-width:110px;"/>'
-      + '<input type="text" class="sr-sh-agent" placeholder="Agent name" value="'+partnerEsc(sh.agent||'')+'" style="font-size:12px;flex:3;min-width:150px;"/>'
-      + '<button onclick="this.closest(\'.sr-showing-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
-      + '</div>';
-  });
-  html += '</div>';
-  if (!s.length) {
-    html += '<div style="font-size:11.5px;color:var(--text3);padding:6px 2px 8px;">No showings found yet.</div>';
-  }
-  html += '<button onclick="srAddShowing()" style="width:100%;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);padding:9px;font-size:12.5px;cursor:pointer;margin-bottom:8px;">+ Add a showing</button>'
-    + '<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-    + '<span style="font-size:12px;color:var(--text3);">Or just enter a total:</span>'
-    + '<input type="number" id="sr-quick-count" min="0" placeholder="#" value="'+((_srCurrent.quickShowingCount||''))+'" style="width:80px;font-size:13px;" oninput="_srCurrent.quickShowingCount=parseInt(this.value)||0"/>'
-    + '</div>'
-    + '</div>';
-
-  // ---- 4. What buyers said ----
+  // ---- 3. What buyers said ----
   html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + stepHead(4,'What buyers said','Write it yourself, or let the PDF above fill it in.')
+    + stepHead(3,'What buyers said','Write it yourself, or let the PDF above fill it in.')
     + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:150px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
     + '</div>';
 
-  // ---- 5. The read — lives beside the feedback that informs it ----
+  // ---- 4. The read — sits beside the feedback that informs it ----
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;">'
-    + stepHead(5,'What it means','Your read on the week. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.')
+    + stepHead(4,'What it means','Your read on the week. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.')
     + '<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:8px;">'
     + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
     + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
@@ -27839,6 +27815,32 @@ function srTabShowings() {
     + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;margin-bottom:8px;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
     + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What to consider</label>'
     + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '</div>';
+
+  // ---- 5. Showings: last, because the list can run long and buries whatever follows ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(5,'Showings','A total is all most sellers need. The full list is optional \u2014 it comes from your calendar, or the ShowingTime PDF above, or add them by hand.');
+
+  // Total first — it is what most reports actually use.
+  html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border);">'
+    + '<span style="font-size:12px;color:var(--text3);">Total showings this week:</span>'
+    + '<input type="number" id="sr-quick-count" min="0" placeholder="#" value="'+((_srCurrent.quickShowingCount||''))+'" style="width:80px;font-size:13px;" oninput="_srCurrent.quickShowingCount=parseInt(this.value)||0"/>'
+    + '</div>';
+
+  html += '<div id="sr-showings-list">';
+  s.forEach(function(sh, i) {
+    html += '<div class="sr-showing-row" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+      + '<input type="checkbox" class="sr-sh-keep" checked style="flex-shrink:0;" title="Include in report"/>'
+      + '<input type="date" class="sr-sh-date" value="'+sh.date+'" style="font-size:12px;flex:1;min-width:110px;"/>'
+      + '<input type="text" class="sr-sh-agent" placeholder="Agent name" value="'+partnerEsc(sh.agent||'')+'" style="font-size:12px;flex:3;min-width:150px;"/>'
+      + '<button onclick="this.closest(\'.sr-showing-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
+      + '</div>';
+  });
+  html += '</div>';
+  if (!s.length) {
+    html += '<div style="font-size:11.5px;color:var(--text3);padding:6px 2px 8px;">No showings found yet.</div>';
+  }
+  html += '<button onclick="srAddShowing()" style="width:100%;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);padding:9px;font-size:12.5px;cursor:pointer;margin-bottom:8px;">+ Add a showing</button>'
     + '</div>';
 
   if (_srCurrent.reverseProspecting) {
