@@ -25560,27 +25560,16 @@ var SR_ACTIVITY = {
   ]
 };
 
-// Activity items that happen ONCE — listing setup or a transaction milestone.
-// They still appear (collapsed) in the builder, but they never carry forward to
-// next week's report: telling a seller you attended closing twice is worse than
-// making them re-check a box.
+// Milestones that cannot happen twice in one transaction. Every activity item is
+// visible in the builder — this list only stops carry-forward from re-claiming
+// these next week. Anything that CAN repeat (postcards, photos, open houses)
+// deliberately stays out of here.
 var SR_ONCE = {};
 [
-  'Listed on MLS — syndicated to 500+ websites, portals and brokerage networks',
-  'Active on all major platforms: Zillow, Realtor.com, Homes.com, Trulia',
-  'Sent Just Listed postcards to neighborhood',
-  'Created and distributed property flyer',
-  'Produced professional video walkthrough',
-  'Created virtual tour',
-  'Drone photography/video',
-  'Listed on luxury/specialty networks',
-  'Hosted broker/agent open house',
-  'Negotiated inspection response and repair credits',
   'Reviewed appraisal results and negotiated response',
   'Opened escrow and coordinated with title company',
   'Reviewed closing disclosure',
   'Coordinated and attended final walkthrough',
-  'Prepared all closing day logistics',
   'Attended closing'
 ].forEach(function(t){ SR_ONCE[t] = true; });
 window.SR_ONCE = SR_ONCE;
@@ -27695,6 +27684,10 @@ function srSaveCurrentTab() {
     if (fbEl) _srCurrent.feedbackNotes = fbEl.value;
     var fsEl = document.getElementById('sr-feedback-summary');
     if (fsEl) _srCurrent.feedbackSummary = fsEl.value;
+    var vm = document.getElementById('sr-verdict-meaning');
+    var vc = document.getElementById('sr-verdict-consider');
+    if (vm) _srCurrent.verdictMeaning  = vm.value;
+    if (vc) _srCurrent.verdictConsider = vc.value;
   } else if (tab==='online') {
     ['zillow','realtor','redfin','homes','social'].forEach(function(p) {
       var v = document.getElementById('sr-'+p+'-views');
@@ -27763,65 +27756,91 @@ function srSaveCurrentTab() {
     if (v) _srCurrent.videoUrl = v.value;
     if (n) _srCurrent.personalNote = n.value;
     if (s) _srCurrent.subject = s.value;
-    var vm = document.getElementById('sr-verdict-meaning');
-    var vc = document.getElementById('sr-verdict-consider');
-    if (vm) _srCurrent.verdictMeaning  = vm.value;
-    if (vc) _srCurrent.verdictConsider = vc.value;
+
     // videoThumbUrl saved by srUploadVideoThumb directly
   }
 }
 
 function srTabShowings() {
   var s = _srCurrent.showings;
-  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Showings</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">Showings from your calendar are shown below. Or upload your ShowingTime PDF — AI will extract showings and feedback automatically.</div>'
-    + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">'
-    + '<div style="font-size:13px;font-weight:500;flex-shrink:0;">Quick entry:</div>'
-    + '<input type="number" id="sr-quick-count" min="0" placeholder="# of showings" value="'+((_srCurrent.quickShowingCount||''))+'" style="width:120px;font-size:13px;" oninput="_srCurrent.quickShowingCount=parseInt(this.value)||0"/>'
-    + '<div style="font-size:12px;color:var(--text3);">Enter a number if you don\'t need individual showing details</div>'
+  var dg = _srDiagnose();
+  var cur = _srCurrent.verdictStatus || '';
+
+  function stepHead(n, title, sub) {
+    return '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px;">'
+      + '<span style="background:var(--green);color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;line-height:18px;text-align:center;border-radius:9px;flex-shrink:0;">'+n+'</span>'
+      + '<span style="font-size:13px;font-weight:600;">'+title+'</span></div>'
+      + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px 26px;">'+sub+'</div>';
+  }
+
+  // ---- 1. ShowingTime report: the one upload that fills most of this tab ----
+  var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(1,'ShowingTime report','Attach the PDF and it fills your showings, the feedback summary and the read below. It is also attached to the seller\'s email.')
+    + '<input type="file" id="sr-pdf-attach" accept=".pdf" onchange="srStorePDFAttachment(event)" style="font-size:12px;"/>'
+    + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">\u2705 '+partnerEsc(_srCurrent.pdfAttachName)+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')
+    + '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="width:100%;background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:10px;">'+(_srCurrent.feedbackSummary?'\u2728 Regenerate from PDF':'\u2728 Read the PDF and fill this in')+'</button>'
     + '</div>';
 
-  // ShowingTime PDF attachment
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">'    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">📎 Attach ShowingTime Report</div>'    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Optional — attach your ShowingTime PDF and it will be included with the report email.</div>'    + '<input type="file" id="sr-pdf-attach" accept=".pdf" onchange="srStorePDFAttachment(event)" style="font-size:12px;"/>'    + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">✅ '+_srCurrent.pdfAttachName+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')    + '</div>';
-
-  // Buyer feedback summary — single box, manual or AI-drafted from the ShowingTime PDF
-  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">🗣️ Buyer Feedback Summary</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Summarize what buyers are saying. Write it yourself, or attach your ShowingTime PDF above and let AI draft it for you.</div>'
-    + '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;margin-bottom:10px;">'+(_srCurrent.feedbackSummary?'✨ Regenerate from PDF':'✨ Generate from ShowingTime PDF')+'</button>'
-    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Summarize buyer feedback themes, interest levels, price opinions… or generate it from your ShowingTime PDF above." style="width:100%;box-sizing:border-box;font-size:13px;height:180px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
-    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;">Appears in the report below your showing activity.</div>'
+  // ---- 2. Reverse prospecting: above the showing list so it is never buried ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(2,'Reverse prospecting','Paste your Matrix results. The count updates as you paste.')
+    + '<textarea id="sr-rp-paste" placeholder="Paste reverse prospecting text from Matrix here..." style="width:100%;box-sizing:border-box;font-size:12px;height:70px;resize:vertical;" oninput="srCountRP()"></textarea>'
+    + '<div style="font-size:13px;font-weight:500;margin-top:6px;">Agents reached: <span id="sr-rp-display" style="color:var(--green);font-weight:700;">0</span></div>'
+    + '<input type="hidden" id="sr-rp-count" value="'+(_srCurrent.reverseProspecting||0)+'"/>'
     + '</div>';
 
-  // Showing rows
+  // ---- 3. Showings: quick count, the list and manual add all in one box ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(3,'Showings','Pulled from your calendar. No calendar showings? The ShowingTime PDF above fills them in \u2014 or add them by hand.');
+
   html += '<div id="sr-showings-list">';
   s.forEach(function(sh, i) {
-    html += '<div class="sr-showing-row" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+    html += '<div class="sr-showing-row" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
       + '<input type="checkbox" class="sr-sh-keep" checked style="flex-shrink:0;" title="Include in report"/>'
       + '<input type="date" class="sr-sh-date" value="'+sh.date+'" style="font-size:12px;flex:1;min-width:110px;"/>'
-      + '<input type="text" class="sr-sh-agent" placeholder="Agent name" value="'+partnerEsc(sh.agent||'')+'" style="font-size:12px;flex:3;min-width:160px;"/>'
-      + '<button onclick="this.closest(\'.sr-showing-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">✕</button>'
+      + '<input type="text" class="sr-sh-agent" placeholder="Agent name" value="'+partnerEsc(sh.agent||'')+'" style="font-size:12px;flex:3;min-width:150px;"/>'
+      + '<button onclick="this.closest(\'.sr-showing-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
       + '</div>';
   });
   html += '</div>';
-
-  // Add manual showing
-  html += '<button onclick="srAddShowing()" style="width:100%;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);padding:10px;font-size:13px;cursor:pointer;margin-bottom:16px;">+ Add Manual Showing</button>';
-
-  // Reverse prospecting
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px;">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">Reverse Prospecting</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:8px;">Paste your Matrix reverse prospecting results below. The agent count updates automatically as you paste.</div>'
-    + '<textarea id="sr-rp-paste" placeholder="Paste reverse prospecting text from Matrix here..." style="width:100%;box-sizing:border-box;font-size:12px;height:80px;resize:vertical;margin-bottom:8px;" oninput="srCountRP()"></textarea>'
-    + '<div style="display:flex;align-items:center;gap:10px;">'
-    + '<div style="font-size:13px;font-weight:500;">Agents reached: <span id="sr-rp-display" style="color:var(--green);font-weight:700;">0</span></div>'
-    + '<input type="hidden" id="sr-rp-count" value="'+(_srCurrent.reverseProspecting||0)+'"/>'
+  if (!s.length) {
+    html += '<div style="font-size:11.5px;color:var(--text3);padding:6px 2px 8px;">No showings found yet.</div>';
+  }
+  html += '<button onclick="srAddShowing()" style="width:100%;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);padding:9px;font-size:12.5px;cursor:pointer;margin-bottom:8px;">+ Add a showing</button>'
+    + '<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+    + '<span style="font-size:12px;color:var(--text3);">Or just enter a total:</span>'
+    + '<input type="number" id="sr-quick-count" min="0" placeholder="#" value="'+((_srCurrent.quickShowingCount||''))+'" style="width:80px;font-size:13px;" oninput="_srCurrent.quickShowingCount=parseInt(this.value)||0"/>'
     + '</div>'
     + '</div>';
 
-  // (Old manual feedback box removed — consolidated into the Buyer Feedback Summary box above)
+  // ---- 4. What buyers said ----
+  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(4,'What buyers said','Write it yourself, or let the PDF above fill it in.')
+    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:150px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
+    + '</div>';
 
-  // Update display
+  // ---- 5. The read — lives beside the feedback that informs it ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;">'
+    + stepHead(5,'What it means','Your read on the week. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.')
+    + '<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:8px;">'
+    + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
+    + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
+    + '</div>';
+
+  html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
+  ['ontrack','watching','adjust'].forEach(function(k){
+    var v = SR_VERDICTS[k], on = (cur === k);
+    html += '<button id="sr-vb-'+k+'" onclick="srSetVerdict(\''+k+'\')" style="flex:1;padding:8px 4px;font-size:11px;font-weight:600;border:1px solid '+(on?v.pill:'var(--border)')+';border-radius:var(--r);cursor:pointer;background:'+(on?v.bg:'var(--surface)')+';color:'+(on?v.text:'var(--text2)')+';">'+v.label+'</button>';
+  });
+  html += '</div>';
+
+  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:11.5px;font-weight:600;cursor:pointer;margin-bottom:8px;">Fill from this week\'s numbers</button>'
+    + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What this means</label>'
+    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;margin-bottom:8px;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
+    + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What to consider</label>'
+    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '</div>';
+
   if (_srCurrent.reverseProspecting) {
     setTimeout(function(){ var el=document.getElementById('sr-rp-display'); if(el) el.textContent=_srCurrent.reverseProspecting; },50);
   }
@@ -27875,6 +27894,7 @@ async function srGenerateFeedbackSummary() {
   var btn = document.getElementById('sr-ai-summary-btn');
   var orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Reading report\u2026'; }
+  srSaveCurrentTab();   // capture on-screen edits BEFORE we overwrite state below
   try {
     var bin = atob(_srCurrent.pdfAttachBase64);
     var bytes = new Uint8Array(bin.length);
@@ -27914,8 +27934,11 @@ async function srGenerateFeedbackSummary() {
       + '1. "feedback" \u2014 a seller-facing summary of the showing feedback: one opening line on overall activity and trend, then the 2-3 most common themes with roughly how often each came up, then a couple of short representative quotes from agent comments. Do NOT include advice or recommendations here; that belongs in the next two fields. Under about 200 words.\n\n'
       + '2. "meaning" \u2014 what the numbers and the feedback together actually say, in plain language. If online traffic dropped, explain that the surge a new listing gets naturally fades after the first couple of weeks, so they do not panic. Honest, never spin. Under 70 words.\n\n'
       + '3. "consider" \u2014 the specific decision in front of the seller this week: hold steady, adjust price, address condition or staging, or widen showing availability. Name ONE primary option and say why, drawing on what the feedback actually said. If a price move is warranted, note that buyers filter searches at round numbers, so sitting just above a threshold hides the home from a whole bracket. Under 70 words.\n\n'
+      + '4. "showings" \u2014 every past, completed or upcoming showing in the activity table, each as '
+      + '{"date":"YYYY-MM-DD","agent":"agent name"}. Skip canceled showings, status changes and the new-listing row. '
+      + 'Return an empty array if there is no activity table.\n\n'
       + 'No greeting, no signature, no bullet points, no markdown.\n'
-      + 'Respond with ONLY raw JSON: {"feedback":"...","meaning":"...","consider":"..."}';
+      + 'Respond with ONLY raw JSON: {"feedback":"...","meaning":"...","consider":"...","showings":[]}';
 
     var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1600, messages: [{ role: 'user', content: prompt }] });
     var out = (d && d.content && d.content[0] && d.content[0].text) || '';
@@ -27929,6 +27952,13 @@ async function srGenerateFeedbackSummary() {
       _srCurrent.verdictStatus   = dg.status;
       _srCurrent.verdictMeaning  = String(parsed.meaning  || '').trim();
       _srCurrent.verdictConsider = String(parsed.consider || '').trim();
+      // Only fill showings the calendar did not already provide — never overwrite
+      // rows the agent can see and has possibly already edited.
+      var got = parsed.showings;
+      if (Array.isArray(got) && got.length && !(_srCurrent.showings||[]).length) {
+        _srCurrent.showings = got.filter(function(r){ return r && (r.date || r.agent); })
+          .map(function(r){ return { date:String(r.date||''), agent:String(r.agent||''), keep:true }; });
+      }
     } else {
       // Unparseable response: keep the prose as the summary and fall back to the
       // free template for the verdict rather than losing the whole call.
@@ -27938,10 +27968,7 @@ async function srGenerateFeedbackSummary() {
       _srCurrent.verdictMeaning  = tf.m;
       _srCurrent.verdictConsider = tf.c;
     }
-    var wrap = document.getElementById('sr-feedback-summary-wrap');
-    if (wrap) wrap.style.display = 'block';
-    var ta = document.getElementById('sr-feedback-summary');
-    if (ta) ta.value = _srCurrent.feedbackSummary;
+    _srRerender('showings');   // redraw so feedback, the read and any pulled showings all appear
     if (btn) { btn.disabled = false; btn.textContent = '\u2728 Regenerate from PDF'; }
   } catch (e) {
     alert('Could not generate the summary: ' + e.message);
@@ -28017,36 +28044,13 @@ function srTabActivity() {
       + '</button>'
       + '<div id="sr-cat-'+catKey+'" style="display:none;background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:8px;">';
 
-    // Keep the original index — srSaveCurrentTab reads sr-act-<cat>-<i> against SR_ACTIVITY.
-    function _actRow(item, i) {
+    items.forEach(function(item, i) {
       var checked = _srCurrent.checkedItems[cat+'::'+item] ? 'checked' : '';
-      return '<label style="display:flex;align-items:flex-start;gap:10px;padding:9px 6px;cursor:pointer;border-bottom:0.5px solid var(--border);">'
+      html += '<label style="display:flex;align-items:flex-start;gap:10px;padding:9px 6px;cursor:pointer;border-bottom:0.5px solid var(--border);">'
         + '<input type="checkbox" id="sr-act-'+catKey+'-'+i+'" '+checked+' style="margin-top:2px;flex-shrink:0;width:18px;height:18px;cursor:pointer;"/>'
         + '<span style="font-size:13px;line-height:1.5;">'+item+'</span>'
         + '</label>';
-    }
-    var onceRows = '', onceCount = 0, onceChecked = 0;
-    items.forEach(function(item, i) {
-      if (SR_ONCE[item]) {
-        onceRows += _actRow(item, i);
-        onceCount++;
-        if (_srCurrent.checkedItems[cat+'::'+item]) onceChecked++;
-      } else {
-        html += _actRow(item, i);
-      }
     });
-    if (onceCount) {
-      // Expanded when something in here is already ticked, so nothing checked is hidden.
-      var openOnce = onceChecked > 0;
-      html += '<div style="padding:6px;">'
-        + '<button onclick="srToggleOnce(\''+catKey+'\')" style="width:100%;background:none;border:none;text-align:left;padding:6px 0;font-size:11.5px;color:var(--text3);cursor:pointer;">'
-        + (openOnce ? '−' : '+') + ' ' + onceCount + ' one-time setup item' + (onceCount!==1?'s':'')
-        + (onceChecked ? ' · '+onceChecked+' checked' : '')
-        + '</button>'
-        + '<div id="sr-once-'+catKey+'" style="display:'+(openOnce?'block':'none')+';">' + onceRows + '</div>'
-        + '</div>';
-    }
-
     html += '<div style="padding:8px 6px;">'
       + '<input type="text" id="sr-custom-'+catKey+'" placeholder="Add your own..." value="'+partnerEsc(_srCurrent.customItems[cat]||'')+'" style="width:100%;box-sizing:border-box;font-size:12px;"/>'
       + '</div>'
@@ -28054,16 +28058,6 @@ function srTabActivity() {
   });
   return html;
 }
-
-function srToggleOnce(catKey) {
-  var el = document.getElementById('sr-once-'+catKey);
-  if (!el) return;
-  var open = el.style.display==='none';
-  el.style.display = open ? 'block' : 'none';
-  var btn = el.previousElementSibling;
-  if (btn) btn.textContent = (open ? '−' : '+') + btn.textContent.slice(1);
-}
-window.srToggleOnce = srToggleOnce;
 
 function srToggleCat(catKey) {
   var el = document.getElementById('sr-cat-'+catKey);
@@ -28244,40 +28238,7 @@ function srAddCompRow(type) {
 window.srAddCompRow = srAddCompRow;
 
 function srTabMessage() {
-  // The verdict sits here because it's the last stop before sending — every number
-  // is already entered by the time the agent reaches it.
-  var dg = _srDiagnose();
-  var cur = _srCurrent.verdictStatus || '';
-  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Where We Stand</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:10px;">The data alone doesn\'t tell your seller what to do. This is the part that does.</div>';
-
-  html += '<div style="font-size:11.5px;color:var(--text3);background:var(--surface2);border-radius:var(--r);padding:8px 10px;margin-bottom:10px;line-height:1.55;">'
-    + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
-    + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
-    + '</div>';
-
-  html += '<div style="display:flex;gap:6px;margin-bottom:10px;">';
-  ['ontrack','watching','adjust'].forEach(function(k){
-    var v = SR_VERDICTS[k];
-    var on = (cur === k);
-    html += '<button id="sr-vb-'+k+'" onclick="srSetVerdict(\''+k+'\')" style="flex:1;padding:9px 4px;font-size:11px;font-weight:600;border:1px solid '+(on?v.pill:'var(--border)')+';border-radius:var(--r);cursor:pointer;background:'+(on?v.bg:'var(--surface)')+';color:'+(on?v.text:'var(--text2)')+';">'+v.label+'</button>';
-  });
-  html += '</div>';
-
-  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--green);color:#fff;border:none;border-radius:var(--r);padding:10px;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:10px;">Fill from this week\'s numbers</button>';
-
-  html += '<div style="margin-bottom:10px;">'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">What this means</label>'
-    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
-    + '</div>';
-
-  html += '<div style="margin-bottom:18px;">'
-    + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">What to consider</label>'
-    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:78px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
-    + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">Tap a status to rewrite the wording; once you edit the text yourself it stays put. Leave both blank to skip this section entirely. Generating from your ShowingTime PDF on the Showings tab fills this in too, using the actual buyer feedback.</div>'
-    + '</div>';
-
-  html += '<div style="border-top:1px solid var(--border);padding-top:14px;font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
+  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
 
   html += '<div style="margin-bottom:14px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Email Subject</label>'
@@ -28456,7 +28417,7 @@ function srDraftVerdict() {
   _srCurrent.verdictStatus   = dg.status;
   _srCurrent.verdictMeaning  = t.m;
   _srCurrent.verdictConsider = t.c;
-  _srRerender('message');
+  _srRerender('showings');
 }
 window.srDraftVerdict = srDraftVerdict;
 
