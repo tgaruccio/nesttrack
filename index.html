@@ -27489,6 +27489,7 @@ function srOpenBuilderWithListing(listingId, l) {
     carried: false,
     verdictStatus: '',
     verdictEdited: false,
+    meaningSource: '',
     verdictMeaning: '',
     verdictConsider: ''
   };
@@ -27923,24 +27924,40 @@ async function srGenerateFeedbackSummary() {
     var comps = (_srCurrent.compsActive||[]).concat(_srCurrent.compsSold||[])
       .slice(0,8).map(function(c){ return '- ' + c.address + ' ' + (c.price||'') + ' ' + (c.sqft||'') + 'sf'; }).join('\n');
 
-    var prompt = 'You are an experienced listing agent writing two sections of a weekly seller report from a ShowingTime Listing Activity Report.\n\n'
+    // The AI describes; it never recommends. The agent owns the call, so the model is
+    // told the status the numbers produced and asked to stay consistent with it. It no
+    // longer writes 'what to consider' at all — that comes from the status the agent picks.
+    var stanceWord = dg.status === 'adjust' ? 'a change is worth discussing'
+                   : dg.status === 'watching' ? 'worth watching but not acting on yet'
+                   : 'no change is warranted right now';
+
+    var prompt = 'You are an experienced listing agent writing the factual sections of a weekly seller report from a ShowingTime Listing Activity Report.\n\n'
       + (addr ? ('PROPERTY: ' + addr + '\n') : '')
       + (price ? ('LIST PRICE: ' + price + '\n') : '')
       + 'THIS WEEK: ' + dg.showings + ' showings, ' + dg.views + ' online views, ' + dg.offers + ' offers'
       + (dg.dom!==null ? (', ' + dg.dom + ' days on market') : '') + '\n'
       + (dg.prevViews!==null ? ('LAST WEEK: ' + dg.prevViews + ' online views, ' + dg.prevShowings + ' showings\n') : 'No prior report \u2014 first week.\n')
       + 'SIGNALS DETECTED: ' + dg.signals.join('; ') + '\n'
+      + 'THE AGENT\'S POSITION THIS WEEK: ' + stanceWord + '. Everything you write must be consistent with that.\n'
       + (comps ? ('COMPARABLES:\n' + comps + '\n') : '')
       + '\nREPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
+      + 'CRITICAL: you are not advising anyone. Do not recommend, suggest, urge or hint at any action \u2014 '
+      + 'no price changes, no staging, no strategy. The agent decides that, not you. Report what happened '
+      + 'and what buyers said. If feedback mentions price, report it as what that agent said, never as a conclusion.\n\n'
       + 'Return three pieces:\n\n'
-      + '1. "feedback" \u2014 a seller-facing summary of the showing feedback: one opening line on overall activity and trend, then the 2-3 most common themes with roughly how often each came up, then a couple of short representative quotes from agent comments. Do NOT include advice or recommendations here; that belongs in the next two fields. Under about 200 words.\n\n'
-      + '2. "meaning" \u2014 what the numbers and the feedback together actually say, in plain language. If online traffic dropped, explain that the surge a new listing gets naturally fades after the first couple of weeks, so they do not panic. Honest, never spin. Under 70 words.\n\n'
-      + '3. "consider" \u2014 the specific decision in front of the seller this week: hold steady, adjust price, address condition or staging, or widen showing availability. Name ONE primary option and say why, drawing on what the feedback actually said. If a price move is warranted, note that buyers filter searches at round numbers, so sitting just above a threshold hides the home from a whole bracket. Under 70 words.\n\n'
-      + '4. "showings" \u2014 every past, completed or upcoming showing in the activity table, each as '
+      + '1. "feedback" \u2014 a seller-facing summary of the showing feedback: one opening line on overall activity, '
+      + 'then the 2-3 most common themes with roughly how often each came up, then a couple of short representative '
+      + 'quotes from agent comments. Note how many showings have returned feedback so far, since a small number of '
+      + 'responses is a small sample and should read that way. Under about 200 words.\n\n'
+      + '2. "meaning" \u2014 a plain-language read of what the numbers and feedback show, consistent with the agent\'s '
+      + 'position above. Describe only. If online traffic dropped, explain that the surge a new listing gets naturally '
+      + 'fades after the first couple of weeks, so they do not panic. If the listing is only days old, say plainly that '
+      + 'it is early and there is not much to read into yet. Honest, never spin. Under 70 words.\n\n'
+      + '3. "showings" \u2014 every past, completed or upcoming showing in the activity table, each as '
       + '{"date":"YYYY-MM-DD","agent":"agent name"}. Skip canceled showings, status changes and the new-listing row. '
       + 'Return an empty array if there is no activity table.\n\n'
       + 'No greeting, no signature, no bullet points, no markdown.\n'
-      + 'Respond with ONLY raw JSON: {"feedback":"...","meaning":"...","consider":"...","showings":[]}';
+      + 'Respond with ONLY raw JSON: {"feedback":"...","meaning":"...","showings":[]}';
 
     var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1600, messages: [{ role: 'user', content: prompt }] });
     var out = (d && d.content && d.content[0] && d.content[0].text) || '';
@@ -27953,7 +27970,9 @@ async function srGenerateFeedbackSummary() {
       // Status stays deterministic \u2014 the AI writes the words, the data makes the call.
       _srCurrent.verdictStatus   = dg.status;
       _srCurrent.verdictMeaning  = String(parsed.meaning  || '').trim();
-      _srCurrent.verdictConsider = String(parsed.consider || '').trim();
+      _srCurrent.meaningSource   = 'ai';
+      // The recommendation is the agent's, not the model's — derive it from the status.
+      _srCurrent.verdictConsider = _srVerdictTemplate(dg, dg.status).c;
       // Only fill showings the calendar did not already provide — never overwrite
       // rows the agent can see and has possibly already edited.
       var got = parsed.showings;
@@ -27966,6 +27985,7 @@ async function srGenerateFeedbackSummary() {
       // free template for the verdict rather than losing the whole call.
       _srCurrent.feedbackSummary = out.trim();
       var tf = _srVerdictTemplate(dg);
+      _srCurrent.meaningSource   = 'template';
       _srCurrent.verdictStatus   = dg.status;
       _srCurrent.verdictMeaning  = tf.m;
       _srCurrent.verdictConsider = tf.c;
@@ -28396,15 +28416,18 @@ function srSetVerdict(k) {
     b.style.color       = on ? v.text : 'var(--text2)';
     b.style.borderColor = on ? v.pill : 'var(--border)';
   });
-  // Rewrite the wording to match the status — but never clobber the agent's own words.
+  // A status change rewrites the recommendation — that is the part that follows the
+  // agent's call. The observation is factual either way, so AI-written text stays.
   if (next && !_srCurrent.verdictEdited) {
     var t = _srVerdictTemplate(_srDiagnose(), next);
-    _srCurrent.verdictMeaning  = t.m;
     _srCurrent.verdictConsider = t.c;
-    var vm = document.getElementById('sr-verdict-meaning');
     var vc = document.getElementById('sr-verdict-consider');
-    if (vm) vm.value = t.m;
     if (vc) vc.value = t.c;
+    if (_srCurrent.meaningSource !== 'ai') {
+      _srCurrent.verdictMeaning = t.m;
+      var vm = document.getElementById('sr-verdict-meaning');
+      if (vm) vm.value = t.m;
+    }
   }
 }
 window.srSetVerdict = srSetVerdict;
@@ -28419,6 +28442,7 @@ function srDraftVerdict() {
   _srCurrent.verdictStatus   = dg.status;
   _srCurrent.verdictMeaning  = t.m;
   _srCurrent.verdictConsider = t.c;
+  _srCurrent.meaningSource   = 'template';
   _srRerender('showings');
 }
 window.srDraftVerdict = srDraftVerdict;
