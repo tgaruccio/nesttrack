@@ -2274,8 +2274,24 @@ setTimeout(function(){
       <div style="font-size:18px;font-weight:500;display:flex;align-items:center;gap:6px;">📧 Email <span onclick="showHelp('email')" title="What is this? How does it connect?" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span></div>
       <div style="font-size:12px;color:var(--text2);">Send a branded email to your contacts</div>
     </div>
+    <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0;">
+      <button id="nl-tab-compose" onclick="nlSwitchView('compose')" style="padding:8px 16px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;background:var(--green);color:#fff;">Compose</button>
+      <button id="nl-tab-sent" onclick="nlSwitchView('sent')" style="padding:8px 16px;font-size:12.5px;font-weight:600;border:none;border-left:1px solid var(--border);cursor:pointer;background:var(--surface2);color:var(--text2);">Sent</button>
+    </div>
   </div>
 
+  <!-- Sent log: every email this agent has sent, newest first. Hidden until toggled. -->
+  <div id="nl-sent-view" style="display:none;">
+    <div class="card" style="gap:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div style="font-size:13px;font-weight:600;">Sent emails</div>
+        <input id="nl-sent-search" type="text" placeholder="Search subject or recipient..." oninput="renderSentLog()" style="flex:1;min-width:180px;max-width:280px;font-size:12.5px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);"/>
+      </div>
+      <div id="nl-sent-list" style="font-size:13px;"></div>
+    </div>
+  </div>
+
+  <div id="nl-compose-view">
   <!-- Audience -->
   <div class="card" style="gap:10px;">
     <div style="font-size:13px;font-weight:600;">Audience</div>
@@ -2337,6 +2353,7 @@ setTimeout(function(){
     <button onclick="sendNewsletter()" class="btn btn-g" style="flex:1;" id="nl-send-btn">📤 Send Newsletter</button>
   </div>
   <div id="nl-status" style="font-size:13px;color:var(--text2);display:none;"></div>
+  </div><!-- /nl-compose-view -->
 </div>
 
 <!-- AGENT MESSAGES PAGE -->
@@ -11146,6 +11163,105 @@ async function sendStepEmail(uid, stepNum, type, pushInfo) {
     }, stepNum, type, ccParts.join(', '));
   } catch(e) { console.log('Step email failed:', e.message); }
 }
+// Agent-wide sent log. The per-client log lives under users/{uid}/emailLog and only ever
+// showed the handful of sends the app itself makes — everything the worker sends (NestTracker
+// reports, maintenance reminders, offer alerts) never touched it. This one is the agent's own
+// record, written on every send the app knows about.
+async function logAgentEmail(to, subject, type, clientUid, clientName) {
+  try {
+    var agentId = (userProfile && userProfile.agentId) || '';
+    if (!agentId || !subject) return;
+    await fb.addDoc(fb.collection(fb.db,'agents',agentId,'sentEmails'), {
+      to: String(to||''), subject: String(subject),
+      type: type || 'general',
+      clientUid: clientUid || '', clientName: String(clientName||''),
+      sentAt: fb.serverTimestamp()
+    });
+  } catch(e) { console.log('agent sentEmails err:', e.message); }
+}
+window.logAgentEmail = logAgentEmail;
+
+var _sentLog = [];
+async function loadSentLog(force) {
+  var el = document.getElementById('nl-sent-list');
+  if (!el) return;
+  if (_sentLog.length && !force) { renderSentLog(); return; }
+  el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0;">Loading\u2026</div>';
+  try {
+    var agentId = (userProfile && userProfile.agentId) || '';
+    var snap = await fb.getDocs(fb.query(
+      fb.collection(fb.db,'agents',agentId,'sentEmails'),
+      fb.orderBy('sentAt','desc'), fb.limit(300)));
+    _sentLog = [];
+    snap.forEach(function(d){ _sentLog.push(d.data()); });
+    renderSentLog();
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0;">Could not load the sent log: '+partnerEsc(e.message||'')+'</div>';
+  }
+}
+window.loadSentLog = loadSentLog;
+
+var SENT_TYPE_LABELS = {
+  'step-buyer':'Buyer Trail', 'step-seller':'Seller Trail', 'step-mortgage':'Mortgage Trail',
+  'newsletter':'Email Campaign', 'seller-report':'Seller Report', 'under_contract':'Under Contract',
+  'appointment':'Appointment', 'general':'Email',
+  // Sent by the worker, not the app.
+  'home-value-welcome':'NestTracker \u2014 Welcome', 'home-value':'NestTracker \u2014 Quarterly',
+  'maintenance':'Home Maintenance', 'smart-plan':'Smart Plan', 'offer-alert':'Offer Alert'
+};
+
+function renderSentLog() {
+  var el = document.getElementById('nl-sent-list');
+  if (!el) return;
+  var q = ((document.getElementById('nl-sent-search')||{}).value||'').trim().toLowerCase();
+  var rows = _sentLog.filter(function(r){
+    if (!q) return true;
+    return ((r.subject||'')+' '+(r.to||'')+' '+(r.clientName||'')).toLowerCase().indexOf(q) !== -1;
+  });
+  if (!rows.length) {
+    el.innerHTML = '<div style="font-size:12.5px;color:var(--text3);padding:10px 0;">'
+      + (q ? 'Nothing matches that search.' : 'No emails logged yet. Sends from here on will appear in this list.')
+      + '</div>';
+    return;
+  }
+  var lastDay = '';
+  el.innerHTML = rows.map(function(r){
+    var d = (r.sentAt && r.sentAt.toDate) ? r.sentAt.toDate() : null;
+    var day = d ? d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}) : 'Earlier';
+    var time = d ? d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+    var head = '';
+    if (day !== lastDay) {
+      lastDay = day;
+      head = '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px;">'+day+'</div>';
+    }
+    var who = r.clientName || r.to || '';
+    return head
+      + '<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid var(--border);">'
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:13px;color:var(--text);">'+partnerEsc(r.subject||'')+'</div>'
+        + '<div style="font-size:11.5px;color:var(--text3);margin-top:2px;">'
+          + (who ? partnerEsc(who)+' \u00b7 ' : '')
+          + (SENT_TYPE_LABELS[r.type] || r.type || 'Email')
+          + (time ? ' \u00b7 '+time : '')
+        + '</div>'
+      + '</div></div>';
+  }).join('');
+}
+window.renderSentLog = renderSentLog;
+
+function nlSwitchView(v) {
+  var sent = (v === 'sent');
+  var cv = document.getElementById('nl-compose-view');
+  var sv = document.getElementById('nl-sent-view');
+  if (cv) cv.style.display = sent ? 'none' : '';
+  if (sv) sv.style.display = sent ? '' : 'none';
+  var a = document.getElementById('nl-tab-compose'), b = document.getElementById('nl-tab-sent');
+  if (a) { a.style.background = sent ? 'var(--surface2)' : 'var(--green)'; a.style.color = sent ? 'var(--text2)' : '#fff'; }
+  if (b) { b.style.background = sent ? 'var(--green)' : 'var(--surface2)'; b.style.color = sent ? '#fff' : 'var(--text2)'; }
+  if (sent) loadSentLog();
+}
+window.nlSwitchView = nlSwitchView;
+
 async function logEmailActivity(uid, subject, type) {
   if (!uid || !subject) return;
   try {
@@ -11156,6 +11272,12 @@ async function logEmailActivity(uid, subject, type) {
       agentId: userProfile.agentId || ''
     });
   } catch(e) { console.log('emailLog err:', e.message); }
+  // Mirror into the agent's own log so the Email tab shows one list across all clients.
+  try {
+    var _b = (typeof myBuyers !== 'undefined' && myBuyers) ? myBuyers.find(function(x){ return x.uid === uid; }) : null;
+    var _nm = _b ? ((_b.firstName||'')+' '+(_b.lastName||'')).trim() : '';
+    logAgentEmail(_b ? (_b.email||'') : '', subject, type, uid, _nm);
+  } catch(e){}
 }
 async function loadEmailLog(uid) {
   var container = document.getElementById('bd-email-log-'+uid);
