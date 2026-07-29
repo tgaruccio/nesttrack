@@ -33916,6 +33916,8 @@ async function ntConfirmPreview(overrideValue){
       if(j.firstSent){ _msg += ' First report emailed.'; }
       else if(j.firstSendReason==='no recipient email'){ _msg += ' Add an email to this client to send their report.'; }
       else if(j.firstSendReason==='client unsubscribed'){ _msg += ' (Client is unsubscribed — no email sent.)'; }
+      // Any other reason is a real failure — show it rather than reporting success.
+      else if(j.firstSendReason){ _msg += ' \u26a0\ufe0f Report NOT emailed: ' + j.firstSendReason; console.warn('[nesttracker] first send failed:', j.firstSendReason); }
       else { _msg += ' Quarterly report is live.'; }
       if(typeof showToast==='function') showToast(_msg);
       // If the NestTracker dashboard is open (e.g. reviewing a flagged home), refresh it so
