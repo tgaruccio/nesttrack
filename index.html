@@ -25486,18 +25486,18 @@ async function loadDeals() {
       data._storedStatus = data.status;
       _deals.push(data);
     });
-    // Deals assigned to you that live in someone else's folder — the case where a leader
-    // creates a deal for a member, or a member is co-agent on the leader's deal. Membership
-    // is the source of truth, so this runs for everyone, leader or not.
+    // Deals follow the CLIENT. allBuyers already holds every client you are assigned to —
+    // agent, co-agent or lender — so any deal on one of those clients is yours, wherever the
+    // document happens to live. No membership stamping, no folder logic, no backfill.
     try {
-      var _meNow = agentId || ((userProfile && userProfile.lenderId) || '');
-      var _lendId = (userProfile && userProfile.lenderId) || '';
-      var _ids = [agentId, _lendId].filter(Boolean);
-      for (var _q=0; _q<_ids.length; _q++) {
+      var _uids = (typeof allBuyers !== 'undefined' && allBuyers)
+        ? allBuyers.map(function(b){ return b && b.uid; }).filter(Boolean) : [];
+      for (var _c0 = 0; _c0 < _uids.length; _c0 += 30) {          // Firestore caps `in` at 30
+        var _chunk = _uids.slice(_c0, _c0 + 30);
         var _sn = await fb.getDocs(fb.query(fb.collectionGroup(fb.db,'deals'),
-                                            fb.where('memberIds','array-contains',_ids[_q])));
+                                            fb.where('clientUid','in',_chunk)));
         _sn.forEach(function(d){
-          if (_deals.some(function(x){ return x.id === d.id; })) return;   // already in my folder
+          if (_deals.some(function(x){ return x.id === d.id; })) return;
           var data = Object.assign({id:d.id}, d.data());
           if (!data.dealType && data.type) data.dealType = data.type;
           if (data.dealType === 'both') data.dealType = 'buyer';
@@ -25508,10 +25508,7 @@ async function loadDeals() {
           _deals.push(data);
         });
       }
-    } catch(mqErr){
-      // Needs a collection-group index on memberIds. Firestore logs a create-link.
-      console.log('shared deals query:', mqErr.message);
-    }
+    } catch(cqErr){ console.log('client deals query:', cqErr.message); }
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
     // Phase 3 (Team): the team leader (or solo agent) ALWAYS sees their full deal path —
@@ -25521,11 +25518,8 @@ async function loadDeals() {
     if (!(typeof isTeamLeader==='function' && isTeamLeader()) && typeof allBuyers !== 'undefined' && allBuyers && allBuyers.length) {
       var _meId = (userProfile && userProfile.agentId) || '';
       _deals = _deals.filter(function(d){
-        if (d.agentId === _meId) return true;
-        // Membership wins: if you are named on the deal, it is yours to see.
-        if (d.memberIds && d.memberIds.indexOf(_meId) !== -1) return true;
-        var _c = allBuyers.find(function(b){ return b.uid === d.clientUid; });
-        return _c && (_c.agentId === _meId || _c.coAgentId === _meId);
+        // Assigned to the client = the deal is yours. Nothing else to check.
+        return !!allBuyers.find(function(b){ return b.uid === d.clientUid; });
       });
     }
     // One-time backfill: deals created before per-deal step existed have no `step`,
