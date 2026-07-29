@@ -8778,6 +8778,8 @@ const EMAIL_EDITOR_DEFS = [
   {group:'Home maintenance', key:'maint_hvac_service',  label:'HVAC service reminder',   type:'maint', mkey:'hvac_service'},
   {group:'Home maintenance', key:'maint_gutters',       label:'Gutter cleaning reminder', type:'maint', mkey:'gutters'},
   {group:'Home maintenance', key:'maint_water_heater',  label:'Water heater flush reminder', type:'maint', mkey:'water_heater'},
+  {group:'Home maintenance', key:'maint_insurance',    label:'Insurance renewal reminder', type:'maint', mkey:'insurance'},
+  {group:'Home maintenance', key:'maint_anniversary',  label:'Home anniversary',           type:'maint', mkey:'home_anniversary'},
 ];
 
 async function loadCustomEmailTemplates() {
@@ -8794,7 +8796,9 @@ async function loadCustomEmailTemplates() {
 var MAINT_EMAIL_DEFAULTS = {
   hvac_service:  { subject:'Have your HVAC serviced', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 your heating and cooling system is about due for a tune-up.' },
   gutters:       { subject:'Time to clean the gutters', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 it\u2019s about time to get the gutters cleaned out.' },
-  water_heater:  { subject:'Time to flush the water heater', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 your water heater\u2019s due for a flush.' }
+  water_heater:  { subject:'Time to flush the water heater', body:'Hey {{FIRST_NAME}} \u2014 quick reminder \u2014 your water heater\u2019s due for a flush.' },
+  insurance:     { subject:'Your home insurance renews soon', body:'Hey {{FIRST_NAME}} \u2014 your home insurance policy should be coming up for renewal in about a month. Worth a look at the rate before it auto-renews. Happy to point you at a few people to shop it with \u2014 just say the word.' },
+  home_anniversary: { subject:'{{YEARS}} in your home \uD83C\uDF89', body:'Hey {{FIRST_NAME}} \u2014 hard to believe it\u2019s been {{YEARS}} since you got the keys. Hope the place still feels like home. If you ever want to know what it\u2019s worth these days, just ask.' }
 };
 
 // Per-agent maintenance timing (month + frequency + off), loaded from agents/{id}/config/maintSchedule.
@@ -8802,7 +8806,10 @@ var _maintSchedule = {};
 var MAINT_SCHED_DEFAULTS = {
   hvac_service:  { month:9, freqDays:182, off:false },   // October, every 6 months (fall + spring)
   gutters:       { month:9, freqDays:365, off:false },   // October, yearly
-  water_heater:  { month:8, freqDays:1095, off:false }   // September, every 3 years
+  water_heater:  { month:8, freqDays:1095, off:false },  // September, every 3 years
+  // Anniversary-anchored: the worker counts from the closing date, not the calendar.
+  insurance:        { anchor:'closing', offsetDays:-30, freqDays:365, off:false },  // 30 days before each renewal
+  home_anniversary: { anchor:'closing', offsetDays:0,   freqDays:365, off:false }   // on the day, every year
 };
 var MAINT_FREQ_OPTS = [
   { d:182,  label:'Every 6 months' },
@@ -8821,8 +8828,25 @@ async function loadMaintSchedule(){
   } catch(e){ console.log('loadMaintSchedule err:', e.message); }
 }
 
+var MAINT_ANCHORED = { insurance:1, home_anniversary:1 };
+
 function _maintScheduleControls(d){
   var mk = d.mkey;
+  // Anchored reminders fire off the client's closing date, so there is nothing to pick.
+  if (MAINT_ANCHORED[mk]) {
+    var curA = _maintSchedule[mk] || MAINT_SCHED_DEFAULTS[mk] || { off:false };
+    var when = (mk==='insurance')
+      ? '30 days before the closing anniversary, every year'
+      : 'On the closing anniversary, every year';
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 12px;margin-bottom:12px;">'
+      + '<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">When it sends</div>'
+      + '<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text);margin-bottom:8px;cursor:pointer;">'
+        + '<input type="checkbox" id="ee-sched-off-'+d.key+'"'+(curA.off===true?' checked':'')+'/> Turn this reminder off'
+      + '</label>'
+      + '<div style="font-size:12.5px;color:var(--text);">' + when + '</div>'
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:7px;line-height:1.5;">Timed from the closing date on the client\'s record. Clients without a closing date on file are skipped.</div>'
+    + '</div>';
+  }
   var cur = _maintSchedule[mk] || MAINT_SCHED_DEFAULTS[mk] || { month:9, freqDays:365, off:false };
   var isOff = cur.off === true;
   var monthOpts = MAINT_MONTHS.map(function(m,i){ return '<option value="'+i+'"'+(Number(cur.month)===i?' selected':'')+'>'+m+'</option>'; }).join('');
@@ -8851,6 +8875,15 @@ async function _maintScheduleSave(def){
   if (def.type!=='maint') return;
   var mk = def.mkey;
   var off = !!((document.getElementById('ee-sched-off-'+def.key)||{}).checked);
+  if (MAINT_ANCHORED[mk]) {
+    var base = MAINT_SCHED_DEFAULTS[mk] || {};
+    _maintSchedule[mk] = { off:off, anchor:'closing', offsetDays:(base.offsetDays||0), freqDays:(base.freqDays||365) };
+    try {
+      var aid = userProfile.agentId || '';
+      await fb.setDoc(fb.doc(fb.db,'agents',aid,'config','maintSchedule'), _maintSchedule);
+    } catch(e){ console.log('maintScheduleSave:', e.message); }
+    return;
+  }
   var month = Number((document.getElementById('ee-sched-month-'+def.key)||{}).value);
   var freq  = Number((document.getElementById('ee-sched-freq-'+def.key)||{}).value);
   _maintSchedule[mk] = { off:off, month:(isNaN(month)?9:month), freqDays:(isNaN(freq)?365:freq) };
@@ -13011,7 +13044,8 @@ function _hdWhen(ymd){
 }
 function _hdTaskIcon(k){
   return ({ furnace_filter:'\uD83C\uDF2C\uFE0F', hvac_service:'\uD83D\uDD27', water_filter:'\uD83D\uDCA7',
-            smoke_co:'\uD83D\uDD14', gutters:'\uD83C\uDFE0', water_heater:'\uD83D\uDD25' })[k] || '\uD83D\uDD27';
+            smoke_co:'\uD83D\uDD14', gutters:'\uD83C\uDFE0', water_heater:'\uD83D\uDD25',
+            insurance:'\uD83D\uDEE1\uFE0F', home_anniversary:'\uD83C\uDF89' })[k] || '\uD83D\uDD27';
 }
 function _hdEveryLabel(d){
   d = Number(d)||90;
