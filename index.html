@@ -25486,16 +25486,14 @@ async function loadDeals() {
       data._storedStatus = data.status;
       _deals.push(data);
     });
-    // Deals follow the CLIENT. allBuyers already holds every client you are assigned to —
-    // agent, co-agent or lender — so any deal on one of those clients is yours, wherever the
-    // document happens to live. No membership stamping, no folder logic, no backfill.
+    // Deals you are on, wherever they live. memberIds is stamped on the deal itself because
+    // security rules cannot look up the client doc on a query — Firestore caps rule get()
+    // calls at 10 per query, so anything bigger is denied outright.
     try {
-      var _uids = (typeof allBuyers !== 'undefined' && allBuyers)
-        ? allBuyers.map(function(b){ return b && b.uid; }).filter(Boolean) : [];
-      for (var _c0 = 0; _c0 < _uids.length; _c0 += 30) {          // Firestore caps `in` at 30
-        var _chunk = _uids.slice(_c0, _c0 + 30);
+      var _mine = [agentId, (userProfile && userProfile.lenderId) || ''].filter(Boolean);
+      for (var _q=0; _q<_mine.length; _q++) {
         var _sn = await fb.getDocs(fb.query(fb.collectionGroup(fb.db,'deals'),
-                                            fb.where('clientUid','in',_chunk)));
+                                            fb.where('memberIds','array-contains',_mine[_q])));
         _sn.forEach(function(d){
           if (_deals.some(function(x){ return x.id === d.id; })) return;
           var data = Object.assign({id:d.id}, d.data());
@@ -25508,7 +25506,8 @@ async function loadDeals() {
           _deals.push(data);
         });
       }
-    } catch(cqErr){ console.log('client deals query:', cqErr.message); }
+    } catch(cqErr){ console.log('shared deals query:', cqErr.message); }
+
     _deals.sort(function(a,b){ return (a.createdAt||'') > (b.createdAt||'') ? -1 : 1; });
     _dedupeDeals();
     // Phase 3 (Team): the team leader (or solo agent) ALWAYS sees their full deal path —
