@@ -18274,12 +18274,69 @@ async function pushClientToTeam(uid){
 }
 window.pushClientToTeam = pushClientToTeam;
 
+// Removing a client is per-person, not global. A client can be shared by an agent, a co-agent
+// and a lender — and the lender may be running this as their own CRM — so one person tidying
+// their list must not destroy the record for the other two. You only ever clear your own
+// assignment. The last person assigned is the only one who can actually delete.
+function _clientAssignments(b) {
+  var out = [];
+  [['agentId', b.agentId], ['coAgentId', b.coAgentId], ['lenderId', b.lenderId]].forEach(function(p){
+    if (p[1] && p[1] !== 'none') out.push({ field:p[0], id:p[1] });
+  });
+  return out;
+}
+function _myClientFields(b) {
+  var meAgent  = (userProfile && userProfile.agentId)  || '';
+  var meLender = (userProfile && userProfile.lenderId) || '';
+  // One person can hold two seats on the same client — agent AND lender. Leaving clears both.
+  return _clientAssignments(b).filter(function(a){
+    return (meAgent && a.id === meAgent) || (meLender && a.id === meLender);
+  });
+}
+
 async function deleteBuyer(uid) {
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) { alert('Buyer not found.'); return; }
-  if (!canAccessBuyer(b)) { alert('You do not have access to delete this buyer.'); return; }
+  if (!canAccessBuyer(b)) { alert('You do not have access to remove this buyer.'); return; }
   const name = `${b.firstName||''} ${b.lastName||''}`.trim() || b.email || 'this buyer';
-  const msg = `Delete ${name}?\n\nThis removes the buyer profile from this portal and deletes their saved homes/tours stored under that profile. It does NOT delete their Firebase Authentication login. If they sign in again, a new profile may be created.`;
+
+  const mine   = _myClientFields(b);
+  const others = _clientAssignments(b).filter(function(a){
+    return !mine.some(function(m){ return m.field === a.field; });
+  });
+
+  // ── Someone else is still on this client: step off, leave everything standing ──
+  if (others.length) {
+    const whoElse = others.map(function(o){
+      return o.field === 'lenderId' ? 'the lender'
+           : o.field === 'coAgentId' ? 'the co-agent'
+           : 'the agent';
+    }).join(' and ');
+    if (!confirm('Remove ' + name + ' from your list?' + '\n\n'
+      + 'They stay assigned to ' + whoElse + ', and keep their portal, deals and history. '
+      + 'This only takes them off your list \u2014 nothing is deleted.')) return;
+    try {
+      const patch = {};
+      mine.forEach(function(m){
+        // Lender must be the explicit string 'none'. An empty lenderId falls through to
+        // _teamDefaultLender(), which would silently show the client a different lender.
+        patch[m.field] = (m.field === 'lenderId') ? 'none' : '';
+      });
+      if (!Object.keys(patch).length) { alert('You are not assigned to this client.'); return; }
+      await fb.updateDoc(fb.doc(fb.db, 'users', uid), patch);
+      allBuyers = allBuyers.filter(x => x.uid !== uid);
+      closeM('buyer-modal');
+      await loadBuyersForAgent();
+      renderBuyers();
+      alert('Removed from your list. ' + name + ' is still with ' + whoElse + '.');
+    } catch(e) {
+      alert('Could not remove: ' + e.message);
+    }
+    return;
+  }
+
+  // ── Last one assigned: this really is a delete ──
+  const msg = `Delete ${name}?\n\nYou are the only person assigned, so this permanently removes their profile, deals, saved homes and tours. It does NOT delete their Firebase Authentication login. If they sign in again, a new profile may be created.`;
   if (!confirm(msg)) return;
   try {
     // Delete this client's deals FIRST. Queries Firestore rather than the in-memory _deals array —
@@ -18297,6 +18354,8 @@ async function deleteBuyer(uid) {
     alert('Delete failed: ' + e.message);
   }
 }
+window._clientAssignments = _clientAssignments;
+window._myClientFields = _myClientFields;
 async function agentChatWith(uid) {
   const b = allBuyers.find(x => x.uid === uid); if (!b) return;
   closeM('buyer-modal');
