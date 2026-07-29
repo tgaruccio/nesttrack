@@ -1251,8 +1251,9 @@ setTimeout(function(){
             <input type="text" id="nt-en-price" oninput="ntEnrollCheckEquity()" inputmode="decimal" placeholder="$450,000" style="width:100%;box-sizing:border-box;"/>
           </div>
           <div>
-            <label class="flabel" style="font-weight:600;">Year purchased <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
-            <input type="text" id="nt-en-year" oninput="ntEnrollCheckEquity()" inputmode="numeric" placeholder="2019" style="width:100%;box-sizing:border-box;"/>
+            <label class="flabel" style="font-weight:600;">Closing date <span style="font-weight:400;color:var(--text3);">(optional)</span></label>
+            <input type="date" id="nt-en-year" oninput="ntEnrollCheckEquity()" style="width:100%;box-sizing:border-box;"/>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:3px;">Needed for insurance-renewal and anniversary reminders.</div>
           </div>
         </div>
 
@@ -8908,7 +8909,26 @@ async function _maintScheduleSave(def){
     var agentId = userProfile.agentId || '';
     await fb.setDoc(fb.doc(fb.db,'agents',agentId,'config','maintSchedule'), _maintSchedule);
   } catch(e){ console.log('maintScheduleSave:', e.message); }
+  ntReanchorSchedule();
 }
+
+// Push the saved schedule onto homes already enrolled. Until now the anchor month only
+// applied at enrollment, so changing it left every existing client on their old dates with
+// no way to correct them — which is how a listing set to October kept firing in April.
+async function ntReanchorSchedule(){
+  try {
+    var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+    if (!apiKey) return;
+    var r = await fetch(PROXY_URL + '/api/v1/nesttracker-reanchor?api_key=' + encodeURIComponent(apiKey),
+                        { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    var j = await r.json();
+    if (j && j.ok && typeof showToast === 'function') {
+      showToast(j.homes ? ('Schedule saved \u2014 updated ' + j.homes + ' enrolled home' + (j.homes!==1?'s':'') + '.')
+                        : 'Schedule saved.');
+    }
+  } catch(e){ console.log('reanchor:', e.message); }
+}
+window.ntReanchorSchedule = ntReanchorSchedule;
 
 function eeGetDefaultBody(def) {
   if (def.type==='maint') { var m=MAINT_EMAIL_DEFAULTS[def.mkey]; return m ? m.body : ''; }
@@ -10601,7 +10621,13 @@ function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
   var footerLine = footerParts.join(' · ');
   var licenseHtml = license ? '<div style="font-size:10px;color:#bbb;margin-top:2px;">'+license+'</div>' : '';
 
-  return '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
+  // A bare <div> has no character set, so mail clients guess — usually Latin-1 — and every
+  // em dash, curly quote and emoji arrives as mojibake. The source characters were never the
+  // problem; the missing declaration was. Wrap in a real document and it holds everywhere.
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"/>'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1"/></head>'
+    + '<body style="margin:0;padding:0;">'
+    + '<div style="font-family:Georgia,serif;max-width:540px;margin:0 auto;color:#1a1a1a;">'
     + '<div style="background:#1D9E75;padding:24px 28px;border-radius:10px 10px 0 0;text-align:center;">'
     + headerContent
     + '</div>'
@@ -10614,7 +10640,7 @@ function nsEmailWrap(agentName, subject, bodyHtml, agentProfile) {
     + '<p style="font-size:11px;color:#aaa;margin:0;">'+footerLine+'</p>'
     + licenseHtml
     + '<p style="font-size:10px;color:#ccc;margin:4px 0 0;">Powered by Nest Track</p>'
-    + '</div></div>';
+    + '</div></div></body></html>';
 }
 
 
@@ -33838,7 +33864,24 @@ async function ntEnroll(uid, btn, isRefresh){
   window._ntEnrollUid = uid;
   var addr = (b.mailingAddress||b.listingAddress||b.propertyAddress||'').trim();
   var price = String(b.purchasePrice||b.salePrice||'').replace(/[^0-9.]/g,'');
-  var year  = String(b.purchaseDate||b.closingDate||'').trim();
+  // Prefill the closing date. A client can have more than one deal, and enrollment is per
+  // HOME — so match the deal by address rather than taking whichever one is first. Falls
+  // back to whatever is on the contact record.
+  var year = String(b.purchaseDate||b.closingDate||'').trim();
+  try {
+    if (typeof _deals !== 'undefined' && _deals && _deals.length) {
+      var _key = (typeof _addrKey === 'function') ? _addrKey(addr) : '';
+      var _mine = _deals.filter(function(d){ return d.clientUid === uid; });
+      var _hit = _key && _mine.filter(function(d){
+        return (typeof _addrKey === 'function') && _addrKey(d.address||'') === _key;
+      })[0];
+      if (!_hit && _mine.length === 1) _hit = _mine[0];   // only one deal, no ambiguity
+      var _cd = _hit && (_hit.closingDate || (_hit.dates && _hit.dates.closingDate) || '');
+      if (_cd) year = String(_cd).trim();
+    }
+  } catch(e){}
+  // A date input rejects a bare year, so only set a real date — blank beats wrong.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(year)) year = '';
   var who = ((b.firstName||'')+' '+(b.lastName||'')).trim();
   var setV = function(id,v){ var el=document.getElementById(id); if(el) el.value=v||''; };
   setV('nt-en-address', addr);
