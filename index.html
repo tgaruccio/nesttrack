@@ -25538,6 +25538,7 @@ async function loadDeals() {
     _deals = [];
     snap.forEach(function(d){
       var data = Object.assign({id:d.id},d.data());
+      data._ownerId = _dealTeamId();   // deals from my own folder — stamp it so writes target the right path
       if (!data.dealType && data.type) data.dealType = data.type; // heal listing deals saved with the wrong field
       if (data.dealType === 'both') data.dealType = 'buyer';
       if (!data.dealType) data.dealType = 'buyer';
@@ -30345,7 +30346,16 @@ function _dealTeamId() {
 }
 function _amTeamLead() { var me = userProfile && userProfile.agentId; return !me || _dealTeamId() === me; }
 function _dealCol() { return fb.collection(fb.db,'agents',_dealTeamId(),'deals'); }
-function _dealDoc(id) { return fb.doc(fb.db,'agents',_dealTeamId(),'deals',id); }
+// A deal lives in the folder of whoever created it, and everyone assigned to the client can
+// now see it. So a write must go to the deal's OWN folder — not the caller's. Pointing at the
+// caller's folder either threw (change lost on reload) or created a phantom duplicate, and the
+// two copies then drifted apart. _ownerId is stamped on every shared deal by loadDeals.
+function _dealOwnerId(id) {
+  var d = (typeof _deals !== 'undefined' && _deals) ? _deals.find(function(x){ return x.id === id; }) : null;
+  return (d && d._ownerId) ? d._ownerId : _dealTeamId();
+}
+function _dealDoc(id) { return fb.doc(fb.db,'agents',_dealOwnerId(id),'deals',id); }
+window._dealOwnerId = _dealOwnerId;
 window._dealTeamId = _dealTeamId;
 
 function filterDeals(tab) {
