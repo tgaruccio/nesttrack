@@ -14731,7 +14731,20 @@ async function renderBuyers() {
       || (isLender && !!_myLenderId && _myLenderId !== 'none' && b.lenderId === _myLenderId);   // shared: I'm the assigned lender (explicit id match only — never unassigned)
   });
   var _displayBuyers = myBuyers.slice(); // Clients-page view only — filters apply here, not to myBuyers
-  if (search) _displayBuyers = _displayBuyers.filter(b => ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')).toLowerCase().includes(search));
+  // Name, email or phone. FSBO leads often arrive with a number and nothing else, so when the
+  // search is mostly digits we match on digits only — typing 4407541234 finds (440) 754-1234,
+  // and so does 7541234 or the last four.
+  if (search) {
+    var _digits = search.replace(/\D/g,'');
+    var _isNum  = _digits.length >= 3 && _digits.length >= search.replace(/[\s()+.\-]/g,'').length;
+    _displayBuyers = _displayBuyers.filter(function(b){
+      var text = ((b.firstName||'')+' '+(b.lastName||'')+' '+(b.email||'')+' '+(b.phone||'')).toLowerCase();
+      if (text.includes(search)) return true;
+      if (!_isNum) return false;
+      var bd = String(b.phone||'').replace(/\D/g,'');
+      return !!bd && bd.includes(_digits);
+    });
+  }
   if (window._crmFilter && window._crmFilter !== 'all') {
     _displayBuyers = _displayBuyers.filter(function(b){
       var s = getClientStatus(b);
