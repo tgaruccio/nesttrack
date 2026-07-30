@@ -9447,6 +9447,7 @@ async function showApp() {
   if (!isAgent) {
     await loadProperties();
     await loadTours();
+    loadClientListings();   // reveals the New Listings tab only if any exist
     chatPartner = assignedAgent; // buyer chats with their agent
   }
   
@@ -33918,11 +33919,16 @@ window.loadClientListings = loadClientListings;
 
 function renderListings() {
   var el = document.getElementById('ls-body'); if (!el) return;
-  var open = _clientListings.filter(function(l){ return !l.rating; });
+  var open = _clientListings.filter(function(l){ return !l.rating && !_lsIsGone(l); });
+  var gone = _clientListings.filter(function(l){ return _lsIsGone(l); });
   var rated = _clientListings.filter(function(l){ return l.rating && l.rating !== 'pass'; });
 
   var badge = document.getElementById('sc-listings');
   if (badge) { badge.textContent = open.length; badge.style.display = open.length ? '' : 'none'; }
+  // The tab itself stays hidden until something arrives — a seller, or an agent who never
+  // sets up a search, should not carry a section that is permanently empty.
+  var navBtn = document.getElementById('nb-listings');
+  if (navBtn) navBtn.style.display = _clientListings.length ? '' : 'none';
   var sub = document.getElementById('ls-sub');
   if (sub) sub.textContent = _clientListings.length
     ? (open.length ? (open.length + ' to review') : 'All caught up') + (rated.length ? (' \u00b7 ' + rated.length + ' saved') : '')
@@ -33940,6 +33946,10 @@ function renderListings() {
   var html = '';
   if (open.length) html += _lsBigCard(open[0]);
   open.slice(1).forEach(function(l){ html += _lsRow(l, false); });
+  if (gone.length) {
+    html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Recently sold nearby</div>';
+    gone.forEach(function(l){ html += _lsRow(l, false); });
+  }
   if (rated.length) {
     html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Your list</div>';
     rated.forEach(function(l){ html += _lsRow(l, true); });
@@ -33954,6 +33964,13 @@ function _lsPhoto(l, h) {
          + 'onerror="this.style.display=\'none\';this.parentNode.style.background=\'var(--surface2)\';">';
   }
   return '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:'+(h>100?'26px':'18px')+';opacity:.35;">\uD83C\uDFE1</div>';
+}
+
+// Sold and closed listings are informational: nothing to rate, nothing to tour. An agent
+// can point a Sold-only saved search at the same address and the cards simply arrive
+// without the buyer controls — no per-client setting, each card reads its own status.
+function _lsIsGone(l) {
+  return /sold|closed/i.test(String(l.statusKey || l.status || ''));
 }
 
 function _lsStatusPill(l) {
@@ -33983,13 +34000,14 @@ function _lsBigCard(l) {
       + '<div style="font-size:14px;margin-top:5px;">'+partnerEsc(l.street||'')+'</div>'
       + '<div style="font-size:12.5px;color:var(--text2);">'+partnerEsc(l.cityState||'')+'</div>'
       + '<div style="font-size:12.5px;color:var(--text2);margin-top:7px;">'+_lsSpecs(l)+'</div>'
-      + '<div style="display:flex;gap:7px;margin-top:14px;">'
+      + (_lsIsGone(l) ? '' :
+          '<div style="display:flex;gap:7px;margin-top:14px;">'
         + _lsRateBtn(l,'pass','\u2715 Not for me')
         + _lsRateBtn(l,'maybe','Maybe')
         + _lsRateBtn(l,'love','\u2764\uFE0F Love it')
-      + '</div>'
+      + '</div>')
       + '<button onclick="lsOpen(\''+l.id+'\')" style="width:100%;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border:none;border-radius:var(--r);background:var(--green);color:#fff;cursor:pointer;">See all photos &amp; details</button>'
-      + '<button onclick="lsRequestShowing(\''+l.id+'\')" style="width:100%;margin-top:7px;padding:11px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>'
+      + (_lsIsGone(l) ? '' : '<button onclick="lsRequestShowing(\''+l.id+'\')" style="width:100%;margin-top:7px;padding:11px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>')
       + (l.mlsNumber ? '<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:7px;">MLS #'+partnerEsc(l.mlsNumber)+'</div>' : '')
     + '</div></div>';
 }
@@ -34013,10 +34031,11 @@ function _lsRow(l, showRating) {
         + '<div style="font-size:11.5px;color:var(--text3);margin-top:2px;">'+_lsSpecs(l)+'</div>'
       + '</div>'
     + '</div>'
-    + '<div style="display:flex;gap:6px;padding:0 11px 11px;">'
+    + (_lsIsGone(l) ? '</div>' :
+      '<div style="display:flex;gap:6px;padding:0 11px 11px;">'
       + (showRating ? '' : _lsRateBtn(l,'pass','\u2715') + _lsRateBtn(l,'maybe','Maybe') + _lsRateBtn(l,'love','\u2764\uFE0F'))
       + '<button onclick="event.stopPropagation();lsRequestShowing(\''+l.id+'\')" style="flex:'+(showRating?'1':'1.4')+';padding:9px 4px;font-size:11.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text2);cursor:pointer;">\uD83D\uDCC5 Request showing</button>'
-    + '</div></div>';
+    + '</div></div>');
 }
 
 // Rating is optimistic — the tap feels instant and the write follows. A failed write
