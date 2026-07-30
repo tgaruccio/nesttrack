@@ -33969,6 +33969,18 @@ function _lsPhoto(l, h) {
 // Sold and closed listings are informational: nothing to rate, nothing to tour. An agent
 // can point a Sold-only saved search at the same address and the cards simply arrive
 // without the buyer controls — no per-client setting, each card reads its own status.
+// Inside the Median wrapper a plain navigation obeys the Link Behavior rules and keeps the
+// native nav bar. target="_blank" goes through New Windows instead and loses both. On the
+// web we still want a new tab so the client does not lose their place in the app.
+function _lsInApp() {
+  try {
+    if (typeof median !== 'undefined' && median) return true;
+    if (typeof gonative !== 'undefined' && gonative) return true;
+    return /median|gonative/i.test(navigator.userAgent || '');
+  } catch(e) { return false; }
+}
+function _lsTarget() { return _lsInApp() ? '' : ' target="_blank" rel="noopener"'; }
+
 function _lsIsGone(l) {
   return /sold|closed/i.test(String(l.statusKey || l.status || ''));
 }
@@ -34007,7 +34019,7 @@ function _lsBigCard(l) {
         + _lsRateBtn(l,'love','\u2764\uFE0F Love it')
       + '</div>')
       + (l.listingUrl
-          ? '<a href="'+l.listingUrl+'" target="_blank" rel="noopener" onclick="lsCountView(\''+l.id+'\')" style="display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border-radius:var(--r);background:var(--green);color:#fff;text-decoration:none;">See all photos &amp; details</a>'
+          ? '<a href="'+l.listingUrl+'"'+_lsTarget()+' onclick="lsCountView(\''+l.id+'\')" style="display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border-radius:var(--r);background:var(--green);color:#fff;text-decoration:none;">See all photos &amp; details</a>'
           : '')
       + (_lsIsGone(l) ? '' : '<button onclick="lsRequestShowing(\''+l.id+'\')" style="width:100%;margin-top:7px;padding:11px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>')
       + (l.mlsNumber ? '<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:7px;">MLS #'+partnerEsc(l.mlsNumber)+'</div>' : '')
@@ -34024,7 +34036,7 @@ function _lsRateBtn(l, key, label) {
 function _lsRow(l, showRating) {
   var c = l.rating ? LS_RATE[l.rating] : null;
   return '<div style="background:var(--surface);border:1px solid '+(c&&showRating?'#9FE1CB':'var(--border)')+';border-radius:12px;overflow:hidden;margin-bottom:9px;">'
-    + '<a href="'+(l.listingUrl||'#')+'" target="_blank" rel="noopener" onclick="lsCountView(\''+l.id+'\')" style="display:flex;gap:11px;padding:11px;text-decoration:none;color:inherit;">'
+    + '<a href="'+(l.listingUrl||'#')+'"'+_lsTarget()+' onclick="lsCountView(\''+l.id+'\')" style="display:flex;gap:11px;padding:11px;text-decoration:none;color:inherit;">'
       + '<div style="width:84px;height:64px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--surface2);">'+_lsPhoto(l,64)+'</div>'
       + '<div style="flex:1;min-width:0;">'
         + (c && showRating ? '<div style="font-size:10.5px;font-weight:600;color:'+c.fg+';">'+c.icon+' '+c.label+'</div>' : (l.status ? '<div style="font-size:10.5px;color:var(--text3);">'+partnerEsc(l.status)+'</div>' : ''))
