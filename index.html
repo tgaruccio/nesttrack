@@ -577,6 +577,8 @@ setTimeout(function(){
   <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 The Home Sellers Trail</button>
   <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
 
+  <button class="nb" data-pg="idx" onclick="go('idx',this)" id="nb-listings">🏡 New Listings <span class="nb-badge" id="sc-listings">0</span></button>
+
   <div class="ns">Touring</div>
   <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
   <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Property Photo Analyzer</button>
@@ -977,36 +979,19 @@ setTimeout(function(){
   <a href="#" id="mj-apply-hero" target="_blank" class="btn btn-g btn-w" style="font-size:15px;padding:13px;">Start My Pre-Approval →</a>
 </div>
 
-<!-- IDX -->
+<!-- MLS LISTING STACK — fed by the agent's MLS auto-email, parsed by the worker. -->
 <div class="page" id="page-idx" style="gap:0;padding:0;">
 
-  <!-- Sticky top bar -->
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px;flex-shrink:0;border-bottom:0.5px solid var(--border);background:var(--surface);flex-wrap:wrap;">
-    <div style="font-size:12px;color:var(--text2);">Browse homes below. Found one you like? Tap <strong>Save Home</strong> and enter the details manually.</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <button type="button" class="btn btn-g btn-sm" onclick="openSaveModal()">🏠 Save Home</button>
-      <a href="https://www.garucciogroup.com/api-site/widget/84148" target="_blank" class="btn btn-sm">Full Screen ↗</a>
+  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:12px 16px;flex-shrink:0;border-bottom:0.5px solid var(--border);background:var(--surface);">
+    <div>
+      <div style="font-size:15px;font-weight:600;" id="ls-title">New for you</div>
+      <div style="font-size:11.5px;color:var(--text3);margin-top:1px;" id="ls-sub">—</div>
     </div>
-  </div>
-  <div id="idx-recent" class="idx-recent" style="display:none;">
-    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Recently Saved</div>
-    <div id="idx-recent-list" style="display:flex;gap:8px;overflow-x:auto;"></div>
+    <button type="button" class="btn btn-sm" onclick="openSaveModal()" style="flex-shrink:0;">+ Add manually</button>
   </div>
 
-  <!-- Auto-resizing iframe - grows to content height so PAGE scrolls not iframe -->
-  <div style="width:100%;">
-    <iframe
-      src="https://www.garucciogroup.com/api-site/widget/84148"
-      id="chimeWidget"
-      frameborder="0"
-      scrolling="no"
-      style="width:100%;height:600px;display:block;border:none;"
-      allow="geolocation">
-    </iframe>
-  </div>
-
+  <div id="ls-body" style="padding:12px 14px 90px;"></div>
 </div>
-
 <!-- FLOATING SAVE BUTTON (visible when on IDX page) -->
 <div id="float-save-btn" class="float-save-btn">
   <button type="button" class="float-save-button" onclick="openSaveModal()">🏠 Save</button>
@@ -9850,7 +9835,7 @@ function go(page, el) {
   if (page === 'offer') { document.getElementById('offer-result').style.display='none'; }
   if (page === 'neighborhood') { document.getElementById('nbhd-result').style.display='none'; }
   if (page === 'movinglist') { renderMovingChecklist(); }
-  if (page === 'idx') { renderIdxRecent(); }
+  if (page === 'idx') { loadClientListings(); }
   if (page === 'guide') {
     // Home Buyers Trail page always shows the buyer trail map
     // The tlbar toggle only controls the top timeline strip, not this page
@@ -33886,6 +33871,208 @@ async function spFireNow(uid, btn){
 }
 window.spFireNow = spFireNow;
 
+// ── Client-facing listing stack ──
+// Cards come from the agent's MLS auto-email, parsed by the worker into
+// users/{uid}/listings. The client rates them here; the agent sees the reactions.
+//
+// One photo per listing is all the MLS email carries (Size=2, Number=0 — higher indexes
+// return blank), so the card exists to earn the tap. Full gallery lives at the MLS link,
+// which opens inside the app rather than kicking out to Safari.
+var _clientListings = [];
+var LS_RATE = {
+  love:  { label:'Loved it',  bg:'#DDF3E7', fg:'#0F7A52', icon:'\u2764\uFE0F' },
+  maybe: { label:'Maybe',     bg:'#FAEEDA', fg:'#8A5A08', icon:'\uD83E\uDD14' },
+  pass:  { label:'Passed',    bg:'var(--surface2)', fg:'var(--text3)', icon:'\u2715' }
+};
+
+function _lsAsOf(ts) {
+  try {
+    var d = ts && ts.toDate ? ts.toDate() : null;
+    if (!d) return '';
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  } catch(e) { return ''; }
+}
+
+async function loadClientListings() {
+  var el = document.getElementById('ls-body');
+  if (!el || !currentUser) return;
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px;">Loading\u2026</div>';
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db,'users',currentUser.uid,'listings'));
+    _clientListings = [];
+    snap.forEach(function(d){ _clientListings.push(Object.assign({ id:d.id }, d.data())); });
+    // Newest first, and anything they have not reacted to floats to the top.
+    _clientListings.sort(function(a,b){
+      var ar = a.rating ? 1 : 0, br = b.rating ? 1 : 0;
+      if (ar !== br) return ar - br;
+      var at = (a.firstSeenAt && a.firstSeenAt.seconds) || 0;
+      var bt = (b.firstSeenAt && b.firstSeenAt.seconds) || 0;
+      return bt - at;
+    });
+    renderListings();
+  } catch(e) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px;">Could not load listings: '+partnerEsc(e.message||'')+'</div>';
+  }
+}
+window.loadClientListings = loadClientListings;
+
+function renderListings() {
+  var el = document.getElementById('ls-body'); if (!el) return;
+  var open = _clientListings.filter(function(l){ return !l.rating; });
+  var rated = _clientListings.filter(function(l){ return l.rating && l.rating !== 'pass'; });
+
+  var badge = document.getElementById('sc-listings');
+  if (badge) { badge.textContent = open.length; badge.style.display = open.length ? '' : 'none'; }
+  var sub = document.getElementById('ls-sub');
+  if (sub) sub.textContent = _clientListings.length
+    ? (open.length ? (open.length + ' to review') : 'All caught up') + (rated.length ? (' \u00b7 ' + rated.length + ' saved') : '')
+    : 'Nothing yet';
+
+  if (!_clientListings.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px 20px;">'
+      + '<div style="font-size:30px;margin-bottom:10px;">\uD83C\uDFE1</div>'
+      + '<div style="font-size:14px;font-weight:600;margin-bottom:5px;">No listings yet</div>'
+      + '<div style="font-size:12.5px;color:var(--text3);line-height:1.6;max-width:270px;margin:0 auto;">When your agent sets up a search for you, new homes will show up here first.</div>'
+      + '</div>';
+    return;
+  }
+
+  var html = '';
+  if (open.length) html += _lsBigCard(open[0]);
+  open.slice(1).forEach(function(l){ html += _lsRow(l, false); });
+  if (rated.length) {
+    html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Your list</div>';
+    rated.forEach(function(l){ html += _lsRow(l, true); });
+  }
+  el.innerHTML = html;
+}
+window.renderListings = renderListings;
+
+function _lsPhoto(l, h) {
+  if (l.photoUrl) {
+    return '<img src="'+l.photoUrl+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" '
+         + 'onerror="this.style.display=\'none\';this.parentNode.style.background=\'var(--surface2)\';">';
+  }
+  return '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:'+(h>100?'26px':'18px')+';opacity:.35;">\uD83C\uDFE1</div>';
+}
+
+function _lsStatusPill(l) {
+  if (!l.status) return '';
+  var drop = /decreas/i.test(l.status);
+  var bg = drop ? '#FAEEDA' : '#DDF3E7', fg = drop ? '#8A5A08' : '#0F7A52';
+  return '<div style="position:absolute;top:10px;left:10px;background:'+bg+';color:'+fg+';font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:10px;">'+partnerEsc(l.status)+'</div>';
+}
+
+function _lsSpecs(l) {
+  var p = [];
+  if (l.beds)  p.push(l.beds + ' bd');
+  if (l.baths) p.push(l.baths + ' ba');
+  if (l.sqft)  p.push(Number(l.sqft).toLocaleString() + ' sqft');
+  return p.join(' \u00b7 ');
+}
+
+function _lsBigCard(l) {
+  var asOf = _lsAsOf(l.lastSeenAt || l.firstSeenAt);
+  return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;">'
+    + '<div style="position:relative;width:100%;aspect-ratio:16/10;background:var(--surface2);">' + _lsPhoto(l,200) + _lsStatusPill(l) + '</div>'
+    + '<div style="padding:14px;">'
+      + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
+        + '<div style="font-size:21px;font-weight:600;">'+partnerEsc(l.price||'')+'</div>'
+        + (asOf ? '<div style="font-size:10.5px;color:var(--text3);">as of '+asOf+'</div>' : '')
+      + '</div>'
+      + '<div style="font-size:14px;margin-top:5px;">'+partnerEsc(l.street||'')+'</div>'
+      + '<div style="font-size:12.5px;color:var(--text2);">'+partnerEsc(l.cityState||'')+'</div>'
+      + '<div style="font-size:12.5px;color:var(--text2);margin-top:7px;">'+_lsSpecs(l)+'</div>'
+      + '<div style="display:flex;gap:7px;margin-top:14px;">'
+        + _lsRateBtn(l,'pass','\u2715 Not for me')
+        + _lsRateBtn(l,'maybe','Maybe')
+        + _lsRateBtn(l,'love','\u2764\uFE0F Love it')
+      + '</div>'
+      + '<button onclick="lsOpen(\''+l.id+'\')" style="width:100%;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border:none;border-radius:var(--r);background:var(--green);color:#fff;cursor:pointer;">See all photos &amp; details</button>'
+      + '<button onclick="lsRequestShowing(\''+l.id+'\')" style="width:100%;margin-top:7px;padding:11px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>'
+      + (l.mlsNumber ? '<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:7px;">MLS #'+partnerEsc(l.mlsNumber)+'</div>' : '')
+    + '</div></div>';
+}
+
+function _lsRateBtn(l, key, label) {
+  var on = l.rating === key, c = LS_RATE[key];
+  return '<button onclick="lsRate(\''+l.id+'\',\''+key+'\')" style="flex:1;padding:11px 4px;font-size:12px;font-weight:600;cursor:pointer;'
+    + 'border:1px solid '+(on?c.fg:'var(--border)')+';border-radius:var(--r);'
+    + 'background:'+(on?c.bg:'var(--surface2)')+';color:'+(on?c.fg:'var(--text2)')+';">'+label+'</button>';
+}
+
+function _lsRow(l, showRating) {
+  var c = l.rating ? LS_RATE[l.rating] : null;
+  return '<div style="background:var(--surface);border:1px solid '+(c&&showRating?'#9FE1CB':'var(--border)')+';border-radius:12px;overflow:hidden;margin-bottom:9px;">'
+    + '<div style="display:flex;gap:11px;padding:11px;cursor:pointer;" onclick="lsOpen(\''+l.id+'\')">'
+      + '<div style="width:84px;height:64px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--surface2);">'+_lsPhoto(l,64)+'</div>'
+      + '<div style="flex:1;min-width:0;">'
+        + (c && showRating ? '<div style="font-size:10.5px;font-weight:600;color:'+c.fg+';">'+c.icon+' '+c.label+'</div>' : (l.status ? '<div style="font-size:10.5px;color:var(--text3);">'+partnerEsc(l.status)+'</div>' : ''))
+        + '<div style="font-size:15px;font-weight:600;margin-top:2px;">'+partnerEsc(l.price||'')+'</div>'
+        + '<div style="font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(l.address||'')+'</div>'
+        + '<div style="font-size:11.5px;color:var(--text3);margin-top:2px;">'+_lsSpecs(l)+'</div>'
+      + '</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:6px;padding:0 11px 11px;">'
+      + (showRating ? '' : _lsRateBtn(l,'pass','\u2715') + _lsRateBtn(l,'maybe','Maybe') + _lsRateBtn(l,'love','\u2764\uFE0F'))
+      + '<button onclick="event.stopPropagation();lsRequestShowing(\''+l.id+'\')" style="flex:'+(showRating?'1':'1.4')+';padding:9px 4px;font-size:11.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text2);cursor:pointer;">\uD83D\uDCC5 Request showing</button>'
+    + '</div></div>';
+}
+
+// Rating is optimistic — the tap feels instant and the write follows. A failed write
+// reverts, because silently showing the wrong rating is worse than an error.
+async function lsRate(id, key) {
+  var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
+  var prev = l.rating || '';
+  l.rating = (prev === key) ? '' : key;
+  renderListings();
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+      { rating: l.rating, ratedAt: fb.serverTimestamp() });
+  } catch(e) {
+    l.rating = prev; renderListings();
+    if (typeof showToast === 'function') showToast('Could not save that \u2014 try again.');
+  }
+}
+window.lsRate = lsRate;
+
+// Opens the MLS listing inside the app (Median keeps the nav bar over it) rather than
+// kicking out to Safari. Tap-through is logged: a home they open three times says more
+// than a button they never press.
+async function lsOpen(id) {
+  var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+      { views: (Number(l.views)||0) + 1, lastViewedAt: fb.serverTimestamp() });
+    l.views = (Number(l.views)||0) + 1;
+  } catch(e) {}
+  if (l.listingUrl) window.open(l.listingUrl, '_blank');
+  else if (typeof showToast === 'function') showToast('No listing link on this one.');
+}
+window.lsOpen = lsOpen;
+
+// Goes into the existing client\u2194agent thread, so the agent, co-agent and lender all see it
+// wherever they already read messages.
+async function lsRequestShowing(id) {
+  var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
+  var msg = 'I\u2019d like to see ' + (l.address || l.street || 'this home')
+          + (l.price ? (' \u2014 ' + l.price) : '')
+          + (l.mlsNumber ? (' (MLS #' + l.mlsNumber + ')') : '');
+  try {
+    await fb.addDoc(fb.collection(fb.db,'threads','chat_'+currentUser.uid,'messages'), {
+      text: msg, sender: 'buyer', senderName: (userProfile&&userProfile.firstName)||'Client',
+      createdAt: fb.serverTimestamp()
+    });
+    try { if (typeof _bumpThread === 'function') _bumpThread(currentUser.uid, msg, 'buyer'); } catch(e){}
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+      { showingRequestedAt: fb.serverTimestamp() });
+    if (typeof showToast === 'function') showToast('Sent \u2014 your agent will be in touch.');
+  } catch(e) {
+    if (typeof showToast === 'function') showToast('Could not send that \u2014 try again.');
+  }
+}
+window.lsRequestShowing = lsRequestShowing;
+
 // ── MLS listing feed ──
 // The agent points a Matrix saved search at this address instead of the client. The worker
 // parses each alert into listing cards the client rates in the app — so the agent finally
@@ -33909,6 +34096,14 @@ function mlsFeedRowHtml(b) {
       + ' <a onclick="mlsFeedCreate(\''+b.uid+'\')" style="font-size:11px;color:var(--green-dk);cursor:pointer;text-decoration:underline;margin-left:6px;">Get address</a>';
   }
   var live = (b.mlsFeedActive === true);
+  var pending = !live && !!b.mlsFeedActivateUrl;
+  if (pending) {
+    return '<div style="font-size:11.5px;color:#B45309;font-weight:600;">\uD83D\uDCE7 MLS listing feed \u00b7 one tap to finish'
+        + ' <span onclick="event.stopPropagation();showHelp(\'mlsfeed\')" title="What is this? How does it connect?" style="width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;">?</span>'
+        + '</div>'
+      + '<a href="' + b.mlsFeedActivateUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation();mlsFeedTapped(\'' + b.uid + '\')" style="display:block;text-align:center;margin-top:7px;background:#B45309;color:#fff;font-size:12px;font-weight:600;padding:9px;border-radius:var(--r);text-decoration:none;">Activate this feed \u2192</a>'
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Your MLS won\'t start sending until someone opens the search once. Tap above \u2014 it opens your MLS, and you can close the tab straight away.</div>';
+  }
   return '<div style="font-size:11.5px;color:'+(live?'#0F7A52':'var(--text3)')+';font-weight:600;">\uD83D\uDCE7 MLS listing feed'
       + (live ? ' \u00b7 active' : ' \u00b7 waiting for the first email')
       + ' <span onclick=\"event.stopPropagation();showHelp(\'mlsfeed\')\" title=\"What is this? How does it connect?\" style=\"width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;\">?</span>'
@@ -33970,6 +34165,17 @@ function _mlsFeedCopyFallback(addr, done) {
   } catch(e) { alert(addr); }
 }
 window.mlsFeedCopy = mlsFeedCopy;
+
+// Records that the agent opened the opt-in link. Deliberately does NOT mark the feed
+// active — only a listing alert actually arriving proves that, and the worker sets it
+// then. Claiming success here is how the last version ended up lying to us.
+async function mlsFeedTapped(uid) {
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), { mlsFeedActivateTappedAt: fb.serverTimestamp() });
+  } catch(e) {}
+  if (typeof showToast === 'function') showToast('Opened your MLS — listings should start arriving on its next run.');
+}
+window.mlsFeedTapped = mlsFeedTapped;
 
 // ── NestTracker: native quarterly home-value report (replaces the old Homebot/Zapier bridge). ──
 // Enroll values the home once via the worker (ATTOM), stores the snapshot + a per-home token,
