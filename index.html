@@ -34255,6 +34255,8 @@ function _lsRow(l, showRating) {
 // Rating is optimistic — the tap feels instant and the write follows. A failed write
 // reverts, because silently showing the wrong rating is worse than an error.
 async function lsRate(id, key) {
+  // Signed in: the auth uid. Arriving from a listing email: the client the token resolved.
+  var _uid = (currentUser && currentUser.uid) || (_tokClient && _tokClient.uid); if (!_uid) return;
   var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
   var prev = l.rating || '';
   l.rating = (prev === key) ? '' : key;
