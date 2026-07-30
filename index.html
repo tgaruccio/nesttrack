@@ -11744,7 +11744,6 @@ function renderSaved() {
         </div>
         <div class="ptags">${(p.tags||[]).map(t=>`<span class="tag t-${t}">${tl(t)}</span>`).join('')}</div>
         ${p.notes?`<div class="psnip">"${escapeHtml(p.notes)}"</div>`:''}
-        <button class="btn btn-sm" style="margin-top:9px;width:100%;background:var(--surface2);font-size:12px;" onclick="event.stopPropagation();quickTour('${p.id}')">&#x1F4CB; Add to Touring</button>
         <div style="display:flex;gap:8px;margin-top:9px;">
           <button class="btn btn-sm" style="flex:1;background:var(--surface2);font-size:12px;" onclick="event.stopPropagation();quickTour('${p.id}')">📋 Add to Touring</button>
           <button class="btn btn-sm" style="background:var(--red-lt,#FEE2E2);color:#DC2626;border-color:#FCA5A5;font-size:12px;" onclick="event.stopPropagation();deleteSavedHome('${p.id}')">🗑</button>
@@ -34236,7 +34235,11 @@ function _lsRow(l, showRating) {
     + '<a href="'+(l.listingUrl||'#')+'"'+_lsTarget()+' onclick="lsCountView(\''+l.id+'\')" style="display:flex;gap:11px;padding:11px;text-decoration:none;color:inherit;">'
       + '<div style="width:84px;height:64px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--surface2);">'+_lsPhoto(l,64)+'</div>'
       + '<div style="flex:1;min-width:0;">'
-        + (c && showRating ? '<div style="font-size:10.5px;font-weight:600;color:'+c.fg+';">'+c.icon+' '+c.label+'</div>' : (l.status ? '<div style="font-size:10.5px;color:var(--text3);">'+partnerEsc(l.status)+'</div>' : ''))
+        + (c && showRating
+             ? '<div style="font-size:10.5px;font-weight:600;color:'+c.fg+';">'+c.icon+' '+c.label
+               + ' <span onclick="event.stopPropagation();event.preventDefault();lsRate(\''+l.id+'\',\''+l.rating+'\')" title="Undo" style="display:inline-block;width:16px;height:16px;line-height:15px;text-align:center;border-radius:50%;background:var(--surface2);color:var(--text3);font-weight:600;cursor:pointer;margin-left:4px;vertical-align:middle;">\u00d7</span>'
+               + '</div>'
+             : (l.status ? '<div style="font-size:10.5px;color:var(--text3);">'+partnerEsc(l.status)+'</div>' : ''))
         + '<div style="font-size:15px;font-weight:600;margin-top:2px;">'+partnerEsc(l.price||'')+'</div>'
         + '<div style="font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(l.address||'')+'</div>'
         + '<div style="font-size:11.5px;color:var(--text3);margin-top:2px;">'+_lsSpecs(l)+'</div>'
@@ -34361,7 +34364,8 @@ function mlsFeedRowHtml(b) {
   if (!addr) {
     return '<span style="font-size:11.5px;color:var(--text3);">\uD83D\uDCE7 MLS listing feed \u2014 not set up</span>'
       + ' <span onclick=\"event.stopPropagation();showHelp(\'mlsfeed\')\" title=\"What is this? How does it connect?\" style=\"width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;\">?</span>'
-      + ' <a onclick="mlsFeedCreate(\''+b.uid+'\')" style="font-size:11px;color:var(--green-dk);cursor:pointer;text-decoration:underline;margin-left:6px;">Get address</a>';
+      + ' <a onclick="mlsFeedCreate(\''+b.uid+'\')" style="font-size:11px;color:var(--green-dk);cursor:pointer;text-decoration:underline;margin-left:6px;">Get address</a>'
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Get an address to paste into your MLS auto-email <strong style="color:var(--text2);">instead of the client&rsquo;s</strong>. Their listings land in the app where they can rate, save and add to a tour \u2014 and you see what they react to.</div>';
   }
   var live = (b.mlsFeedActive === true);
   var pending = !live && !!b.mlsFeedActivateUrl;
