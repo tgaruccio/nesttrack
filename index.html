@@ -31773,49 +31773,65 @@ function _fuDueList(){
     return b.followUp===true && b.followUpNextDue && b.followUpNextDue <= todayStr;
   }).sort(function(a,b){ return (a.followUpNextDue||'') < (b.followUpNextDue||'') ? -1 : 1; });
 }
+// One row per follow-up instead of a card. Four labelled buttons and a repeated
+// "last touched N days ago" were costing most of the height — two follow-ups filled
+// the panel and the rest sat below the fold, which is the same as not being there.
+// Cadence is a coloured dot, actions are icons, and the note moves to the client card
+// (which is where you land before calling anyway).
+var FU_CAD = {
+  hot:    { dot:'#C2410C', label:'Hot' },
+  warm:   { dot:'#B45309', label:'Warm' },
+  sphere: { dot:'#4B6BCE', label:'Sphere' },
+  custom: { dot:'#6D28D9', label:'Custom' }
+};
+
 function renderFollowUpDeck(){
   var deck=document.getElementById('ad-followup-deck'); if (!deck) return;
   var due=_fuDueList();
   var countEl=document.getElementById('ad-followup-count');
   if (countEl) countEl.textContent = due.length ? (due.length+' due today') : '';
   if (!due.length){
-    deck.innerHTML='<div style="text-align:center;padding:20px 16px;color:var(--green-dk);font-size:13px;font-weight:500;">✓ All caught up — no follow-ups due.</div>';
+    deck.innerHTML='<div style="text-align:center;padding:20px 16px;color:var(--green-dk);font-size:13px;font-weight:500;">\u2713 All caught up \u2014 no follow-ups due.</div>';
     return;
   }
-  deck.innerHTML = due.map(function(b){
+
+  // 30px hit targets with real gaps between them — icons this close together are easy
+  // to mis-tap on a phone, and a wrong tap here means calling the wrong person.
+  function ico(name, glyph, disabled, onclick, color){
+    if (disabled) {
+      return '<span title="No '+name+' on file" style="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;opacity:0.25;">'+glyph+'</span>';
+    }
+    return '<button title="'+name+'" onclick="event.stopPropagation();'+onclick+'" style="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;background:none;border:none;border-radius:8px;cursor:pointer;color:'+(color||'var(--text2)')+';-webkit-tap-highlight-color:transparent;">'+glyph+'</button>';
+  }
+
+  deck.innerHTML = due.map(function(b, i){
     var name=((b.firstName||'')+' '+(b.lastName||'')).trim()||'Contact';
     var cad=b.followUpCadence||'warm';
-    var cadLabel=cad==='custom'?('Every '+_fuDays('custom',b.followUpCustomDays)+'d'):(cad==='hot'?'Hot':(cad==='sphere'?'Sphere':'Warm'));
+    var c=FU_CAD[cad]||FU_CAD.warm;
+    var cadLabel=(cad==='custom')?('Every '+_fuDays('custom',b.followUpCustomDays)+'d'):c.label;
     var since=_fuDaysSince(b.followUpLastTouch);
-    var whyNow=cadLabel+(since!=null?' · last touched '+(since===0?'today':since+' day'+(since===1?'':'s')+' ago'):' · never touched');
-    var note=(b.agentNotes||'').trim(); if (note.length>140) note=note.slice(0,140)+'…';
+    var whenTxt = (since==null) ? 'never touched' : (since===0 ? 'today' : since+' day'+(since===1?'':'s'));
     var phone=(b.phone||'').replace(/[^0-9+]/g,'');
     var email=b.email||'';
-    function btn(label,disabled,onclick,extra){
-      return '<button '+(disabled?'disabled ':'onclick="'+onclick+'" ')+'style="flex:1;padding:9px 6px;border-radius:8px;border:1px solid var(--border);background:'+(disabled?'var(--surface2)':'var(--surface)')+';color:'+(disabled?'var(--text3)':'var(--text)')+';font-size:13px;font-weight:600;cursor:'+(disabled?'default':'pointer')+';'+(extra||'')+'">'+label+'</button>';
-    }
-    return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);padding:14px 16px;margin:0 12px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
-      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
-        +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="openBuyerDetail(\''+b.uid+'\')">'
-          +'<div style="font-size:15px;font-weight:600;color:var(--text);">'+partnerEsc(name)+'</div>'
-          +'<div style="font-size:12px;color:var(--text2);margin-top:2px;">'+partnerEsc(whyNow)+'</div>'
-          +(note?'<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;">"'+partnerEsc(note)+'"</div>':'')
-        +'</div>'
-        +'<span style="font-size:10px;background:'+(cad==='hot'?'#FEE2E2':(cad==='sphere'?'#EFF6FF':(cad==='custom'?'#EDE9FE':'#FEF3C7')))+';color:'+(cad==='hot'?'#B91C1C':(cad==='sphere'?'#1D4ED8':(cad==='custom'?'#6D28D9':'#92400E')))+';border-radius:20px;padding:2px 9px;font-weight:600;white-space:nowrap;">'+cadLabel+'</span>'
-      +'</div>'
-      +'<div style="display:flex;gap:6px;margin-top:12px;">'
-        +btn('📞 Call', !phone, "fuChannel('"+b.uid+"','call')")
-        +btn('💬 Text', !phone, "fuChannel('"+b.uid+"','text')")
-        +btn('✉️ Email', !email, "fuChannel('"+b.uid+"','email')")
-      +'</div>'
-      +'<div style="display:flex;gap:6px;margin-top:6px;">'
-        +btn('✓ Done', false, "fuLogTouch('"+b.uid+"')", 'background:var(--green);color:#fff;border-color:var(--green);')
-        +btn('💤 Snooze 7d', false, "fuSnooze('"+b.uid+"')")
-        +btn('✕ Remove', false, "fuRemove('"+b.uid+"')", 'color:#E24B4A;')
-      +'</div>'
-    +'</div>';
+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;'+(i?'border-top:0.5px solid var(--border);':'')+'">'
+      + '<span style="width:7px;height:7px;border-radius:50%;background:'+c.dot+';flex-shrink:0;"></span>'
+      + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="openBuyerDetail(\''+b.uid+'\')">'
+        + '<div style="font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(name)+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);margin-top:1px;">'+partnerEsc(cadLabel)+' \u00b7 '+whenTxt+'</div>'
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0;">'
+        + ico('Call',  '\uD83D\uDCDE', !phone, "fuChannel('"+b.uid+"','call')")
+        + ico('Text',  '\uD83D\uDCAC', !phone, "fuChannel('"+b.uid+"','text')")
+        + ico('Email', '\u2709\uFE0F', !email, "fuChannel('"+b.uid+"','email')")
+        + ico('Mark done', '\u2713', false, "fuLogTouch('"+b.uid+"')", 'var(--green)')
+        + ico('Snooze 7 days', '\uD83D\uDCA4', false, "fuSnooze('"+b.uid+"')")
+        + ico('Stop tracking', '\u2715', false, "fuRemove('"+b.uid+"')", '#E24B4A')
+      + '</div>'
+    + '</div>';
   }).join('');
 }
+
 window.renderFollowUpDeck = renderFollowUpDeck;
 
 // ═══ Texts to send (from 'Text (you send)' smart-plan steps) ═══
