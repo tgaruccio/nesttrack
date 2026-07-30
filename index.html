@@ -34086,21 +34086,45 @@ window.lsOpen = lsOpen;
 
 // Goes into the existing client\u2194agent thread, so the agent, co-agent and lender all see it
 // wherever they already read messages.
+// Goes into the existing client\u2194agent thread so the agent, co-agent and lender all see it
+// wherever they already read messages \u2014 and all three get a push, same as a typed message.
+//
+// Chat lives in the Realtime Database (chats/{room}/messages), not Firestore. The first
+// version of this wrote to a Firestore collection nothing reads, so the request silently failed.
 async function lsRequestShowing(id) {
   var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
-  var msg = 'I\u2019d like to see ' + (l.address || l.street || 'this home')
-          + (l.price ? (' \u2014 ' + l.price) : '')
-          + (l.mlsNumber ? (' (MLS #' + l.mlsNumber + ')') : '');
+  var text = 'I\u2019d like to see ' + (l.address || l.street || 'this home')
+           + (l.price ? (' \u2014 ' + l.price) : '')
+           + (l.mlsNumber ? (' (MLS #' + l.mlsNumber + ')') : '');
+  var room = 'chat_' + currentUser.uid;
+  var senderName = (((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'')).trim();
   try {
-    await fb.addDoc(fb.collection(fb.db,'threads','chat_'+currentUser.uid,'messages'), {
-      text: msg, sender: 'buyer', senderName: (userProfile&&userProfile.firstName)||'Client',
-      createdAt: fb.serverTimestamp()
+    await fb.push(fb.ref(fb.rtdb, 'chats/' + room + '/messages'), {
+      text: text,
+      senderId: currentUser.uid,
+      senderName: senderName,
+      senderRole: 'buyer',
+      ts: Date.now(),
+      role: 'buyer'
     });
-    try { if (typeof _bumpThread === 'function') _bumpThread(currentUser.uid, msg, 'buyer'); } catch(e){}
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
-      { showingRequestedAt: fb.serverTimestamp() });
+    try { if (typeof _bumpThread === 'function') _bumpThread(currentUser.uid, text, 'buyer'); } catch(e){}
+    // Same fan-out a typed message gets, so nobody misses a showing request.
+    try {
+      var title = 'Showing request from ' + (senderName || 'your client');
+      var ap = userProfile && userProfile.agentId;
+      var cp = userProfile && userProfile.coAgentId;
+      var lp = userProfile && userProfile.lenderId;
+      if (ap && typeof sendPushToAgentByShortId === 'function') sendPushToAgentByShortId(ap, title, text.substring(0,80));
+      if (cp && typeof sendPushToAgentByShortId === 'function') sendPushToAgentByShortId(cp, title, text.substring(0,80));
+      if (lp && typeof sendPushToAgentByShortId === 'function') sendPushToAgentByShortId(lp, title, text.substring(0,80));
+    } catch(e){}
+    try {
+      await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+        { showingRequestedAt: fb.serverTimestamp() });
+    } catch(e){}
     if (typeof showToast === 'function') showToast('Sent \u2014 your agent will be in touch.');
   } catch(e) {
+    console.log('showing request failed:', e && e.message);
     if (typeof showToast === 'function') showToast('Could not send that \u2014 try again.');
   }
 }
