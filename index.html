@@ -34006,7 +34006,9 @@ function _lsBigCard(l) {
         + _lsRateBtn(l,'maybe','Maybe')
         + _lsRateBtn(l,'love','\u2764\uFE0F Love it')
       + '</div>')
-      + '<button onclick="lsOpen(\''+l.id+'\')" style="width:100%;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border:none;border-radius:var(--r);background:var(--green);color:#fff;cursor:pointer;">See all photos &amp; details</button>'
+      + (l.listingUrl
+          ? '<a href="'+l.listingUrl+'" target="_blank" rel="noopener" onclick="lsCountView(\''+l.id+'\')" style="display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border-radius:var(--r);background:var(--green);color:#fff;text-decoration:none;">See all photos &amp; details</a>'
+          : '')
       + (_lsIsGone(l) ? '' : '<button onclick="lsRequestShowing(\''+l.id+'\')" style="width:100%;margin-top:7px;padding:11px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>')
       + (l.mlsNumber ? '<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:7px;">MLS #'+partnerEsc(l.mlsNumber)+'</div>' : '')
     + '</div></div>';
@@ -34022,7 +34024,7 @@ function _lsRateBtn(l, key, label) {
 function _lsRow(l, showRating) {
   var c = l.rating ? LS_RATE[l.rating] : null;
   return '<div style="background:var(--surface);border:1px solid '+(c&&showRating?'#9FE1CB':'var(--border)')+';border-radius:12px;overflow:hidden;margin-bottom:9px;">'
-    + '<div style="display:flex;gap:11px;padding:11px;cursor:pointer;" onclick="lsOpen(\''+l.id+'\')">'
+    + '<a href="'+(l.listingUrl||'#')+'" target="_blank" rel="noopener" onclick="lsCountView(\''+l.id+'\')" style="display:flex;gap:11px;padding:11px;text-decoration:none;color:inherit;">'
       + '<div style="width:84px;height:64px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--surface2);">'+_lsPhoto(l,64)+'</div>'
       + '<div style="flex:1;min-width:0;">'
         + (c && showRating ? '<div style="font-size:10.5px;font-weight:600;color:'+c.fg+';">'+c.icon+' '+c.label+'</div>' : (l.status ? '<div style="font-size:10.5px;color:var(--text3);">'+partnerEsc(l.status)+'</div>' : ''))
@@ -34030,7 +34032,7 @@ function _lsRow(l, showRating) {
         + '<div style="font-size:12.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+partnerEsc(l.address||'')+'</div>'
         + '<div style="font-size:11.5px;color:var(--text3);margin-top:2px;">'+_lsSpecs(l)+'</div>'
       + '</div>'
-    + '</div>'
+    + '</a>'
     + (_lsIsGone(l) ? '</div>' :
       '<div style="display:flex;gap:6px;padding:0 11px 11px;">'
       + (showRating ? '' : _lsRateBtn(l,'pass','\u2715') + _lsRateBtn(l,'maybe','Maybe') + _lsRateBtn(l,'love','\u2764\uFE0F'))
@@ -34058,6 +34060,18 @@ window.lsRate = lsRate;
 // Opens the MLS listing inside the app (Median keeps the nav bar over it) rather than
 // kicking out to Safari. Tap-through is logged: a home they open three times says more
 // than a button they never press.
+// Tap-through is the strongest signal we get: a home opened three times says more than a
+// button nobody presses. The link navigates on its own; this only records it.
+async function lsCountView(id) {
+  var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
+  l.views = (Number(l.views)||0) + 1;
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+      { views: l.views, lastViewedAt: fb.serverTimestamp() });
+  } catch(e) {}
+}
+window.lsCountView = lsCountView;
+
 async function lsOpen(id) {
   var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
   try {
