@@ -4450,6 +4450,12 @@ async function _firebaseInit() {
     } else {
       window._isAuthed = false;
       window._authInProgress = false;
+      // A listing email carries the client's feed token, which already identifies them — it is
+      // how the worker routes their MLS alerts. That is enough to show their listings and record
+      // a rating. Requiring a login here would mean an invite, a password and an email
+      // round-trip before they see a single house, and almost nobody would finish that.
+      // Everything else — trail, documents, chat, tours — still needs a real account.
+      if (_tokenViewRequested()) { renderTokenListings(); return; }
       showLogin();
     }
   });
@@ -33970,6 +33976,98 @@ async function spFireNow(uid, btn){
   }
 }
 window.spFireNow = spFireNow;
+
+// ── Token listings view (signed out) ──
+// Reached from a listing email: #listing=<mls>&c=<feedToken>. They can see their listings,
+// rate them and request a showing — nothing else. This is the front door, not a way around
+// the login.
+//
+// Everything goes through the worker rather than Firestore. A signed-out lookup by token
+// would need a list rule on /users, and rules cannot constrain that to the token — it would
+// have to pass for every user document, which would let anyone enumerate the collection.
+var _tokClient = null;
+
+function _tokenHash() {
+  var out = {};
+  String(location.hash || '').replace(/^#/, '').split('&').forEach(function(p){
+    var kv = p.split('=');
+    if (kv[0]) out[kv[0]] = decodeURIComponent(kv.slice(1).join('=') || '');
+  });
+  return out;
+}
+window._tokenHash = _tokenHash;
+
+function _tokenViewRequested() {
+  var h = _tokenHash();
+  return !!(h.c && (h.listing !== undefined));
+}
+window._tokenViewRequested = _tokenViewRequested;
+
+function _tokErr(msg) {
+  return '<div style="text-align:center;padding:60px 24px;">'
+    + '<div style="font-size:16px;color:#1a1a1a;">' + msg + '</div>'
+    + '<a href="' + location.origin + location.pathname + '" style="display:inline-block;margin-top:18px;padding:12px 24px;font-size:13px;font-weight:600;color:#fff;background:#1D9E75;border-radius:9px;text-decoration:none;">Open NestTrack</a>'
+    + '</div>';
+}
+
+function _tokStore() {
+  var ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/i.test(ua)) return 'https://apps.apple.com/us/app/nesttrack-crm/id6782980260';
+  if (/Android/i.test(ua))          return 'https://play.google.com/store/apps/details?id=io.nesttrack.app';
+  return location.origin + location.pathname;
+}
+
+async function renderTokenListings() {
+  var tok = String((_tokenHash().c) || '').toLowerCase();
+  try { var sp = document.getElementById('auth-splash'); if (sp) sp.style.display = 'none'; } catch(e) {}
+
+  var host = document.getElementById('token-listings');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'token-listings';
+    host.style.cssText = 'position:fixed;inset:0;overflow-y:auto;background:#f7f7f5;z-index:9000;';
+    document.body.appendChild(host);
+  }
+  host.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#888;font-size:13px;">Loading your listings\u2026</div>';
+
+  try {
+    var r = await fetch(PROXY_URL + '/api/v1/mls-view?c=' + encodeURIComponent(tok));
+    var j = await r.json();
+    if (!j || !j.ok) { host.innerHTML = _tokErr('We could not find that link.'); return; }
+    _tokClient = j.client || {};
+    _clientListings = (j.listings || []).slice();
+    _clientListings.sort(function(a,b){
+      var ar = a.rating ? 1 : 0, br = b.rating ? 1 : 0;
+      if (ar !== br) return ar - br;
+      return ((b.firstSeenAt && b.firstSeenAt.seconds) || 0) - ((a.firstSeenAt && a.firstSeenAt.seconds) || 0);
+    });
+    _tokPaint();
+  } catch(e) {
+    console.log('token listings:', e && e.message);
+    host.innerHTML = _tokErr('We could not load these just now.');
+  }
+}
+window.renderTokenListings = renderTokenListings;
+
+function _tokPaint() {
+  var host = document.getElementById('token-listings'); if (!host) return;
+  var nm = (_tokClient && _tokClient.firstName) ? (', ' + _tokClient.firstName) : '';
+  var open = _clientListings.filter(function(l){ return !l.rating && !_lsIsGone(l); });
+  host.innerHTML =
+    '<div style="max-width:520px;margin:0 auto;padding:16px 14px 90px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">'
+    + '<div style="margin-bottom:14px;">'
+      + '<div style="font-size:19px;font-weight:600;color:#1a1a1a;">Your listings' + partnerEsc(nm) + '</div>'
+      + '<div style="font-size:12px;color:#888;margin-top:2px;">' + (open.length ? (open.length + ' to review') : 'All caught up') + '</div>'
+    + '</div>'
+    + '<div id="ls-body"></div>'
+    + '<div style="margin-top:22px;padding:16px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;text-align:center;">'
+      + '<div style="font-size:14px;font-weight:600;color:#1a1a1a;">Get the app</div>'
+      + '<div style="font-size:12.5px;color:#666;margin-top:5px;line-height:1.6;">Save homes, plan tours and message your agent in one place.</div>'
+      + '<a href="' + _tokStore() + '" style="display:inline-block;margin-top:12px;padding:12px 26px;font-size:13px;font-weight:600;color:#fff;background:#1D9E75;border-radius:9px;text-decoration:none;">Download NestTrack</a>'
+    + '</div>'
+    + '</div>';
+  renderListings();   // the same cards the signed-in stack renders
+}
 
 // ── Client-facing listing stack ──
 // Cards come from the agent's MLS auto-email, parsed by the worker into
