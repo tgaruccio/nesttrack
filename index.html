@@ -7242,6 +7242,7 @@ var HELP_DEFAULTS = {
   zapierstep:  { title:'How to add a Zapier action to a Smart Plan', body:'<strong>What it’s for:</strong> firing anything Zapier can do (OpenPhone texts, AI calls, letters, Facebook audiences) at an exact point in your plan. Each step gets its own unique <strong>Trigger ID</strong>, so each can do something different.<br><br><strong>To set it up:</strong><br>1. Add a <strong>Zapier</strong> step and name it (e.g. “FSBO Text 1”).<br>2. Tap <strong>⚡ Send test to Zapier</strong> — this gives Zapier sample info to work with.<br>3. Copy the Trigger ID.<br>4. In Zapier, create a Zap → trigger <em>NestTrack → Smart Plan Step Reached</em> → paste the Trigger ID.<br>5. Click <strong>Test trigger</strong> — your sample info appears to map.<br>6. Add your action (e.g. OpenPhone → Send Text), map the fields, turn the Zap on.<br><br><strong>Where it connects:</strong> when a real contact reaches that step in a live plan, NestTrack sends their real info to your Zap automatically.' },
   slybroadcast:{ title:'How to connect Slybroadcast', body:'<strong>To set it up:</strong> connect your Slybroadcast account so NestTrack can drop ringless voicemails through your Smart Plans. <strong>What it’s for:</strong> sending pre-recorded voicemail drops to contacts without ringing their phone — great for FSBO/expired outreach at scale. <strong>Where it connects:</strong> once connected, a Smart Plan voicemail step sends your recording to the contact automatically when they reach that step.' },
   thanksio:    { title:'How to connect Thanks.io', body:'<strong>To set it up:</strong> connect your Thanks.io account so NestTrack can send physical mail — handwritten cards, postcards, letters — from your Smart Plans. <strong>What it’s for:</strong> automated direct mail touches (just-listed/just-sold, holiday cards, past-client mailers) without going to the post office. <strong>Where it connects:</strong> a Smart Plan letter step hands the contact’s name and address to Thanks.io, which prints and mails it for you.' },
+  mlsfeed: { title:'How the MLS listing feed works', body:'<strong>What it is:</strong> a way to bring your MLS listing alerts into NestTrack without an IDX feed, an MLS licence, or any paperwork. It works in every market from day one.<br><br><strong>Setting it up:</strong> open a client, find <strong>MLS listing feed</strong> under Marketing &amp; Nurture, tap <strong>Get address</strong> and copy it. Then in your MLS, create or edit that client&rsquo;s auto-email search and set the recipient to that address <strong>instead of the client&rsquo;s own email</strong>. That one detail matters &mdash; if the client still gets the MLS email directly, they will click that instead and you will not see any of it.<br><br><strong>What happens next:</strong> your MLS sends its usual welcome email first. NestTrack receives it and activates the search on its own &mdash; nothing for you to click &mdash; and the row on the client card flips to <strong>active</strong>. From then on every alert is read and turned into listing cards in that client&rsquo;s app.<br><br><strong>What the client can do:</strong> rate each listing (<em>Love</em>, <em>Maybe</em>, <em>Pass</em>), open the full listing with all its photos inside the app, save one to their home list, add it to Tour Mode, and request a showing &mdash; which comes straight to you in chat.<br><br><strong>What you get:</strong> the part an MLS drip can never tell you. Who opened it, which homes they opened more than once, what they loved, what they passed on and where. It shows on their client card and as a line in your follow-ups.<br><br><strong>Worth knowing:</strong> cards show the photo and details from the alert with an &ldquo;as of&rdquo; date &mdash; tapping through is always the live listing. Anything the client never reacts to clears after two weeks so the list stays useful. Use one address per client; sharing one across two people mixes their listings together.' },
   nesttracker: { title:'How NestTracker works', body:'<strong>What it is:</strong> NestTracker sends your enrolled homeowners a quarterly, branded home-value report in your name &mdash; current value, estimated equity, recent neighborhood sales, and an interactive &ldquo;what if I sold&rdquo; tool. It&rsquo;s your own native version of Homebot: no Zapier, no outside subscription.<br><br><strong>To enroll someone:</strong> open any client that has a property address and tap <strong>&#127968; Add to NestTracker</strong> in the Marketing &amp; Nurture section. It values their home instantly and starts the quarterly report. The card then shows an <strong>On NestTracker</strong> badge with the current value and a link to their live report.<br><br><strong>Cost &amp; cadence:</strong> the value refreshes automatically once a quarter. You can enroll up to 50 homes. Tap <strong>Remove</strong> anytime to stop the report and free the slot.' },
   welcome_intro: { title:'You don&rsquo;t need ten more tools. You need three things done right.', body:'Bring clients in. Wow them through the deal. Keep them for life. NestTrack runs all three &mdash; in one place, in order &mdash; so relationships turn into referrals and your business compounds instead of resets.' }
 };
@@ -15484,6 +15485,7 @@ var HELP_SECTIONS = [
   {key:'businesscard',label:'Marketing · Virtual Business Card'},
   {key:'landingpages',label:'Marketing · Landing Pages'},
   {key:'nesttracker', label:'Marketing · NestTracker'},
+  {key:'mlsfeed',     label:'Clients · MLS Listing Feed'},
   {key:'marketing',   label:'Marketing (hub)'},
   {key:'smartplans',  label:'Smart Plans'},
   {key:'email',       label:'Email Builder'},
@@ -17992,7 +17994,8 @@ async function openBuyerDetail(uid, scrollTo) {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128226;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Marketing &amp; Nurture</div></div>
       <div id="sp-contact-row-${uid}">${spContactRowHtml(b)}</div>
       <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${b.ntEnrolled ? `<span style="font-size:11.5px;color:#0F7A52;font-weight:600;">&#127968; On NestTracker</span>${b.ntValue?` <span style="font-size:11px;color:var(--text2);font-weight:600;">&mdash; est. $${Number(b.ntValue).toLocaleString()}</span>`:''} <a href="https://app.nesttrack.io/report.html?t=${b.ntToken||''}&preview=1" target="_blank" style="font-size:11px;color:#185FA5;text-decoration:underline;margin-left:6px;">View report</a> <span onclick="ntEnroll('${uid}')" title="Update purchase price, loan, rate — needed for the equity review" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Edit details</span> <span onclick="ntWalkthrough('${uid}')" title="Add or edit the home's systems and filter sizes" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:6px;">Home details</span> <span onclick="ntRemove('${uid}')" style="font-size:11px;color:#B91C1C;cursor:pointer;text-decoration:underline;margin-left:6px;">Remove</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>` : `<button id="coach-nesttracker" class="btn btn-sm" onclick="ntEnroll('${uid}',this)">&#127968; Add to NestTracker</button> <span onclick="ntWalkthrough('${uid}')" title="Capture furnace, water heater, filter sizes at the walkthrough — applies when you enroll after closing" style="font-size:11px;color:#185FA5;cursor:pointer;text-decoration:underline;margin-left:8px;">Set up their home</span><span onclick="showHelp('nesttracker')" title="How NestTracker works" style="width:15px;height:15px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:var(--text3);vertical-align:middle;margin-left:6px;">?</span>`}</div>
-    </div>
+    
+      <div style="margin-top:10px;padding-top:10px;border-top:0.5px dashed var(--border);">${mlsFeedRowHtml(b)}</div></div>
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><div style="width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">&#128202;</div><div style="font-size:13px;font-weight:700;color:var(--text2);">Activity</div></div>
     <details open style="border-bottom:1px solid var(--border);">
@@ -33882,6 +33885,91 @@ async function spFireNow(uid, btn){
   }
 }
 window.spFireNow = spFireNow;
+
+// ── MLS listing feed ──
+// The agent points a Matrix saved search at this address instead of the client. The worker
+// parses each alert into listing cards the client rates in the app — so the agent finally
+// sees what their buyer actually thinks, which no MLS drip can tell them. No MLS licence,
+// no per-agent paperwork, works in any market.
+//
+// One address per client rather than a shared inbox: once NestTrack is the sole recipient the
+// To: header no longer carries the client's real email, so the token is the only reliable way
+// to know who an email belongs to.
+var MLS_FEED_DOMAIN = 'nesttrackmail.com';
+
+function mlsFeedAddress(b) {
+  return b && b.mlsFeedToken ? ('mls-' + b.mlsFeedToken + '@' + MLS_FEED_DOMAIN) : '';
+}
+
+function mlsFeedRowHtml(b) {
+  var addr = mlsFeedAddress(b);
+  if (!addr) {
+    return '<span style="font-size:11.5px;color:var(--text3);">\uD83D\uDCE7 MLS listing feed \u2014 not set up</span>'
+      + ' <span onclick=\"event.stopPropagation();showHelp(\'mlsfeed\')\" title=\"What is this? How does it connect?\" style=\"width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;\">?</span>'
+      + ' <a onclick="mlsFeedCreate(\''+b.uid+'\')" style="font-size:11px;color:var(--green-dk);cursor:pointer;text-decoration:underline;margin-left:6px;">Get address</a>';
+  }
+  var live = (b.mlsFeedActive === true);
+  return '<div style="font-size:11.5px;color:'+(live?'#0F7A52':'var(--text3)')+';font-weight:600;">\uD83D\uDCE7 MLS listing feed'
+      + (live ? ' \u00b7 active' : ' \u00b7 waiting for the first email')
+      + ' <span onclick=\"event.stopPropagation();showHelp(\'mlsfeed\')\" title=\"What is this? How does it connect?\" style=\"width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;\">?</span>'
+      + '</div>'
+    + '<div style="display:flex;align-items:center;gap:6px;margin-top:5px;">'
+      + '<code style="flex:1;min-width:0;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+addr+'</code>'
+      + '<button onclick="mlsFeedCopy(\''+addr+'\',this)" style="flex-shrink:0;font-size:11px;font-weight:600;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;">Copy</button>'
+    + '</div>'
+    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5;">Paste this into your MLS auto-email <strong style=\"color:var(--text2);\">instead of the client&rsquo;s address</strong>. Their listings land in the app where they can rate, save and add to a tour \u2014 and you see what they react to.</div>';
+}
+window.mlsFeedRowHtml = mlsFeedRowHtml;
+
+// Short, unambiguous, no lookalike characters — this gets typed by hand sometimes.
+function _mlsToken() {
+  var abc = 'abcdefghjkmnpqrstuvwxyz23456789';   // no i, l, o, 0, 1
+  var out = '';
+  for (var k = 0; k < 8; k++) out += abc.charAt(Math.floor(Math.random() * abc.length));
+  return out;
+}
+
+async function mlsFeedCreate(uid) {
+  var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+  if (!b) return;
+  if (b.mlsFeedToken) return;
+  var tok = _mlsToken();
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), { mlsFeedToken: tok, mlsFeedActive: false });
+    b.mlsFeedToken = tok; b.mlsFeedActive = false;
+    var row = document.querySelector('#bd-mls-feed-'+uid);
+    if (row) row.innerHTML = mlsFeedRowHtml(b);
+    else if (typeof openBuyerDetail === 'function') openBuyerDetail(uid);
+    if (typeof showToast === 'function') showToast('Feed address created \u2014 paste it into your Matrix saved search.');
+  } catch(e) {
+    alert('Could not create the feed address: ' + e.message);
+  }
+}
+window.mlsFeedCreate = mlsFeedCreate;
+
+function mlsFeedCopy(addr, btn) {
+  var done = function(){
+    if (!btn) return;
+    var o = btn.textContent; btn.textContent = 'Copied';
+    setTimeout(function(){ btn.textContent = o; }, 1400);
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(addr).then(done, function(){ _mlsFeedCopyFallback(addr, done); });
+    } else { _mlsFeedCopyFallback(addr, done); }
+  } catch(e) { _mlsFeedCopyFallback(addr, done); }
+}
+// iOS Safari in the Median wrapper refuses the async clipboard API outside a user gesture.
+function _mlsFeedCopyFallback(addr, done) {
+  try {
+    var t = document.createElement('textarea');
+    t.value = addr; t.style.position='fixed'; t.style.opacity='0';
+    document.body.appendChild(t); t.select();
+    document.execCommand('copy'); document.body.removeChild(t);
+    done();
+  } catch(e) { alert(addr); }
+}
+window.mlsFeedCopy = mlsFeedCopy;
 
 // ── NestTracker: native quarterly home-value report (replaces the old Homebot/Zapier bridge). ──
 // Enroll values the home once via the worker (ATTOM), stores the snapshot + a per-home token,
