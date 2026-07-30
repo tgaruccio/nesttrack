@@ -11292,6 +11292,103 @@ async function logEmailActivity(uid, subject, type) {
     logAgentEmail(_b ? (_b.email||'') : '', subject, type, uid, _nm);
   } catch(e){}
 }
+// What the client actually did with the listings you sent — the thing an MLS drip can
+// never tell you. Loved, passed, opened three times, asked for a showing.
+//
+// Read straight off users/{uid}/listings, so no index and no collectionGroup query.
+var LE_RATE = {
+  love:  { label:'Loved',  icon:'\u2764\uFE0F', fg:'#0F7A52' },
+  maybe: { label:'Maybe',  icon:'\uD83E\uDD14', fg:'#8A5A08' },
+  pass:  { label:'Passed', icon:'\u2715',      fg:'var(--text3)' }
+};
+
+async function loadListingEngagement(uid) {
+  var el = document.getElementById('bd-listing-engagement-' + uid);
+  if (!el) return;
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db,'users',uid,'listings'));
+    var rows = []; snap.forEach(function(d){ rows.push(Object.assign({id:d.id}, d.data())); });
+    if (!rows.length) { el.innerHTML = ''; return; }   // silent when the feed isn't set up
+
+    var loved  = rows.filter(function(r){ return r.rating === 'love'; });
+    var maybe  = rows.filter(function(r){ return r.rating === 'maybe'; });
+    var passed = rows.filter(function(r){ return r.rating === 'pass'; });
+    var opened = rows.filter(function(r){ return (Number(r.views)||0) > 0; });
+    var asked  = rows.filter(function(r){ return !!r.showingRequestedAt; });
+    var unrated = rows.length - loved.length - maybe.length - passed.length;
+
+    // Most telling first: what they asked to see, then loved, then opened more than once.
+    var notable = [];
+    asked.forEach(function(r){ notable.push({ r:r, why:'asked for a showing', fg:'#0F7A52' }); });
+    loved.forEach(function(r){
+      if (asked.indexOf(r) !== -1) return;
+      var v = Number(r.views)||0;
+      notable.push({ r:r, why: v > 1 ? ('loved it \u00b7 opened ' + v + ' times') : 'loved it', fg:'#0F7A52' });
+    });
+    rows.filter(function(r){ return !r.rating && (Number(r.views)||0) > 1; })
+        .forEach(function(r){ notable.push({ r:r, why:'opened ' + r.views + ' times, no reaction', fg:'var(--text2)' }); });
+
+    var html = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:11px 12px;">'
+      + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:8px;">Listings you sent</div>'
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin-bottom:'+(notable.length?'10px':'0')+';">'
+        + '<span><strong style="font-size:14px;">' + rows.length + '</strong> <span style="color:var(--text3);">sent</span></span>'
+        + '<span><strong style="font-size:14px;color:#0F7A52;">' + loved.length + '</strong> <span style="color:var(--text3);">loved</span></span>'
+        + (maybe.length ? '<span><strong style="font-size:14px;color:#8A5A08;">' + maybe.length + '</strong> <span style="color:var(--text3);">maybe</span></span>' : '')
+        + '<span><strong style="font-size:14px;">' + passed.length + '</strong> <span style="color:var(--text3);">passed</span></span>'
+        + '<span><strong style="font-size:14px;">' + opened.length + '</strong> <span style="color:var(--text3);">opened</span></span>'
+        + (unrated > 0 ? '<span style="color:var(--text3);">' + unrated + ' not looked at</span>' : '')
+      + '</div>';
+
+    notable.slice(0, 5).forEach(function(n){
+      html += '<div style="display:flex;gap:8px;align-items:baseline;font-size:12px;padding:3px 0;">'
+        + '<span style="color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%;">' + partnerEsc(n.r.street || n.r.address || 'A listing') + '</span>'
+        + '<span style="color:' + n.fg + ';font-size:11.5px;">' + n.why + '</span>'
+      + '</div>';
+    });
+
+    // Their pattern, in one line, so you know what to send next.
+    var read = _leRead(loved, passed);
+    if (read) html += '<div style="margin-top:9px;padding-top:9px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text2);">' + read + '</div>';
+
+    el.innerHTML = html + '</div>';
+  } catch(e) {
+    el.innerHTML = '';   // never break the client card over this
+    console.log('listing engagement:', e && e.message);
+  }
+}
+window.loadListingEngagement = loadListingEngagement;
+
+// Deliberately arithmetic, not AI. Price and place are the two things a buyer's ratings
+// actually reveal, and a wrong guess dressed up as insight is worse than no line at all.
+function _leRead(loved, passed) {
+  if (loved.length < 2) return '';
+  var out = [];
+  var lp = loved.map(function(r){ return Number(r.priceNum)||0; }).filter(Boolean);
+  if (lp.length >= 2) {
+    var lo = Math.min.apply(null, lp), hi = Math.max.apply(null, lp);
+    out.push('Loving ' + _leMoney(lo) + (hi > lo ? ('\u2013' + _leMoney(hi)) : ''));
+  }
+  var towns = {};
+  loved.forEach(function(r){
+    var t = String(r.cityState||'').split(',')[0].trim();
+    if (t) towns[t] = (towns[t]||0) + 1;
+  });
+  var top = Object.keys(towns).sort(function(a,b){ return towns[b]-towns[a]; });
+  if (top.length && towns[top[0]] > 1) out.push('mostly ' + top[0]);
+  var pt = {};
+  passed.forEach(function(r){
+    var t = String(r.cityState||'').split(',')[0].trim();
+    if (t && !towns[t]) pt[t] = (pt[t]||0) + 1;
+  });
+  var ptop = Object.keys(pt).sort(function(a,b){ return pt[b]-pt[a]; });
+  if (ptop.length && pt[ptop[0]] > 1) out.push('passing on ' + ptop[0]);
+  return out.length ? (out.join(' \u00b7 ') + '.') : '';
+}
+function _leMoney(n) {
+  n = Number(n)||0;
+  return n >= 1000 ? ('$' + Math.round(n/1000) + 'k') : ('$' + n);
+}
+
 async function loadEmailLog(uid) {
   var container = document.getElementById('bd-email-log-'+uid);
   if (!container) return;
@@ -18010,6 +18107,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <details ${(bProps.length||bTours.length)?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;">Activity<span style="font-size:10px;color:var(--text3);">${bProps.length} saved, ${bTours.length} tours</span></summary>
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
+        <div id="bd-listing-engagement-${uid}"></div>
         <div class="dstats" style="grid-template-columns:repeat(3,1fr);margin:0;">
           <div class="dstat"><div class="dnum">${bProps.length}</div><div class="dlbl">Saved</div></div>
           <div class="dstat"><div class="dnum">${bTours.length}</div><div class="dlbl">Tours</div></div>
@@ -18043,6 +18141,7 @@ async function openBuyerDetail(uid, scrollTo) {
   setTimeout(function(){
     var details = document.querySelector('#bd-email-log-'+uid);
     if (details) loadEmailLog(uid);
+    loadListingEngagement(uid);
     // Auto-load on details toggle
     var summary = details && details.closest('details');
     if (summary) summary.addEventListener('toggle', function(){ if(this.open) loadEmailLog(uid); }, {once:true});
