@@ -34159,7 +34159,7 @@ async function lsRate(id, key) {
   l.rating = (prev === key) ? '' : key;
   renderListings();
   try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+    await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
       { rating: l.rating, ratedAt: fb.serverTimestamp() });
   } catch(e) {
     l.rating = prev; renderListings();
@@ -34174,10 +34174,11 @@ window.lsRate = lsRate;
 // Tap-through is the strongest signal we get: a home opened three times says more than a
 // button nobody presses. The link navigates on its own; this only records it.
 async function lsCountView(id) {
+  var _uid = (currentUser && currentUser.uid) || (_tokClient && _tokClient.uid); if (!_uid) return;
   var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
   l.views = (Number(l.views)||0) + 1;
   try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+    await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
       { views: l.views, lastViewedAt: fb.serverTimestamp() });
   } catch(e) {}
 }
@@ -34186,7 +34187,7 @@ window.lsCountView = lsCountView;
 async function lsOpen(id) {
   var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
   try {
-    await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+    await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
       { views: (Number(l.views)||0) + 1, lastViewedAt: fb.serverTimestamp() });
     l.views = (Number(l.views)||0) + 1;
   } catch(e) {}
@@ -34207,18 +34208,19 @@ async function lsRequestShowing(id) {
   var text = 'I\u2019d like to see ' + (l.address || l.street || 'this home')
            + (l.price ? (' \u2014 ' + l.price) : '')
            + (l.mlsNumber ? (' (MLS #' + l.mlsNumber + ')') : '');
-  var room = 'chat_' + currentUser.uid;
+  var _uid = (currentUser && currentUser.uid) || (_tokClient && _tokClient.uid); if (!_uid) return;
+  var room = 'chat_' + _uid;
   var senderName = (((userProfile&&userProfile.firstName)||'') + ' ' + ((userProfile&&userProfile.lastName)||'')).trim();
   try {
     await fb.push(fb.ref(fb.rtdb, 'chats/' + room + '/messages'), {
       text: text,
-      senderId: currentUser.uid,
+      senderId: _uid,
       senderName: senderName,
       senderRole: 'buyer',
       ts: Date.now(),
       role: 'buyer'
     });
-    try { if (typeof _bumpThread === 'function') _bumpThread(currentUser.uid, text, 'buyer'); } catch(e){}
+    try { if (typeof _bumpThread === 'function') _bumpThread(_uid, text, 'buyer'); } catch(e){}
     // Same fan-out a typed message gets, so nobody misses a showing request.
     try {
       var title = 'Showing request from ' + (senderName || 'your client');
@@ -34230,7 +34232,7 @@ async function lsRequestShowing(id) {
       if (lp && typeof sendPushToAgentByShortId === 'function') sendPushToAgentByShortId(lp, title, text.substring(0,80));
     } catch(e){}
     try {
-      await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid,'listings',id),
+      await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
         { showingRequestedAt: fb.serverTimestamp() });
     } catch(e){}
     if (typeof showToast === 'function') showToast('Sent \u2014 your agent will be in touch.');
