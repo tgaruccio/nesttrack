@@ -34315,13 +34315,16 @@ function renderListings() {
   }
   if (open.length) html += _lsBigCard(open[0]);
   open.slice(1).forEach(function(l){ html += _lsRow(l, false); });
-  if (gone.length) {
-    html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Recently sold nearby</div>';
-    gone.forEach(function(l){ html += _lsRow(l, false); });
-  }
   if (rated.length) {
     html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Your list</div>';
     rated.forEach(function(l){ html += _lsRow(l, true); });
+  }
+  // Below the client's own list — sold homes are reference, not something they can act on.
+  // A feed that is entirely sold (a seller pointed at a Sold-only search) simply becomes the
+  // only section, and reads as its own thing without needing a setting.
+  if (gone.length) {
+    html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Recently sold nearby</div>';
+    gone.forEach(function(l){ html += _lsRow(l, false); });
   }
   el.innerHTML = html;
 }
