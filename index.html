@@ -577,9 +577,8 @@ setTimeout(function(){
   <button class="nb" data-pg="sellertrail" onclick="go('sellertrail',this)">🏡 The Home Sellers Trail</button>
   <button class="nb" data-pg="youragent" onclick="go('youragent',this)">👤 Your Team</button>
 
-  <button class="nb" data-pg="idx" onclick="go('idx',this)" id="nb-listings">🏡 New Listings <span class="nb-badge" id="sc-listings">0</span></button>
-
   <div class="ns">Touring</div>
+  <button class="nb" data-pg="idx" onclick="go('idx',this)" id="nb-listings" style="display:none;">🏡 New Listings <span class="nb-badge" id="sc-listings">0</span></button>
   <button class="nb" data-pg="tour" onclick="go('tour',this)">🚶 Tour Mode <span class="nb-badge" id="sc-tour">0</span></button>
   <button class="nb" data-pg="photo" onclick="go('photo',this)">📸 Property Photo Analyzer</button>
 
@@ -14261,10 +14260,10 @@ window.savePref = savePref;
 window.genReport = genReport;
 
 // ─── TOUR MODE ───
-function openTourAdd() { ['t-addr','t-price','t-bedbath'].forEach(id => document.getElementById(id).value = ''); document.getElementById('tour-modal').style.display = 'flex'; setTimeout(()=>setupPlacesAC('t-addr'),100); }
+function openTourAdd() { try { _lsTourPhoto = ''; } catch(e){} ['t-addr','t-price','t-bedbath'].forEach(id => document.getElementById(id).value = ''); document.getElementById('tour-modal').style.display = 'flex'; setTimeout(()=>setupPlacesAC('t-addr'),100); }
 async function startTour() {
   const addr = document.getElementById('t-addr').value.trim(); if (!addr) return;
-  const t = { address: addr, price: document.getElementById('t-price').value, bedbath: document.getElementById('t-bedbath').value, date: new Date().toLocaleDateString(), rooms: {}, rating: 0, saved: false, createdAt: new Date().toISOString() };
+  const t = { address: addr, price: document.getElementById('t-price').value, bedbath: document.getElementById('t-bedbath').value, photoUrl: (typeof _lsTourPhoto !== 'undefined' ? _lsTourPhoto : ''), date: new Date().toLocaleDateString(), rooms: {}, rating: 0, saved: false, createdAt: new Date().toISOString() };
   try {
     const ref = await fb.addDoc(fb.collection(fb.db, 'users', currentUser.uid, 'tours'), t);
     t.id = ref.id; tours.push(t);
@@ -14299,8 +14298,10 @@ function renderTours() {
     }).join('');
     return '<div class="card" style="cursor:pointer;border-width:1.5px;" data-tid="'+t.id+'" onclick="openTourDetail(this.dataset.tid)">'
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px;">'
-      +'<div><div style="font-weight:600;font-size:15px;margin-bottom:2px;">'+t.address.split(',')[0]+'</div>'
-      +'<div style="font-size:11.5px;color:var(--text2);">'+(t.price||'')+(t.bedbath?' &middot; '+t.bedbath:'')+' &middot; '+t.date+'</div></div>'
+      +'<div style="display:flex;gap:10px;min-width:0;">'
+      +(t.photoUrl ? '<img src="'+t.photoUrl+'" alt="" style="width:56px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0;" onerror="this.style.display=&quot;none&quot;">' : '')
+      +'<div style="min-width:0;"><div style="font-weight:600;font-size:15px;margin-bottom:2px;">'+t.address.split(',')[0]+'</div>'
+      +'<div style="font-size:11.5px;color:var(--text2);">'+(t.price||'')+(t.bedbath?' &middot; '+t.bedbath:'')+' &middot; '+t.date+'</div></div></div>'
       +savedBtn+'</div>'
       +'<div style="background:var(--surface2);border-radius:var(--r-sm);padding:12px 16px;margin-bottom:12px;text-align:center;" onclick="event.stopPropagation();">'
       +'<div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;">Overall Rating</div>'
@@ -34503,8 +34504,9 @@ window._lsHideUndo = _lsHideUndo;
 
 // Shown once, on the first card they ever see. A gesture nobody knows about is a gesture
 // nobody uses, and there is nothing on a card that suggests it can be dragged.
+var _lsSwipedThisVisit = false;
 function _lsSwipeHintOnce() {
-  try { if (localStorage.getItem('lsSwipeSeen')) return ''; } catch(e) { return ''; }
+  if (_lsSwipedThisVisit) return '';
   return '<div id="ls-swipe-tip" style="display:flex;align-items:center;justify-content:center;gap:6px;'
     + 'font-size:11.5px;color:var(--text3);padding:7px 10px;margin-bottom:9px;background:var(--surface2);'
     + 'border:0.5px solid var(--border);border-radius:20px;">'
@@ -34512,7 +34514,7 @@ function _lsSwipeHintOnce() {
     + '</div>';
 }
 function _lsSwipeHintDone() {
-  try { localStorage.setItem('lsSwipeSeen', '1'); } catch(e) {}
+  _lsSwipedThisVisit = true;
   var t = document.getElementById('ls-swipe-tip');
   if (t) t.style.display = 'none';
 }
@@ -34764,9 +34766,13 @@ window.lsRequestShowing = lsRequestShowing;
 // Same modal the saved-homes grid uses, filled from the listing instead of a saved
 // property. Tours are their own collection, so there is nothing to save first.
 // Signed-in only: the token view is an overlay and has no tour page behind it.
+// Held between opening the modal and saving, because the modal has no photo field —
+// a tour stop with the house next to the address is much easier to recognise on the day.
+var _lsTourPhoto = '';
 function lsAddTour(id) {
   if (!currentUser) return;
   var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
+  _lsTourPhoto = l.photoUrl || '';
   var addr = document.getElementById('t-addr');
   var price = document.getElementById('t-price');
   var bedbath = document.getElementById('t-bedbath');
