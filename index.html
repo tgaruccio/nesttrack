@@ -34178,7 +34178,24 @@ function _lsInApp() {
     return /median|gonative/i.test(navigator.userAgent || '');
   } catch(e) { return false; }
 }
-function _lsTarget() { return _lsInApp() ? '' : ' target="_blank" rel="noopener"'; }
+// Three cases, three behaviours:
+//
+//   In the Median wrapper — plain navigation. Obeys the Link Behavior rules and keeps the
+//   native nav bar, so there is always a way back. target="_blank" would route through New
+//   Windows instead and lose both.
+//
+//   Token view (arrived from a listing email) — also plain navigation, same tab. The URL
+//   carries #listing=...&c=..., so the browser's own back button returns to the list and the
+//   token view re-renders. A new tab looks fine on desktop but strands people on a phone,
+//   where a second tab is effectively a dead end.
+//
+//   Signed in on the web — new tab, because navigating away would reload the whole app and
+//   lose their place.
+function _lsTarget() {
+  if (_lsInApp()) return '';
+  if (!currentUser && _tokClient) return '';
+  return ' target="_blank" rel="noopener"';
+}
 
 function _lsIsGone(l) {
   return /sold|closed/i.test(String(l.statusKey || l.status || ''));
