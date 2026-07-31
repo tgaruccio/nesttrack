@@ -31908,7 +31908,7 @@ async function loadListingSignals() {
     var snap = await fb.getDocs(fb.query(
       fb.collectionGroup(fb.db, 'listings'),
       fb.where('agentId', '==', agentId),
-      fb.orderBy('ratedAt', 'desc'),
+      fb.orderBy('lastActivityAt', 'desc'),
       fb.limit(60)));
 
     // One row per client, but counting everything they did — someone who asked for three
@@ -31916,7 +31916,8 @@ async function loadListingSignals() {
     var byClient = {};
     snap.forEach(function(d){
       var l = d.data();
-      var when = (l.ratedAt && l.ratedAt.toDate) ? l.ratedAt.toDate() : null;
+      var when = (l.lastActivityAt && l.lastActivityAt.toDate) ? l.lastActivityAt.toDate()
+               : ((l.ratedAt && l.ratedAt.toDate) ? l.ratedAt.toDate() : null);
       if (!when || when < since) return;
       var uid = '';
       try { uid = d.ref.parent.parent.id; } catch(e) { return; }
@@ -34406,7 +34407,10 @@ function _lsBigCard(l) {
       + (l.listingUrl
           ? '<a href="'+l.listingUrl+'"'+_lsTarget()+' onclick="lsCountView(\''+l.id+'\')" style="display:block;text-align:center;width:100%;box-sizing:border-box;margin-top:8px;padding:12px;font-size:13px;font-weight:600;border-radius:var(--r);background:var(--green);color:#fff;text-decoration:none;">See all photos &amp; details</a>'
           : '')
-      + (_lsIsGone(l) ? '' : '<button onclick="lsRequestShowing(\''+l.id+'\')" style="width:100%;margin-top:7px;padding:11px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>')
+      + (_lsIsGone(l) ? '' : '<div style="display:flex;gap:7px;margin-top:7px;">'
+          + '<button onclick="lsRequestShowing(\''+l.id+'\')" style="flex:1;padding:11px 4px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDCC5 Request a showing</button>'
+          + (currentUser ? '<button onclick="lsAddTour(\''+l.id+'\')" style="flex:1;padding:11px 4px;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text);cursor:pointer;">\uD83D\uDEB6 Add to tour</button>' : '')
+        + '</div>')
       + (l.mlsNumber ? '<div style="font-size:10px;color:var(--text3);text-align:center;margin-top:7px;">MLS #'+partnerEsc(l.mlsNumber)+'</div>' : '')
     + '</div></div>';
 }
@@ -34438,6 +34442,7 @@ function _lsRow(l, showRating) {
       '<div style="display:flex;gap:6px;padding:0 11px 11px;">'
       + (showRating ? '' : _lsRateBtn(l,'pass','\u2715') + _lsRateBtn(l,'maybe','Maybe') + _lsRateBtn(l,'love','\u2764\uFE0F'))
       + '<button onclick="event.stopPropagation();lsRequestShowing(\''+l.id+'\')" style="flex:'+(showRating?'1':'1.4')+';padding:9px 4px;font-size:11.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text2);cursor:pointer;">\uD83D\uDCC5 Request showing</button>'
+      + (showRating && currentUser ? '<button onclick="event.stopPropagation();lsAddTour(\''+l.id+'\')" style="flex:1;padding:9px 4px;font-size:11.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text2);cursor:pointer;">\uD83D\uDEB6 Add to tour</button>' : '')
     + '</div></div>');
 }
 
@@ -34451,8 +34456,20 @@ async function lsRate(id, key) {
   l.rating = (prev === key) ? '' : key;
   renderListings();
   try {
-    await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
-      { rating: l.rating, ratedAt: fb.serverTimestamp() });
+    if (!currentUser && _tokClient) {
+      // Signed out from a listing email — no Firestore write is permitted, so it goes
+      // through the worker, which holds the service key.
+      var _tk = String((_tokenHash().c) || '').toLowerCase();
+      var _rr = await fetch(PROXY_URL + '/api/v1/mls-view?c=' + encodeURIComponent(_tk), {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ mls: id, rating: l.rating })
+      });
+      var _rj = await _rr.json();
+      if (!_rj || !_rj.ok) throw new Error((_rj && _rj.reason) || 'save failed');
+    } else {
+      await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
+        { rating: l.rating, ratedAt: fb.serverTimestamp(), lastActivityAt: fb.serverTimestamp() });
+    }
   } catch(e) {
     l.rating = prev; renderListings();
     if (typeof showToast === 'function') showToast('Could not save that \u2014 try again.');
@@ -34487,7 +34504,7 @@ async function lsClearAll() {
     } else {
       for (var k = 0; k < open.length; k++) {
         await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',open[k].id),
-          { rating: 'pass', ratedAt: fb.serverTimestamp(), ratedFrom: 'clear-all' });
+          { rating: 'pass', ratedAt: fb.serverTimestamp(), ratedFrom: 'clear-all', lastActivityAt: fb.serverTimestamp() });
       }
     }
   } catch(e) {
@@ -34510,7 +34527,7 @@ async function lsCountView(id) {
   l.views = (Number(l.views)||0) + 1;
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
-      { views: l.views, lastViewedAt: fb.serverTimestamp() });
+      { views: l.views, lastViewedAt: fb.serverTimestamp(), lastActivityAt: fb.serverTimestamp() });
   } catch(e) {}
 }
 window.lsCountView = lsCountView;
@@ -34564,7 +34581,7 @@ async function lsRequestShowing(id) {
     } catch(e){}
     try {
       await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',id),
-        { showingRequestedAt: fb.serverTimestamp() });
+        { showingRequestedAt: fb.serverTimestamp(), lastActivityAt: fb.serverTimestamp() });
     } catch(e){}
     if (typeof showToast === 'function') showToast('Sent \u2014 your agent will be in touch.');
   } catch(e) {
@@ -34573,6 +34590,23 @@ async function lsRequestShowing(id) {
   }
 }
 window.lsRequestShowing = lsRequestShowing;
+
+// Same modal the saved-homes grid uses, filled from the listing instead of a saved
+// property. Tours are their own collection, so there is nothing to save first.
+// Signed-in only: the token view is an overlay and has no tour page behind it.
+function lsAddTour(id) {
+  if (!currentUser) return;
+  var l = _clientListings.find(function(x){ return x.id === id; }); if (!l) return;
+  var addr = document.getElementById('t-addr');
+  var price = document.getElementById('t-price');
+  var bedbath = document.getElementById('t-bedbath');
+  if (addr) addr.value = l.address || l.street || '';
+  if (price) price.value = l.price || '';
+  if (bedbath) bedbath.value = [l.beds ? l.beds+'bd' : '', l.baths ? l.baths+'ba' : ''].filter(Boolean).join(' / ');
+  var m = document.getElementById('tour-modal'); if (m) m.style.display = 'flex';
+  if (typeof go === 'function') go('tour', document.querySelector('[data-pg=tour]'));
+}
+window.lsAddTour = lsAddTour;
 
 // ── MLS listing feed ──
 // The agent points a Matrix saved search at this address instead of the client. The worker
