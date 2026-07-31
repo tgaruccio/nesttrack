@@ -34149,6 +34149,14 @@ function renderListings() {
   }
 
   var html = '';
+  // Only worth offering once the queue is genuinely long. Clears the unrated stack only —
+  // marking them passed, which is honest — and never touches Your list. Someone tidying up
+  // a busy morning must not lose the homes they loved.
+  if (open.length >= 4) {
+    html += '<div style="text-align:right;margin:-2px 2px 8px;">'
+      + '<a onclick="lsClearAll()" style="font-size:11.5px;color:var(--text3);cursor:pointer;text-decoration:underline;">Clear all ' + open.length + '</a>'
+      + '</div>';
+  }
   if (open.length) html += _lsBigCard(open[0]);
   open.slice(1).forEach(function(l){ html += _lsRow(l, false); });
   if (gone.length) {
@@ -34296,6 +34304,45 @@ async function lsRate(id, key) {
   }
 }
 window.lsRate = lsRate;
+
+// Marks every unrated card passed. Passed is the honest record — they chose not to look —
+// and the agent still sees it as "passed on 12" rather than the cards silently vanishing.
+// Your list is deliberately untouched.
+async function lsClearAll() {
+  var _uid = (currentUser && currentUser.uid) || (_tokClient && _tokClient.uid); if (!_uid) return;
+  var open = _clientListings.filter(function(l){ return !l.rating && !_lsIsGone(l); });
+  if (!open.length) return;
+  if (!confirm('Clear all ' + open.length + '? Anything you loved or marked maybe stays in your list.')) return;
+
+  var prev = open.map(function(l){ return { l: l, rating: l.rating || '' }; });
+  open.forEach(function(l){ l.rating = 'pass'; });
+  renderListings();
+
+  try {
+    if (!currentUser && _tokClient) {
+      var _tk = String((_tokenHash().c) || '').toLowerCase();
+      for (var i = 0; i < open.length; i++) {
+        var r = await fetch(PROXY_URL + '/api/v1/mls-view?c=' + encodeURIComponent(_tk), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ mls: open[i].id, rating: 'pass' })
+        });
+        var j = await r.json();
+        if (!j || !j.ok) throw new Error((j && j.reason) || 'save failed');
+      }
+    } else {
+      for (var k = 0; k < open.length; k++) {
+        await fb.updateDoc(fb.doc(fb.db,'users',_uid,'listings',open[k].id),
+          { rating: 'pass', ratedAt: fb.serverTimestamp(), ratedFrom: 'clear-all' });
+      }
+    }
+  } catch(e) {
+    // Put every one back rather than leave the list half-cleared.
+    prev.forEach(function(p){ p.l.rating = p.rating; });
+    renderListings();
+    if (typeof showToast === 'function') showToast('Could not clear those \u2014 try again.');
+  }
+}
+window.lsClearAll = lsClearAll;
 
 // Opens the MLS listing inside the app (Median keeps the nav bar over it) rather than
 // kicking out to Safari. Tap-through is logged: a home they open three times says more
