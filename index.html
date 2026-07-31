@@ -31911,38 +31911,35 @@ async function loadListingSignals() {
       fb.orderBy('ratedAt', 'desc'),
       fb.limit(60)));
 
+    // One row per client, but counting everything they did — someone who asked for three
+    // showings and loved two should read as that, not as one address with the rest lost.
     var byClient = {};
     snap.forEach(function(d){
       var l = d.data();
       var when = (l.ratedAt && l.ratedAt.toDate) ? l.ratedAt.toDate() : null;
       if (!when || when < since) return;
-      // The document path is users/{uid}/listings/{mls} — the client is the grandparent.
       var uid = '';
       try { uid = d.ref.parent.parent.id; } catch(e) { return; }
       if (!uid) return;
 
-      var kind = l.showingRequestedAt ? 'showing' : (l.rating === 'love' ? 'love' : null);
-      if (!kind && !l.rating && (Number(l.views) || 0) > 1) kind = 'views';
-      if (!kind) return;
+      var c = byClient[uid] || (byClient[uid] = {
+        uid: uid, when: when, asked: 0, loves: 0, views: 0,
+        askedOne: null, lovedOne: null, viewedOne: null
+      });
+      if (when > c.when) c.when = when;
 
-      var cur = byClient[uid];
-      if (!cur || _lsSignalRank(kind) < _lsSignalRank(cur.kind) || when > cur.when) {
-        if (!cur || _lsSignalRank(kind) <= _lsSignalRank(cur.kind)) {
-          byClient[uid] = { uid: uid, kind: kind, when: when, listing: l,
-                            loves: (cur && cur.loves) || 0, asked: (cur && cur.asked) || 0 };
-        }
-      }
-      if (byClient[uid]) {
-        if (l.rating === 'love') byClient[uid].loves++;
-        if (l.showingRequestedAt) byClient[uid].asked++;
-      }
+      if (l.showingRequestedAt) { c.asked++; if (!c.askedOne) c.askedOne = l; }
+      else if (l.rating === 'love') { c.loves++; if (!c.lovedOne) c.lovedOne = l; }
+      else if (!l.rating && (Number(l.views) || 0) > 1) { c.views++; if (!c.viewedOne) c.viewedOne = l; }
     });
 
     _lsSignals = Object.keys(byClient).map(function(k){ return byClient[k]; })
+      .filter(function(x){ return x.asked || x.loves || x.views; })
       .filter(function(x){ return !_lsSignalSeen[x.uid + ':' + Math.floor(x.when.getTime()/60000)]; })
       .sort(function(a,b){
-        var r = _lsSignalRank(a.kind) - _lsSignalRank(b.kind);
-        return r !== 0 ? r : (b.when - a.when);
+        var ra = a.asked ? 0 : (a.loves ? 1 : 2);
+        var rb = b.asked ? 0 : (b.loves ? 1 : 2);
+        return ra !== rb ? ra - rb : (b.when - a.when);
       });
     renderFollowUpDeck();
   } catch(e) {
@@ -31972,27 +31969,35 @@ function _lsSignalRows() {
       ? allBuyers.find(function(y){ return y.uid === x.uid; }) : null;
     var name = b ? (((b.firstName||'') + ' ' + (b.lastName||'')).trim() || 'A client') : 'A client';
     var first = name.split(' ')[0];
-    var addr = (x.listing.street || x.listing.address || 'a home');
 
-    var icon, text;
-    if (x.kind === 'showing') {
+    // Name the address when there is exactly one thing; count when there are several.
+    // "asked to see 3 homes · loved 2" is the whole morning in one line.
+    var parts = [], icon;
+    if (x.asked) {
       icon = '\uD83D\uDCC5';
-      text = first + ' asked to see ' + addr;
-    } else if (x.kind === 'love') {
-      icon = '\u2764\uFE0F';
-      text = first + ' loved ' + (x.loves > 1 ? (x.loves + ' homes') : addr);
-    } else {
-      icon = '\uD83D\uDC41\uFE0F';
-      text = first + ' opened ' + addr + ' ' + x.listing.views + ' times';
+      parts.push(x.asked === 1
+        ? ('asked to see ' + (x.askedOne.street || x.askedOne.address || 'a home'))
+        : ('asked to see ' + x.asked + ' homes'));
     }
-
+    if (x.loves) {
+      if (!icon) icon = '\u2764\uFE0F';
+      parts.push(x.loves === 1 && !x.asked
+        ? ('loved ' + (x.lovedOne.street || x.lovedOne.address || 'a home'))
+        : ('loved ' + x.loves + (x.asked ? ' more' : (x.loves === 1 ? ' one' : ' homes'))));
+    }
+    if (x.views && !parts.length) {
+      icon = '\uD83D\uDC41\uFE0F';
+      parts.push('opened ' + (x.viewedOne.street || x.viewedOne.address || 'a home') + ' ' + x.viewedOne.views + ' times');
+    }
+    if (!parts.length) return '';
+    var text = first + ' ' + parts.join(' \u00b7 ');
     var key = x.uid + ':' + Math.floor(x.when.getTime()/60000);
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border);background:#E1F5EE;">'
       + '<span style="font-size:14px;flex-shrink:0;">' + icon + '</span>'
       + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="lsSignalOpen(\'' + x.uid + '\',\'' + key + '\')">'
         + '<div style="font-size:12.5px;color:#0A5C43;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + partnerEsc(text) + '</div>'
         + '<div style="font-size:11px;color:#0F7A52;opacity:0.75;">' + _lsSignalWhen(x.when)
-          + (x.kind !== 'showing' && x.asked ? ' \u00b7 asked about one' : '') + '</div>'
+          + '</div>'
       + '</div>'
       + '<button title="Dismiss" onclick="event.stopPropagation();lsSignalDismiss(\'' + key + '\')" style="width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:none;border-radius:50%;color:#0F7A52;font-size:14px;cursor:pointer;">\u00d7</button>'
     + '</div>';
