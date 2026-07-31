@@ -979,6 +979,17 @@ setTimeout(function(){
   <a href="#" id="mj-apply-hero" target="_blank" class="btn btn-g btn-w" style="font-size:15px;padding:13px;">Start My Pre-Approval →</a>
 </div>
 
+<style>
+  /* Phones never see this. The review card stays one column at every width — it is the
+     decision, and stretching it would upscale a 640px photo. Only the reference
+     sections below pair up, which halves the scrolling on a desktop. */
+  #ls-body, #ls-body-token { max-width: 620px; }
+  @media (min-width: 900px) {
+    #ls-body { max-width: 1000px; }
+    #ls-body .ls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+    #ls-body .ls-hero { max-width: 620px; }
+  }
+</style>
 <!-- MLS LISTING STACK — fed by the agent's MLS auto-email, parsed by the worker. -->
 <div class="page" id="page-idx" style="gap:0;padding:0;">
 
@@ -990,7 +1001,7 @@ setTimeout(function(){
     <button type="button" class="btn btn-sm" onclick="openSaveModal()" style="flex-shrink:0;">+ Add manually</button>
   </div>
 
-  <div id="ls-body" style="padding:12px 14px 90px;max-width:620px;margin:0 auto;"></div>
+  <div id="ls-body" style="padding:12px 14px 90px;"></div>
 </div>
 <!-- FLOATING SAVE BUTTON (visible when on IDX page) -->
 <div id="float-save-btn" class="float-save-btn">
@@ -34313,18 +34324,26 @@ function renderListings() {
       + '<a onclick="lsClearAll()" style="font-size:11.5px;color:var(--text3);cursor:pointer;text-decoration:underline;">Clear all ' + open.length + '</a>'
       + '</div>';
   }
-  if (open.length) html += _lsBigCard(open[0]);
-  open.slice(1).forEach(function(l){ html += _lsRow(l, false); });
+  if (open.length) html += _lsSwipeHintOnce() + _lsBigCard(open[0]);
+  if (open.length > 1) {
+    html += '<div class="ls-grid">';
+    open.slice(1).forEach(function(l){ html += _lsRow(l, false); });
+    html += '</div>';
+  }
   if (rated.length) {
     html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Your list</div>';
+    html += '<div class="ls-grid">';
     rated.forEach(function(l){ html += _lsRow(l, true); });
+    html += '</div>';
   }
   // Below the client's own list — sold homes are reference, not something they can act on.
   // A feed that is entirely sold (a seller pointed at a Sold-only search) simply becomes the
   // only section, and reads as its own thing without needing a setting.
   if (gone.length) {
     html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:20px 0 8px 2px;">Recently sold nearby</div>';
+    html += '<div class="ls-grid">';
     gone.forEach(function(l){ html += _lsRow(l, false); });
+    html += '</div>';
   }
   el.innerHTML = html;
 }
@@ -34393,7 +34412,8 @@ function _lsBigCard(l) {
   var asOf = _lsAsOf(l.lastSeenAt || l.firstSeenAt);
   // Swipeable only when it can be rated. A sold card has nothing to decide.
   var sw = _lsIsGone(l) ? '' : ' data-swipe="'+l.id+'"';
-  return '<div'+sw+' style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;position:relative;touch-action:pan-y;">'
+  // ls-hero keeps the card at photo width even when the page widens around it.
+  return '<div'+sw+' class="ls-hero" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px;position:relative;touch-action:pan-y;">'
     + '<div style="position:relative;width:100%;aspect-ratio:16/10;background:var(--surface2);">' + _lsPhoto(l,200) + _lsStatusPill(l) + '</div>'
     + '<div style="padding:14px;">'
       + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
@@ -34449,6 +34469,52 @@ function _lsRow(l, showRating) {
       + '<button onclick="event.stopPropagation();lsRequestShowing(\''+l.id+'\')" style="flex:'+(showRating?'1':'1.4')+';padding:9px 4px;font-size:11.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text2);cursor:pointer;">\uD83D\uDCC5 Request showing</button>'
       + (showRating && currentUser ? '<button onclick="event.stopPropagation();lsAddTour(\''+l.id+'\')" style="flex:1;padding:9px 4px;font-size:11.5px;font-weight:600;border:1px solid var(--border);border-radius:var(--r);background:var(--surface2);color:var(--text2);cursor:pointer;">\uD83D\uDEB6 Add to tour</button>' : '')
     + '</div></div>');
+}
+
+// A swipe is fast and a thumb slips. Without an undo, passing a house they wanted means
+// noticing, then hunting for it — so every swipe leaves a brief way back. Tapping the
+// buttons does not get one: that was deliberate, and the card is still on screen.
+var _lsUndo = null;
+function _lsShowUndo(id, prevRating, key) {
+  var el = document.getElementById('ls-undo');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ls-undo';
+    el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:88px;z-index:9500;'
+      + 'display:flex;align-items:center;gap:14px;background:#1a1a1a;color:#fff;font-size:13px;'
+      + 'padding:11px 16px;border-radius:24px;box-shadow:0 6px 22px rgba(0,0,0,.28);';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = '<span>' + (key === 'love' ? 'Added to your list' : 'Passed') + '</span>'
+    + '<span id="ls-undo-go" style="font-weight:600;color:#7FE3C0;cursor:pointer;">Undo</span>';
+  el.style.display = 'flex';
+  var go = document.getElementById('ls-undo-go');
+  if (go) go.onclick = function(){ lsRate(id, key); _lsHideUndo(); };   // toggles it back off
+
+  if (_lsUndo) clearTimeout(_lsUndo);
+  _lsUndo = setTimeout(_lsHideUndo, 5000);
+}
+function _lsHideUndo() {
+  if (_lsUndo) { clearTimeout(_lsUndo); _lsUndo = null; }
+  var el = document.getElementById('ls-undo');
+  if (el) el.style.display = 'none';
+}
+window._lsHideUndo = _lsHideUndo;
+
+// Shown once, on the first card they ever see. A gesture nobody knows about is a gesture
+// nobody uses, and there is nothing on a card that suggests it can be dragged.
+function _lsSwipeHintOnce() {
+  try { if (localStorage.getItem('lsSwipeSeen')) return ''; } catch(e) { return ''; }
+  return '<div id="ls-swipe-tip" style="display:flex;align-items:center;justify-content:center;gap:6px;'
+    + 'font-size:11.5px;color:var(--text3);padding:7px 10px;margin-bottom:9px;background:var(--surface2);'
+    + 'border:0.5px solid var(--border);border-radius:20px;">'
+    + '<span>\u2190 Swipe left to pass</span><span style="opacity:.4;">|</span><span>Swipe right to love \u2192</span>'
+    + '</div>';
+}
+function _lsSwipeHintDone() {
+  try { localStorage.setItem('lsSwipeSeen', '1'); } catch(e) {}
+  var t = document.getElementById('ls-swipe-tip');
+  if (t) t.style.display = 'none';
 }
 
 // Swipe to rate the top card. Right is love, left is pass — the dating-app convention,
@@ -34509,7 +34575,9 @@ function _lsSwipeEnd() {
     card.style.transition = 'transform .22s ease-out, opacity .22s ease-out';
     card.style.transform = 'translateX(' + (dx > 0 ? 520 : -520) + 'px) rotate(' + (dx * 0.03) + 'deg)';
     card.style.opacity = '0';
-    setTimeout(function(){ lsRate(id, key); }, 190);
+    var _prev = (function(){ var x = _clientListings.find(function(y){ return y.id === id; }); return x ? (x.rating || '') : ''; })();
+    _lsSwipeHintDone();
+    setTimeout(function(){ lsRate(id, key); _lsShowUndo(id, _prev, key); }, 190);
     return;
   }
   // Not far enough — spring back, so a half-swipe never silently rates anything.
