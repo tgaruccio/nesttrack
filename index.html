@@ -16976,6 +16976,9 @@ async function renderAgentDashboard() {
 
   // ── Follow-up deck (hero) ──
   try { renderFollowUpDeck(); } catch(e) { console.log('followup deck err:', e.message); }
+  // Listing reactions load after the deck and re-render it when they arrive — the deck must
+  // not wait on a query that needs an index and might not return.
+  try { loadListingSignals(); } catch(e) { console.log('listing signals err:', e.message); }
   try { loadTextTasks(); } catch(e) { console.log('text tasks err:', e.message); }
 
   // ── Stat banner ──
@@ -31877,6 +31880,151 @@ function _fuDueList(){
 // the panel and the rest sat below the fold, which is the same as not being there.
 // Cadence is a coloured dot, actions are icons, and the note moves to the client card
 // (which is where you land before calling anyway).
+// What clients did with the listings you sent, as rows at the top of the deck. This is the
+// part an MLS drip can never tell you — who asked for a showing, what they loved, which
+// home they opened three times and never rated.
+//
+// Rows live for 72 hours so an agent who does not log in daily still sees them, and can be
+// dismissed individually. Opening the client counts as acknowledging it.
+var LS_SIGNAL_HOURS = 72;
+var _lsSignalAll = false;
+var _lsSignals = [];
+var _lsSignalSeen = {};
+
+try { _lsSignalSeen = JSON.parse(localStorage.getItem('lsSignalSeen') || '{}'); } catch(e) { _lsSignalSeen = {}; }
+function _lsSaveSeen(){ try { localStorage.setItem('lsSignalSeen', JSON.stringify(_lsSignalSeen)); } catch(e){} }
+
+// Ranked by what is worth acting on: a showing request beats a love, a love beats a home
+// they opened repeatedly without rating — though that last one is often the best call to make.
+function _lsSignalRank(kind) {
+  return kind === 'showing' ? 0 : (kind === 'love' ? 1 : 2);
+}
+
+async function loadListingSignals() {
+  var agentId = (userProfile && userProfile.agentId) || '';
+  if (!agentId) return;
+  var since = new Date(Date.now() - LS_SIGNAL_HOURS * 3600 * 1000);
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collectionGroup(fb.db, 'listings'),
+      fb.where('agentId', '==', agentId),
+      fb.orderBy('ratedAt', 'desc'),
+      fb.limit(60)));
+
+    var byClient = {};
+    snap.forEach(function(d){
+      var l = d.data();
+      var when = (l.ratedAt && l.ratedAt.toDate) ? l.ratedAt.toDate() : null;
+      if (!when || when < since) return;
+      // The document path is users/{uid}/listings/{mls} — the client is the grandparent.
+      var uid = '';
+      try { uid = d.ref.parent.parent.id; } catch(e) { return; }
+      if (!uid) return;
+
+      var kind = l.showingRequestedAt ? 'showing' : (l.rating === 'love' ? 'love' : null);
+      if (!kind && !l.rating && (Number(l.views) || 0) > 1) kind = 'views';
+      if (!kind) return;
+
+      var cur = byClient[uid];
+      if (!cur || _lsSignalRank(kind) < _lsSignalRank(cur.kind) || when > cur.when) {
+        if (!cur || _lsSignalRank(kind) <= _lsSignalRank(cur.kind)) {
+          byClient[uid] = { uid: uid, kind: kind, when: when, listing: l,
+                            loves: (cur && cur.loves) || 0, asked: (cur && cur.asked) || 0 };
+        }
+      }
+      if (byClient[uid]) {
+        if (l.rating === 'love') byClient[uid].loves++;
+        if (l.showingRequestedAt) byClient[uid].asked++;
+      }
+    });
+
+    _lsSignals = Object.keys(byClient).map(function(k){ return byClient[k]; })
+      .filter(function(x){ return !_lsSignalSeen[x.uid + ':' + Math.floor(x.when.getTime()/60000)]; })
+      .sort(function(a,b){
+        var r = _lsSignalRank(a.kind) - _lsSignalRank(b.kind);
+        return r !== 0 ? r : (b.when - a.when);
+      });
+    renderFollowUpDeck();
+  } catch(e) {
+    // Needs a collection-group index on listings (agentId asc, ratedAt desc). Without it the
+    // query throws rather than returning empty, so the deck simply carries on without rows.
+    console.log('listing signals:', e && e.message);
+  }
+}
+window.loadListingSignals = loadListingSignals;
+
+function _lsSignalWhen(d) {
+  var mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 60) return mins <= 1 ? 'just now' : (mins + ' min ago');
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 12) return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }).toLowerCase().replace(' ', '');
+  if (hrs < 36) return 'yesterday';
+  return Math.floor(hrs / 24) + ' days ago';
+}
+
+function _lsSignalRows() {
+  if (!_lsSignals.length) return '';
+  var show = _lsSignalAll ? _lsSignals : _lsSignals.slice(0, 3);
+  var rest = _lsSignals.length - show.length;
+
+  var html = show.map(function(x){
+    var b = (typeof allBuyers !== 'undefined' && allBuyers)
+      ? allBuyers.find(function(y){ return y.uid === x.uid; }) : null;
+    var name = b ? (((b.firstName||'') + ' ' + (b.lastName||'')).trim() || 'A client') : 'A client';
+    var first = name.split(' ')[0];
+    var addr = (x.listing.street || x.listing.address || 'a home');
+
+    var icon, text;
+    if (x.kind === 'showing') {
+      icon = '\uD83D\uDCC5';
+      text = first + ' asked to see ' + addr;
+    } else if (x.kind === 'love') {
+      icon = '\u2764\uFE0F';
+      text = first + ' loved ' + (x.loves > 1 ? (x.loves + ' homes') : addr);
+    } else {
+      icon = '\uD83D\uDC41\uFE0F';
+      text = first + ' opened ' + addr + ' ' + x.listing.views + ' times';
+    }
+
+    var key = x.uid + ':' + Math.floor(x.when.getTime()/60000);
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border);background:#E1F5EE;">'
+      + '<span style="font-size:14px;flex-shrink:0;">' + icon + '</span>'
+      + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="lsSignalOpen(\'' + x.uid + '\',\'' + key + '\')">'
+        + '<div style="font-size:12.5px;color:#0A5C43;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + partnerEsc(text) + '</div>'
+        + '<div style="font-size:11px;color:#0F7A52;opacity:0.75;">' + _lsSignalWhen(x.when)
+          + (x.kind !== 'showing' && x.asked ? ' \u00b7 asked about one' : '') + '</div>'
+      + '</div>'
+      + '<button title="Dismiss" onclick="event.stopPropagation();lsSignalDismiss(\'' + key + '\')" style="width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:none;border-radius:50%;color:#0F7A52;font-size:14px;cursor:pointer;">\u00d7</button>'
+    + '</div>';
+  }).join('');
+
+  if (rest > 0) {
+    html += '<div style="padding:8px 14px;border-bottom:0.5px solid var(--border);background:#E1F5EE;">'
+      + '<span onclick="lsSignalShowAll()" style="font-size:11.5px;color:#0F7A52;text-decoration:underline;cursor:pointer;">' + rest + ' more reacted</span>'
+      + '</div>';
+  }
+  return html;
+}
+
+// Opening the client is acknowledgement enough — no need to dismiss as well.
+function lsSignalOpen(uid, key) {
+  _lsSignalSeen[key] = Date.now(); _lsSaveSeen();
+  _lsSignals = _lsSignals.filter(function(x){ return (x.uid + ':' + Math.floor(x.when.getTime()/60000)) !== key; });
+  renderFollowUpDeck();
+  if (typeof openBuyerDetail === 'function') openBuyerDetail(uid);
+}
+window.lsSignalOpen = lsSignalOpen;
+
+function lsSignalDismiss(key) {
+  _lsSignalSeen[key] = Date.now(); _lsSaveSeen();
+  _lsSignals = _lsSignals.filter(function(x){ return (x.uid + ':' + Math.floor(x.when.getTime()/60000)) !== key; });
+  renderFollowUpDeck();
+}
+window.lsSignalDismiss = lsSignalDismiss;
+
+function lsSignalShowAll() { _lsSignalAll = true; renderFollowUpDeck(); }
+window.lsSignalShowAll = lsSignalShowAll;
+
 var FU_CAD = {
   hot:    { dot:'#C2410C', label:'Hot' },
   warm:   { dot:'#B45309', label:'Warm' },
@@ -31889,8 +32037,10 @@ function renderFollowUpDeck(){
   var due=_fuDueList();
   var countEl=document.getElementById('ad-followup-count');
   if (countEl) countEl.textContent = due.length ? (due.length+' due today') : '';
+  var signals = _lsSignalRows();
   if (!due.length){
-    deck.innerHTML='<div style="text-align:center;padding:20px 16px;color:var(--green-dk);font-size:13px;font-weight:500;">\u2713 All caught up \u2014 no follow-ups due.</div>';
+    deck.innerHTML = signals
+      + '<div style="text-align:center;padding:20px 16px;color:var(--green-dk);font-size:13px;font-weight:500;">\u2713 All caught up \u2014 no follow-ups due.</div>';
     return;
   }
 
@@ -31903,7 +32053,7 @@ function renderFollowUpDeck(){
     return '<button title="'+name+'" onclick="event.stopPropagation();'+onclick+'" style="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;background:none;border:none;border-radius:8px;cursor:pointer;color:'+(color||'var(--text2)')+';-webkit-tap-highlight-color:transparent;">'+glyph+'</button>';
   }
 
-  deck.innerHTML = due.map(function(b, i){
+  deck.innerHTML = signals + due.map(function(b, i){
     var name=((b.firstName||'')+' '+(b.lastName||'')).trim()||'Contact';
     var cad=b.followUpCadence||'warm';
     var c=FU_CAD[cad]||FU_CAD.warm;
