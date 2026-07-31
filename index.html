@@ -34107,10 +34107,12 @@ async function loadClientListings() {
       return bt - at;
     });
     renderListings();
-    // Followed a listing email while already signed in — land on the listings rather
-    // than the home page. Without this the link appears to do nothing.
+    // Followed a listing email while already signed in — land on the listings rather than
+    // the home page. Guarded because go('idx') calls this function again: without the flag
+    // it recurses forever and the page never gets past "Loading".
     try {
-      if (_tokenHash().listing !== undefined && typeof go === 'function') {
+      if (!window._lsJumped && _tokenHash().listing !== undefined && typeof go === 'function') {
+        window._lsJumped = true;
         var nav = document.querySelector('[data-pg="idx"]');
         if (nav) go('idx', nav);
       }
