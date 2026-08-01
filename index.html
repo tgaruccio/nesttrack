@@ -29604,8 +29604,53 @@ async function confirmDealToLeaderboard(dealId){
   if (String(year) === String(_teamStatsYear)) { _teamStatsData = data; if (typeof renderTeamStats==='function') renderTeamStats(); }
   closeM('deal-lb-modal');
   try { showDealToast('Added to the leaderboard — nice close!', null, null); } catch(e){}
+  // Buyers only. A seller who just sold no longer owns the home, so a value report on it
+  // would be nonsense. Offered rather than done silently — enrolment counts against their cap.
+  try { setTimeout(function(){ offerNestTrackerOnClose(dealId); }, 700); } catch(e){}
 }
 window.confirmDealToLeaderboard = confirmDealToLeaderboard;
+
+// The close is the natural moment: every field the equity calculation needs was just captured
+// on the deal — address, price, closing date. The alternative is remembering to go back to the
+// client card weeks later, which is exactly what does not happen. Prompts once per deal.
+async function offerNestTrackerOnClose(dealId) {
+  var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
+  if (!deal || deal.isPracticeDeal) return;
+  if (deal.ntOffered) return;
+  if (deal.dealType === 'seller') return;
+
+  var uid = deal.clientUid || deal.buyerUid || deal.uid || '';
+  if (!uid) return;
+  var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
+  if (!b || b.ntEnrolled) return;
+
+  var addr = deal.address || b.mailingAddress || '';
+  if (!addr) return;
+  var first = b.firstName || 'your client';
+
+  var ok = confirm('Add ' + first + ' to NestTracker?\n\n' + addr + '\n\n'
+    + 'They will get a home value report every quarter with your name on it — and you will see '
+    + 'when they start looking.');
+
+  // Remembered either way, so it does not reappear every time the deal is opened.
+  try { await fb.updateDoc(_dealDoc(dealId), { ntOffered: true }); deal.ntOffered = true; } catch(e){}
+  if (!ok) return;
+
+  // Carry over what the deal already holds, so the agent does not retype the price and date
+  // they entered a moment ago.
+  try {
+    var patch = { mailingAddress: addr };
+    var _p = Number(deal.price || deal.salePrice) || 0;
+    if (_p) patch.purchasePrice = _p;
+    if (deal.closingDate) patch.purchaseDate = deal.closingDate;
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), patch);
+    Object.assign(b, patch);
+  } catch(e){}
+
+  if (typeof ntEnroll === 'function') ntEnroll(uid);
+  else if (typeof showToast === 'function') showToast('Open their client card to finish enrolling.');
+}
+window.offerNestTrackerOnClose = offerNestTrackerOnClose;
 
 function toggleDealCommMode(dealId) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
