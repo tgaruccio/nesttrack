@@ -29571,6 +29571,9 @@ async function confirmDealToLeaderboard(dealId){
   if (deal.isPracticeDeal) {
     closeM('deal-lb-modal');
     try { showDealToast('Practice deal \u2014 not added to your real leaderboard.', null, null); } catch(e){}
+    // Still prompt: onboarding teaches the flow here, and a practice deal enrols nothing
+    // — saying yes opens the example report.
+    try { setTimeout(function(){ offerNestTrackerOnClose(dealId); }, 700); } catch(e){}
     return;
   }
   var agentId = deal.agentId || userProfile.agentId || '';
@@ -29619,23 +29622,51 @@ window.confirmDealToLeaderboard = confirmDealToLeaderboard;
 // The close is the natural moment: every field the equity calculation needs was just captured
 // on the deal — address, price, closing date. The alternative is remembering to go back to the
 // client card weeks later, which is exactly what does not happen. Prompts once per deal.
+// Offered at the close, because every field the equity calculation needs was just captured on
+// the deal — address, price, closing date — and the alternative is remembering to go back to
+// the client card weeks later, which is exactly what does not happen.
+//
+// The test is per PROPERTY, not per client. An investor closing their third rental should be
+// offered it again; checking ntEnrolled would have blocked every one after the first.
 async function offerNestTrackerOnClose(dealId) {
   var _skip = function(why){ console.log('[nt-offer] skipped:', why); };
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) return _skip('deal not found in _deals');
-  if (deal.isPracticeDeal) return _skip('practice deal');
-  if (deal.ntOffered) return _skip('already offered');
-  if (deal.dealType === 'seller') return _skip('seller deal');
+  if (deal.ntOffered) return _skip('already offered on this deal');
+  if (deal.dealType === 'seller') return _skip('seller deal — they no longer own it');
 
   var uid = deal.clientUid || deal.buyerUid || deal.uid || '';
   if (!uid) return _skip('no clientUid on the deal');
   var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
   if (!b) return _skip('client ' + uid + ' not in allBuyers');
-  if (b.ntEnrolled) return _skip('already enrolled');
 
   var addr = deal.address || b.mailingAddress || '';
   if (!addr) return _skip('no address on deal or client');
   var first = b.firstName || 'your client';
+
+  // Practice deals reach the prompt so onboarding can teach the flow, but enrol nothing —
+  // no fake home, no cap consumed. Saying yes opens the example report instead.
+  var practice = !!deal.isPracticeDeal;
+
+  if (!practice) {
+    // Is this exact property already enrolled for this client? Compares on a normalised
+    // address so '139 Lakewood Dr' and '139 Lakewood Drive, Parma, OH' do not read as different
+    // homes. Fetched fresh rather than cached — one request on a deal close is nothing, and a
+    // stale cache here would silently offer a duplicate.
+    try {
+      var apiKey = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+      if (apiKey) {
+        var r = await fetch(PROXY_URL + '/api/v1/nesttracker-dashboard?api_key=' + encodeURIComponent(apiKey));
+        var j = await r.json();
+        if (j && j.ok) {
+          var mine = (j.homes||[]).filter(function(h){ return h.uid === uid; });
+          var want = _ntAddrKey(addr);
+          var dupe = mine.some(function(h){ return _ntAddrKey(h.address) === want; });
+          if (dupe) return _skip('this property is already enrolled for ' + first);
+        }
+      }
+    } catch(e) { /* lookup failed — offer anyway; a duplicate is better than never asking */ }
+  }
 
   var ok = confirm('Add ' + first + ' to NestTracker?\n\n' + addr + '\n\n'
     + 'They will get a home value report every quarter with your name on it — and you will see '
@@ -29644,6 +29675,13 @@ async function offerNestTrackerOnClose(dealId) {
   // Remembered either way, so it does not reappear every time the deal is opened.
   try { await fb.updateDoc(_dealDoc(dealId), { ntOffered: true }); deal.ntOffered = true; } catch(e){}
   if (!ok) return;
+
+  if (practice) {
+    // Teaching, not enrolling. Opens the same example report the onboarding already uses.
+    if (typeof ntWalkthrough === 'function') { ntWalkthrough(uid); return; }
+    window.open('https://app.nesttrack.io/report.html?demo=1', '_blank');
+    return;
+  }
 
   // Carry over what the deal already holds, so the agent does not retype the price and date
   // they entered a moment ago.
@@ -29660,6 +29698,14 @@ async function offerNestTrackerOnClose(dealId) {
   else if (typeof showToast === 'function') showToast('Open their client card to finish enrolling.');
 }
 window.offerNestTrackerOnClose = offerNestTrackerOnClose;
+
+// Street number and name only. Two records for the same house rarely agree on suffixes,
+// city or unit formatting, and a false 'already enrolled' is the worse failure here.
+function _ntAddrKey(a) {
+  return String(a||'').toLowerCase().split(',')[0]
+    .replace(/\b(dr|drive|st|street|ave|avenue|rd|road|ln|lane|ct|court|cir|circle|blvd|boulevard|pl|place|ter|terrace|way|pkwy|parkway)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
 
 function toggleDealCommMode(dealId) {
   var deal = _deals.find(function(d){ return d.id===dealId; });
