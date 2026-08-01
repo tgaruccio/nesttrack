@@ -16991,6 +16991,7 @@ async function renderAgentDashboard() {
   // Listing reactions load after the deck and re-render it when they arrive — the deck must
   // not wait on a query that needs an index and might not return.
   try { loadListingSignals(); } catch(e) { console.log('listing signals err:', e.message); }
+  try { loadSellerSignals(); } catch(e) { console.log('seller signals err:', e.message); }
   try { loadTextTasks(); } catch(e) { console.log('text tasks err:', e.message); }
 
   // ── Stat banner ──
@@ -31892,6 +31893,70 @@ function _fuDueList(){
 // the panel and the rest sat below the fold, which is the same as not being there.
 // Cadence is a coloured dot, actions are icons, and the note moves to the client card
 // (which is where you land before calling anyway).
+// ── Seller signals ──
+// The same idea as the listing rows, pointed at NestTracker: who among your enrolled
+// homeowners is behaving like someone thinking about moving. Scored server-side so this
+// fetches eight names rather than four hundred records.
+//
+// Amber rather than green — a listing reaction is something the client did for you, a seller
+// signal is something you noticed. Different kind of prompt, and it should look different.
+var _ntSignals = [];
+var _ntSignalSeen = {};
+try { _ntSignalSeen = JSON.parse(localStorage.getItem('ntSignalSeen') || '{}'); } catch(e) { _ntSignalSeen = {}; }
+function _ntSaveSeen(){ try { localStorage.setItem('ntSignalSeen', JSON.stringify(_ntSignalSeen)); } catch(e){} }
+
+async function loadSellerSignals() {
+  try {
+    var r = await fetch(PROXY_URL + '/api/v1/nt-signals?api_key=' + encodeURIComponent(userProfile.leadToken || ''));
+    var j = await r.json();
+    if (!j || !j.ok) { console.log('seller signals:', j && j.reason); return; }
+    var day = Math.floor(Date.now() / 86400000);
+    // Dismissals last the day. Tomorrow's behaviour is new information, and a name buried
+    // permanently because you looked at it once in March is worse than seeing it twice.
+    _ntSignals = (j.signals || []).filter(function(x){
+      return x.score >= 30 && !_ntSignalSeen[x.token + ':' + day];
+    });
+    renderFollowUpDeck();
+  } catch(e) { console.log('seller signals:', e && e.message); }
+}
+window.loadSellerSignals = loadSellerSignals;
+
+function _ntSignalRows() {
+  if (!_ntSignals.length) return '';
+  var day = Math.floor(Date.now() / 86400000);
+  return _ntSignals.slice(0, 3).map(function(x){
+    var first = String(x.name).split(' ')[0];
+    // The top two reasons only. Four facts in a row stops reading like a prompt and starts
+    // reading like a report, and nobody acts on a report.
+    var why = (x.why || []).slice(0, 2).join(' \u00b7 ');
+    var key = x.token + ':' + day;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border);background:#FDF4E3;">'
+      + '<span style="font-size:14px;flex-shrink:0;">\uD83C\uDFE1</span>'
+      + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="ntSignalOpen(\'' + x.contactUid + '\',\'' + key + '\')">'
+        + '<div style="font-size:12.5px;color:#7A4A08;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+          + partnerEsc(first) + ' may be thinking about selling</div>'
+        + '<div style="font-size:11px;color:#8A5A08;opacity:0.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + partnerEsc(why) + '</div>'
+      + '</div>'
+      + '<button title="Not now" onclick="event.stopPropagation();ntSignalDismiss(\'' + key + '\')" style="width:26px;height:26px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;background:none;border:none;border-radius:50%;color:#8A5A08;font-size:14px;cursor:pointer;">\u00d7</button>'
+    + '</div>';
+  }).join('');
+}
+
+function ntSignalOpen(uid, key) {
+  _ntSignalSeen[key] = Date.now(); _ntSaveSeen();
+  _ntSignals = _ntSignals.filter(function(x){ return (x.token + ':' + key.split(':')[1]) !== key; });
+  renderFollowUpDeck();
+  if (uid && typeof openBuyerDetail === 'function') openBuyerDetail(uid);
+}
+window.ntSignalOpen = ntSignalOpen;
+
+function ntSignalDismiss(key) {
+  _ntSignalSeen[key] = Date.now(); _ntSaveSeen();
+  _ntSignals = _ntSignals.filter(function(x){ return (x.token + ':' + key.split(':')[1]) !== key; });
+  renderFollowUpDeck();
+}
+window.ntSignalDismiss = ntSignalDismiss;
+
 // What clients did with the listings you sent, as rows at the top of the deck. This is the
 // part an MLS drip can never tell you — who asked for a showing, what they loved, which
 // home they opened three times and never rated.
@@ -32055,7 +32120,7 @@ function renderFollowUpDeck(){
   var due=_fuDueList();
   var countEl=document.getElementById('ad-followup-count');
   if (countEl) countEl.textContent = due.length ? (due.length+' due today') : '';
-  var signals = _lsSignalRows();
+  var signals = _lsSignalRows() + _ntSignalRows();
   if (!due.length){
     deck.innerHTML = signals
       + '<div style="text-align:center;padding:20px 16px;color:var(--green-dk);font-size:13px;font-weight:500;">\u2713 All caught up \u2014 no follow-ups due.</div>';
