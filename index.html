@@ -29555,6 +29555,9 @@ async function dismissDealToLeaderboard(dealId){
   if (!deal) return;
   deal.lbExported = true; // mark handled so it won't re-prompt; manual Add Sale stays available
   try { await fb.updateDoc(_dealDoc(dealId), { lbExported: true }); } catch(e){}
+  // Still offer NestTracker — skipping the leaderboard says nothing about whether the
+  // client should hear from you for the next ten years.
+  try { setTimeout(function(){ offerNestTrackerOnClose(dealId); }, 500); } catch(e){}
 }
 window.dismissDealToLeaderboard = dismissDealToLeaderboard;
 
@@ -29614,18 +29617,21 @@ window.confirmDealToLeaderboard = confirmDealToLeaderboard;
 // on the deal — address, price, closing date. The alternative is remembering to go back to the
 // client card weeks later, which is exactly what does not happen. Prompts once per deal.
 async function offerNestTrackerOnClose(dealId) {
+  var _skip = function(why){ console.log('[nt-offer] skipped:', why); };
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
-  if (!deal || deal.isPracticeDeal) return;
-  if (deal.ntOffered) return;
-  if (deal.dealType === 'seller') return;
+  if (!deal) return _skip('deal not found in _deals');
+  if (deal.isPracticeDeal) return _skip('practice deal');
+  if (deal.ntOffered) return _skip('already offered');
+  if (deal.dealType === 'seller') return _skip('seller deal');
 
   var uid = deal.clientUid || deal.buyerUid || deal.uid || '';
-  if (!uid) return;
+  if (!uid) return _skip('no clientUid on the deal');
   var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
-  if (!b || b.ntEnrolled) return;
+  if (!b) return _skip('client ' + uid + ' not in allBuyers');
+  if (b.ntEnrolled) return _skip('already enrolled');
 
   var addr = deal.address || b.mailingAddress || '';
-  if (!addr) return;
+  if (!addr) return _skip('no address on deal or client');
   var first = b.firstName || 'your client';
 
   var ok = confirm('Add ' + first + ' to NestTracker?\n\n' + addr + '\n\n'
