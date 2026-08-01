@@ -29571,9 +29571,6 @@ async function confirmDealToLeaderboard(dealId){
   if (deal.isPracticeDeal) {
     closeM('deal-lb-modal');
     try { showDealToast('Practice deal \u2014 not added to your real leaderboard.', null, null); } catch(e){}
-    // Still prompt: onboarding teaches the flow here, and a practice deal enrols nothing
-    // — saying yes opens the example report.
-    try { setTimeout(function(){ offerNestTrackerOnClose(dealId); }, 700); } catch(e){}
     return;
   }
   var agentId = deal.agentId || userProfile.agentId || '';
@@ -29632,6 +29629,10 @@ async function offerNestTrackerOnClose(dealId) {
   var _skip = function(why){ console.log('[nt-offer] skipped:', why); };
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
   if (!deal) return _skip('deal not found in _deals');
+  // Onboarding handles practice deals its own way — it spotlights the button on the client
+  // card, which opens the example report. A prompt here duplicated that and then dropped
+  // the agent into a setup form for a client who does not exist.
+  if (deal.isPracticeDeal) return _skip('practice deal — onboarding handles it');
   if (deal.ntOffered) return _skip('already offered on this deal');
   if (deal.dealType === 'seller') return _skip('seller deal — they no longer own it');
 
@@ -29644,11 +29645,7 @@ async function offerNestTrackerOnClose(dealId) {
   if (!addr) return _skip('no address on deal or client');
   var first = b.firstName || 'your client';
 
-  // Practice deals reach the prompt so onboarding can teach the flow, but enrol nothing —
-  // no fake home, no cap consumed. Saying yes opens the example report instead.
-  var practice = !!deal.isPracticeDeal;
-
-  if (!practice) {
+  {
     // Is this exact property already enrolled for this client? Compares on a normalised
     // address so '139 Lakewood Dr' and '139 Lakewood Drive, Parma, OH' do not read as different
     // homes. Fetched fresh rather than cached — one request on a deal close is nothing, and a
@@ -29675,13 +29672,6 @@ async function offerNestTrackerOnClose(dealId) {
   // Remembered either way, so it does not reappear every time the deal is opened.
   try { await fb.updateDoc(_dealDoc(dealId), { ntOffered: true }); deal.ntOffered = true; } catch(e){}
   if (!ok) return;
-
-  if (practice) {
-    // Teaching, not enrolling. Opens the same example report the onboarding already uses.
-    if (typeof ntWalkthrough === 'function') { ntWalkthrough(uid); return; }
-    window.open('https://app.nesttrack.io/report.html?demo=1', '_blank');
-    return;
-  }
 
   // Carry over what the deal already holds, so the agent does not retype the price and date
   // they entered a moment ago.
