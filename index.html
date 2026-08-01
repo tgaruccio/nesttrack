@@ -29632,7 +29632,6 @@ async function offerNestTrackerOnClose(dealId) {
   // Onboarding handles practice deals its own way — it spotlights the button on the client
   // card, which opens the example report. A prompt here duplicated that and then dropped
   // the agent into a setup form for a client who does not exist.
-  if (deal.isPracticeDeal) return _skip('practice deal — onboarding handles it');
   if (deal.ntOffered) return _skip('already offered on this deal');
   if (deal.dealType === 'seller') return _skip('seller deal — they no longer own it');
 
@@ -29640,6 +29639,10 @@ async function offerNestTrackerOnClose(dealId) {
   if (!uid) return _skip('no clientUid on the deal');
   var b = (allBuyers||[]).find(function(x){ return x.uid===uid; });
   if (!b) return _skip('client ' + uid + ' not in allBuyers');
+  // The reliable test. isPracticeDeal is only stamped on deals built one particular way;
+  // isPracticeClient is always on the client. Onboarding teaches this step itself — it
+  // spotlights the button on the client card — so a prompt here is one popup too many.
+  if (b.isPracticeClient) return _skip('practice client — onboarding handles it');
 
   var addr = deal.address || b.mailingAddress || '';
   if (!addr) return _skip('no address on deal or client');
