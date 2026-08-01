@@ -29513,6 +29513,9 @@ function updateDealField(dealId, field, value) {
   }
   if (field === 'status' && value === 'Closed' && !deal.lbExported && typeof offerDealToLeaderboard==='function') {
     offerDealToLeaderboard(deal);
+  } else if (field === 'status' && value === 'Closed' && typeof offerNestTrackerOnClose==='function') {
+    // Leaderboard already handled — still offer NestTracker, which has its own ntOffered flag.
+    setTimeout(function(){ offerNestTrackerOnClose(deal.id); }, 600);
   }
   // Retire / revive the linked Offer Manager listing alongside the deal's status.
   if (field === 'status' && deal.offerListingId) {
@@ -29902,6 +29905,7 @@ async function setDealStep(dealId, next) {
     }, 250);
   }
   if (justClosed && !deal.lbExported && typeof offerDealToLeaderboard==='function') offerDealToLeaderboard(deal);
+  else if (justClosed && typeof offerNestTrackerOnClose==='function') setTimeout(function(){ offerNestTrackerOnClose(deal.id); }, 600);
   // Loop the lender in on key milestones — under contract is their cue to move the loan.
   if ((justUC || justClosed) && client && client.lenderId && client.lenderId !== 'none' && typeof sendPushToAgentByShortId==='function') {
     var _who = (client.firstName || 'Your client');
