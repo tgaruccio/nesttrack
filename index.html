@@ -32511,6 +32511,21 @@ function _ntDashHtml(j){
         ? '<span style="font-size:10px;font-weight:700;color:#991B1B;background:#FEE2E2;padding:2px 7px;border-radius:999px;">Paused</span>'
         : '<span style="font-size:10px;font-weight:700;color:#0F7A52;background:#DDF3E7;padding:2px 7px;border-radius:999px;">Active</span>';
     var over = h.overridden ? ' <span style="font-size:10px;color:#6D28D9;background:#EDE9FE;padding:2px 6px;border-radius:999px;">Corrected</span>' : '';
+    // When the last report went out and when the next is due. Both from lastPulledAt, which the
+    // quarterly sweep maintains — so this cannot drift from what actually happens.
+    var _fmtD = function(iso){
+      if (!iso) return '';
+      try { return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric'}); } catch(e){ return ''; }
+    };
+    var _sent = _fmtD(h.lastSentAt), _next = _fmtD(h.nextDueAt);
+    var _inDays = null;
+    try { if (h.nextDueAt) _inDays = Math.ceil((Date.parse(h.nextDueAt) - Date.now())/86400000); } catch(e){}
+    var schedule = _sent
+      ? '<div style="font-size:9.5px;color:var(--text3);margin-top:3px;line-height:1.5;">Sent '+_sent
+          + (_next ? ' \u00b7 next '+_next + (_inDays !== null && _inDays >= 0 ? ' ('+_inDays+'d)' : '') : '')
+          + '</div>'
+      : '<div style="font-size:9.5px;color:var(--text3);margin-top:3px;">No report sent yet</div>';
+
     // Engagement indicator — has the client been opening their report? Helps you prune dead enrollments.
     var engaged;
     var _vc = h.viewCount||0;
@@ -32531,7 +32546,7 @@ function _ntDashHtml(j){
     } else {
       engaged = '<span title="No opens yet (may not have received a report yet)" style="font-size:10.5px;color:var(--text3);">— no opens yet</span>';
     }
-    var checkin = engaged;
+    var checkin = engaged + schedule;
 
     // Maintenance activity — the log building itself is the tell that a relationship is alive.
     // Count and recency only; the detail lives in the client's own app, not this list.
