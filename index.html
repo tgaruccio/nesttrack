@@ -21531,7 +21531,7 @@ window.mjCreate = mjCreate;
 
 async function mjSetStep(uid, id, step) {
   try {
-    await fb.updateDoc(_mjDoc(uid, id), { step: Number(step)||0, updatedAt: fb.serverTimestamp() });
+    await fb.updateDoc(_mjDoc(uid, id), { step: Number(step)||0, stepChangedAt: fb.serverTimestamp(), updatedAt: fb.serverTimestamp() });
     return true;
   } catch(e) { console.log('mjSetStep:', e && e.message); return false; }
 }
@@ -21613,6 +21613,7 @@ function _mjCardHtml(uid, j) {
       + '<button class="btn btn-sm" onclick="mjEditAddress(\'' + uid + '\',\'' + j.id + '\')">Address</button>'
       + '<button class="btn btn-sm" style="color:#E24B4A;" onclick="mjRemove(\'' + uid + '\',\'' + j.id + '\')">\u2715</button>'
     + '</div>'
+    + '<button onclick="mjMarkTold(\'' + uid + '\',\'' + j.id + '\',event)" style="margin-top:7px;background:none;border:none;padding:0;font-size:11px;color:#185FA5;text-decoration:underline;cursor:pointer;font-family:inherit;">Called or texted them? Mark as updated</button>'
     + '<details style="margin-top:8px;">'
       + '<summary style="list-style:none;cursor:pointer;font-size:11.5px;color:var(--text3);display:flex;align-items:center;gap:5px;">'
         + '<span>\u2709 Also send updates to' + (_mjCcCount(j) ? ' (' + _mjCcCount(j) + ')' : '') + '</span>'
@@ -21663,6 +21664,7 @@ async function mjSaveStep(uid, id) {
 
   if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') {
     try { sendStepEmail(uid, newStep, 'mortgage', null, id); } catch(e) { console.log('mj email:', e && e.message); }
+    try { await fb.updateDoc(_mjDoc(uid, id), { lastClientEmailAt: fb.serverTimestamp() }); } catch(e){}
     try { sendPushToUser(uid, 'Mortgage Update \uD83D\uDCB0', 'You\u2019ve reached Step ' + newStep + ': ' + mjStepLabel(newStep)); } catch(e){}
   }
   window._pendingStepEmailChoice = null;
@@ -21714,6 +21716,23 @@ function _mjAgentCc(j) {
   });
   return out;
 }
+
+async function mjMarkTold(uid, id, ev) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  try {
+    await fb.updateDoc(_mjDoc(uid, id), { lastClientEmailAt: fb.serverTimestamp() });
+    var j = (_mjCache[uid] || []).find(function(x){ return x.id === id; });
+    if (j) j.lastClientEmailAt = { seconds: Math.floor(Date.now()/1000) };
+    // Both surfaces show this, and either may be on screen.
+    if (typeof mjRenderBlock === 'function') await mjRenderBlock(uid);
+    if (typeof _mjPipeline !== 'undefined' && _mjPipeline.length) {
+      var p = _mjPipeline.find(function(x){ return x.id === id; });
+      if (p) { p.lastClientEmailAt = { seconds: Math.floor(Date.now()/1000) }; filterLoans(_mjFilter); }
+    }
+    if (typeof showToast === 'function') showToast('Marked \u2014 client updated today.');
+  } catch(e) { console.log('mjMarkTold:', e && e.message); }
+}
+window.mjMarkTold = mjMarkTold;
 
 async function mjSaveCc(uid, id) {
   var ba = document.getElementById('mj-ba-' + id);
@@ -26297,23 +26316,73 @@ function filterLoans(which) {
 }
 window.filterLoans = filterLoans;
 
+// Everything here comes from the step change itself. Nothing needs separate upkeep, because
+// a loan officer already has an LOS and will not maintain a second checklist — a half-filled
+// one is worse than none, since nobody trusts it.
+function _mjDaysSince(ts) {
+  try {
+    var d = ts && ts.toDate ? ts.toDate() : (ts && ts.seconds ? new Date(ts.seconds*1000) : null);
+    if (!d) return null;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  } catch(e) { return null; }
+}
+
 function _mjPipelineCard(j) {
   var stage = mjStage(j.step);
   var tint  = stage === 'closed' ? 'var(--text3)' : (stage === 'active' ? '#0F7A52' : '#185FA5');
-  // A pre-approval with no property yet is normal, and worth saying rather than leaving blank.
   var addr  = j.address || 'No address yet';
-  var pct   = Math.round((Math.min(Number(j.step)||0, 11) / 11) * 100);
+  var step  = Number(j.step) || 0;
+
+  // Amber past a fortnight: a file sitting in one step is the one worth a phone call, and it
+  // is invisible on every other surface.
+  var inStep = _mjDaysSince(j.stepChangedAt);
+  var stepBit = '';
+  if (inStep !== null && stage !== 'closed') {
+    stepBit = '<span style="color:' + (inStep >= 14 ? '#8A5A08' : 'var(--text3)') + ';">'
+            + (inStep === 0 ? 'today' : inStep + 'd in this step') + '</span>';
+  }
+
+  // The thing a lender is actually selling. Silence is the failure mode.
+  var told = _mjDaysSince(j.lastClientEmailAt);
+  var toldBit = '';
+  if (stage !== 'closed') {
+    toldBit = told === null
+      ? '<span style="color:#8A5A08;">client not updated yet</span>'
+      : '<span style="color:' + (told >= 14 ? '#8A5A08' : 'var(--text3)') + ';">'
+        + (told === 0 ? 'client updated today' : 'client updated ' + told + 'd ago') + '</span>';
+  }
+
+  var closing = '';
+  try {
+    var cd = j.dates && j.dates.closing;
+    if (cd) {
+      var cdD = new Date(cd + 'T12:00:00');
+      if (!isNaN(cdD.getTime())) {
+        var away = Math.ceil((cdD.getTime() - Date.now()) / 86400000);
+        closing = '<span style="color:' + (away <= 7 && away >= 0 ? '#8A5A08' : 'var(--text3)') + ';">'
+                + 'closes ' + cdD.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+                + (away >= 0 ? ' \u00b7 ' + away + 'd' : '') + '</span>';
+      }
+    }
+  } catch(e){}
+
+  var meta = [stepBit, toldBit, closing].filter(Boolean).join('<span style="color:var(--border2);"> \u00b7 </span>');
+
   return '<div class="card" style="cursor:pointer;margin-bottom:9px;" onclick="openBuyerDetail(\'' + j.clientUid + '\')">'
     + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
       + '<div style="font-size:14.5px;font-weight:600;">' + partnerEsc(j.clientName) + '</div>'
-      + '<div style="font-size:11.5px;font-weight:600;color:' + tint + ';">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
+      + '<div style="font-size:11.5px;font-weight:600;color:' + tint + ';white-space:nowrap;">'
+        + (step ? 'Step ' + step + ' of 11' : 'Not started') + '</div>'
     + '</div>'
     + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">\uD83C\uDFE6 ' + partnerEsc(addr) + '</div>'
-    + '<div style="height:4px;background:var(--surface2);border-radius:3px;margin-top:9px;overflow:hidden;">'
-      + '<div style="height:100%;width:' + pct + '%;background:' + tint + ';"></div>'
-    + '</div>'
+    + '<div style="font-size:13px;font-weight:600;color:' + tint + ';margin-top:6px;">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
+    + (meta ? '<div style="font-size:11px;margin-top:5px;line-height:1.5;">' + meta + '</div>' : '')
+    + (stage !== 'closed'
+        ? '<button onclick="mjMarkTold(\'' + j.clientUid + '\',\'' + j.id + '\',event)" style="margin-top:7px;background:none;border:none;padding:0;font-size:11px;color:#185FA5;text-decoration:underline;cursor:pointer;font-family:inherit;">I updated them another way</button>'
+        : '')
   + '</div>';
 }
+
 
 async function renderDealTracker() {
   // A pure lender's Deal Tracker is their loan pipeline. Same slot, same behaviour,
