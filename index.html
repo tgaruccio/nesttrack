@@ -14776,6 +14776,7 @@ window._startPreview = async function(buyerUid) {
   await loadTours();
   _clientDeals = [];
   await loadClientDeals();
+  await loadClientListings();
   go('home', document.querySelector('[data-pg=home]'));
   setTimeout(renderHome, 100);
 };
@@ -35176,9 +35177,13 @@ function _lsAsOf(ts) {
 async function loadClientListings() {
   var el = document.getElementById('ls-body');
   if (!el || !currentUser) return;
+  // In preview the agent is signed in but looking at a buyer, so read the buyer's.
+  var _lsUid = (typeof _previewMode !== 'undefined' && _previewMode && _previewBuyerUid)
+    ? _previewBuyerUid
+    : currentUser.uid;
   el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3);font-size:13px;">Loading\u2026</div>';
   try {
-    var snap = await fb.getDocs(fb.collection(fb.db,'users',currentUser.uid,'listings'));
+    var snap = await fb.getDocs(fb.collection(fb.db,'users',_lsUid,'listings'));
     _clientListings = [];
     snap.forEach(function(d){ _clientListings.push(Object.assign({ id:d.id }, d.data())); });
     // Newest first, and anything they have not reacted to floats to the top.
