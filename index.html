@@ -547,7 +547,7 @@ setTimeout(function(){
     <button class="nb" data-pg="agent-todo" onclick="go('agent-todo',this)">✅ To-Do List <span id="todo-count-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px;"></span></button>
 
     <div class="ns">People &amp; Deals</div>
-    <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 Agent Hub</button>
+    <button class="nb" data-pg="agent" onclick="go('agent',this)">🎯 My Hub</button>
     <button class="nb" data-pg="onboarding" onclick="go('onboarding',this)" id="nb-onboarding" style="display:none;">🎓 My Onboarding</button>
 
     <div class="ns">Outreach</div>
@@ -2548,14 +2548,14 @@ setTimeout(function(){
 
 <!-- AGENT BACKEND -->
 <div class="page" id="page-agent">
-  <div class="ph"><div class="pt">Agent Hub</div><span class="pill pill-p">Agent Only</span></div>
+  <div class="ph"><div class="pt">My Hub</div><span class="pill pill-p">Agent Only</span></div>
 
   <!-- Tabs -->
   <div id="agent-tab-bar" style="display:flex;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow-x:auto;overflow-y:hidden;flex-shrink:0;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
     <button id="agent-tab-buyers" onclick="switchAgentTab('buyers')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--green);color:#fff;border:none;cursor:pointer;white-space:nowrap;">👥 Clients</button>
     <button id="agent-tab-deals" onclick="switchAgentTab('deals')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🏠 Deals</button>
     <button id="agent-tab-offers" onclick="switchAgentTab('offers')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📋 Offers <span id="offers-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;margin-left:2px;"></span></button>
-    <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 Showings</button>
+    <button id="agent-tab-showings" onclick="switchAgentTab('showings')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📅 Appts</button>
     <button id="agent-tab-reports" onclick="switchAgentTab('reports')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">📊 Seller Reports</button>
     <button id="agent-tab-partners" onclick="switchAgentTab('partners')" style="display:none;flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;">🤝 Partners</button>
     <button id="agent-tab-teamstats" onclick="switchAgentTab('teamstats')" style="flex:1;min-width:fit-content;padding:9px 6px;font-size:12.5px;font-weight:500;background:var(--surface2);color:var(--text2);border:none;cursor:pointer;border-left:1px solid var(--border);white-space:nowrap;position:relative;">🏆 Team <span id="ad-team-chat-badge" style="display:none;position:absolute;top:4px;right:4px;background:#E24B4A;color:#fff;border-radius:10px;padding:0 4px;font-size:9px;font-weight:700;">!</span></button>
@@ -15983,6 +15983,13 @@ function showManageBanner(ag, hasAccount){
 window.enterManageAs=enterManageAs; window.exitManageAs=exitManageAs; window.applyManageAsOverride=applyManageAsOverride;
 
 function switchAgentTab(tab) {
+  if (userProfile && userProfile.role === 'lender') {
+    ['agent-tab-offers','agent-tab-reports'].forEach(function(id){
+      var b = document.getElementById(id); if (b) b.style.display = 'none';
+    });
+    // If they somehow land on one, send them somewhere that means something.
+    if (tab === 'offers' || tab === 'reports') tab = 'deals';
+  }
   var bb=document.getElementById('agent-tab-buyers'),cb=document.getElementById('agent-tab-chat'),pb=document.getElementById('agent-tab-profile'),ptb=document.getElementById('agent-tab-partners'),otb=document.getElementById('agent-tab-offers'),stb=document.getElementById('agent-tab-showings'),dtb=document.getElementById('agent-tab-deals'),rtb=document.getElementById('agent-tab-reports'),ttb=document.getElementById('agent-tab-team'),ttsb=document.getElementById('agent-tab-teamstats'),ftb=document.getElementById('agent-tab-finances'),adb=document.getElementById('agent-tab-admin');
   var bp=document.getElementById('agent-buyers-panel'),ci=document.getElementById('agent-chat-inbox'),pp=document.getElementById('agent-profile-panel'),ptp=document.getElementById('agent-partners-panel'),otp=document.getElementById('agent-offers-panel'),stp=document.getElementById('agent-showings-panel'),dtp=document.getElementById('agent-deals-panel'),rtp=document.getElementById('agent-reports-panel'),ttp=document.getElementById('agent-team-panel'),ttsp=document.getElementById('agent-teamstats-panel'),fp=document.getElementById('agent-finances-panel'),adp=document.getElementById('agent-admin-panel');
   if(adb) adb.style.display=(typeof isPlatformOwner==='function'&&isPlatformOwner())?'':'none';
@@ -27054,7 +27061,7 @@ async function obCheckAssigned() {
 // ── GLOBAL SEARCH ──
 var SEARCH_PAGES = [
   {label:'Agent Dashboard', icon:'🏠', pg:'agent-dash'},
-  {label:'Agent Hub', icon:'🎯', pg:'agent'},
+  {label:'My Hub', icon:'🎯', pg:'agent'},
   {label:'Messages', icon:'💬', pg:'messages'},
   {label:'Email', icon:'📧', pg:'newsletter'},
   {label:'To-Do List', icon:'✅', pg:'agent-todo'},
@@ -31760,7 +31767,7 @@ window.renderLeadInboxes = renderLeadInboxes;
 
 async function addLeadInbox(){
   var segs = (typeof _allSegments==='function') ? _allSegments() : [];
-  if (!segs.length){ alert('Create a segment first (Agent Hub → Segment → Manage), then come back and point an address at it.'); return; }
+  if (!segs.length){ alert('Create a segment first (My Hub → Segment → Manage), then come back and point an address at it.'); return; }
   var seg = prompt('Which segment should leads at this address go into?\n\nYour segments:\n' + segs.join('\n'));
   seg = (seg||'').trim();
   if (!seg) return;
