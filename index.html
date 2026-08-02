@@ -18163,10 +18163,12 @@ async function openBuyerDetail(uid, scrollTo) {
       // Same as buyer: repeat sellers (investors flipping, multi-property owners) get another.
       var _closed=_sd.every(function(d){return d.closed;});
       return `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><button class="btn" onclick="startAnotherJourney('${uid}','seller')" style="width:100%;font-size:13px;">➕ Start Another Seller Journey</button><div style="font-size:11px;color:var(--text3);margin-top:5px;text-align:center;">${_sd.length} existing${_closed?' (closed)':''} — they'll pick the property in their portal</div></div>`; })()}
+    <!-- Third journey, same weight as buyer and seller. Filled asynchronously by
+         mjRenderBlock because journeys are their own records and may need migrating. -->
+    <div id="bd-mortgage-${uid}"></div>
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
-        <div id="bd-mortgage-${uid}"></div>
         <div id="bd-timeline-mortgage" style="margin-top:4px;"></div>
         <div style="border-top:0.5px solid var(--border);padding-top:10px;margin-top:4px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Listing Agent <span style="font-weight:400;text-transform:none;letter-spacing:0;">(CC on mortgage emails + receives promo)</span></div>
