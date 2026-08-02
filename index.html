@@ -14771,6 +14771,7 @@ window._startPreview = async function(buyerUid) {
   updateAgentRefs();
   renderYourAgent();
   renderYourLender();
+  await loadMyMortgageJourneys();
   await loadProperties();
   await loadTours();
   _clientDeals = [];
@@ -21454,8 +21455,12 @@ var _myMortgageJourneys = [];
 async function loadMyMortgageJourneys() {
   _myMortgageJourneys = [];
   try {
-    if (!currentUser || !currentUser.uid) return;
-    var snap = await fb.getDocs(fb.collection(fb.db, 'users', currentUser.uid, 'mortgageJourneys'));
+    // In preview the agent is signed in but looking at a buyer, so read the buyer's.
+    var uid = (typeof _previewMode !== 'undefined' && _previewMode && _previewBuyerUid)
+      ? _previewBuyerUid
+      : (currentUser && currentUser.uid);
+    if (!uid) return;
+    var snap = await fb.getDocs(fb.collection(fb.db, 'users', uid, 'mortgageJourneys'));
     snap.forEach(function(d){ _myMortgageJourneys.push(Object.assign({ id:d.id }, d.data())); });
   } catch(e) { console.log('loadMyMortgageJourneys:', e && e.message); }
 }
