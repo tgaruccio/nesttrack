@@ -5013,7 +5013,9 @@ async function loadUserProfile() {
       // Check if this email is one of the team agents
       const ag = DEFAULT_AGENTS.find(a => a.email && a.email.toLowerCase() === currentUser.email.toLowerCase());
       if (ag) { isAgent = true; userProfile.role = 'agent'; userProfile.agentId = ag.id; userProfile.teamRole = agentTeamRole(ag); userProfile.teamId = agentTeamId(ag); }
-      else { isAgent = userProfile.role === 'agent'; }
+      // A lender is a platform user exactly like an agent — same tools, same dashboard,
+      // same everything. isLender stays as the tag that clients see.
+      else { isAgent = (userProfile.role === 'agent' || userProfile.role === 'lender'); }
       // Check lender role (can overlap with agent)
       // The email-match below promotes a user to "lender" when their email matches a
       // lender record. That match must only fire when the record genuinely belongs to
@@ -9443,7 +9445,8 @@ async function showApp() {
   const initials = ((userProfile.firstName||'')[0]||'') + ((userProfile.lastName||'')[0]||'');
   document.getElementById('user-avatar').textContent = initials.toUpperCase() || 'U';
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
-  document.getElementById('user-role').textContent = isAgent ? 'Agent' : (isLender ? 'Lender' : 'Buyer');
+  // Tag first — isAgent is now true for lenders too, so testing it first would label them 'Agent'.
+  document.getElementById('user-role').textContent = isLender ? 'Lender' : (isAgent ? 'Agent' : 'Buyer');
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   // CLIENT VIEW collapse: for agents/lenders, show the toggle header and collapse the client menu by default.
@@ -9481,12 +9484,14 @@ async function showApp() {
     loadClientListings();   // reveals the New Listings tab only if any exist
     chatPartner = assignedAgent; // buyer chats with their agent
   }
-  
-  setTimeout(populateBuyerStepSelector, 100);
-  renderTours();
-  renderSaved();
-  setTimeout(function(){ renderTrailMap(); }, 400);
-  setTimeout(function(){ renderSellerTrail(); }, 500);
+
+  if (!isAgent) {
+    setTimeout(populateBuyerStepSelector, 100);
+    renderTours();
+    renderSaved();
+    setTimeout(function(){ renderTrailMap(); }, 400);
+    setTimeout(function(){ renderSellerTrail(); }, 500);
+  }
   loadClientDeals();
   loadAgentPartners(userProfile.agentId|| '').then(function(){ renderPartners('all'); });
   renderEducation();
@@ -9495,6 +9500,13 @@ async function showApp() {
   // abort showApp() and leave the user on a blank page — the page itself is already up.
   if (isAgent || isLender) {
     try { await loadBuyersForAgent(); } catch(e){ console.log('loadBuyers:', e && e.message); }
+    // Tasks, schedule and follow-ups apply to anyone with clients — agent or lender.
+    // Left inside the agent branch, a lender's panels never got told there was nothing
+    // to show, so they sat on "Loading" indefinitely.
+    try { await todoLoad(); } catch(e){ console.log('todoLoad:', e && e.message); }
+    try { await scheduleLoad(); } catch(e){}
+    try { injectScheduleBlocks(); } catch(e){}
+
     if (isAgent) {
       try { await _ensureRosterForUser(); } catch(e){}
       // These are one-time migrations (they no-op once everything's synced), but they still
@@ -9511,9 +9523,7 @@ async function showApp() {
         try { syncHardcodedAgentsToFirestore(); } catch(e2){}
         try { backfillTeamFields(); } catch(e2){}
       }
-      try { await todoLoad(); } catch(e){ console.log('todoLoad:', e && e.message); }
-      try { await scheduleLoad(); } catch(e){}
-      try { injectScheduleBlocks(); } catch(e){}
+      // (todoLoad / scheduleLoad moved below — lenders need them too)
       try { obLoad(); } catch(e){}
       try { checkMentorStatus(); } catch(e){}
       try { checkOpenHouseLeads(); } catch(e){}
@@ -20542,7 +20552,7 @@ async function removeAgent(id) {
   alert(ag.name + ' removed from team.');
 }
 function openTeamModal() {
-  if (!isAgent) return;
+  if (!isAgent && !isLender) return;
   if (isTeamLeader()) {
     // Full view for team leader
     renderTeam();
