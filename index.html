@@ -21609,7 +21609,7 @@ function _mjCardHtml(uid, j) {
 
 // Address optional: the most common starting state is a pre-approval with no property.
 async function mjStartFlow(uid) {
-  var addr = prompt('Property address for this loan?\n\nLeave blank if they are pre-approved and still looking \u2014 you can add it later.', '');
+  var addr = await promptAddress('Property address for this loan? Leave blank if they are pre-approved and still looking \u2014 you can add it later.', '');
   if (addr === null) return;   // cancelled
   var rec = await mjCreate(uid, addr);
   if (!rec) { if (typeof showToast==='function') showToast('Could not start that \u2014 try again.'); return; }
@@ -21629,7 +21629,7 @@ window.mjSaveStep = mjSaveStep;
 async function mjEditAddress(uid, id) {
   var list = _mjCache[uid] || [];
   var j = list.find(function(x){ return x.id === id; }) || {};
-  var addr = prompt('Property address for this loan?', j.address || '');
+  var addr = await promptAddress('Property address for this loan?', j.address || '');
   if (addr === null) return;
   await mjSetAddress(uid, id, addr);
   await mjRenderBlock(uid);
@@ -26144,8 +26144,9 @@ async function mjLoadPipeline() {
 window.mjLoadPipeline = mjLoadPipeline;
 
 async function renderLoanPipeline() {
-  var el = document.getElementById('deals-body') || document.getElementById('page-deals');
+  var el = document.getElementById('deal-tracker-panel');
   if (!el) return;
+  el.style.cssText = 'display:block;';
 
   var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
     + '<div style="font-size:15px;font-weight:600;">Loan Pipeline</div>'
