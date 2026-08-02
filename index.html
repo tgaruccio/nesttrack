@@ -18166,15 +18166,7 @@ async function openBuyerDetail(uid, scrollTo) {
     <details ${(b.currentMortgageStep||0)>0?'open':''} style="border-bottom:1px solid var(--border);">
       <summary style="list-style:none;cursor:pointer;padding:10px 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;"><span style="color:#185FA5;">Mortgage <span style="font-size:11px;font-weight:400;opacity:0.8;">${(b.currentMortgageStep||0)>0?'Step '+(b.currentMortgageStep)+' - '+((MJ_STEPS[(b.currentMortgageStep||1)-1]||{}).title||'').replace(/^Step \d+ — /,''):'Not active'}</span></span><span style="font-size:10px;color:var(--text3);">tap to toggle</span></summary>
       <div style="display:flex;flex-direction:column;gap:10px;padding:10px 0 14px;">
-        <div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:4px;">Mortgage Step</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select id="bd-mortgage-step" style="flex:1;max-width:220px;font-size:13px;"><option value="0">-- Not started --</option>${MJ_STEPS.map((s,i)=>`<option value="${i+1}" ${i+1===(b.currentMortgageStep||0)?'selected':''}>Step ${i+1} - ${s.title.replace(/^Step \d+ — /,'')}</option>`).join('')}</select>
-            <button class="btn btn-sm btn-g" onclick="setMortgageStep('${uid}')">Save</button>
-            <button class="btn btn-sm" onclick="openContractDatesForBuyer('${uid}','mortgage')">Dates</button>
-            <button class="btn btn-sm" style="color:#E24B4A;" onclick="clearContractDates('${uid}','mortgage')">✕</button>
-          </div>
-        </div>
+        <div id="bd-mortgage-${uid}"></div>
         <div id="bd-timeline-mortgage" style="margin-top:4px;"></div>
         <div style="border-top:0.5px solid var(--border);padding-top:10px;margin-top:4px;">
           <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:6px;">Listing Agent <span style="font-weight:400;text-transform:none;letter-spacing:0;">(CC on mortgage emails + receives promo)</span></div>
@@ -18262,6 +18254,7 @@ async function openBuyerDetail(uid, scrollTo) {
     if (details) loadEmailLog(uid);
     loadListingEngagement(uid);
     loadNtSchedule(uid);
+    mjRenderBlock(uid);
     // Auto-load on details toggle
     var summary = details && details.closest('details');
     if (summary) summary.addEventListener('toggle', function(){ if(this.open) loadEmailLog(uid); }, {once:true});
@@ -21443,6 +21436,267 @@ function _mjResolve(text){
     .replace(/\{LENDERLINK\}/g, lk);
 }
 window._mjResolve = _mjResolve;
+// ── Mortgage journeys ──
+// A loan per property, stored at users/{uid}/mortgageJourneys/{id}. Previously the client
+// record held a single currentMortgageStep, so an investor buying three properties could
+// only ever have one loan — the same limitation that moved buyer and seller tracking to
+// per-deal records. This finishes that migration for the third track.
+//
+// Address is optional: a pre-approval with no property yet is the most common state a
+// lender works in, and it is where most of their pipeline sits.
+var MJ_STAGES = [
+  { key:'preapproval', label:'Pre-approval', steps:[1,2],  hint:'No property yet' },
+  { key:'active',      label:'Active',       steps:[3,10], hint:'Under contract through clear to close' },
+  { key:'closed',      label:'Closed',       steps:[11,11],hint:'Funded' }
+];
+
+// Step 3 (Under Contract) is the boundary: it is the point a pre-approval becomes a real
+// loan, and also the point an address exists.
+function mjStage(step) {
+  var n = Number(step) || 0;
+  if (n >= 11) return 'closed';
+  if (n >= 3)  return 'active';
+  return 'preapproval';
+}
+window.mjStage = mjStage;
+
+function mjStepLabel(step) {
+  var n = Number(step) || 0;
+  if (!n) return 'Not started';
+  var s0 = MJ_STEPS[n - 1];
+  if (!s0) return 'Step ' + n;
+  // Titles are stored as 'Step 4 \u2014 Loan Application'; the number is shown separately.
+  return String(s0.title).replace(/^Step \d+\s*[\u2014-]\s*/, '');
+}
+window.mjStepLabel = mjStepLabel;
+
+function _mjCol(uid) {
+  return fb.collection(fb.db, 'users', uid, 'mortgageJourneys');
+}
+function _mjDoc(uid, id) {
+  return fb.doc(fb.db, 'users', uid, 'mortgageJourneys', id);
+}
+
+// Every journey for one client, newest first. Closed ones sort last so the working set is
+// what you see when a card opens.
+async function mjLoadForClient(uid) {
+  if (!uid) return [];
+  try {
+    var snap = await fb.getDocs(_mjCol(uid));
+    var out = [];
+    snap.forEach(function(d){ out.push(Object.assign({ id:d.id, clientUid:uid }, d.data())); });
+    out.sort(function(a,b){
+      var ac = mjStage(a.step) === 'closed' ? 1 : 0;
+      var bc = mjStage(b.step) === 'closed' ? 1 : 0;
+      if (ac !== bc) return ac - bc;
+      return ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0);
+    });
+    return out;
+  } catch(e) { console.log('mjLoadForClient:', e && e.message); return []; }
+}
+window.mjLoadForClient = mjLoadForClient;
+
+// The lender is whoever created it; the agent is carried from the client card so the
+// journey can find its way onto that agent's deal card later without a lookup.
+async function mjCreate(uid, address) {
+  if (!uid) return null;
+  var b = (allBuyers||[]).find(function(x){ return x.uid === uid; }) || {};
+  var rec = {
+    address: String(address || '').trim(),
+    step: 0,
+    dates: {},
+    lenderId: (userProfile && (userProfile.lenderId || userProfile.agentId)) || '',
+    agentId: b.agentId || '',
+    createdBy: (userProfile && (userProfile.lenderId || userProfile.agentId)) || '',
+    createdAt: fb.serverTimestamp(),
+    updatedAt: fb.serverTimestamp()
+  };
+  try {
+    var ref = await fb.addDoc(_mjCol(uid), rec);
+    return Object.assign({ id: ref.id, clientUid: uid }, rec);
+  } catch(e) { console.log('mjCreate:', e && e.message); return null; }
+}
+window.mjCreate = mjCreate;
+
+async function mjSetStep(uid, id, step) {
+  try {
+    await fb.updateDoc(_mjDoc(uid, id), { step: Number(step)||0, updatedAt: fb.serverTimestamp() });
+    return true;
+  } catch(e) { console.log('mjSetStep:', e && e.message); return false; }
+}
+window.mjSetStep = mjSetStep;
+
+async function mjSetAddress(uid, id, address) {
+  try {
+    await fb.updateDoc(_mjDoc(uid, id), { address: String(address||'').trim(), updatedAt: fb.serverTimestamp() });
+    return true;
+  } catch(e) { console.log('mjSetAddress:', e && e.message); return false; }
+}
+window.mjSetAddress = mjSetAddress;
+
+async function mjSetDates(uid, id, dates) {
+  try {
+    await fb.updateDoc(_mjDoc(uid, id), { dates: dates || {}, updatedAt: fb.serverTimestamp() });
+    return true;
+  } catch(e) { console.log('mjSetDates:', e && e.message); return false; }
+}
+window.mjSetDates = mjSetDates;
+
+async function mjDelete(uid, id) {
+  try { await fb.deleteDoc(_mjDoc(uid, id)); return true; }
+  catch(e) { console.log('mjDelete:', e && e.message); return false; }
+}
+window.mjDelete = mjDelete;
+
+// The client-card block. Rendered asynchronously because journeys are their own records now
+// and may need migrating on first open, so the card paints and this fills in.
+var _mjCache = {};
+
+async function mjRenderBlock(uid) {
+  var el = document.getElementById('bd-mortgage-' + uid);
+  if (!el) return;
+  var list = [];
+  try { list = await mjEnsureForClient(uid); } catch(e) { console.log('mjRenderBlock:', e && e.message); }
+  _mjCache[uid] = list;
+
+  var open = list.filter(function(j){ return mjStage(j.step) !== 'closed'; });
+
+  // No loan yet: a single button with the same weight as Start Buyer / Start Seller. It was
+  // previously a dropdown tucked underneath them, which made a lender's own workflow look
+  // like an afterthought on their own client's card.
+  if (!open.length) {
+    el.innerHTML = '<div style="padding:12px 0;border-bottom:1px solid var(--border);">'
+      + '<button class="btn" onclick="mjStartFlow(\'' + uid + '\')" style="width:100%;font-size:13px;background:#185FA5;color:#fff;border-color:#185FA5;">\uD83C\uDFE6 Start Mortgage Journey</button>'
+      + (list.length ? '<div style="font-size:11px;color:var(--text3);margin-top:5px;text-align:center;">' + list.length + ' closed</div>' : '')
+      + '</div>';
+    return;
+  }
+
+  el.innerHTML = open.map(function(j){ return _mjCardHtml(uid, j); }).join('')
+    + '<div style="padding:10px 0 12px;border-bottom:1px solid var(--border);">'
+    + '<button class="btn" onclick="mjStartFlow(\'' + uid + '\')" style="width:100%;font-size:12.5px;">\u2795 Start Another Mortgage Journey</button>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:5px;text-align:center;">' + open.length + ' active \u2014 one per property</div>'
+    + '</div>';
+}
+window.mjRenderBlock = mjRenderBlock;
+
+function _mjCardHtml(uid, j) {
+  var stage = mjStage(j.step);
+  var tint  = stage === 'closed' ? 'var(--text3)' : (stage === 'active' ? '#0F7A52' : '#185FA5');
+  // A pre-approval genuinely has no property yet — say so rather than showing an empty line.
+  var addr  = j.address || 'No address yet';
+  return '<div style="padding:12px 0;border-bottom:1px solid var(--border);">'
+    + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
+      + '<div style="font-size:13px;font-weight:600;color:#185FA5;">\uD83C\uDFE6 ' + partnerEsc(addr) + '</div>'
+      + '<div style="font-size:11px;font-weight:600;color:' + tint + ';">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
+    + '</div>'
+    + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;">'
+      + '<select id="mj-step-' + j.id + '" style="flex:1;max-width:220px;font-size:13px;">'
+        + '<option value="0">-- Not started --</option>'
+        + MJ_STEPS.map(function(s0, i){
+            return '<option value="' + (i+1) + '"' + ((i+1) === (Number(j.step)||0) ? ' selected' : '') + '>'
+                 + 'Step ' + (i+1) + ' - ' + partnerEsc(mjStepLabel(i+1)) + '</option>';
+          }).join('')
+      + '</select>'
+      + '<button class="btn btn-sm btn-g" onclick="mjSaveStep(\'' + uid + '\',\'' + j.id + '\')">Save</button>'
+      + '<button class="btn btn-sm" onclick="mjEditAddress(\'' + uid + '\',\'' + j.id + '\')">Address</button>'
+      + '<button class="btn btn-sm" style="color:#E24B4A;" onclick="mjRemove(\'' + uid + '\',\'' + j.id + '\')">\u2715</button>'
+    + '</div>'
+  + '</div>';
+}
+
+// Address optional: the most common starting state is a pre-approval with no property.
+async function mjStartFlow(uid) {
+  var addr = prompt('Property address for this loan?\n\nLeave blank if they are pre-approved and still looking \u2014 you can add it later.', '');
+  if (addr === null) return;   // cancelled
+  var rec = await mjCreate(uid, addr);
+  if (!rec) { if (typeof showToast==='function') showToast('Could not start that \u2014 try again.'); return; }
+  await mjRenderBlock(uid);
+}
+window.mjStartFlow = mjStartFlow;
+
+async function mjSaveStep(uid, id) {
+  var sel = document.getElementById('mj-step-' + id); if (!sel) return;
+  var ok = await mjSetStep(uid, id, sel.value);
+  if (!ok) { if (typeof showToast==='function') showToast('Could not save that \u2014 try again.'); return; }
+  await mjRenderBlock(uid);
+  if (typeof showToast==='function') showToast('Updated \u2014 your client sees this on their Mortgage Trail.');
+}
+window.mjSaveStep = mjSaveStep;
+
+async function mjEditAddress(uid, id) {
+  var list = _mjCache[uid] || [];
+  var j = list.find(function(x){ return x.id === id; }) || {};
+  var addr = prompt('Property address for this loan?', j.address || '');
+  if (addr === null) return;
+  await mjSetAddress(uid, id, addr);
+  await mjRenderBlock(uid);
+}
+window.mjEditAddress = mjEditAddress;
+
+async function mjRemove(uid, id) {
+  if (!confirm('Remove this mortgage journey? Their Mortgage Trail will stop showing it.')) return;
+  await mjDelete(uid, id);
+  await mjRenderBlock(uid);
+}
+window.mjRemove = mjRemove;
+
+// One-time migration per client. Anyone with a mortgage step or dates on their record gets
+// a journey seeded from those values — the address taken from a matching deal if one exists,
+// left blank otherwise (a pre-approval has no property yet).
+//
+// Runs lazily when a client card opens rather than as a bulk pass: no cron, no long-running
+// job, and a client nobody looks at costs nothing. The legacy fields are left in place, so a
+// half-deployed state still reads correctly from either side.
+async function mjMigrateClient(uid) {
+  if (!uid) return [];
+  var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+  if (!b) return [];
+
+  var existing = await mjLoadForClient(uid);
+  if (existing.length) return existing;          // already migrated, or already using journeys
+
+  var step  = Number(b.currentMortgageStep) || 0;
+  var dates = b.mortgageContractDates || null;
+  var hasDates = !!(dates && typeof dates === 'object' && Object.keys(dates).length);
+  if (!step && !hasDates) return [];             // nothing to migrate
+
+  // Their deal, if there is one, is where the address lives. Buyer deals only — a loan is
+  // on a purchase, and matching a seller deal would attach the wrong property.
+  var addr = '';
+  try {
+    var d = (_deals||[]).find(function(x){
+      return x && x.clientUid === uid && x.dealType !== 'seller' && x.address;
+    });
+    if (d) addr = d.address;
+  } catch(e){}
+
+  var rec = await mjCreate(uid, addr);
+  if (!rec) return [];
+  try {
+    await fb.updateDoc(_mjDoc(uid, rec.id), {
+      step: step,
+      dates: hasDates ? dates : {},
+      migratedFrom: 'client-record',
+      updatedAt: fb.serverTimestamp()
+    });
+    rec.step = step;
+    rec.dates = hasDates ? dates : {};
+  } catch(e) { console.log('mjMigrateClient:', e && e.message); }
+  return [rec];
+}
+window.mjMigrateClient = mjMigrateClient;
+
+// Journeys for a client, migrating first if this is the first time they have been opened
+// since the change. Everything that renders mortgage state should call this rather than
+// mjLoadForClient, so no client is ever seen in a half-migrated state.
+async function mjEnsureForClient(uid) {
+  var list = await mjLoadForClient(uid);
+  if (list.length) return list;
+  return await mjMigrateClient(uid);
+}
+window.mjEnsureForClient = mjEnsureForClient;
+
 const MJ_STEPS = [
   { icon:'💬', title:'Step 1 — Initial Consultation',
     body:'{LENDER} reviews your goals, timeline, and financial picture. This is the starting point — one conversation sets the direction for everything that follows.',
