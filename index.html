@@ -26104,7 +26104,126 @@ async function saveDeal(dealId, data) {
 
 // ── Render the full Deal Tracker tab ──
 var _dealRenderVersion = 0;
+// ── Loan pipeline ──
+// A lender's Deal Tracker. Same slot, same behaviour, different content: mortgage journeys
+// grouped by loan stage instead of deals grouped by transaction stage.
+//
+// Without this a lender would have to open each client card in turn and remember who was
+// where. A CRM status filter cannot substitute — it says who is active, not which loans are
+// stuck in underwriting or which pre-approval has sat six weeks without an address.
+// isAgent is true for lenders too (they are platform users), so this is the test for
+// 'actually an agent' — used to decide whether Deal Tracker or the loan pipeline renders.
+function _isAlsoAgent() {
+  return !!(userProfile && (userProfile.role === 'agent' ||
+         (typeof DEFAULT_AGENTS !== 'undefined' && DEFAULT_AGENTS.some(function(a){
+            return a && a.id && a.id === userProfile.agentId && a.email;
+         }))));
+}
+
+var _mjFilter = 'active';
+var _mjPipeline = [];
+var _mjSearch = '';
+
+// Journeys live under each client, so this walks the clients a lender already has loaded
+// rather than a collectionGroup query — no new index, and the client list is already in memory.
+async function mjLoadPipeline() {
+  var out = [];
+  var list = (allBuyers || []);
+  for (var i = 0; i < list.length; i++) {
+    var b = list[i];
+    if (!b || !b.uid) continue;
+    var js = [];
+    try { js = await mjEnsureForClient(b.uid); } catch(e) { continue; }
+    for (var k = 0; k < js.length; k++) {
+      out.push(Object.assign({}, js[k], {
+        clientUid: b.uid,
+        clientName: (((b.firstName||'') + ' ' + (b.lastName||'')).trim()) || b.email || 'Client'
+      }));
+    }
+  }
+  _mjPipeline = out;
+  return out;
+}
+window.mjLoadPipeline = mjLoadPipeline;
+
+async function renderLoanPipeline() {
+  var el = document.getElementById('deals-body') || document.getElementById('page-deals');
+  if (!el) return;
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+    + '<div style="font-size:15px;font-weight:600;">Loan Pipeline</div>'
+    + '</div>';
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="mj-filter-chips">'
+    + MJ_STAGES.map(function(st){
+        return '<button class="btn btn-sm" id="mjchip-' + st.key + '" onclick="filterLoans(\'' + st.key + '\')">' + st.label + '</button>';
+      }).join('')
+    + '</div>';
+  html += '<div style="margin:10px 0 8px;"><input id="mj-search" type="text" placeholder="Search by client or address..." oninput="_mjSearch=this.value;filterLoans(_mjFilter);" style="width:100%;font-size:13px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--r-sm);"></div>';
+  html += '<div id="mj-cards-container"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">Loading\u2026</div></div>';
+  el.innerHTML = html;
+
+  await mjLoadPipeline();
+  filterLoans(_mjFilter);
+}
+window.renderLoanPipeline = renderLoanPipeline;
+
+function filterLoans(which) {
+  _mjFilter = which || 'active';
+  MJ_STAGES.forEach(function(st){
+    var c = document.getElementById('mjchip-' + st.key);
+    if (c) c.className = 'btn btn-sm' + (st.key === _mjFilter ? ' btn-g' : '');
+  });
+
+  var q = String(_mjSearch || '').toLowerCase().trim();
+  var rows = _mjPipeline.filter(function(j){
+    if (mjStage(j.step) !== _mjFilter) return false;
+    if (!q) return true;
+    return (String(j.clientName||'').toLowerCase().indexOf(q) !== -1)
+        || (String(j.address||'').toLowerCase().indexOf(q) !== -1);
+  });
+
+  // Furthest along first: the loans closest to funding are the ones needing attention today.
+  rows.sort(function(a,b){ return (Number(b.step)||0) - (Number(a.step)||0); });
+
+  var box = document.getElementById('mj-cards-container');
+  if (!box) return;
+  if (!rows.length) {
+    var st = MJ_STAGES.find(function(x){ return x.key === _mjFilter; }) || {};
+    box.innerHTML = '<div style="text-align:center;padding:30px 20px;color:var(--text3);font-size:13px;">'
+      + 'Nothing in ' + (st.label || _mjFilter).toLowerCase() + '.'
+      + '<div style="font-size:11.5px;margin-top:5px;">' + (st.hint || '') + '</div>'
+      + '</div>';
+    return;
+  }
+  box.innerHTML = rows.map(_mjPipelineCard).join('');
+}
+window.filterLoans = filterLoans;
+
+function _mjPipelineCard(j) {
+  var stage = mjStage(j.step);
+  var tint  = stage === 'closed' ? 'var(--text3)' : (stage === 'active' ? '#0F7A52' : '#185FA5');
+  // A pre-approval with no property yet is normal, and worth saying rather than leaving blank.
+  var addr  = j.address || 'No address yet';
+  var pct   = Math.round((Math.min(Number(j.step)||0, 11) / 11) * 100);
+  return '<div class="card" style="cursor:pointer;margin-bottom:9px;" onclick="openBuyerDetail(\'' + j.clientUid + '\')">'
+    + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
+      + '<div style="font-size:14.5px;font-weight:600;">' + partnerEsc(j.clientName) + '</div>'
+      + '<div style="font-size:11.5px;font-weight:600;color:' + tint + ';">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">\uD83C\uDFE6 ' + partnerEsc(addr) + '</div>'
+    + '<div style="height:4px;background:var(--surface2);border-radius:3px;margin-top:9px;overflow:hidden;">'
+      + '<div style="height:100%;width:' + pct + '%;background:' + tint + ';"></div>'
+    + '</div>'
+  + '</div>';
+}
+
 async function renderDealTracker() {
+  // A pure lender's Deal Tracker is their loan pipeline. Same slot, same behaviour,
+  // content that matches their work. A dual account keeps the agent view and reaches
+  // loans through the extra tab added below.
+  if (userProfile && userProfile.role === 'lender' && !_isAlsoAgent()) {
+    return await renderLoanPipeline();
+  }
   var myVersion = ++_dealRenderVersion;
   var el = document.getElementById('deal-tracker-panel');
   if (!el) return;
@@ -26132,6 +26251,7 @@ async function renderDealTracker() {
     +'<button class="btn btn-sm" id="dchip-active" onclick="filterDeals(\'active\')">Listed</button>'
     +'<button class="btn btn-sm" id="dchip-contract" onclick="filterDeals(\'contract\')">Under Contract</button>'
     +'<button class="btn btn-sm" id="dchip-closed" onclick="filterDeals(\'closed\')">Closed</button>'
+    +(_isAlsoAgent() && isLender ? '<button class="btn btn-sm" id="dchip-loans" onclick="renderLoanPipeline()">\uD83C\uDFE6 Loans</button>' : '')
     +((typeof _showTeamTab==='function' && _showTeamTab()) ? '<button class="btn btn-sm" id="dchip-team" onclick="filterDeals(\'team\')">\uD83D\uDC65 Team</button>' : '')
     +'</div>';
   html += '<div style="margin:10px 0 8px;"><input id="deal-search" type="text" placeholder="Search by client or address..." oninput="_dealSearch=this.value;filterDeals(_activeFilter);" value="'+(_dealSearch||'').replace(/"/g,'&quot;')+'" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface);color:var(--text);"/></div>';
