@@ -11160,9 +11160,15 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
     if (type === 'mortgage' && journeyId) {
       try { _mj = (( _mjCache[uid] || [] ).find(function(j){ return j.id === journeyId; })) || null; } catch(e){}
     }
-    var _laOn = _mj ? (_mj.laCC !== false) : (client.mortLACCEnabled !== false);
-    var _laAddr = _mj ? (_mj.laEmail || '') : (client.mortLAEmail || '');
-    var laEmail = (type === 'mortgage' && _laOn) ? _laAddr : '';
+    // Everyone the lender added for this property. Falls back to the old single client
+    // field so anything set before this change still reaches its recipient.
+    var _ccExtra = [];
+    if (type === 'mortgage') {
+      if (_mj) { _ccExtra = _mjCcEmails(_mj); }
+      else if (client.mortLACCEnabled !== false && client.mortLAEmail) { _ccExtra = [client.mortLAEmail]; }
+    }
+    var laEmail = _ccExtra[0] || '';
+    _ccExtra.forEach(function(a){ if (ccParts.indexOf(a) === -1) ccParts.push(a); });
     if (laEmail) ccParts.push(laEmail);
 
     showEmailPreview(client.email, subject, html, async function(finalHtml, ccValue) {
@@ -11197,7 +11203,13 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
         }
 
         // Mortgage: send separate promo email to listing agent if CC enabled and has email
-        if (type === 'mortgage' && laEmail && ccEmails.includes(laEmail)) {
+        // Agents only. A trial link means nothing to a parent helping with the down payment,
+        // and sending them one makes the lender look like they are spamming.
+        var _promoTo = (type === 'mortgage')
+          ? (_mj ? _mjAgentCc(_mj) : (laEmail ? [laEmail] : []))
+          : [];
+        for (var _pi = 0; _pi < _promoTo.length; _pi++) {
+          var _promoAddr = _promoTo[_pi];
           var laName = (_mj && _mj.laName) || client.mortLAName || 'there';
           // Use finalHtml so video is included if agent added one
           var laBodyContent = finalHtml || html;
@@ -11220,7 +11232,7 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
           await fetch(PROXY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-            body: JSON.stringify({ to: laEmail, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() })
+            body: JSON.stringify({ to: _promoAddr, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() })
           });
         }
         console.log('Step email sent:', type, stepNum, client.email);
@@ -21492,7 +21504,15 @@ window.mjLoadForClient = mjLoadForClient;
 async function mjCreate(uid, address) {
   if (!uid) return null;
   var b = (allBuyers||[]).find(function(x){ return x.uid === uid; }) || {};
+  // If the client already has an agent on the platform, put them on updates by default.
+  // A lender should not have to retype an address the app already knows.
+  var _ba = '';
+  try {
+    var _ag = (DEFAULT_AGENTS||[]).find(function(a){ return a && a.id === b.agentId; });
+    if (_ag && _ag.email) _ba = _ag.email;
+  } catch(e){}
   var rec = {
+    buyerAgentEmail: _ba,
     address: String(address || '').trim(),
     step: 0,
     dates: {},
@@ -21593,16 +21613,25 @@ function _mjCardHtml(uid, j) {
       + '<button class="btn btn-sm" onclick="mjEditAddress(\'' + uid + '\',\'' + j.id + '\')">Address</button>'
       + '<button class="btn btn-sm" style="color:#E24B4A;" onclick="mjRemove(\'' + uid + '\',\'' + j.id + '\')">\u2715</button>'
     + '</div>'
-    + '<div style="margin-top:9px;padding-top:9px;border-top:0.5px dashed var(--border);">'
-      + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text3);margin-bottom:5px;">Listing agent <span style="font-weight:400;text-transform:none;letter-spacing:0;">(CC on updates + receives promo)</span></div>'
-      + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">'
-        + '<input type="text" id="mj-la-name-' + j.id + '" placeholder="Agent name" value="' + partnerEsc(j.laName || '') + '" onchange="mjSaveLA(\'' + uid + '\',\'' + j.id + '\')" style="flex:1;min-width:110px;font-size:12.5px;">'
-        + '<input type="email" id="mj-la-email-' + j.id + '" placeholder="agent@brokerage.com" value="' + partnerEsc(j.laEmail || '') + '" onchange="mjSaveLA(\'' + uid + '\',\'' + j.id + '\')" style="flex:1.4;min-width:140px;font-size:12.5px;">'
-        + '<label style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text2);white-space:nowrap;">'
-          + '<input type="checkbox" id="mj-la-cc-' + j.id + '"' + (j.laCC !== false ? ' checked' : '') + ' onchange="mjSaveLA(\'' + uid + '\',\'' + j.id + '\')"> CC'
+    + '<details style="margin-top:8px;">'
+      + '<summary style="list-style:none;cursor:pointer;font-size:11.5px;color:var(--text3);display:flex;align-items:center;gap:5px;">'
+        + '<span>\u2709 Also send updates to' + (_mjCcCount(j) ? ' (' + _mjCcCount(j) + ')' : '') + '</span>'
+        + '<span style="font-size:10px;opacity:0.7;">tap to edit</span>'
+      + '</summary>'
+      + '<div style="padding-top:7px;">'
+        + '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.5;">Everyone here gets a copy each time you move a step.</div>'
+        + '<label style="font-size:10.5px;font-weight:600;color:var(--text2);">Buyer\u2019s agent</label>'
+        + '<input type="email" id="mj-ba-' + j.id + '" placeholder="buyeragent@brokerage.com" value="' + partnerEsc(j.buyerAgentEmail || '') + '" onchange="mjSaveCc(\'' + uid + '\',\'' + j.id + '\')" style="width:100%;font-size:12.5px;margin:2px 0 7px;">'
+        + '<label style="font-size:10.5px;font-weight:600;color:var(--text2);">Listing agent</label>'
+        + '<input type="email" id="mj-la-' + j.id + '" placeholder="listingagent@brokerage.com" value="' + partnerEsc(j.listingAgentEmail || j.laEmail || '') + '" onchange="mjSaveCc(\'' + uid + '\',\'' + j.id + '\')" style="width:100%;font-size:12.5px;margin:2px 0 7px;">'
+        + '<label style="font-size:10.5px;font-weight:600;color:var(--text2);">Anyone else <span style="font-weight:400;color:var(--text3);">\u2014 family, attorney. Commas between.</span></label>'
+        + '<input type="text" id="mj-cc-' + j.id + '" placeholder="mom@gmail.com, attorney@firm.com" value="' + partnerEsc(j.ccList || '') + '" onchange="mjSaveCc(\'' + uid + '\',\'' + j.id + '\')" style="width:100%;font-size:12.5px;margin:2px 0 0;">'
+        + '<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text2);margin-top:8px;">'
+          + '<input type="checkbox" id="mj-cc-on-' + j.id + '"' + (j.laCC !== false ? ' checked' : '') + ' onchange="mjSaveCc(\'' + uid + '\',\'' + j.id + '\')"> Include them on updates'
         + '</label>'
+        + '<div style="font-size:10.5px;color:var(--text3);margin-top:6px;line-height:1.5;">Agents also get a short NestTrack intro with the update.</div>'
       + '</div>'
-    + '</div>'
+    + '</details>'
   + '</div>';
 }
 
@@ -21650,24 +21679,62 @@ async function mjEditAddress(uid, id) {
 }
 window.mjEditAddress = mjEditAddress;
 
-async function mjSaveLA(uid, id) {
-  var n = document.getElementById('mj-la-name-' + id);
-  var e = document.getElementById('mj-la-email-' + id);
-  var c = document.getElementById('mj-la-cc-' + id);
-  try {
-    await fb.updateDoc(_mjDoc(uid, id), {
-      laName:  n ? n.value.trim() : '',
-      laEmail: e ? e.value.trim() : '',
-      laCC:    c ? !!c.checked : true,
-      updatedAt: fb.serverTimestamp()
-    });
-    // Update the cache in place rather than re-rendering — a re-render mid-typing would
-    // blur the field they are still in.
-    var j = (_mjCache[uid] || []).find(function(x){ return x.id === id; });
-    if (j) { j.laName = n ? n.value.trim() : ''; j.laEmail = e ? e.value.trim() : ''; j.laCC = c ? !!c.checked : true; }
-  } catch(err) { console.log('mjSaveLA:', err && err.message); }
+// Count for the summary line, so the section says whether anyone is on it without opening.
+// Count across all three fields, so the collapsed line says whether anyone is on it.
+function _mjCcCount(j) {
+  if (!j) return 0;
+  return _mjAllCc(j).length;
 }
-window.mjSaveLA = mjSaveLA;
+
+function _mjSplit(raw) {
+  return String(raw || '').split(',').map(function(x){ return x.trim(); })
+    .filter(function(x){ return x && x.indexOf('@') !== -1; });
+}
+
+// Everyone, regardless of the on/off toggle — used for the count.
+function _mjAllCc(j) {
+  var out = [];
+  [j.buyerAgentEmail, j.listingAgentEmail || j.laEmail, j.ccList].forEach(function(v){
+    _mjSplit(v).forEach(function(a){ if (out.indexOf(a) === -1) out.push(a); });
+  });
+  return out;
+}
+
+function _mjCcEmails(j) {
+  if (!j || j.laCC === false) return [];
+  return _mjAllCc(j);
+}
+
+// Just the agents. They get the NestTrack intro alongside the update; everyone else does not.
+function _mjAgentCc(j) {
+  if (!j || j.laCC === false) return [];
+  var out = [];
+  [j.buyerAgentEmail, j.listingAgentEmail || j.laEmail].forEach(function(v){
+    _mjSplit(v).forEach(function(a){ if (out.indexOf(a) === -1) out.push(a); });
+  });
+  return out;
+}
+
+async function mjSaveCc(uid, id) {
+  var ba = document.getElementById('mj-ba-' + id);
+  var la = document.getElementById('mj-la-' + id);
+  var f  = document.getElementById('mj-cc-' + id);
+  var c  = document.getElementById('mj-cc-on-' + id);
+  var patch = {
+    buyerAgentEmail:   ba ? ba.value.trim() : '',
+    listingAgentEmail: la ? la.value.trim() : '',
+    ccList:            f  ? f.value.trim()  : '',
+    laCC:              c  ? !!c.checked : true,
+    updatedAt: fb.serverTimestamp()
+  };
+  try {
+    await fb.updateDoc(_mjDoc(uid, id), patch);
+    // Cache updated in place: re-rendering would collapse the section mid-edit.
+    var j = (_mjCache[uid] || []).find(function(x){ return x.id === id; });
+    if (j) Object.assign(j, patch);
+  } catch(err) { console.log('mjSaveCc:', err && err.message); }
+}
+window.mjSaveCc = mjSaveCc;
 
 async function mjRemove(uid, id) {
   if (!confirm('Remove this mortgage journey? Their Mortgage Trail will stop showing it.')) return;
