@@ -9479,6 +9479,7 @@ async function showApp() {
   if (floatBtnInit) floatBtnInit.style.display = 'none';   // header has '+ Add manually' now
   // Load data
   if (!isAgent) {
+    await loadMyMortgageJourneys();
     await loadProperties();
     await loadTours();
     loadClientListings();   // reveals the New Listings tab only if any exist
@@ -13943,8 +13944,17 @@ function renderHome() {
   if (chatLabel) chatLabel.textContent = 'Chat with ' + agentFirst;
 
   var jType = (userProfile && userProfile.journeyType) || 'buyer';
-  var mortStep = (userProfile && userProfile.currentMortgageStep) || 0;
-  var mortDates = userProfile && userProfile.mortgageContractDates;
+  // Read from the client's own mortgage journeys. _myMortgageJourneys is populated on boot;
+  // falls back to the legacy field so a client whose lender has not touched their loan
+  // since the change still sees their trail.
+  var _myMJ = (typeof _myMortgageJourneys !== 'undefined' && _myMortgageJourneys) || [];
+  var _liveMJ = _myMJ.filter(function(j){ return (Number(j.step)||0) > 0; });
+  // Furthest along wins when there are several — an investor's active purchase is the one
+  // they are thinking about, not a pre-approval they opened months ago.
+  _liveMJ.sort(function(a,b){ return (Number(b.step)||0) - (Number(a.step)||0); });
+  var _topMJ = _liveMJ[0] || null;
+  var mortStep = _topMJ ? (Number(_topMJ.step)||0) : ((userProfile && userProfile.currentMortgageStep) || 0);
+  var mortDates = _topMJ ? (_topMJ.dates || null) : (userProfile && userProfile.mortgageContractDates);
   var mortHasDates = mortDates && Object.keys(mortDates).some(function(k){ return mortDates[k]; });
   var sellStep = (userProfile && userProfile.currentSellerStep) || 0;
   var sellerDates = (userProfile && userProfile.sellerContractDates)
@@ -21439,6 +21449,18 @@ function _mjResolve(text){
     .replace(/\{LENDERLINK\}/g, lk);
 }
 window._mjResolve = _mjResolve;
+// The client's own loans, read from their own record — no agent permissions involved.
+var _myMortgageJourneys = [];
+async function loadMyMortgageJourneys() {
+  _myMortgageJourneys = [];
+  try {
+    if (!currentUser || !currentUser.uid) return;
+    var snap = await fb.getDocs(fb.collection(fb.db, 'users', currentUser.uid, 'mortgageJourneys'));
+    snap.forEach(function(d){ _myMortgageJourneys.push(Object.assign({ id:d.id }, d.data())); });
+  } catch(e) { console.log('loadMyMortgageJourneys:', e && e.message); }
+}
+window.loadMyMortgageJourneys = loadMyMortgageJourneys;
+
 // ── Mortgage journeys ──
 // A loan per property, stored at users/{uid}/mortgageJourneys/{id}. Previously the client
 // record held a single currentMortgageStep, so an investor buying three properties could
@@ -21717,10 +21739,17 @@ function _mjAgentCc(j) {
   return out;
 }
 
-async function mjMarkTold(uid, id, ev) {
+async function mjMarkTold(uid, id, ev, how) {
   if (ev && ev.stopPropagation) ev.stopPropagation();
   try {
     await fb.updateDoc(_mjDoc(uid, id), { lastClientEmailAt: fb.serverTimestamp() });
+    // Same log the step emails write to, so the client's history reads as one thread
+    // rather than emails in one place and calls in another.
+    if (how && typeof logEmailActivity === 'function') {
+      var _j = (_mjCache[uid] || []).find(function(x){ return x.id === id; }) || {};
+      var _where = _j.address ? ' \u2014 ' + _j.address : '';
+      logEmailActivity(uid, (how === 'call' ? 'Called' : 'Texted') + ' about the loan' + _where, 'mortgage-touch');
+    }
     var j = (_mjCache[uid] || []).find(function(x){ return x.id === id; });
     if (j) j.lastClientEmailAt = { seconds: Math.floor(Date.now()/1000) };
     // Both surfaces show this, and either may be on screen.
@@ -26253,7 +26282,8 @@ async function mjLoadPipeline() {
     for (var k = 0; k < js.length; k++) {
       out.push(Object.assign({}, js[k], {
         clientUid: b.uid,
-        clientName: (((b.firstName||'') + ' ' + (b.lastName||'')).trim()) || b.email || 'Client'
+        clientName: (((b.firstName||'') + ' ' + (b.lastName||'')).trim()) || b.email || 'Client',
+        clientPhone: b.phone || ''
       }));
     }
   }
@@ -26327,6 +26357,21 @@ function _mjDaysSince(ts) {
   } catch(e) { return null; }
 }
 
+// Call and text open the phone's own apps, so the lender does the thing and the log happens
+// as a side effect. 'Mark as updated' covers everything else — a chance meeting, a voicemail,
+// a conversation at the closing table.
+function _mjTouchBar(j) {
+  var ph = String(j.clientPhone || '').replace(/[^0-9]/g, '');
+  var btn = 'background:none;border:none;padding:0;font-size:11px;color:#185FA5;text-decoration:underline;cursor:pointer;font-family:inherit;';
+  var out = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;">';
+  if (ph) {
+    out += '<a href="tel:' + ph + '" onclick="mjMarkTold(\'' + j.clientUid + '\',\'' + j.id + '\',event,\'call\')" style="' + btn + '">\uD83D\uDCDE Call</a>';
+    out += '<a href="sms:' + ph + '" onclick="mjMarkTold(\'' + j.clientUid + '\',\'' + j.id + '\',event,\'text\')" style="' + btn + '">\uD83D\uDCAC Text</a>';
+  }
+  out += '<button onclick="mjMarkTold(\'' + j.clientUid + '\',\'' + j.id + '\',event)" style="' + btn + '">Mark as updated</button>';
+  return out + '</div>';
+}
+
 function _mjPipelineCard(j) {
   var stage = mjStage(j.step);
   var tint  = stage === 'closed' ? 'var(--text3)' : (stage === 'active' ? '#0F7A52' : '#185FA5');
@@ -26377,9 +26422,7 @@ function _mjPipelineCard(j) {
     + '<div style="font-size:12px;color:var(--text2);margin-top:2px;">\uD83C\uDFE6 ' + partnerEsc(addr) + '</div>'
     + '<div style="font-size:13px;font-weight:600;color:' + tint + ';margin-top:6px;">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
     + (meta ? '<div style="font-size:11px;margin-top:5px;line-height:1.5;">' + meta + '</div>' : '')
-    + (stage !== 'closed'
-        ? '<button onclick="mjMarkTold(\'' + j.clientUid + '\',\'' + j.id + '\',event)" style="margin-top:7px;background:none;border:none;padding:0;font-size:11px;color:#185FA5;text-decoration:underline;cursor:pointer;font-family:inherit;">I updated them another way</button>'
-        : '')
+    + (stage !== 'closed' ? _mjTouchBar(j) : '')
   + '</div>';
 }
 
