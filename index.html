@@ -14788,8 +14788,8 @@ async function loadBuyersForAgent() {
     if (isOwner() && _adminShowAll) {
       // Admin "show all" mode — every buyer on the platform
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'));
-    } else if (isLender && !isAgent) {
-      // Pure lender — see only their assigned clients
+    } else if (userProfile.role === 'lender') {
+      // A lender's clients are linked by lenderId, not agentId.
       var lid = userProfile.lenderId || _teamDefaultLender();
       q = fb.query(fb.collection(fb.db, 'users'), fb.where('role', '==', 'buyer'), fb.where('lenderId', '==', lid));
     } else {
@@ -35788,7 +35788,7 @@ function openAddContactModal() {
   if (crmSel) crmSel.value = 'pipeline';
   // Default journey type — mortgage for lender-only logins
   var journeySel = document.getElementById('inv-journey');
-  if (journeySel) journeySel.value = (isLender && !isAgent) ? 'mortgage' : 'buyer';
+  if (journeySel) journeySel.value = (userProfile.role === 'lender') ? 'mortgage' : 'buyer';
   var inviteAgents = isTeamLeader() ? _myTeamAgents() : DEFAULT_AGENTS.filter(function(a){ return a.id === userProfile.agentId; });
   // Lead routing block: only for a leader/owner who has team members
   var _lsb = document.getElementById('lead-send-block');
