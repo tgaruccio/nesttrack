@@ -4348,7 +4348,12 @@ async function loadTeamLenders() {
     var myTeam = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
     // Always scope to MY team's lenders — even for the owner. Seeing every team's
     // lenders in the assignment dropdown is wrong (and surfaced cross-team records).
-    var snap = await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
+    // Platform owner sees every lender, including everyone who signed up on their own.
+    // Everyone else stays scoped to their team, so the assignment dropdown is unchanged.
+    var _lendersAll = (typeof isPlatformOwner==='function' && isPlatformOwner());
+    var snap = _lendersAll
+      ? await fb.getDocs(fb.collection(fb.db, 'team_lenders'))
+      : await fb.getDocs(fb.query(fb.collection(fb.db, 'team_lenders'), fb.where('teamId','==', myTeam)));
     snap.forEach(function(doc) {
       var l = doc.data();
       var idx = DEFAULT_LENDERS.findIndex(function(x){ return x.id === l.id; });
@@ -5027,6 +5032,16 @@ async function loadUserProfile() {
       const lg = _matchBelongsToMe ? _emailLender : null;
       if (lg) { isLender = true; userProfile.lenderId = lg.id; }
       else if (userProfile.role === 'lender') { isLender = true; }
+      // The app reads agentId almost everywhere as "which tenant is this". A lender
+      // without one throws in five separate loaders and the dashboard never finishes.
+      // role stays 'lender', which is what every permission check actually reads.
+      if (isLender && !userProfile.agentId && userProfile.lenderId) {
+        userProfile.agentId = userProfile.lenderId;
+        if (!userProfile.teamId) userProfile.teamId = userProfile.lenderId;
+        try { await fb.updateDoc(fb.doc(fb.db,'users',currentUser.uid), {
+          agentId: userProfile.agentId, teamId: userProfile.teamId
+        }); } catch(e) { console.log('lender agentId self-heal:', e && e.message); }
+      }
       // Find assigned agent
       assignedAgent = DEFAULT_AGENTS.find(a => a.id === userProfile.agentId) || normalizeAgent(null);
       // Find assigned lender — null if none (no fallback to Tom). No lender = no mortgage trail.
@@ -9701,7 +9716,7 @@ async function loadProperties() {
     const snap = await fb.getDocs(q);
     props = [];
     snap.forEach(d => props.push({ id: d.id, ...d.data() }));
-    document.getElementById('sc-saved').textContent = props.length;
+    var _bsaved = document.getElementById('sc-saved'); if (_bsaved) _bsaved.textContent = props.length;
   } catch (e) { console.error('loadProperties', e); }
 }
 
@@ -9711,7 +9726,7 @@ async function loadTours() {
     const snap = await fb.getDocs(q);
     tours = [];
     snap.forEach(d => tours.push({ id: d.id, ...d.data() }));
-    document.getElementById('sc-tour').textContent = tours.length;
+    var _btour = document.getElementById('sc-tour'); if (_btour) _btour.textContent = tours.length;
   } catch (e) { console.error('loadTours', e); }
 }
 
@@ -11813,7 +11828,7 @@ async function deleteSavedHome(id) {
   try {
     await fb.deleteDoc(fb.doc(fb.db, 'users', currentUser.uid, 'properties', id));
     props = props.filter(function(x){ return x.id !== id; });
-    document.getElementById('sc-saved').textContent = props.length || '';
+    var _bsaved = document.getElementById('sc-saved'); if (_bsaved) _bsaved.textContent = props.length || '';
     renderSaved();
     buildMortgageDropdown();
   } catch(e) { alert('Failed to delete: ' + e.message); }
@@ -14305,7 +14320,7 @@ async function startTour() {
   try {
     const ref = await fb.addDoc(fb.collection(fb.db, 'users', currentUser.uid, 'tours'), t);
     t.id = ref.id; tours.push(t);
-    document.getElementById('sc-tour').textContent = tours.length;
+    var _btour = document.getElementById('sc-tour'); if (_btour) _btour.textContent = tours.length;
     closeM('tour-modal'); renderTours(); openTourDetail(t.id);
   } catch(e) { alert('Failed: ' + e.message); }
 }
@@ -14383,7 +14398,7 @@ async function deleteTour(id) {
   try {
     await fb.deleteDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id));
     tours = tours.filter(function(x){ return x.id !== id; });
-    document.getElementById('sc-tour').textContent = tours.length || '';
+    var _btour = document.getElementById('sc-tour'); if (_btour) _btour.textContent = tours.length || '';
     renderTours();
   } catch(e) { alert('Failed to delete: ' + e.message); }
 }
@@ -14398,7 +14413,7 @@ async function saveTourAsProp(id) {
     props.push({ id: ref.id, ...data });
     await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id), { saved: true });
     t.saved = true;
-    document.getElementById('sc-saved').textContent = props.length;
+    var _bsaved = document.getElementById('sc-saved'); if (_bsaved) _bsaved.textContent = props.length;
     renderTours();
   } catch(e){ alert('Failed: '+e.message); }
 }
@@ -14494,7 +14509,7 @@ async function deleteTourFromDetail(id) {
   try {
     await fb.deleteDoc(fb.doc(fb.db, 'users', currentUser.uid, 'tours', id));
     tours = tours.filter(function(x){ return x.id !== id; });
-    document.getElementById('sc-tour').textContent = tours.length || '';
+    var _btour = document.getElementById('sc-tour'); if (_btour) _btour.textContent = tours.length || '';
     closeM('tour-detail-modal');
     renderTours();
   } catch(e) { alert('Failed: ' + e.message); }
@@ -15256,7 +15271,8 @@ async function renderOwnerAdmin(){
   if(loaded){ agents.forEach(function(a){ var u=_ownerUsage[a.id]; if(u&&u.lastMs&&(now-u.lastMs)<WEEK) activeWeek++; }); }
   var statStrip='<div class="apx-stats">'
     +_adminStat(totalAgents,'Agents')+_adminStat(teamCount,teamCount===1?'Team':'Teams')
-    +_adminStat(loaded?activeWeek:'\u2014','Active 7d')+_adminStat(totalAgents,'Seats')+'</div>';
+    +_adminStat(loaded?activeWeek:'\u2014','Active 7d')
+    +_adminStat((typeof DEFAULT_LENDERS!=='undefined' && DEFAULT_LENDERS) ? DEFAULT_LENDERS.length : 0,'Lenders')+'</div>';
 
   function tb(id,label){ var on=tab===id; return '<button onclick="adminTab(\''+id+'\')" class="apx-tab '+(on?'on':'off')+'">'+label+'</button>'; }
   var tabs='<div class="apx-tabs">'+tb('people','People')+tb('billing','Billing')+tb('finance','Finance')+tb('help','Help')+'</div>';
@@ -15264,6 +15280,33 @@ async function renderOwnerAdmin(){
   var yourTeam='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:6px 0 6px;">Your Team</div>'
     +'<div style="display:flex;flex-direction:column;gap:6px;">'+(self?_adminRowHtml(self,false):'')+myMembers.map(function(a){return _adminRowHtml(a,true);}).join('')+'</div>'
     +'<button class="btn btn-sm" style="margin:8px 0 4px;font-size:11px;" onclick="adminAddMemberTo(\''+myId+'\')">\u2795 Add member to your team</button>';
+
+  var lenders = (typeof DEFAULT_LENDERS!=='undefined' && DEFAULT_LENDERS) ? DEFAULT_LENDERS.slice() : [];
+  // Newest first — the useful order when you are checking who signed up.
+  lenders.sort(function(a,b){ return String(b.addedAt||'').localeCompare(String(a.addedAt||'')); });
+  var lendersHtml='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:16px 0 6px;border-top:1px solid var(--border);padding-top:14px;">Lenders ('+lenders.length+')</div>';
+  if(!lenders.length){ lendersHtml+='<div style="font-size:12px;color:var(--text3);padding:4px 2px;">No lenders yet.</div>'; }
+  else {
+    lendersHtml += '<div style="display:flex;flex-direction:column;gap:6px;">' + lenders.map(function(L){
+      var contact = partnerEsc(L.email||'') + (L.phone ? (' \u00b7 ' + partnerEsc(L.phone)) : '');
+      var when = '';
+      try { if (L.addedAt) when = new Date(L.addedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch(e){}
+      // Self-serve is the flag worth surfacing: an invited lender is already known to
+      // whoever invited them; one who found the sales page on their own is not.
+      var badge = L.selfServe
+        ? '<span style="font-size:10px;font-weight:600;background:var(--green-lt);color:var(--green-dk);padding:2px 7px;border-radius:9px;">signed up</span>'
+        : '<span style="font-size:10px;font-weight:600;background:var(--surface2);color:var(--text3);padding:2px 7px;border-radius:9px;">invited</span>';
+      return '<div class="admin-node" data-search="'+partnerEsc(String((L.name||'')+' '+(L.email||'')+' lender').toLowerCase())+'" style="display:flex;align-items:center;gap:8px;background:var(--surface2);padding:10px 12px;border-radius:8px;">'
+        + '<span style="font-size:13px;flex-shrink:0;">\uD83C\uDFE6</span>'
+        + '<div style="flex:1;min-width:0;">'
+          + '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;"><span style="font-weight:600;font-size:13px;">'+partnerEsc(L.name||L.id)+'</span> '+badge+'</div>'
+          + (contact ? '<div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+contact+'</div>' : '')
+          + (L.company ? '<div style="font-size:11px;color:var(--text3);">'+partnerEsc(L.company)+'</div>' : '')
+        + '</div>'
+        + (when ? '<span style="font-size:10.5px;color:var(--text3);flex-shrink:0;">'+when+'</span>' : '')
+      + '</div>';
+    }).join('') + '</div>';
+  }
 
   var leadersHtml='<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:16px 0 6px;border-top:1px solid var(--border);padding-top:14px;">Team Leaders ('+leaders.length+')</div>';
   if(!leaders.length){ leadersHtml+='<div style="font-size:12px;color:var(--text3);padding:4px 2px;">No team leaders yet. Use \u201CInvite Team Leader\u201D above.</div>'; }
@@ -15297,7 +15340,7 @@ async function renderOwnerAdmin(){
     +'</div>'
     +'<button class="apx-btn apx-btn-ghost" id="owner-usage-btn" style="width:100%;margin-top:8px;" onclick="ownerLoadUsage()">\uD83D\uDCCA '+(loaded?'Refresh usage':'Load usage')+'</button>'
     +'<input id="admin-search" placeholder="\uD83D\uDD0D Search people\u2026" oninput="adminFilter(this.value)" style="width:100%;box-sizing:border-box;font-size:13.5px;padding:12px 14px;border:1.5px solid #e6e9ef;border-radius:12px;font-family:inherit;margin-top:10px;background:#fbfcfe;outline:none;"/>'
-    +'<div id="admin-tree" style="margin-top:12px;">'+yourTeam+leadersHtml+'</div>'
+    +'<div id="admin-tree" style="margin-top:12px;">'+yourTeam+leadersHtml+lendersHtml+'</div>'
   +'</div>';
 
   var billingTab='<div id="admintab-billing" style="display:'+(tab==='billing'?'block':'none')+';padding-top:14px;">'
