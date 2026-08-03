@@ -12180,8 +12180,11 @@ async function loadAgentPartners(agentId) {
       }
       if (isLeaderView) _hiddenPartnerIds = teamSnap.data().hidden || [];
     } else if (canWrite && isLeaderView) {
-      // First load for this team's leader. Seed ONLY Tom's team from the legacy defaults; new teams start empty.
-      _teamPartners = (teamId==='tom' || (typeof isOwner==='function' && isOwner()))
+      // First load for this team's leader. The legacy defaults belong to one team only:
+      // isOwner() means teamRole == 'owner', which every self-serve signup has, so using it
+      // here seeded another tenant's referral list onto every new team. New teams start empty.
+      var _seedLegacy = (teamId === 'tom') && (typeof isPlatformOwner==='function' && isPlatformOwner());
+      _teamPartners = _seedLegacy
         ? DEFAULT_PARTNERS.map(function(p,i){ return Object.assign({},p,{id:'tp'+i}); })
         : [];
       try { await fb.setDoc(fb.doc(fb.db,'agent_partners',teamId),{partners:_teamPartners, hidden:[], _v2:true}); } catch(e){}
