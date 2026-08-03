@@ -29033,6 +29033,53 @@ function srStorePDFAttachment(event) {
 }
 window.srStorePDFAttachment = srStorePDFAttachment;
 
+// Returns each figure either as a number or as the words 'not provided', so the model can
+// tell a quiet week from an unfilled form. Portal views and reverse prospecting are never
+// genuinely zero on a live listing — a zero there is a blank field.
+function srToggleManualOffers() {
+  var on = (document.getElementById('sr-manual-offers-on') || {}).checked;
+  var f = document.getElementById('sr-manual-offers');
+  if (f) f.style.display = on ? '' : 'none';
+  _srCurrent.manualOfferCount = on ? (Number(f && f.value) || 1) : 0;
+}
+window.srToggleManualOffers = srToggleManualOffers;
+
+function srSaveManualOffers() {
+  var f = document.getElementById('sr-manual-offers');
+  var on = (document.getElementById('sr-manual-offers-on') || {}).checked;
+  _srCurrent.manualOfferCount = on ? Math.max(1, Number(f && f.value) || 1) : 0;
+}
+window.srSaveManualOffers = srSaveManualOffers;
+
+function _srProvidedValues() {
+  var oa = _srCurrent.onlineActivity || {};
+  var totalViews = 0, anyEntered = false;
+  ['zillow','realtor','redfin','homes','social'].forEach(function(k){
+    var n = Number(oa[k] && oa[k].views) || 0;
+    if (n > 0) anyEntered = true;
+    totalViews += n;
+  });
+  var rp = Number(_srCurrent.reverseProspecting) || 0;
+  return {
+    views: anyEntered ? String(totalViews) : 'not provided',
+    rp:    rp > 0 ? String(rp) : 'not provided'
+  };
+}
+window._srProvidedValues = _srProvidedValues;
+
+// Which fields the agent left blank. Naming them beats a general warning — an agent skims
+// 'check your entries' and acts on 'Zillow views and reverse prospecting are blank'.
+function _srBlankFields() {
+  var out = [];
+  var oa = _srCurrent.onlineActivity || {};
+  var portals = [['zillow','Zillow'],['realtor','Realtor.com'],['redfin','Redfin'],['homes','Homes.com']];
+  var anyPortal = portals.some(function(p){ return Number(oa[p[0]] && oa[p[0]].views) > 0; });
+  if (!anyPortal) out.push('online views');
+  if (!(Number(_srCurrent.reverseProspecting) > 0)) out.push('reverse prospecting');
+  return out;
+}
+window._srBlankFields = _srBlankFields;
+
 async function srGenerateFeedbackSummary() {
   if (!_srCurrent.pdfAttachBase64) { alert('Attach your ShowingTime PDF above first.'); return; }
   if (typeof pdfjsLib === 'undefined') { alert('PDF reader is still loading — try again in a moment.'); return; }
@@ -29073,16 +29120,25 @@ async function srGenerateFeedbackSummary() {
                    : dg.status === 'watching' ? 'worth watching but not acting on yet'
                    : 'no change is warranted right now';
 
-    var prompt = 'You are an experienced listing agent writing the factual sections of a weekly seller report from a ShowingTime Listing Activity Report.\n\n'
+    // A live listing does not get zero views on Zillow in a week, and reverse prospecting is
+    // never truly zero — so a blank there means the agent skipped the field, not that nothing
+    // happened. Showings and offers are different: zero is real, and worth saying plainly.
+    var _v = _srProvidedValues();
+    var prompt = 'You are an experienced listing agent writing the factual sections of a weekly seller report.\n\n'
       + (addr ? ('PROPERTY: ' + addr + '\n') : '')
       + (price ? ('LIST PRICE: ' + price + '\n') : '')
-      + 'THIS WEEK: ' + dg.showings + ' showings, ' + dg.views + ' online views, ' + dg.offers + ' offers'
-      + (dg.dom!==null ? (', ' + dg.dom + ' days on market') : '') + '\n'
+      + 'THIS WEEK:\n'
+      + '  Showings: ' + dg.showings + '\n'
+      + '  Offers: ' + Math.max(dg.offers, Number(_srCurrent.manualOfferCount)||0) + '\n'
+      + '  Online views: ' + _v.views + '\n'
+      + '  Reverse prospecting matches: ' + _v.rp + '\n'
+      + (dg.dom!==null ? ('  Days on market: ' + dg.dom + '\n') : '')
       + (dg.prevViews!==null ? ('LAST WEEK: ' + dg.prevViews + ' online views, ' + dg.prevShowings + ' showings\n') : 'No prior report \u2014 first week.\n')
       + 'SIGNALS DETECTED: ' + dg.signals.join('; ') + '\n'
       + 'THE AGENT\'S POSITION THIS WEEK: ' + stanceWord + '. Everything you write must be consistent with that.\n'
       + (comps ? ('COMPARABLES:\n' + comps + '\n') : '')
       + '\nREPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
+      + 'Where a figure reads "not provided", the agent did not record it. Do not treat it as zero, do not mention it, and do not describe the week as quiet on the strength of a missing number. Showings and offers are always recorded, so zero there is real and can be stated plainly.\n\n'
       + 'CRITICAL: you are not advising anyone. Do not recommend, suggest, urge or hint at any action \u2014 '
       + 'no price changes, no staging, no strategy. The agent decides that, not you. Report what happened '
       + 'and what buyers said. If feedback mentions price, report it as what that agent said, never as a conclusion.\n\n'
@@ -29402,7 +29458,41 @@ function srAddCompRow(type) {
 window.srAddCompRow = srAddCompRow;
 
 function srTabMessage() {
-  var html = '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
+  var html = '';
+
+  // Offers are attached from Offer Manager, which many agents will not be using yet. Without
+  // this they would have no idea offers are part of the report until the email had gone out.
+  var _mgrOffers = (_srCurrent.offers || []).length;
+  var _manual = Number(_srCurrent.manualOfferCount) || 0;
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;margin-bottom:14px;">'
+    + '<div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:7px;">Offers this week</div>'
+    + (_mgrOffers
+        ? '<div style="font-size:13px;">' + _mgrOffers + ' offer' + (_mgrOffers===1?'':'s') + ' from Offer Manager \u2014 included with full detail.</div>'
+        : '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Nothing attached from Offer Manager.'
+          + '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+            + '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;">'
+              + '<input type="checkbox" id="sr-manual-offers-on"' + (_manual > 0 ? ' checked' : '') + ' onchange="srToggleManualOffers()"> We received offers this week'
+            + '</label>'
+            + '<input type="number" min="1" id="sr-manual-offers" value="' + (_manual || 1) + '" onchange="srSaveManualOffers()" style="width:64px;font-size:13px;' + (_manual > 0 ? '' : 'display:none;') + '">'
+          + '</div>'
+          + '<div style="font-size:11px;color:var(--text3);margin-top:7px;line-height:1.5;">Working offers through Offer Manager puts the terms in the report automatically.</div>'
+        + '</div>')
+  + '</div>';
+
+  // Names the specific fields rather than stating a rule. An agent skims 'check your entries'
+  // and acts on 'Zillow views and reverse prospecting are blank'.
+  var _blank = (typeof _srBlankFields === 'function') ? _srBlankFields() : [];
+  if (_blank.length) {
+    var list = _blank.length === 1 ? _blank[0]
+             : _blank.slice(0, -1).join(', ') + ' and ' + _blank[_blank.length - 1];
+    html += '<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--r);padding:11px 13px;margin-bottom:14px;">'
+      + '<div style="font-size:12.5px;color:#92400E;line-height:1.6;">'
+        + 'You have not filled in <strong>' + partnerEsc(list) + '</strong>. '
+        + 'These are left out of the report rather than shown as zero \u2014 go back if you meant to include them.'
+      + '</div></div>';
+  }
+
+  html += '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
 
   html += '<div style="margin-bottom:14px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Email Subject</label>'
