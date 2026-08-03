@@ -10712,12 +10712,9 @@ function agentReplyTo() {
 // rostered lender (a single rostered lender becomes the default) or none.
 function _teamDefaultLender(){
   var team = (userProfile && (userProfile.teamId || userProfile.agentId)) || '';
-  if (team === 'tom') return 'tom';
   var teamLs = (typeof DEFAULT_LENDERS!=='undefined' ? DEFAULT_LENDERS : []).filter(function(l){ return l.teamId === team; });
   var def = teamLs.find(function(l){ return l.isDefault; });
-  if (def) return def.id;
-  if (teamLs.length === 1) return teamLs[0].id;
-  return '';
+  return def ? def.id : '';
 }
 window._teamDefaultLender = _teamDefaultLender;
 function agentPreApproval(rec){
@@ -26292,24 +26289,56 @@ var _mjSearch = '';
 // Journeys live under each client, so this walks the clients a lender already has loaded
 // rather than a collectionGroup query — no new index, and the client list is already in memory.
 async function mjLoadPipeline() {
-  var out = [];
-  var list = (allBuyers || []);
-  for (var i = 0; i < list.length; i++) {
-    var b = list[i];
-    if (!b || !b.uid) continue;
-    var js = [];
-    // Read only. Migration happens when a client card opens, not during a list scan.
-    try { js = await mjLoadForClient(b.uid); } catch(e) { continue; }
-    for (var k = 0; k < js.length; k++) {
-      out.push(Object.assign({}, js[k], {
-        clientUid: b.uid,
+  var mine = (userProfile && (userProfile.lenderId || userProfile.agentId)) || '';
+  if (!mine) { _mjPipeline = []; return []; }
+
+  function _decorate(rows) {
+    return rows.map(function(r){
+      var b = (allBuyers || []).find(function(x){ return x && x.uid === r.clientUid; }) || {};
+      return Object.assign({}, r, {
         clientName: (((b.firstName||'') + ' ' + (b.lastName||'')).trim()) || b.email || 'Client',
         clientPhone: b.phone || ''
-      }));
-    }
+      });
+    });
   }
-  _mjPipeline = out;
-  return out;
+
+  // One query, whatever the client count.
+  try {
+    var snap = await fb.getDocs(fb.query(
+      fb.collectionGroup(fb.db, 'mortgageJourneys'),
+      fb.where('lenderId', '==', mine)
+    ));
+    var rows = [];
+    snap.forEach(function(d){
+      // The client id is the grandparent of the journey doc.
+      var uid = '';
+      try { uid = d.ref.parent.parent.id; } catch(e){}
+      rows.push(Object.assign({ id: d.id, clientUid: uid }, d.data()));
+    });
+    _mjPipeline = _decorate(rows);
+    return _mjPipeline;
+  } catch(e) {
+    console.log('loan pipeline group query unavailable, falling back:', e && e.message);
+  }
+
+  // Fallback: read each client. Correct but slow, so it exists only to cover the window
+  // between deploying this and the index finishing its build.
+  var list = (allBuyers || []).filter(function(b){ return b && b.uid; });
+  var out = [];
+  var BATCH = 25;
+  for (var start = 0; start < list.length; start += BATCH) {
+    var slice = list.slice(start, start + BATCH);
+    var results = await Promise.all(slice.map(function(b){
+      return mjLoadForClient(b.uid).catch(function(){ return []; });
+    }));
+    results.forEach(function(js, n){
+      (js || []).forEach(function(row){ out.push(Object.assign({}, row, { clientUid: slice[n].uid })); });
+    });
+    _mjPipeline = _decorate(out);
+    if (start + BATCH < list.length) { try { filterLoans(_mjFilter); } catch(e){} }
+  }
+  _mjPipeline = _decorate(out);
+  return _mjPipeline;
 }
 window.mjLoadPipeline = mjLoadPipeline;
 
