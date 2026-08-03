@@ -12159,28 +12159,6 @@ function _rebuildAgentPartners(){
   (_personalPartners||[]).forEach(function(p){ out.push(Object.assign({},p,{_src:'personal'})); });
   agentPartners = out;
 }
-// True only when a team's partner list is exactly the legacy seed, untouched. Any edit at
-// all — one added partner, one removed, one phone number corrected — makes this false and
-// the list is left alone. Never true for the platform owner's own team, whose list this is.
-function _partnersAreUntouchedSeed(teamId, partners) {
-  if (!teamId || teamId === 'tom') return false;
-  if (typeof isPlatformOwner === 'function' && isPlatformOwner()) return false;
-  if (typeof DEFAULT_PARTNERS === 'undefined') return false;
-  if (!Array.isArray(partners) || partners.length !== DEFAULT_PARTNERS.length) return false;
-
-  // Compare on the fields a person would change. Order is preserved by the seed, but compare
-  // by content rather than position so a reorder alone does not count as untouched.
-  var sig = function(p){
-    return [p && p.name, p && p.co, p && p.phone, p && p.cat, p && p.note].join('|');
-  };
-  var seeded = DEFAULT_PARTNERS.map(sig).sort();
-  var actual = partners.map(sig).sort();
-  for (var i = 0; i < seeded.length; i++) {
-    if (seeded[i] !== actual[i]) return false;
-  }
-  return true;
-}
-
 async function loadAgentPartners(agentId) {
   agentId = agentId || (userProfile && userProfile.agentId) || '';
   _partnerAgentId = agentId;
@@ -12201,15 +12179,6 @@ async function loadAgentPartners(agentId) {
         if (canWrite && isLeaderView) { try { await fb.setDoc(fb.doc(fb.db,'agent_partners',teamId),{partners:_teamPartners, hidden:(teamSnap.data().hidden||[]), _v2:true}); } catch(e){} }
       }
       if (isLeaderView) _hiddenPartnerIds = teamSnap.data().hidden || [];
-      // Repair for teams seeded with the platform owner's referral list before the seed
-      // guard was fixed. Only clears an untouched seed — see _partnersAreUntouchedSeed.
-      if (canWrite && isLeaderView && _partnersAreUntouchedSeed(teamId, _teamPartners)) {
-        _teamPartners = [];
-        try {
-          await fb.setDoc(fb.doc(fb.db,'agent_partners',teamId), { partners: [], hidden: [], _v2: true, _seedCleared: true });
-          console.log('cleared a legacy partner seed that was not this team\u2019s');
-        } catch(e) { console.log('seed clear:', e && e.message); }
-      }
     } else if (canWrite && isLeaderView) {
       // First load for this team's leader. The legacy defaults belong to one team only:
       // isOwner() means teamRole == 'owner', which every self-serve signup has, so using it
