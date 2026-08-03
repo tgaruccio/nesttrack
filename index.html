@@ -29903,6 +29903,87 @@ function srPreviewReport() {
 window.srPreviewReport = srPreviewReport;
 
 var _srSending = false;
+// Long enough that a token cannot be guessed, short enough to paste into a text message.
+async function srSendLinkInChat(clientUid, url, address) {
+  if (!clientUid || !currentUser) throw new Error('no client');
+  var room = 'chat_' + clientUid;
+  var name = (((userProfile && userProfile.firstName) || '') + ' ' + ((userProfile && userProfile.lastName) || '')).trim();
+  var text = 'Here is this week\u2019s update' + (address ? ' for ' + address : '') + ':' + String.fromCharCode(10) + url;
+  await fb.push(fb.ref(fb.rtdb, 'chats/' + room + '/messages'), {
+    text: text,
+    senderId: currentUser.uid,
+    senderName: name,
+    senderRole: (typeof isLender !== 'undefined' && isLender && !isAgent) ? 'lender' : 'agent',
+    ts: Date.now(),
+    role: 'agent'
+  });
+  try { if (typeof _bumpThread === 'function') _bumpThread(clientUid, text, 'agent'); } catch(e){}
+}
+window.srSendLinkInChat = srSendLinkInChat;
+
+// Shown after a send. Offers the link straight away, because the moment an agent is most
+// likely to need it is the moment the seller says they never got the email.
+function srSentDialog(client, token, address) {
+  var url = srReportUrl(token);
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  var card = document.createElement('div');
+  card.style.cssText = 'background:var(--surface);border-radius:14px;padding:22px;max-width:420px;width:100%;box-shadow:0 24px 48px -20px rgba(0,0,0,0.3);';
+  card.innerHTML = '<div style="font-size:16px;font-weight:600;margin-bottom:4px;">Sent to ' + partnerEsc(client.firstName || 'your client') + '</div>'
+    + '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:14px;">Every report now has its own link. Text it, drop it in chat, or keep it for later \u2014 it stays available while the home is on the market.</div>'
+    + '<input id="sr-link-field" readonly value="' + url + '" style="width:100%;font-size:12px;padding:9px 10px;border:1px solid var(--border2);border-radius:var(--r-sm);background:var(--surface2);">'
+    + '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">'
+      + '<button class="btn btn-sm btn-g" id="sr-copy-btn" style="flex:1;">Copy link</button>'
+      + (client.uid ? '<button class="btn btn-sm" id="sr-chat-btn" style="flex:1;">Send in chat</button>' : '')
+      + '<button class="btn btn-sm" id="sr-done-btn">Done</button>'
+    + '</div>';
+  ov.appendChild(card); document.body.appendChild(ov);
+
+  var close = function(){ try { ov.remove(); } catch(e){} };
+  ov.addEventListener('mousedown', function(e){ if (e.target === ov) close(); });
+  card.querySelector('#sr-done-btn').onclick = close;
+
+  card.querySelector('#sr-copy-btn').onclick = function(){
+    var f = document.getElementById('sr-link-field');
+    try {
+      f.select(); f.setSelectionRange(0, 99999);
+      if (navigator.clipboard) navigator.clipboard.writeText(url); else document.execCommand('copy');
+      this.textContent = '\u2713 Copied';
+    } catch(e) { this.textContent = 'Select and copy'; }
+  };
+
+  var chatBtn = card.querySelector('#sr-chat-btn');
+  if (chatBtn) chatBtn.onclick = async function(){
+    this.disabled = true; this.textContent = 'Sending\u2026';
+    try {
+      // Chat is somewhere the seller already looks, and it cannot land in spam.
+      await srSendLinkInChat(client.uid, url, address);
+      this.textContent = '\u2713 Sent in chat';
+    } catch(e) { this.disabled = false; this.textContent = 'Send in chat'; }
+  };
+}
+window.srSentDialog = srSentDialog;
+
+function _srMakeToken() {
+  var a = 'abcdefghijkmnpqrstuvwxyz23456789';   // no l/o/0/1 — these get read aloud and retyped
+  var out = '';
+  try {
+    var buf = new Uint8Array(22);
+    crypto.getRandomValues(buf);
+    for (var i = 0; i < buf.length; i++) out += a[buf[i] % a.length];
+    return out;
+  } catch(e) {
+    for (var j = 0; j < 22; j++) out += a[Math.floor(Math.random() * a.length)];
+    return out;
+  }
+}
+window._srMakeToken = _srMakeToken;
+
+function srReportUrl(token) {
+  return PROXY_URL + '/api/v1/seller-report?r=' + encodeURIComponent(token);
+}
+window.srReportUrl = srReportUrl;
+
 async function srSendReport() {
   if (_srSending) return;            // guard: block duplicate / rapid re-clicks
   srSaveCurrentTab();
@@ -29955,6 +30036,12 @@ async function srSendReport() {
         reverseProspecting: _srCurrent.reverseProspecting||0,
         agentId: userProfile.agentId|| '',
         emailHtml: emailHtml,
+        // Public token so the report has a URL. A seller should not need an account to read
+        // their own report — requiring one is how a report goes unread.
+        token: _srMakeToken(),
+        clientUid: client.uid,
+        sentCount: 1,
+        sentDateStr: new Date().toISOString().split('T')[0],
         // Snapshot for next week: draft prefills the builder, stats drive the deltas.
         draft: {
           checkedItems:   _srCurrent.checkedItems   || {},
@@ -29997,7 +30084,7 @@ async function srSendReport() {
       console.error('Seller report email sent, but saving the record failed:', bookErr);
     }
 
-    alert('Report sent to '+client.firstName+'!');
+    srSentDialog(client, reportData.token, l.address || '');
     var ov = document.getElementById('sr-builder-overlay');
     if (ov) ov.remove();
     renderSellerReports();
