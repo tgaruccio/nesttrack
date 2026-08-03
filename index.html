@@ -9446,7 +9446,9 @@ async function showApp() {
   document.getElementById('user-avatar').textContent = initials.toUpperCase() || 'U';
   document.getElementById('user-name').textContent = `${userProfile.firstName||''} ${userProfile.lastName||''}`.trim();
   // Tag first — isAgent is now true for lenders too, so testing it first would label them 'Agent'.
-  document.getElementById('user-role').textContent = isLender ? 'Lender' : (isAgent ? 'Agent' : 'Buyer');
+  document.getElementById('user-role').textContent =
+    (userProfile && userProfile.role === 'agent') ? 'Agent'
+    : (isLender ? 'Lender' : (isAgent ? 'Agent' : 'Buyer'));
   // Show agent backend nav if agent
   var _ats=document.getElementById('agent-tools-section');if(_ats)_ats.style.display=(isAgent||isLender)?'flex':'none';var _anav=document.getElementById('agent-nav');if(_anav)_anav.style.display='';
   // CLIENT VIEW collapse: for agents/lenders, show the toggle header and collapse the client menu by default.
@@ -26296,7 +26298,8 @@ async function mjLoadPipeline() {
     var b = list[i];
     if (!b || !b.uid) continue;
     var js = [];
-    try { js = await mjEnsureForClient(b.uid); } catch(e) { continue; }
+    // Read only. Migration happens when a client card opens, not during a list scan.
+    try { js = await mjLoadForClient(b.uid); } catch(e) { continue; }
     for (var k = 0; k < js.length; k++) {
       out.push(Object.assign({}, js[k], {
         clientUid: b.uid,
@@ -26327,7 +26330,14 @@ async function renderLoanPipeline() {
   html += '<div id="mj-cards-container"><div style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">Loading\u2026</div></div>';
   el.innerHTML = html;
 
-  await mjLoadPipeline();
+  try {
+    await mjLoadPipeline();
+  } catch(e) {
+    var box = document.getElementById('mj-cards-container');
+    if (box) box.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">Could not load loans \u2014 pull to refresh.</div>';
+    console.log('loan pipeline:', e && e.message);
+    return;
+  }
   filterLoans(_mjFilter);
 }
 window.renderLoanPipeline = renderLoanPipeline;
