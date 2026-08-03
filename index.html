@@ -26321,9 +26321,21 @@ async function mjLoadPipeline() {
     console.log('loan pipeline group query unavailable, falling back:', e && e.message);
   }
 
-  // Fallback: read each client. Correct but slow, so it exists only to cover the window
-  // between deploying this and the index finishing its build.
-  var list = (allBuyers || []).filter(function(b){ return b && b.uid; });
+  // Fallback for the window between deploying and the index finishing its build. Capped:
+  // scanning every client takes minutes at scale, and a page that looks broken is worse
+  // than one that says what is wrong.
+  var FALLBACK_MAX = 60;
+  var all = (allBuyers || []).filter(function(b){ return b && b.uid; });
+  if (all.length > FALLBACK_MAX) {
+    var box0 = document.getElementById('mj-cards-container');
+    if (box0) box0.innerHTML = '<div style="text-align:center;padding:26px 20px;color:var(--text3);font-size:13px;line-height:1.6;">'
+      + 'Loan pipeline needs its Firestore index.'
+      + '<div style="font-size:11.5px;margin-top:6px;">Indexes \u2192 Automatic \u2192 add exemption on <b>mortgageJourneys.lenderId</b>, collection group scope, ascending \u2014 plus the matching rule.</div>'
+      + '</div>';
+    _mjPipeline = [];
+    return [];
+  }
+  var list = all;
   var out = [];
   var BATCH = 25;
   for (var start = 0; start < list.length; start += BATCH) {
