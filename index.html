@@ -28596,6 +28596,76 @@ function srOpenBuilder(listingId) {
 }
 window.srOpenBuilder = srOpenBuilder;
 
+// A report takes real work — comps, portal figures, showings, the write-up — and until now it
+// lived only in memory. Closing the tab, a crash, or a deploy lost the lot with nothing to
+// recover. Drafts are kept per listing in localStorage: no network, no permissions, and it
+// survives a reload.
+function _srDraftKey(listingId) { return 'srDraft:' + (listingId || 'unknown'); }
+
+// Saves on the way out. Closing the window is the most likely way to lose a report, and
+// asking 'are you sure' just trains people to click through it.
+function srCloseBuilder() {
+  try { srSaveDraft(true); } catch(e){}
+  var ov = document.getElementById('sr-builder-overlay');
+  if (ov) ov.remove();
+  if (_srAutosave) { clearInterval(_srAutosave); _srAutosave = null; }
+}
+window.srCloseBuilder = srCloseBuilder;
+
+function srSaveDraft(quiet) {
+  if (!_srCurrent || !_srCurrent.listingId) return false;
+  try {
+    srSaveCurrentTab();   // pull whatever is on screen into state first
+    var copy = Object.assign({}, _srCurrent);
+    // The PDF is the one thing too large to keep — a base64 attachment blows the 5MB quota and
+    // would lose the draft entirely rather than just the file.
+    delete copy.pdfAttachBase64;
+    delete copy.listing;
+    copy._savedAt = Date.now();
+    localStorage.setItem(_srDraftKey(_srCurrent.listingId), JSON.stringify(copy));
+    if (!quiet && typeof showToast === 'function') showToast('Draft saved.');
+    _srMarkSaved();
+    return true;
+  } catch(e) {
+    console.log('srSaveDraft:', e && e.message);
+    if (!quiet) alert('Could not save the draft \u2014 your browser storage may be full.');
+    return false;
+  }
+}
+window.srSaveDraft = srSaveDraft;
+
+function srLoadDraft(listingId) {
+  try {
+    var raw = localStorage.getItem(_srDraftKey(listingId));
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+window.srLoadDraft = srLoadDraft;
+
+function srClearDraft(listingId) {
+  try { localStorage.removeItem(_srDraftKey(listingId)); } catch(e){}
+}
+window.srClearDraft = srClearDraft;
+
+function _srMarkSaved() {
+  var el = document.getElementById('sr-draft-status');
+  if (!el) return;
+  var d = new Date();
+  el.textContent = 'Draft saved ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+// Every thirty seconds, and on tab switches. Quiet, because a toast every half minute would
+// be worse than the problem.
+var _srAutosave = null;
+function srStartAutosave() {
+  if (_srAutosave) clearInterval(_srAutosave);
+  _srAutosave = setInterval(function(){
+    if (!document.getElementById('sr-builder-overlay')) { clearInterval(_srAutosave); _srAutosave = null; return; }
+    srSaveDraft(true);
+  }, 30000);
+}
+window.srStartAutosave = srStartAutosave;
+
 function srOpenBuilderWithListing(listingId, l) {
   var showings = srMatchShowings(l.address||'');
   _srCurrent = {
@@ -28650,6 +28720,22 @@ function srOpenBuilderWithListing(listingId, l) {
   _srCurrent.onlineActivity.homes.url = savedLinks.homes||'';
   _srCurrent.onlineActivity.social.url = savedLinks.social||'';
 
+  // A draft from a previous session beats starting over. Offered rather than applied
+  // silently — an agent may genuinely want a fresh report for this week.
+  var _draft = srLoadDraft(listingId);
+  if (_draft && _draft._savedAt) {
+    var _mins = Math.round((Date.now() - _draft._savedAt) / 60000);
+    var _when = _mins < 60 ? (_mins < 1 ? 'just now' : _mins + ' minutes ago')
+              : (_mins < 1440 ? Math.round(_mins/60) + ' hours ago' : Math.round(_mins/1440) + ' days ago');
+    if (confirm('You have an unsent draft for this listing from ' + _when + '.\n\nPick up where you left off?')) {
+      var _listing = _srCurrent.listing;
+      _srCurrent = Object.assign({}, _srCurrent, _draft);
+      _srCurrent.listing = _listing;   // always the live record, never the stored copy
+    } else {
+      srClearDraft(listingId);
+    }
+  }
+
   var overlay = document.createElement('div');
   overlay.id = 'sr-builder-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9000;display:flex;flex-direction:column;overflow:hidden;';
@@ -28659,7 +28745,11 @@ function srOpenBuilderWithListing(listingId, l) {
     + '<div style="font-size:15px;font-weight:600;">📊 Create Report</div>'
     + '<div style="font-size:11px;color:var(--text3);">' + partnerEsc(l.address||'') + '</div>'
     + '</div>'
-    + '<button onclick="document.getElementById(\'sr-builder-overlay\').remove()" style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;">✕ Close</button>'
+    + '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<span id="sr-draft-status" style="font-size:11px;color:var(--text3);"></span>'
+      + '<button onclick="srSaveDraft()" style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;">Save draft</button>'
+      + '<button onclick="srCloseBuilder()" style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer;">✕ Close</button>'
+    + '</div>'
     + '</div>'
     // Tab bar
     + '<div style="display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;" id="sr-tab-bar">'
@@ -28682,6 +28772,7 @@ function srOpenBuilderWithListing(listingId, l) {
 
   document.body.appendChild(overlay);
   srSwitchTab('showings');
+  srStartAutosave();
   srPrefillFromLastReport(listingId, l);
 }
 window.srOpenBuilderWithListing = srOpenBuilderWithListing;
@@ -28760,6 +28851,7 @@ function _srRerender(tab) {
 window._srRerender = _srRerender;
 
 function srSwitchTab(tab) {
+  try { srSaveDraft(true); } catch(e){}   // moving between tabs is a natural save point
   var tabs = ['showings','online','activity','nextweek','comps','message'];
   tabs.forEach(function(t) {
     var btn = document.getElementById('sr-tab-btn-'+t);
@@ -30192,6 +30284,7 @@ async function srSendReport() {
       console.error('Seller report email sent, but saving the record failed:', bookErr);
     }
 
+    srClearDraft(_srCurrent.listingId);   // sent — the draft has served its purpose
     srSentDialog(client, reportData.token, l.address || '');
     var ov = document.getElementById('sr-builder-overlay');
     if (ov) ov.remove();
