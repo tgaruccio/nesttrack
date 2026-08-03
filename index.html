@@ -28825,12 +28825,6 @@ function srSaveCurrentTab() {
     if (rpEl) _srCurrent.reverseProspecting = parseInt(rpEl.value)||0;
     var fbEl = document.getElementById('sr-feedback-notes');
     if (fbEl) _srCurrent.feedbackNotes = fbEl.value;
-    var fsEl = document.getElementById('sr-feedback-summary');
-    if (fsEl) _srCurrent.feedbackSummary = fsEl.value;
-    var vm = document.getElementById('sr-verdict-meaning');
-    var vc = document.getElementById('sr-verdict-consider');
-    if (vm) _srCurrent.verdictMeaning  = vm.value;
-    if (vc) _srCurrent.verdictConsider = vc.value;
   } else if (tab==='online') {
     ['zillow','realtor','redfin','homes','social'].forEach(function(p) {
       var v = document.getElementById('sr-'+p+'-views');
@@ -28893,6 +28887,14 @@ function srSaveCurrentTab() {
       };
     }).filter(function(r){ return r.address; });
   } else if (tab==='message') {
+    // Moved here with the sections themselves. Read defensively, so a tab that does not
+    // have these fields simply skips them.
+    var fsEl = document.getElementById('sr-feedback-summary');
+    if (fsEl) _srCurrent.feedbackSummary = fsEl.value;
+    var vm = document.getElementById('sr-verdict-meaning');
+    var vc = document.getElementById('sr-verdict-consider');
+    if (vm) _srCurrent.verdictMeaning  = vm.value;
+    if (vc) _srCurrent.verdictConsider = vc.value;
     var v = document.getElementById('sr-video-url');
     var n = document.getElementById('sr-personal-note');
     var s = document.getElementById('sr-subject');
