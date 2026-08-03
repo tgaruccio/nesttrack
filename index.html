@@ -28921,8 +28921,11 @@ function srTabShowings() {
     + stepHead(1,'ShowingTime report','Attach the PDF and it fills your showings, the feedback summary and the read below. It is also attached to the seller\'s email.')
     + '<input type="file" id="sr-pdf-attach" accept=".pdf" onchange="srStorePDFAttachment(event)" style="font-size:12px;"/>'
     + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">\u2705 '+partnerEsc(_srCurrent.pdfAttachName)+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')
-    + '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="width:100%;background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:10px;">'+(_srCurrent.feedbackSummary?'\u2728 Regenerate from PDF':'\u2728 Read the PDF and fill this in')+'</button>'
     + '</div>';
+
+  html += '<div style="font-size:11.5px;color:var(--text3);line-height:1.6;margin:-4px 0 14px;padding:0 2px;">'
+    + 'Attach the ShowingTime PDF and the last page can write your buyer feedback for you. Without it everything else still works \u2014 there is just no feedback to summarise.'
+  + '</div>';
 
   // ---- 2. Reverse prospecting: above the showing list so it is never buried ----
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
@@ -28930,34 +28933,6 @@ function srTabShowings() {
     + '<textarea id="sr-rp-paste" placeholder="Paste reverse prospecting text from Matrix here..." style="width:100%;box-sizing:border-box;font-size:12px;height:70px;resize:vertical;" oninput="srCountRP()"></textarea>'
     + '<div style="font-size:13px;font-weight:500;margin-top:6px;">Agents reached: <span id="sr-rp-display" style="color:var(--green);font-weight:700;">0</span></div>'
     + '<input type="hidden" id="sr-rp-count" value="'+(_srCurrent.reverseProspecting||0)+'"/>'
-    + '</div>';
-
-  // ---- 3. What buyers said ----
-  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + stepHead(3,'What buyers said','Write it yourself, or let the PDF above fill it in.')
-    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:150px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
-    + '</div>';
-
-  // ---- 4. The read — sits beside the feedback that informs it ----
-  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;">'
-    + stepHead(4,'What it means','Your read on the week. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.')
-    + '<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:8px;">'
-    + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
-    + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
-    + '</div>';
-
-  html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
-  ['ontrack','watching','adjust'].forEach(function(k){
-    var v = SR_VERDICTS[k], on = (cur === k);
-    html += '<button id="sr-vb-'+k+'" onclick="srSetVerdict(\''+k+'\')" style="flex:1;padding:8px 4px;font-size:11px;font-weight:600;border:1px solid '+(on?v.pill:'var(--border)')+';border-radius:var(--r);cursor:pointer;background:'+(on?v.bg:'var(--surface)')+';color:'+(on?v.text:'var(--text2)')+';">'+v.label+'</button>';
-  });
-  html += '</div>';
-
-  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:11.5px;font-weight:600;cursor:pointer;margin-bottom:8px;">Fill from this week\'s numbers</button>'
-    + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What this means</label>'
-    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;margin-bottom:8px;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
-    + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What to consider</label>'
-    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
     + '</div>';
 
   // ---- 5. Showings: last, because the list can run long and buries whatever follows ----
@@ -29081,26 +29056,31 @@ function _srBlankFields() {
 window._srBlankFields = _srBlankFields;
 
 async function srGenerateFeedbackSummary() {
-  if (!_srCurrent.pdfAttachBase64) { alert('Attach your ShowingTime PDF above first.'); return; }
-  if (typeof pdfjsLib === 'undefined') { alert('PDF reader is still loading — try again in a moment.'); return; }
+  // No PDF is fine — there is simply no buyer feedback to summarise, and the rest of the
+  // report is written from the numbers the agent entered.
+  var _hasPdf = !!_srCurrent.pdfAttachBase64;
+  if (_hasPdf && typeof pdfjsLib === 'undefined') { alert('PDF reader is still loading — try again in a moment.'); return; }
   var btn = document.getElementById('sr-ai-summary-btn');
   var orig = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Reading report\u2026'; }
   srSaveCurrentTab();   // capture on-screen edits BEFORE we overwrite state below
   try {
-    var bin = atob(_srCurrent.pdfAttachBase64);
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    var pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-    var pages = Math.min(pdf.numPages || 1, 20);
-    var parts = [];
-    for (var p = 1; p <= pages; p++) {
-      var pg = await pdf.getPage(p);
-      var tc = await pg.getTextContent();
-      parts.push(tc.items.map(function(it){ return it.str; }).join(' '));
+    var text = '';
+    if (_hasPdf) {
+      var bin = atob(_srCurrent.pdfAttachBase64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      var pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+      var pages = Math.min(pdf.numPages || 1, 20);
+      var parts = [];
+      for (var p = 1; p <= pages; p++) {
+        var pg = await pdf.getPage(p);
+        var tc = await pg.getTextContent();
+        parts.push(tc.items.map(function(it){ return it.str; }).join(' '));
+      }
+      text = parts.join('\n').replace(/[ \t]+/g, ' ').trim();
     }
-    var text = parts.join('\n').replace(/[ \t]+/g, ' ').trim();
-    if (!text || text.length < 40) {
+    if (_hasPdf && (!text || text.length < 40)) {
       alert('Could not read text from this PDF (it may be a scan). You can still attach it and write the summary manually.');
       if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
       return;
@@ -29138,6 +29118,7 @@ async function srGenerateFeedbackSummary() {
       + 'THE AGENT\'S POSITION THIS WEEK: ' + stanceWord + '. Everything you write must be consistent with that.\n'
       + (comps ? ('COMPARABLES:\n' + comps + '\n') : '')
       + '\nREPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
+      + (_hasPdf ? '' : 'NO SHOWING FEEDBACK WAS PROVIDED this week. Leave the buyer-feedback summary empty \u2014 do not invent or infer what buyers said. Write the remaining sections from the numbers alone.\n\n')
       + 'Where a figure reads "not provided", the agent did not record it. Do not treat it as zero, do not mention it, and do not describe the week as quiet on the strength of a missing number. Showings and offers are always recorded, so zero there is real and can be stated plainly.\n\n'
       + 'CRITICAL: you are not advising anyone. Do not recommend, suggest, urge or hint at any action \u2014 '
       + 'no price changes, no staging, no strategy. The agent decides that, not you. Report what happened '
@@ -29491,6 +29472,41 @@ function srTabMessage() {
         + 'These are left out of the report rather than shown as zero \u2014 go back if you meant to include them.'
       + '</div></div>';
   }
+
+  // Every earlier page gathers a piece; this is where they come together. The AI sits here
+  // rather than on the Showings tab because it now writes from the whole week — reverse
+  // prospecting, portal figures, offers — not just the ShowingTime PDF.
+  html += '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="width:100%;background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:11px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px;">'
+    + (_srCurrent.feedbackSummary ? '\u2728 Rewrite from this week\u2019s numbers' : '\u2728 Write these from this week\u2019s numbers')
+    + '</button>';
+  // ---- 3. What buyers said ----
+  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(3,'What buyers said','Write it yourself, or let the button above fill it in.')
+    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:150px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
+    + '</div>';
+
+  // ---- 4. The read — sits beside the feedback that informs it ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;">'
+    + stepHead(4,'What it means','Your read on the week. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.')
+    + '<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:8px;">'
+    + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
+    + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
+    + '</div>';
+
+  html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
+  ['ontrack','watching','adjust'].forEach(function(k){
+    var v = SR_VERDICTS[k], on = (cur === k);
+    html += '<button id="sr-vb-'+k+'" onclick="srSetVerdict(\''+k+'\')" style="flex:1;padding:8px 4px;font-size:11px;font-weight:600;border:1px solid '+(on?v.pill:'var(--border)')+';border-radius:var(--r);cursor:pointer;background:'+(on?v.bg:'var(--surface)')+';color:'+(on?v.text:'var(--text2)')+';">'+v.label+'</button>';
+  });
+  html += '</div>';
+
+  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:11.5px;font-weight:600;cursor:pointer;margin-bottom:8px;">Fill from this week\'s numbers</button>'
+    + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What this means</label>'
+    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;margin-bottom:8px;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
+    + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What to consider</label>'
+    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '</div>';
+
 
   html += '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
 
