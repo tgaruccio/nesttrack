@@ -18277,6 +18277,13 @@ async function openBuyerDetail(uid, scrollTo) {
     loadListingEngagement(uid);
     loadNtSchedule(uid);
     mjRenderBlock(uid);
+    // Feed health is derived from the listings themselves, so it needs a read before it
+    // can be shown. Repaint the row once it lands rather than blocking the card.
+    mlsFeedLoadStats(uid).then(function(st){
+      if (!st) return;
+      var host = document.getElementById('mls-feed-row-' + uid);
+      if (host) host.innerHTML = mlsFeedStatusHtml(uid);
+    });
     // Auto-load on details toggle
     var summary = details && details.closest('details');
     if (summary) summary.addEventListener('toggle', function(){ if(this.open) loadEmailLog(uid); }, {once:true});
@@ -36057,6 +36064,43 @@ function mlsFeedAddress(b) {
   return b && b.mlsFeedToken ? ('mls-' + b.mlsFeedToken + '@' + MLS_FEED_DOMAIN) : '';
 }
 
+var _mlsFeedStats = {};
+
+async function mlsFeedLoadStats(uid) {
+  if (!uid) return null;
+  try {
+    var snap = await fb.getDocs(fb.collection(fb.db, 'users', uid, 'listings'));
+    var count = 0, newest = 0;
+    snap.forEach(function(d){
+      count++;
+      var f = d.data() || {};
+      var ts = f.firstSeenAt;
+      var ms = ts && ts.seconds ? ts.seconds * 1000 : 0;
+      if (ms > newest) newest = ms;
+    });
+    _mlsFeedStats[uid] = { count: count, newest: newest };
+    return _mlsFeedStats[uid];
+  } catch(e) { console.log('mlsFeedLoadStats:', e && e.message); return null; }
+}
+window.mlsFeedLoadStats = mlsFeedLoadStats;
+
+function mlsFeedStatusHtml(uid) {
+  var st = _mlsFeedStats[uid];
+  if (!st) return '';
+  if (!st.count) {
+    return '<div style="font-size:10.5px;color:#8A5A08;margin-top:4px;">No listings received yet.</div>';
+  }
+  var days = Math.floor((Date.now() - st.newest) / 86400000);
+  var when = days === 0 ? 'today' : (days === 1 ? 'yesterday' : days + ' days ago');
+  // Ten days of silence on a live search almost always means the search was rebuilt or the
+  // alerts stopped parsing — both invisible failures worth surfacing before a client notices.
+  var stale = days >= 10;
+  return '<div style="font-size:10.5px;margin-top:4px;color:' + (stale ? '#8A5A08' : 'var(--text3)') + ';">'
+    + st.count + ' listing' + (st.count === 1 ? '' : 's') + ' received \u00b7 last ' + when
+    + (stale ? ' \u2014 worth checking the search still exists in your MLS' : '')
+    + '</div>';
+}
+
 function mlsFeedRowHtml(b) {
   var addr = mlsFeedAddress(b);
   if (!addr) {
@@ -36082,7 +36126,8 @@ function mlsFeedRowHtml(b) {
       + '<code style="flex:1;min-width:0;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+addr+'</code>'
       + '<button onclick="mlsFeedCopy(\''+addr+'\',this)" style="flex-shrink:0;font-size:11px;font-weight:600;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);cursor:pointer;">Copy</button>'
     + '</div>'
-    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5;">Paste this into your MLS auto-email <strong style=\"color:var(--text2);\">instead of the client&rsquo;s address</strong>. Their listings land in the app where they can rate, save and add to a tour \u2014 and you see what they react to.</div>';
+    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5;">Paste this into your MLS auto-email <strong style=\"color:var(--text2);\">instead of the client&rsquo;s address</strong>. Their listings land in the app where they can rate, save and add to a tour \u2014 and you see what they react to.</div>'
+    + '<div id="mls-feed-row-' + b.uid + '">' + mlsFeedStatusHtml(b.uid) + '</div>';
 }
 window.mlsFeedRowHtml = mlsFeedRowHtml;
 
