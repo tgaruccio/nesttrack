@@ -4688,7 +4688,10 @@ async function signUp() {
     // Copy over contract dates and other agent-set fields if they exist
     var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
       'buyerIsCash','sellerIsCash','inviteCode','crmStatus','notes',
-      'mortLAName','mortLAEmail','mortLACCEnabled','onboardingAssigned','mentorAgentId'];
+      'mortLAName','mortLAEmail','mortLACCEnabled','onboardingAssigned','mentorAgentId',
+      // Already live in the MLS by the time a client signs up — losing it here silently
+      // kills a feed that still looks set up from the MLS side.
+      'mlsFeedToken','mlsFeedActive','mlsFeedActivateUrl','lenderId'];
     copyFields.forEach(function(f) {
       if (existingContact && existingContact[f] !== undefined) newProfile[f] = existingContact[f];
     });
@@ -4969,7 +4972,10 @@ async function _mergeOrphanContactInBackground(){
       if (contact.currentSellerStep > (userProfile.currentSellerStep||0)) patch.currentSellerStep = contact.currentSellerStep;
       if (contact.currentMortgageStep > (userProfile.currentMortgageStep||0)) patch.currentMortgageStep = contact.currentMortgageStep;
       var copyFields = ['buyerContractDates','sellerContractDates','mortgageContractDates',
-        'buyerIsCash','sellerIsCash','crmStatus','notes','mortLAName','mortLAEmail','mortLACCEnabled'];
+        'buyerIsCash','sellerIsCash','crmStatus','notes','mortLAName','mortLAEmail','mortLACCEnabled',
+        // The MLS is already sending to this token. Losing it here breaks a feed that
+        // still looks healthy from the MLS side.
+        'mlsFeedToken','mlsFeedActive','mlsFeedActivateUrl','lenderId'];
       copyFields.forEach(function(f){ if (contact[f] !== undefined && userProfile[f] === undefined) patch[f] = contact[f]; });
       if (Object.keys(patch).length) {
         patch.portalUid = currentUser.uid;
