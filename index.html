@@ -33284,18 +33284,20 @@ async function loadBriefing() {
     // not the thing they dismissed this morning.
     var dismissed = '';
     try { dismissed = localStorage.getItem('briefDismissed') || ''; } catch(e){}
+    var wasDismissed = function(k){ return dismissed.split(',').indexOf(day + ':' + k) !== -1; };
     // Afternoon supersedes morning on the same day.
     var found = null;
     for (var k = 0; k < 2; k++) {
       var kind = k === 0 ? 'afternoon' : 'morning';
       var snap = await fb.getDoc(fb.doc(fb.db, 'agent_briefings', currentUser.uid + '_' + day + '_' + kind));
       if (snap.exists()) {
-        if (dismissed === day && kind === 'morning') continue;   // already cleared this one
+        if (wasDismissed(kind)) continue;   // already cleared this one today
         found = snap.data(); break;
       }
     }
     if (!found) { host.style.display = 'none'; return; }
 
+    window._briefKind = found.kind || 'morning';   // so dismiss knows which one is on screen
     var when = found.kind === 'afternoon' ? 'Afternoon wrap' : 'Morning briefing';
     host.style.display = 'block';
     host.innerHTML = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px;">'
@@ -33322,7 +33324,17 @@ window.loadBriefing = loadBriefing;
 function _briefDismiss() {
   var host = document.getElementById('ad-briefing');
   if (host) host.style.display = 'none';
-  try { localStorage.setItem('briefDismissed', new Date().toISOString().split('T')[0]); } catch(e){}
+  // Records which brief was cleared, not just the day — otherwise an afternoon wrap could
+  // never be dismissed and came back on every load.
+  try {
+    var day = new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0];
+    var kind = (window._briefKind === 'afternoon') ? 'afternoon' : 'morning';
+    var prev = (localStorage.getItem('briefDismissed') || '').split(',').filter(Boolean);
+    var mark = day + ':' + kind;
+    if (prev.indexOf(mark) === -1) prev.push(mark);
+    // Only today matters; anything older is noise.
+    localStorage.setItem('briefDismissed', prev.filter(function(x){ return x.indexOf(day) === 0; }).join(','));
+  } catch(e){}
 }
 window._briefDismiss = _briefDismiss;
 
