@@ -1484,6 +1484,12 @@ setTimeout(function(){
     </div>
   </div>
 
+  <!-- AI briefing, written by the agent's own Claude through the MCP connector. Sits above
+       the follow-up deck: if something has already read the day and picked one thing, that
+       belongs at the top. Hidden entirely when empty, so an agent who never connects
+       Claude never sees a shell. -->
+  <div id="ad-briefing" style="display:none;"></div>
+
   <!-- Follow-Ups Due -->
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:0;flex-shrink:0;">
     <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
@@ -17126,6 +17132,7 @@ async function renderAgentDashboard() {
   // not wait on a query that needs an index and might not return.
   try { loadListingSignals(); } catch(e) { console.log('listing signals err:', e.message); }
   try { loadSellerSignals(); } catch(e) { console.log('seller signals err:', e.message); }
+  try { loadBriefing(); } catch(e) { console.log('briefing err:', e.message); }
   try { loadTextTasks(); } catch(e) { console.log('text tasks err:', e.message); }
 
   // ── Stat banner ──
@@ -33261,6 +33268,81 @@ var FU_CAD = {
   sphere: { dot:'#4B6BCE', label:'Sphere' },
   custom: { dot:'#6D28D9', label:'Custom' }
 };
+
+// Renders whatever the agent's Claude last wrote. Markdown is kept deliberately minimal —
+// headings, bold, bullets and line breaks — because anything richer invites HTML from a model
+// straight into the page.
+async function loadBriefing() {
+  var host = document.getElementById('ad-briefing');
+  if (!host || !currentUser) return;
+  try {
+    var day = new Date().toISOString().split('T')[0];
+    // Cleared for today. An afternoon brief still gets through — that is new information,
+    // not the thing they dismissed this morning.
+    var dismissed = '';
+    try { dismissed = localStorage.getItem('briefDismissed') || ''; } catch(e){}
+    // Afternoon supersedes morning on the same day.
+    var found = null;
+    for (var k = 0; k < 2; k++) {
+      var kind = k === 0 ? 'afternoon' : 'morning';
+      var snap = await fb.getDoc(fb.doc(fb.db, 'agent_briefings', currentUser.uid + '_' + day + '_' + kind));
+      if (snap.exists()) {
+        if (dismissed === day && kind === 'morning') continue;   // already cleared this one
+        found = snap.data(); break;
+      }
+    }
+    if (!found) { host.style.display = 'none'; return; }
+
+    var when = found.kind === 'afternoon' ? 'Afternoon wrap' : 'Morning briefing';
+    host.style.display = 'block';
+    host.innerHTML = '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:12px;">'
+      + '<div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">'
+        + '<div style="font-size:13px;font-weight:600;">\u2728 ' + when + '</div>'
+        + '<div style="display:flex;align-items:center;gap:10px;">'
+          + '<button onclick="_briefToggle()" id="brief-toggle" style="background:none;border:none;font-size:11.5px;color:var(--text3);cursor:pointer;font-family:inherit;">Show more</button>'
+          + '<button onclick="_briefDismiss()" title="Clear for today" style="background:none;border:none;padding:0;width:22px;height:22px;font-size:14px;color:var(--text3);cursor:pointer;line-height:1;">\u00d7</button>'
+        + '</div>'
+      + '</div>'
+      + '<div style="padding:14px 16px;">'
+        + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);margin-bottom:5px;">The one thing</div>'
+        + '<div style="font-size:15px;font-weight:600;line-height:1.4;">' + partnerEsc(found.oneThing || '') + '</div>'
+        + (found.oneThingWhy ? '<div style="font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.55;">' + partnerEsc(found.oneThingWhy) + '</div>' : '')
+        + '<div id="brief-body" style="display:none;font-size:13px;line-height:1.65;color:var(--text2);margin-top:12px;padding-top:12px;border-top:0.5px solid var(--border);">' + _briefMd(found.body || '') + '</div>'
+      + '</div>'
+    + '</div>';
+  } catch(e) { console.log('loadBriefing:', e && e.message); host.style.display = 'none'; }
+}
+window.loadBriefing = loadBriefing;
+
+// Dismissed per day and per device. Nothing is deleted — the briefing is still in the
+// database, it simply stops occupying the top of the dashboard once it has been read.
+function _briefDismiss() {
+  var host = document.getElementById('ad-briefing');
+  if (host) host.style.display = 'none';
+  try { localStorage.setItem('briefDismissed', new Date().toISOString().split('T')[0]); } catch(e){}
+}
+window._briefDismiss = _briefDismiss;
+
+function _briefToggle() {
+  var b = document.getElementById('brief-body');
+  var t = document.getElementById('brief-toggle');
+  if (!b) return;
+  var open = b.style.display !== 'none';
+  b.style.display = open ? 'none' : 'block';
+  if (t) t.textContent = open ? 'Show more' : 'Show less';
+}
+window._briefToggle = _briefToggle;
+
+// Escape first, then allow a small set back. The text comes from a model, so treating it as
+// trusted HTML would be a script-injection route straight onto the dashboard.
+function _briefMd(src) {
+  var t = partnerEsc(String(src || ''));
+  t = t.replace(/^### (.+)$/gm, '<div style="font-weight:600;color:var(--text);margin:10px 0 3px;">$1</div>');
+  t = t.replace(/^## (.+)$/gm, '<div style="font-weight:600;color:var(--text);margin:12px 0 4px;">$1</div>');
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/^[-*] (.+)$/gm, '<div style="padding-left:14px;position:relative;"><span style="position:absolute;left:2px;">\u00b7</span>$1</div>');
+  return t.replace(/\n/g, '<br>');
+}
 
 function renderFollowUpDeck(){
   var deck=document.getElementById('ad-followup-deck'); if (!deck) return;
