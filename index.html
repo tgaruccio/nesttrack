@@ -27001,6 +27001,7 @@ async function injectScheduleBlocks() {
   var todayStr = today.toISOString().split('T')[0];
   var injected = 0;
 
+
   _scheduleBlocks.forEach(function(b) {
     if (b.day !== dayName || !b.task) return;
     var blockId = 'sb_' + b.id + '_' + todayStr;
@@ -33276,7 +33277,9 @@ async function loadBriefing() {
   var host = document.getElementById('ad-briefing');
   if (!host || !currentUser) return;
   try {
-    var day = new Date().toISOString().split('T')[0];
+    // Same Eastern anchor the worker files under — if these disagree the dashboard looks
+    // for a document stored under a different date and finds nothing.
+    var day = new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0];
     // Cleared for today. An afternoon brief still gets through — that is new information,
     // not the thing they dismissed this morning.
     var dismissed = '';
