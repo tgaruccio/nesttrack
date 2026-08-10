@@ -29280,8 +29280,10 @@ async function srGenerateFeedbackSummary() {
       _srCurrent.verdictMeaning  = tf.m;
       _srCurrent.verdictConsider = tf.c;
     }
-    _srRerender('showings');   // redraw so feedback, the read and any pulled showings all appear
-    if (btn) { btn.disabled = false; btn.textContent = '\u2728 Regenerate from PDF'; }
+    // Redraw wherever they are. Sending them back to Showings made sense when the button
+    // lived there; from the final page it throws them away from the text just written.
+    _srRerender(_srCurrent._activeTab || 'message');
+    if (btn) { btn.disabled = false; btn.textContent = '\u2728 Rewrite from this week\u2019s numbers'; }
   } catch (e) {
     alert('Could not generate the summary: ' + e.message);
     if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
@@ -29806,7 +29808,7 @@ function srDraftVerdict() {
   _srCurrent.verdictMeaning  = t.m;
   _srCurrent.verdictConsider = t.c;
   _srCurrent.meaningSource   = 'template';
-  _srRerender('showings');
+  _srRerender(_srCurrent._activeTab || 'message');
 }
 window.srDraftVerdict = srDraftVerdict;
 
