@@ -2312,6 +2312,9 @@ setTimeout(function(){
       <div id="nl-one-client-search"></div>
     </div>
     <div id="nl-segment-pick" style="display:none;margin-top:6px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text2);margin-bottom:6px;cursor:pointer;">
+        <input type="checkbox" id="nl-segment-exclude" onchange="updateNlCount()"> Send to everyone <strong>except</strong> this segment
+      </label>
       <select id="nl-segment-select" onchange="updateNlCount()" style="font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);min-width:200px;"><option value="">— Choose a segment —</option></select>
     </div>
     <div id="nl-count" style="font-size:12px;color:var(--text2);">— recipients</div>
@@ -2333,6 +2336,10 @@ setTimeout(function(){
   <div class="card" style="gap:8px;">
     <label class="flabel">Subject Line</label>
     <input type="text" id="nl-subject" placeholder="e.g. Cleveland Market Update — May 2026" style="font-size:14px;"/>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">
+      Use <strong>{first}</strong> anywhere in the subject or body and it becomes their first name. 
+      <strong>{last}</strong> and <strong>{name}</strong> work too. The greeting is added for you.
+    </div>
   </div>
 
   <!-- Email blocks -->
@@ -16534,7 +16541,10 @@ function updateNlCount() {
   var segDiv = document.getElementById('nl-segment-pick');
   if (segDiv) segDiv.style.display = val === 'segment' ? 'block' : 'none';
   var _selSeg = '';
+  var _nlSegExclude = false;
   if (val === 'segment') {
+    var exEl = document.getElementById('nl-segment-exclude');
+    _nlSegExclude = !!(exEl && exEl.checked);
     var segSel = document.getElementById('nl-segment-select');
     if (segSel) {
       var _segs = {};
@@ -16552,7 +16562,12 @@ function updateNlCount() {
     if (b.pending) return false;
     if (!b.email) return false;
     if (val === 'all') return true;
-    if (val === 'segment') return _selSeg ? ((b.segment||'') === _selSeg) : false;
+    if (val === 'segment') {
+      if (!_selSeg) return false;
+      // Excluding sends to everyone who is not in that segment, including contacts with no
+      // segment at all — those are the bulk of most lists and would otherwise be dropped.
+      return _nlSegExclude ? ((b.segment||'') !== _selSeg) : ((b.segment||'') === _selSeg);
+    }
     if (val === 'buyers') return b.journeyType !== 'seller-only';
     if (val === 'sellers') return b.journeyType === 'seller-only' || b.journeyType === 'both';
     return (b.crmStatus || 'pipeline') === val;
@@ -16774,6 +16789,19 @@ async function uploadNlPdf(event, blockId) {
 }
 window.uploadNlPdf = uploadNlPdf;
 
+// Replaces {first} and {last} with the recipient's name. Falls back to 'there' so a contact
+// with no first name reads as 'Hi there' rather than 'Hi ,'.
+function _nlMerge(text, client) {
+  if (!text) return text;
+  var first = (client && client.firstName) || 'there';
+  var last  = (client && client.lastName) || '';
+  return String(text)
+    .replace(/\{first\}/gi, partnerEsc(first))
+    .replace(/\{last\}/gi, partnerEsc(last))
+    .replace(/\{name\}/gi, partnerEsc((first + ' ' + last).trim()));
+}
+window._nlMerge = _nlMerge;
+
 async function sendNewsletter() {
   var subject = (document.getElementById('nl-subject')||{}).value.trim();
   if (!subject) { alert('Please add a subject line.'); return; }
@@ -16829,9 +16857,12 @@ async function sendNewsletter() {
     var client = recipients[i];
     if (!client.email) { failed++; continue; }
     var first = client.firstName || 'there';
-    var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + body;
-    var html = nsEmailWrap(agentName, subject, personalBody, userProfile);
-    var payload = { to: clientToList(client), subject: subject, html: html, from: agentHiFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
+    // Tokens anywhere in the body or subject. Escaped, because a name is user data and
+    // ends up inside HTML.
+    var personalBody = '<p style="font-size:16px;font-weight:300;margin:0 0 10px;">Hi ' + partnerEsc(first) + ',</p>' + _nlMerge(body, client);
+    var personalSubject = _nlMerge(subject, client);
+    var html = nsEmailWrap(agentName, personalSubject, personalBody, userProfile);
+    var payload = { to: clientToList(client), subject: personalSubject, html: html, from: agentHiFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() };
     if (ccList.length) payload.cc = ccList;
     try {
       await fetch(PROXY_URL, {
@@ -16840,7 +16871,7 @@ async function sendNewsletter() {
         body: JSON.stringify(payload)
       });
       sent++;
-      if (client.uid) logEmailActivity(client.uid, subject, 'newsletter');
+      if (client.uid) logEmailActivity(client.uid, subject, 'newsletter');   // log the template, not one person's copy
       if (status) status.textContent = 'Sending... ' + sent + ' of ' + recipients.length;
     } catch(e) { failed++; }
     if (i < recipients.length - 1) await new Promise(function(r){ setTimeout(r, 200); });
@@ -24710,6 +24741,35 @@ async function submitPublicOffer(listingId) {
         if (!newSnap.empty) await autoSendOfferToClient(listingId, newSnap.docs[0].id, lSnap.data());
       }
     } catch(asErr){ console.log('Auto-send err:',asErr.message); }
+    // Receipt to the agent who submitted. Sent before the listing-agent notification
+    // because this is the one that stops the follow-up call.
+    try {
+      if (data.agentEmail) {
+        var rAddr = (data.propertyAddress || (typeof _poListing!=='undefined' && _poListing && _poListing.address) || 'the property');
+        var rWhen = new Date().toLocaleString('en-US', { dateStyle:'medium', timeStyle:'short' });
+        var rHtml = '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;">'
+          + '<div style="background:#065F46;color:#fff;padding:20px 24px;border-radius:10px 10px 0 0;">'
+            + '<div style="font-size:18px;font-weight:600;">Offer received</div>'
+          + '</div>'
+          + '<div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;">'
+            + '<p style="font-size:15px;color:#333;line-height:1.65;margin:0 0 16px;">Your offer has been delivered to the listing agent. Keep this as your confirmation.</p>'
+            + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+              + '<tr><td style="padding:7px 0;color:#666;border-bottom:1px solid #f0f0f0;">Property</td><td style="padding:7px 0;text-align:right;font-weight:600;border-bottom:1px solid #f0f0f0;">' + partnerEsc(rAddr) + '</td></tr>'
+              + (data.offerPrice ? '<tr><td style="padding:7px 0;color:#666;border-bottom:1px solid #f0f0f0;">Offer</td><td style="padding:7px 0;text-align:right;font-weight:600;border-bottom:1px solid #f0f0f0;">' + partnerEsc(data.offerPrice) + '</td></tr>' : '')
+              + (data.agentName ? '<tr><td style="padding:7px 0;color:#666;border-bottom:1px solid #f0f0f0;">Submitted by</td><td style="padding:7px 0;text-align:right;border-bottom:1px solid #f0f0f0;">' + partnerEsc(data.agentName) + '</td></tr>' : '')
+              + '<tr><td style="padding:7px 0;color:#666;">Received</td><td style="padding:7px 0;text-align:right;">' + rWhen + '</td></tr>'
+            + '</table>'
+            + '<p style="font-size:13px;color:#666;line-height:1.6;margin:18px 0 0;">This confirms delivery, not acceptance. The listing agent will be in touch about next steps.</p>'
+          + '</div>'
+        + '</div>';
+        fetch(PROXY_URL, {
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-Action':'email'},
+          body: JSON.stringify({ to:[data.agentEmail], subject:'Offer received \u2014 ' + rAddr, html:rHtml })
+        }).catch(function(){});
+      }
+    } catch(rcptErr){ console.log('offer receipt:', rcptErr && rcptErr.message); }
+
     // Notify listing agent that offer was received
     try {
       var lData = (await fb.getDoc(fb.doc(fb.db,'offer_listings',listingId))).data();
@@ -24792,7 +24852,7 @@ async function submitPublicOffer(listingId) {
         + '<div style="width:64px;height:64px;background:#ECFDF5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:32px;">&#10003;</div>'
         + '<div style="font-size:22px;font-weight:600;color:#065F46;margin-bottom:8px;">Offer Submitted!</div>'
         + '<div style="font-size:15px;color:#444;line-height:1.65;margin-bottom:20px;">Your offer of <strong>' + (data.offerPrice||'') + '</strong> has been received by the listing agent.<br/>You will be contacted regarding next steps.</div>'
-        + '<div style="font-size:13px;color:#888;padding:12px 16px;background:#f9f9f9;border-radius:8px;">A confirmation will be sent to <strong>' + (data.agentEmail||'') + '</strong> when the listing agent reviews your offer.</div>'
+        + '<div style="font-size:13px;color:#888;padding:12px 16px;background:#f9f9f9;border-radius:8px;">A confirmation has been emailed to <strong>' + (data.agentEmail||'') + '</strong> \u2014 keep it as your receipt.</div>'
         + '</div>'
         + '<div style="text-align:center;margin-top:16px;font-size:12px;color:#aaa;">Powered by Nest Track</div>'
         + '</div>';
