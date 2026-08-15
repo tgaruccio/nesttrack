@@ -3750,6 +3750,8 @@ window.dispatchEvent(new Event('firebase-ready'));
     window._inviteEmail = _ip(hash,'e'); window._inviteName = _ip(hash,'n');
     window.history.replaceState(null,'',location.pathname);
   }
+  // Grab a push deep link before anything else touches the hash.
+  try { captureGoHash(); } catch(e){}
   if (hash && /^#offer=[A-Z0-9]+$/i.test(hash)) {
     var loginEl = document.getElementById('login-screen');
     var appEl   = document.getElementById('app');
@@ -17185,6 +17187,8 @@ async function renderAgentDashboard() {
   try { loadListingSignals(); } catch(e) { console.log('listing signals err:', e.message); }
   try { loadSellerSignals(); } catch(e) { console.log('seller signals err:', e.message); }
   try { loadBriefing(); } catch(e) { console.log('briefing err:', e.message); }
+  // Only now is there anything to navigate to — the app is signed in and loaded.
+  try { runPendingGo(); } catch(e) { console.log('deep link err:', e.message); }
   try { loadTextTasks(); } catch(e) { console.log('text tasks err:', e.message); }
 
   // ── Stat banner ──
@@ -23043,13 +23047,16 @@ function dismissNotifBanner() {
 window.dismissNotifBanner = dismissNotifBanner;
 
 // Send push to user by Firebase UID — targets external_id (stable, never changes)
-async function sendPushToUser(uid, title, body) {
+// `go` is a deep link like 'offer:LISTINGID:OFFERID' — optional, so every existing caller
+// keeps working and lands on the dashboard as before.
+async function sendPushToUser(uid, title, body, go) {
   if (!uid) return;
   try {
+    var _u = go ? ('https://app.nesttrack.io/#go=' + encodeURIComponent(go)) : undefined;
     fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: uid, title: title, body: body })
+      body: JSON.stringify({ uid: uid, title: title, body: body, url: _u })
     }).catch(function(e) { console.log('push failed:', e.message); });
   } catch(e) { console.log('sendPushToUser:', e.message); }
 }
@@ -23082,7 +23089,7 @@ async function _registerAgentPush() {
 window._registerAgentPush = _registerAgentPush;
 
 // Send push to agent by short ID
-async function sendPushToAgentByShortId(agentShortId, title, body) {
+async function sendPushToAgentByShortId(agentShortId, title, body, go) {
   if (!agentShortId) return;
   try {
     // Look up agent Firebase UID from Firestore
@@ -23102,7 +23109,8 @@ async function sendPushToAgentByShortId(agentShortId, title, body) {
     fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Action': 'onesignal-push' },
-      body: JSON.stringify({ uid: agentUid, title: title, body: body })
+      body: JSON.stringify({ uid: agentUid, title: title, body: body,
+        url: go ? ('https://app.nesttrack.io/#go=' + encodeURIComponent(go)) : undefined })
     }).catch(function(e) { console.log('agent push failed:', e.message); });
   } catch(e) { console.log('sendPushToAgentByShortId:', e.message); }
 }
@@ -24851,7 +24859,7 @@ async function submitPublicOffer(listingId) {
               from:agentFromField(), reply_to:agentReplyTo(),signature:agentSignatureHtml(), html:alertHtml})});
           // Push to agent
           // Push to agent
-          sendPushToAgentByShortId(lData.agentId, '🏠 New Offer Received', (data.offerPrice||'Offer')+' on '+partnerEsc(lData.address||'your listing')+' from '+partnerEsc(data.agentName||'buyer agent'));
+          sendPushToAgentByShortId(lData.agentId, '🏠 New Offer Received', (data.offerPrice||'Offer')+' on '+partnerEsc(lData.address||'your listing')+' from '+partnerEsc(data.agentName||'buyer agent'), 'offer:'+listingId);
           // Push to seller client
           if (lData.clientUid) {
             sendPushToUser(lData.clientUid, '📋 New Offer on Your Home!', 'A '+(data.offerPrice||'new')+' offer has been received. Your agent will be in touch shortly.');
@@ -24891,8 +24899,60 @@ async function submitPublicOffer(listingId) {
 }
 window.submitPublicOffer = submitPublicOffer;
 
+// Where a push notification lands. Without this, a notification saying an offer came in drops
+// you on the dashboard and you go hunting for it — which is the job the notification was
+// supposed to have already done.
+//
+// Runs after boot, not on page load: the app has to be signed in and its data loaded before
+// any of these targets exist.
+var _pendingGo = '';
+function captureGoHash() {
+  var m = String(window.location.hash || '').match(/^#go=(.+)$/);
+  if (!m) return false;
+  _pendingGo = decodeURIComponent(m[1]);
+  // Clear it so a refresh does not reopen the same thing, and so the hash router for public
+  // offer links is not confused by it.
+  try { history.replaceState(null, '', location.pathname + location.search); } catch(e) {}
+  return true;
+}
+window.captureGoHash = captureGoHash;
+
+async function runPendingGo() {
+  if (!_pendingGo) return;
+  var target = _pendingGo;
+  _pendingGo = '';
+  var parts = target.split(':');
+  var kind = parts[0];
+  try {
+    if (kind === 'offer') {
+      // Offers tab, then the listing's offers open. Falls back to the tab alone if the
+      // listing has since been closed or deleted.
+      go('agent', document.querySelector('[data-pg=agent]'));
+      switchAgentTab('offers');
+      // Active listings first — a new offer is on something still for sale.
+      setTimeout(function(){ try { switchOfferTab('active'); } catch(e){} }, 300);
+      return;
+    }
+    if (kind === 'nt') {
+      // Straight into the review screen for that home — the reason the notification fired.
+      go('marketing', document.querySelector('[data-pg=marketing]'));
+      if (parts[1] && typeof ntReviewHome === 'function') {
+        setTimeout(function(){ try { ntReviewHome(parts[1]); } catch(e){} }, 600);
+      }
+      return;
+    }
+    if (kind === 'client' && parts[1] && typeof openBuyerDetail === 'function') {
+      openBuyerDetail(parts[1]);
+      return;
+    }
+    if (kind === 'todo') { go('todo', document.querySelector('[data-pg=todo]')); return; }
+  } catch(e) { console.log('runPendingGo:', e && e.message); }
+}
+window.runPendingGo = runPendingGo;
+
 // Handle #offer=CODE in URL
 function checkOfferHash() {
+  // A #go= link is captured before this runs, so the public offer matcher never sees it.
   var hash = window.location.hash;
   var m = hash.match(/^#offer=([A-Z0-9]+)$/i);
   if (m) {
