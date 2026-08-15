@@ -24906,6 +24906,14 @@ window.submitPublicOffer = submitPublicOffer;
 // Runs after boot, not on page load: the app has to be signed in and its data loaded before
 // any of these targets exist.
 var _pendingGo = '';
+
+// Tapping a notification while the app is already running changes the hash without a
+// reload, so the boot-time capture never sees it. This is the common case on mobile.
+window.addEventListener('hashchange', function(){
+  try {
+    if (captureGoHash()) runPendingGo();
+  } catch(e) { console.log('hash deep link:', e && e.message); }
+});
 function captureGoHash() {
   var m = String(window.location.hash || '').match(/^#go=(.+)$/);
   if (!m) return false;
