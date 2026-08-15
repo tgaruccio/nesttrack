@@ -24566,7 +24566,7 @@ async function confirmSendOffer(listingId, offerId) {
 
     // 4. Push to listing agent (you)
     if (currentUser) {
-      sendPushToUser(currentUser.uid, '📋 New Offer Received', (o.offerPrice||'An offer')+' on '+(ctx.listing&&ctx.listing.address||'your listing'));
+      sendPushToUser(currentUser.uid, '📋 New Offer Received', (o.offerPrice||'An offer')+' on '+(ctx.listing&&ctx.listing.address||'your listing'), 'offer:'+listingId);
     }
 
     // 5. Emails in background — non-blocking
@@ -24929,8 +24929,14 @@ async function runPendingGo() {
       // listing has since been closed or deleted.
       go('agent', document.querySelector('[data-pg=agent]'));
       switchAgentTab('offers');
-      // Active listings first — a new offer is on something still for sale.
-      setTimeout(function(){ try { switchOfferTab('active'); } catch(e){} }, 300);
+      setTimeout(function(){
+        try {
+          switchOfferTab('active');   // a new offer is on something still for sale
+          // Opens that listing's offers directly. If it has since been deleted or closed,
+          // viewOffers returns quietly and they are left on the right tab anyway.
+          if (parts[1] && typeof viewOffers === 'function') viewOffers(parts[1]);
+        } catch(e){}
+      }, 400);
       return;
     }
     if (kind === 'nt') {
