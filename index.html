@@ -2929,52 +2929,33 @@ setTimeout(function(){
     </div>
 
     <!-- CARD: INTEGRATIONS -->
+    <!-- Grouped by what each connection is for, rather than one stack of fields. A connected
+         integration does not need its settings on screen: the card shows its state and opens
+         only when there is something to change. -->
     <div class="card" id="profile-card-integrations" style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div style="width:36px;height:36px;border-radius:9px;background:#EAF2FF;border:1px solid #B9D2FF;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">&#128268;</div>
+          <div style="width:36px;height:36px;border-radius:9px;background:#EAF2FF;border:1px solid #B9D2FF;display:flex;align-items:center;justify-content:center;font-size:17px;">🔌</div>
           <div>
-          <div style="font-size:15px;font-weight:600;">Integrations</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px;">Connect ShowingTime, Zapier, and more.</div>
+            <div style="font-size:15px;font-weight:600;">Integrations</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:2px;" id="intg-count">Bring your other tools into NestTrack.</div>
           </div>
         </div>
         <button class="btn btn-sm btn-g" onclick="saveAgentProfile()">Save</button>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">ShowingTime iCal URL
-            <span onclick="showProfileHelp('showingtime')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>
-          </label>
-          <input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..."/>
-        </div>
-        <div>
-          <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">Zapier Webhook <span style="font-weight:400;color:var(--text3);">(optional)</span>
-            <span onclick="showProfileHelp('zapier')" style="width:16px;height:16px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;color:var(--text3);flex-shrink:0;">?</span>
-          </label>
-          <input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..."/>
-        </div>
-      </div>
 
-      <!-- Follow Up Boss: a one-way import, not a sync. Sits with the other integrations
-           because that is where an agent looks for it, and stays quiet until a key is saved. -->
-      <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
-        <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">📥 Import from Follow Up Boss
-          <span onclick="showProfileHelp('fub')" style="width:16px;height:16px;border-radius:50%;background:var(--surface);border:1px solid var(--border2);color:var(--text3);font-size:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">?</span>
-        </label>
-        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Bring your Follow Up Boss contacts into NestTrack. One direction — nothing is written back to FUB.</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <input type="password" id="ap-fub-key" placeholder="Paste your Follow Up Boss API key" autocomplete="new-password" name="fub-api-key-nofill" onfocus="if(this.value &&!this._touched){this.value='';} this._touched=1;" style="flex:1;min-width:200px;font-size:13px;">
-          <button type="button" class="btn btn-sm btn-g" onclick="fubSaveKey()">Save key</button>
-        </div>
-        <div id="fub-status" style="font-size:11.5px;color:var(--text3);margin-top:7px;line-height:1.55;"></div>
-        <div id="fub-actions" style="display:none;margin-top:10px;">
-          <button type="button" class="btn btn-sm" onclick="fubRunImport()" id="fub-import-btn">Import my contacts</button>
-          <button type="button" class="btn btn-sm" onclick="fubDisconnect()" style="color:var(--red-dk);">Disconnect</button>
-        </div>
-        <div id="fub-result" style="font-size:12px;line-height:1.6;margin-top:10px;"></div>
-      </div>
+      <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:8px;">Bring leads in</div>
+      <div class="intg-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
+        <details class="intg-card" id="intg-lead" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+          <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <div style="font-size:13.5px;font-weight:600;">🔗 Lead sources</div>
+              <span id="intg-dot-lead" style="font-size:10.5px;color:var(--text3);white-space:nowrap;"></span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:3px;">Zillow, Clever, Realtor.com — leads drop straight in.</div>
+          </summary>
+          <div style="padding:0 14px 14px;">
 
-      <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
         <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">🔗 Connect a Lead Source <span style="font-weight:400;color:var(--text3);">(bring leads IN)</span></label>
         <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Your personal lead email. Set it as the lead-notification address in Zillow, Clever, Realtor.com, etc. — or auto-forward your leads to it — and they drop into NestTrack automatically, assigned to you (or your team pool if routing is on). <strong>Keep it private</strong> — it's tied to your account.</div>
         <div id="lead-link-wrap" style="display:none;">          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px;">Your lead email</div>
@@ -3001,6 +2982,68 @@ setTimeout(function(){
         <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Create a separate lead address for each source and tie it to a segment. Anything arriving at that address drops into that segment automatically — which fires whatever smart plan or team routing you've set up for it. Point Zillow at one, FSBO lists at another, expireds at a third.</div>
         <div id="lead-inbox-list" style="display:flex;flex-direction:column;gap:8px;"></div>
         <button type="button" class="btn btn-sm" onclick="addLeadInbox()" style="margin-top:10px;">+ Add lead address</button>
+          </div>
+        </details>
+        <details class="intg-card" id="intg-fub" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+          <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <div style="font-size:13.5px;font-weight:600;">📥 Follow Up Boss</div>
+              <span id="intg-dot-fub" style="font-size:10.5px;color:var(--text3);white-space:nowrap;"></span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:3px;">Your FUB contacts, topped up nightly.</div>
+          </summary>
+          <div style="padding:0 14px 14px;">
+
+        <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">📥 Import from Follow Up Boss
+          <span onclick="showProfileHelp('fub')" style="width:16px;height:16px;border-radius:50%;background:var(--surface);border:1px solid var(--border2);color:var(--text3);font-size:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">?</span>
+        </label>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Bring your Follow Up Boss contacts into NestTrack. One direction — nothing is written back to FUB.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="password" id="ap-fub-key" placeholder="Paste your Follow Up Boss API key" autocomplete="new-password" name="fub-api-key-nofill" onfocus="if(this.value &&!this._touched){this.value='';} this._touched=1;" style="flex:1;min-width:200px;font-size:13px;">
+          <button type="button" class="btn btn-sm btn-g" onclick="fubSaveKey()">Save key</button>
+        </div>
+        <div id="fub-status" style="font-size:11.5px;color:var(--text3);margin-top:7px;line-height:1.55;"></div>
+        <div id="fub-actions" style="display:none;margin-top:10px;">
+          <button type="button" class="btn btn-sm" onclick="fubRunImport()" id="fub-import-btn">Import my contacts</button>
+          <button type="button" class="btn btn-sm" onclick="fubDisconnect()" style="color:var(--red-dk);">Disconnect</button>
+        </div>
+        <div id="fub-result" style="font-size:12px;line-height:1.6;margin-top:10px;"></div>
+          </div>
+        </details>
+      </div>
+
+      <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:8px;">Your calendar &amp; tools</div>
+      <div class="intg-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <details class="intg-card" id="intg-showingtime" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+          <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <div style="font-size:13.5px;font-weight:600;">📅 ShowingTime</div>
+              <span id="intg-dot-showingtime" style="font-size:10.5px;color:var(--text3);white-space:nowrap;"></span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:3px;">Showings flow into your seller reports on their own.</div>
+          </summary>
+          <div style="padding:0 14px 14px;">
+            <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">ShowingTime iCal URL
+              <span onclick="showProfileHelp('showingtime')" style="width:16px;height:16px;border-radius:50%;background:var(--surface);border:1px solid var(--border2);color:var(--text3);font-size:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">?</span>
+            </label>
+            <input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..." style="width:100%;box-sizing:border-box;"/>
+          </div>
+        </details>
+        <details class="intg-card" id="intg-zapier" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+          <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <div style="font-size:13.5px;font-weight:600;">⚡ Zapier</div>
+              <span id="intg-dot-zapier" style="font-size:10.5px;color:var(--text3);white-space:nowrap;"></span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:3px;">Connect NestTrack to thousands of other apps.</div>
+          </summary>
+          <div style="padding:0 14px 14px;">
+            <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;">Zapier Webhook
+              <span onclick="showProfileHelp('zapier')" style="width:16px;height:16px;border-radius:50%;background:var(--surface);border:1px solid var(--border2);color:var(--text3);font-size:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">?</span>
+            </label>
+            <input type="url" id="ap-zapier" placeholder="https://hooks.zapier.com/hooks/catch/..." style="width:100%;box-sizing:border-box;"/>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -7413,10 +7456,39 @@ async function fubSaveKey() {
     await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { fubApiKey: key, fubAgentId: _aid, agentId: _aid, fubConnectedAt: Date.now() });
     if (userProfile) { userProfile.fubApiKey = key; userProfile.fubConnectedAt = Date.now(); }
     if (el) el.value = '';
-    fubRenderStatus();
+    fubRenderStatus(); intgRenderStatus();
   } catch(e) { alert('Could not save that key: ' + (e && e.message)); }
 }
 window.fubSaveKey = fubSaveKey;
+
+// Fills the status line on each integration card, so state is visible without opening one.
+// That is the whole reason for cards over a stack of fields.
+function intgRenderStatus() {
+  var set = function(id, text, on) {
+    var el = document.getElementById('intg-dot-' + id);
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = on ? 'var(--green-dk)' : 'var(--text3)';
+  };
+  var p = userProfile || {};
+  var st = !!p.showingTimeUrl, zp = !!p.zapierWebhook, fb_ = !!p.fubApiKey;
+
+  set('showingtime', st ? '\u25CF Connected' : 'Not set up', st);
+  set('zapier', zp ? '\u25CF Connected' : 'Not set up', zp);
+
+  // A lead address always exists, so this is never 'not set up'. The useful number is how
+  // many segment addresses they have created.
+  var segCount = 0;
+  try { segCount = (p.leadInboxes || []).length; } catch(e) {}
+  set('lead', segCount ? ('\u25CF ' + segCount + ' address' + (segCount === 1 ? '' : 'es')) : '\u25CF Active', true);
+
+  set('fub', fb_ ? (p.fubLastCount != null ? ('\u25CF ' + p.fubLastCount + ' last sync') : '\u25CF Connected') : 'Not set up', fb_);
+
+  var n = 1 + (st ? 1 : 0) + (zp ? 1 : 0) + (fb_ ? 1 : 0);   // lead sources always counts
+  var hdr = document.getElementById('intg-count');
+  if (hdr) hdr.textContent = n + ' connected \u00b7 tap a card to change it';
+}
+window.intgRenderStatus = intgRenderStatus;
 
 function fubRenderStatus() {
   var st = document.getElementById('fub-status');
@@ -9958,7 +10030,7 @@ function go(page, el) {
   if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'docs-explainer') { _populateDocExplainer(); }
   if (page === 'messages') { renderMessagesPage(); loadDmThreads().then(function(){ try{ renderMessagesPage(); }catch(e){} }); }
-  if (page === 'agent') { try { fubRenderStatus(); } catch(e){} }
+  if (page === 'agent') { try { fubRenderStatus(); intgRenderStatus(); } catch(e){} }
   if (page === 'newsletter') {
     _nlContainerId = 'nl-blocks'; _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
     // Load fresh complete buyer list directly — don't use myBuyers which is filtered
