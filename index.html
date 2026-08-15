@@ -2955,6 +2955,25 @@ setTimeout(function(){
         </div>
       </div>
 
+      <!-- Follow Up Boss: a one-way import, not a sync. Sits with the other integrations
+           because that is where an agent looks for it, and stays quiet until a key is saved. -->
+      <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+        <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">📥 Import from Follow Up Boss
+          <span onclick="showProfileHelp('fub')" style="width:16px;height:16px;border-radius:50%;background:var(--surface);border:1px solid var(--border2);color:var(--text3);font-size:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;">?</span>
+        </label>
+        <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Bring your Follow Up Boss contacts into NestTrack. One direction — nothing is written back to FUB.</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="password" id="ap-fub-key" placeholder="Paste your Follow Up Boss API key" autocomplete="off" style="flex:1;min-width:200px;font-size:13px;">
+          <button type="button" class="btn btn-sm btn-g" onclick="fubSaveKey()">Save key</button>
+        </div>
+        <div id="fub-status" style="font-size:11.5px;color:var(--text3);margin-top:7px;line-height:1.55;"></div>
+        <div id="fub-actions" style="display:none;margin-top:10px;">
+          <button type="button" class="btn btn-sm" onclick="fubRunImport()" id="fub-import-btn">Import my contacts</button>
+          <button type="button" class="btn btn-sm" onclick="fubDisconnect()" style="color:var(--red-dk);">Disconnect</button>
+        </div>
+        <div id="fub-result" style="font-size:12px;line-height:1.6;margin-top:10px;"></div>
+      </div>
+
       <div style="margin-top:14px;padding:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
         <label class="flabel" style="color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:2px;">🔗 Connect a Lead Source <span style="font-weight:400;color:var(--text3);">(bring leads IN)</span></label>
         <div style="font-size:12px;color:var(--text2);line-height:1.5;margin:2px 0 10px;">Your personal lead email. Set it as the lead-notification address in Zillow, Clever, Realtor.com, etc. — or auto-forward your leads to it — and they drop into NestTrack automatically, assigned to you (or your team pool if routing is on). <strong>Keep it private</strong> — it's tied to your account.</div>
@@ -7248,6 +7267,7 @@ window.coachDemo = coachDemo;
 // Built-in defaults = fallback so dots always say something even before Tom adds Firestore content.
 var HELP_DEFAULTS = {
   dealtabs:    { title:'The four deal tabs', body:'<strong>Timeline</strong> \u2014 the running record of the transaction: milestones, key dates, and status. Set the dates here and the client\u2019s portal timeline, the milestone emails, and your to-dos all update off them.<br><br><strong>Parties</strong> \u2014 everyone on the deal: your client, the other agent, lender, title, inspector. Add them once and they feed the Comms tab, get CC\u2019d on the right emails, and fill in on generated documents.<br><br><strong>Docs</strong> \u2014 every document tied to the deal. Generate from your templates (auto-filled from the deal), or upload signed copies. Posts to the client\u2019s timeline so both sides see what\u2019s done.<br><br><strong>Comms</strong> \u2014 the communication log: messages, emails, and notes in one place. When someone asks what was said in week two, this is where you look.' },
+  fub: { title:'Importing from Follow Up Boss', body:'<strong>To set it up:</strong> in Follow Up Boss go to <strong>Admin \u2192 API</strong> and generate a new key \u2014 name it NestTrack. Copy it straight away, because FUB only shows a key once. Paste it here, hit <em>Save key</em>, then <em>Import my contacts</em>.<br><br><strong>What comes across:</strong> names, emails, phone numbers, and a note recording their FUB stage and lead source. Everything lands in your Clients list as a nurture contact, so a large import does not flood the pipeline you work each morning.<br><br><strong>What it does not do:</strong> this is a one-way import, not a sync. Nothing is written back to Follow Up Boss, and changes made there afterwards will not appear here. Run the import again whenever you like \u2014 anyone already in NestTrack is skipped rather than duplicated.<br><br><strong>Worth knowing:</strong> your key only reaches the contacts <em>you</em> can see in Follow Up Boss. An agent key brings across the people assigned to you; an account owner\u2019s key brings the whole database. Contacts with only a phone number import fine, but cannot be invited to the client portal until you add an email. Very large databases import 2,500 at a time \u2014 just run it again to continue.' },
   showingtime: { title:'How to connect ShowingTime', body:'<strong>To set it up:</strong> in ShowingTime go to <strong>Settings → Calendar Sync → Subscribe Link</strong>, copy the <em>webcal://</em> URL, and paste it in the field here. <strong>Where it connects:</strong> once linked, your showings flow automatically into the Showings tab and your Seller Reports — so feedback and activity show up without you entering anything.' },
   zapier:      { title:'How to set up Zapier', body:'<strong>To set it up:</strong> in Zapier create a new Zap → <strong>Webhooks by Zapier → Catch Hook</strong>, then copy the webhook URL it gives you and paste it here. <strong>Where it connects:</strong> new and updated clients in NestTrack push out to whatever you wire on the other end of the Zap (your old CRM, a sheet, etc.).' },
   deals:       { title:'How to use the Deal Tracker', body:'<strong>To use it:</strong> open a deal, set the stage and key dates (contract, inspection, appraisal, closing), and add the parties. Update it as things move. <strong>Where it connects:</strong> everything you enter here feeds the rest of the app automatically — the client’s timeline updates, milestone emails get pre-drafted with the real dates, and your to-dos re-sort. Work the deal here and the client side keeps itself current.' },
@@ -7381,6 +7401,78 @@ async function showHelp(key){
 window.showHelp = showHelp;
 
 // Back-compat: existing dots call showProfileHelp('showingtime'|'zapier')
+// The key is write-only from here: saved, never read back. It carries the same privileges as
+// their Follow Up Boss login, so it lives on their user doc for the worker and nothing in the
+// browser can retrieve it afterwards.
+async function fubSaveKey() {
+  var el = document.getElementById('ap-fub-key');
+  var key = el ? el.value.trim() : '';
+  if (!key) { alert('Paste your Follow Up Boss API key first.'); return; }
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { fubApiKey: key, fubConnectedAt: Date.now() });
+    if (userProfile) { userProfile.fubApiKey = key; userProfile.fubConnectedAt = Date.now(); }
+    if (el) el.value = '';
+    fubRenderStatus();
+  } catch(e) { alert('Could not save that key: ' + (e && e.message)); }
+}
+window.fubSaveKey = fubSaveKey;
+
+function fubRenderStatus() {
+  var st = document.getElementById('fub-status');
+  var acts = document.getElementById('fub-actions');
+  var connected = !!(userProfile && userProfile.fubApiKey);
+  if (st) {
+    st.textContent = connected
+      ? '\u2713 Connected. Your key is stored securely and never shown again.'
+      : 'In Follow Up Boss go to Admin \u2192 API, generate a key, and paste it here. FUB only shows it once.';
+  }
+  if (acts) acts.style.display = connected ? 'flex' : 'none';
+}
+window.fubRenderStatus = fubRenderStatus;
+
+async function fubDisconnect() {
+  if (!confirm('Remove your Follow Up Boss key? Contacts already imported stay in NestTrack.')) return;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { fubApiKey: '' });
+    if (userProfile) userProfile.fubApiKey = '';
+    fubRenderStatus();
+    var r = document.getElementById('fub-result'); if (r) r.innerHTML = '';
+  } catch(e) { alert('Could not disconnect: ' + (e && e.message)); }
+}
+window.fubDisconnect = fubDisconnect;
+
+async function fubRunImport() {
+  var btn = document.getElementById('fub-import-btn');
+  var out = document.getElementById('fub-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing\u2026'; }
+  if (out) out.innerHTML = '<span style="color:var(--text3);">Reading your Follow Up Boss contacts. This can take a minute.</span>';
+  try {
+    var key = (typeof _ensureLeadToken === 'function') ? await _ensureLeadToken() : (userProfile && userProfile.leadToken);
+    var res = await fetch(PROXY_URL + '/api/v1/fub-import?api_key=' + encodeURIComponent(key || ''), { method: 'POST' });
+    var d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Import failed.');
+
+    var bits = [d.imported + ' contact' + (d.imported === 1 ? '' : 's') + ' imported'];
+    // Named rather than hidden: a phone-only contact cannot be invited to the portal, and
+    // finding that out one client at a time is worse than being told now.
+    if (d.phoneOnly) bits.push(d.phoneOnly + ' phone only \u2014 add an email before inviting them');
+    if (d.duplicates) bits.push(d.duplicates + ' already in NestTrack');
+    if (d.skipped) bits.push(d.skipped + ' skipped with no contact details');
+    if (out) {
+      out.innerHTML = '<div style="color:var(--green-dk);font-weight:600;">' + partnerEsc(bits[0]) + '</div>'
+        + bits.slice(1).map(function(b){ return '<div style="color:var(--text2);">' + partnerEsc(b) + '</div>'; }).join('')
+        + (d.note ? '<div style="color:#8A5A08;margin-top:5px;">' + partnerEsc(d.note) + '</div>' : '')
+        + '<div style="color:var(--text3);margin-top:6px;">They are in your Clients list as nurture contacts.</div>';
+    }
+    if (typeof loadBuyersForAgent === 'function') { try { await loadBuyersForAgent(); renderBuyers(); } catch(e){} }
+  } catch(e) {
+    if (out) out.innerHTML = '<span style="color:var(--red-dk);">' + partnerEsc(e.message || 'Import failed.') + '</span>';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Import my contacts'; }
+  }
+}
+window.fubRunImport = fubRunImport;
+
 function showProfileHelp(type){ return showHelp(type); }
 window.showProfileHelp = showProfileHelp;
 
@@ -9859,6 +9951,7 @@ function go(page, el) {
   if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'docs-explainer') { _populateDocExplainer(); }
   if (page === 'messages') { renderMessagesPage(); loadDmThreads().then(function(){ try{ renderMessagesPage(); }catch(e){} }); }
+  if (page === 'agent') { try { fubRenderStatus(); } catch(e){} }
   if (page === 'newsletter') {
     _nlContainerId = 'nl-blocks'; _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
     // Load fresh complete buyer list directly — don't use myBuyers which is filtered
