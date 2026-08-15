@@ -7409,7 +7409,8 @@ async function fubSaveKey() {
   var key = el ? el.value.trim() : '';
   if (!key) { alert('Paste your Follow Up Boss API key first.'); return; }
   try {
-    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { fubApiKey: key, fubConnectedAt: Date.now() });
+    var _aid = (userProfile && (userProfile.agentId || userProfile.lenderId)) || '';
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { fubApiKey: key, fubAgentId: _aid, agentId: _aid, fubConnectedAt: Date.now() });
     if (userProfile) { userProfile.fubApiKey = key; userProfile.fubConnectedAt = Date.now(); }
     if (el) el.value = '';
     fubRenderStatus();
@@ -7450,7 +7451,13 @@ async function fubRunImport() {
     var key = (typeof _ensureLeadToken === 'function') ? await _ensureLeadToken() : (userProfile && userProfile.leadToken);
     var res = await fetch(PROXY_URL + '/api/v1/fub-import?api_key=' + encodeURIComponent(key || ''), { method: 'POST' });
     var d = await res.json();
-    if (!res.ok || d.error) throw new Error(d.error || 'Import failed.');
+    if (!res.ok || d.error) {
+      var msg = d.error || 'Import failed.';
+      if (d.hint) msg += ' ' + d.hint;
+      if (d.searchedFor) msg += ' (looked for agent "' + d.searchedFor + '"'
+        + (d.keysExistFor && d.keysExistFor.length ? ', found keys under: ' + d.keysExistFor.join(', ') : '') + ')';
+      throw new Error(msg);
+    }
 
     var bits = [d.imported + ' contact' + (d.imported === 1 ? '' : 's') + ' imported'];
     // Named rather than hidden: a phone-only contact cannot be invited to the portal, and
