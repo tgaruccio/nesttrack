@@ -7612,6 +7612,11 @@ async function quoTestConnection() {
 
     var nums = d.numbers || [];
     if (userProfile) userProfile.quoNumbers = nums;
+    // Persist them: the Smart Plan step picker reads this list, and without saving it
+    // there is nothing to choose from after a reload.
+    try {
+      await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { quoNumbers: nums });
+    } catch(e) { console.log('save quo numbers:', e && e.message); }
     var sel = document.getElementById('quo-from');
     if (sel) {
       sel.innerHTML = nums.map(function(n){
@@ -10244,7 +10249,12 @@ function go(page, el) {
   if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'docs-explainer') { _populateDocExplainer(); }
   if (page === 'messages') { renderMessagesPage(); loadDmThreads().then(function(){ try{ renderMessagesPage(); }catch(e){} }); }
-  if (page === 'agent') { try { fubRenderStatus(); quoRenderStatus(); intgRenderStatus(); } catch(e){} }
+  if (page === 'agent') {
+    try { fubRenderStatus(); quoRenderStatus(); intgRenderStatus(); } catch(e){}
+    // Quietly refresh the number list — a number added in Quo later should appear without
+    // the agent remembering to press Check connection.
+    try { if (userProfile && userProfile.quoApiKey) quoTestConnection(); } catch(e){}
+  }
   if (page === 'newsletter') {
     _nlContainerId = 'nl-blocks'; _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
     // Load fresh complete buyer list directly — don't use myBuyers which is filtered
