@@ -3029,6 +3029,36 @@ setTimeout(function(){
             <input type="url" id="ap-showingtime" placeholder="webcal://showingti.me/cal/..." style="width:100%;box-sizing:border-box;"/>
           </div>
         </details>
+        <details class="intg-card" id="intg-quo" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+          <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+              <div style="font-size:13.5px;font-weight:600;">💬 Quo texting</div>
+              <span id="intg-dot-quo" style="font-size:10.5px;color:var(--text3);white-space:nowrap;"></span>
+            </div>
+            <div style="font-size:11.5px;color:var(--text2);line-height:1.5;margin-top:3px;">Let NestTrack send texts from your own number.</div>
+          </summary>
+          <div style="padding:0 14px 14px;">
+            <div style="font-size:11.5px;color:var(--text2);line-height:1.55;margin-bottom:10px;">
+              Texts stay drafts unless you turn on auto-send on a step. Connecting Quo just makes that option available.
+              <span onclick="showProfileHelp('quo')" style="color:var(--green-dk);cursor:pointer;text-decoration:underline;">What you need first</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="password" id="ap-quo-key" placeholder="Paste your Quo API key" autocomplete="new-password" name="quo-api-key-nofill" onfocus="if(this.value&&!this._touched){this.value='';} this._touched=1;" style="flex:1;min-width:190px;font-size:13px;">
+              <button type="button" class="btn btn-sm btn-g" onclick="quoSaveKey()">Save key</button>
+            </div>
+            <div id="quo-status" style="font-size:11.5px;color:var(--text3);margin-top:7px;line-height:1.55;"></div>
+            <div id="quo-numbers-wrap" style="display:none;margin-top:10px;">
+              <label class="flabel" style="color:var(--text2);font-weight:600;">Send from</label>
+              <select id="quo-from" onchange="quoSaveFrom()" style="width:100%;font-size:13px;"></select>
+            </div>
+            <div id="quo-actions" style="display:none;margin-top:10px;">
+              <button type="button" class="btn btn-sm" onclick="quoTestConnection()" id="quo-test-btn">Check connection</button>
+              <button type="button" class="btn btn-sm" onclick="quoDisconnect()" style="color:var(--red-dk);">Disconnect</button>
+            </div>
+            <div id="quo-result" style="font-size:12px;line-height:1.6;margin-top:9px;"></div>
+          </div>
+        </details>
+
         <details class="intg-card" id="intg-zapier" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
           <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
@@ -7310,6 +7340,7 @@ window.coachDemo = coachDemo;
 // Built-in defaults = fallback so dots always say something even before Tom adds Firestore content.
 var HELP_DEFAULTS = {
   dealtabs:    { title:'The four deal tabs', body:'<strong>Timeline</strong> \u2014 the running record of the transaction: milestones, key dates, and status. Set the dates here and the client\u2019s portal timeline, the milestone emails, and your to-dos all update off them.<br><br><strong>Parties</strong> \u2014 everyone on the deal: your client, the other agent, lender, title, inspector. Add them once and they feed the Comms tab, get CC\u2019d on the right emails, and fill in on generated documents.<br><br><strong>Docs</strong> \u2014 every document tied to the deal. Generate from your templates (auto-filled from the deal), or upload signed copies. Posts to the client\u2019s timeline so both sides see what\u2019s done.<br><br><strong>Comms</strong> \u2014 the communication log: messages, emails, and notes in one place. When someone asks what was said in week two, this is where you look.' },
+  quo: { title:'Auto-texting through Quo', body:'<strong>What it does:</strong> lets NestTrack send a text from your own business number instead of drafting it for you. Texts stay drafts by default \u2014 connecting Quo only makes auto-send available as a choice on individual Smart Plan steps.<br><br><strong>What you need first:</strong> an active Quo subscription with Owner or Admin access, US carrier registration completed in Quo, and prepaid API credits. All three are required before a single text will send, and they are set up inside Quo rather than here.<br><br><strong>To connect:</strong> in Quo go to <strong>Settings \u2192 API</strong>, generate a key, paste it here and hit <em>Save key</em>. Then pick which of your numbers should send.<br><br><strong>Worth knowing:</strong> API messaging draws on prepaid credits separate from your subscription, so texts stop if those run out \u2014 NestTrack falls back to drafting the message and tells you why rather than silently skipping it. Automatic texts never send outside 8am to 8pm in your client\u2019s local time.' },
   fub: { title:'Importing from Follow Up Boss', body:'<strong>To set it up:</strong> in Follow Up Boss go to <strong>Admin \u2192 API</strong> and generate a new key \u2014 name it NestTrack. Copy it straight away, because FUB only shows a key once. Paste it here, hit <em>Save key</em>, then <em>Import my contacts</em>.<br><br><strong>What comes across:</strong> names, emails, phone numbers, and a note recording their FUB stage and lead source. Everything lands in your Clients list as a nurture contact, so a large import does not flood the pipeline you work each morning.<br><br><strong>What it does not do:</strong> this is a one-way import, not a sync. Nothing is written back to Follow Up Boss, and changes made there afterwards will not appear here. Run the import again whenever you like \u2014 anyone already in NestTrack is skipped rather than duplicated.<br><br><strong>Worth knowing:</strong> your key only reaches the contacts <em>you</em> can see in Follow Up Boss. An agent key brings across the people assigned to you; an account owner\u2019s key brings the whole database. Contacts with only a phone number import fine, but cannot be invited to the client portal until you add an email. Very large databases import 2,500 at a time \u2014 just run it again to continue.' },
   showingtime: { title:'How to connect ShowingTime', body:'<strong>To set it up:</strong> in ShowingTime go to <strong>Settings → Calendar Sync → Subscribe Link</strong>, copy the <em>webcal://</em> URL, and paste it in the field here. <strong>Where it connects:</strong> once linked, your showings flow automatically into the Showings tab and your Seller Reports — so feedback and activity show up without you entering anything.' },
   zapier:      { title:'How to set up Zapier', body:'<strong>To set it up:</strong> in Zapier create a new Zap → <strong>Webhooks by Zapier → Catch Hook</strong>, then copy the webhook URL it gives you and paste it here. <strong>Where it connects:</strong> new and updated clients in NestTrack push out to whatever you wire on the other end of the Zap (your old CRM, a sheet, etc.).' },
@@ -7463,6 +7494,105 @@ window.fubSaveKey = fubSaveKey;
 
 // Fills the status line on each integration card, so state is visible without opening one.
 // That is the whole reason for cards over a stack of fields.
+// Write-only, like the Follow Up Boss key. It can send texts from the agent's own number, so
+// nothing in the browser should be able to read it back once saved.
+async function quoSaveKey() {
+  var el = document.getElementById('ap-quo-key');
+  var key = el ? el.value.trim() : '';
+  if (!key) { alert('Paste your Quo API key first.'); return; }
+  try {
+    var _aid = (userProfile && (userProfile.agentId || userProfile.lenderId)) || '';
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { quoApiKey: key, agentId: _aid, quoConnectedAt: Date.now() });
+    if (userProfile) { userProfile.quoApiKey = key; userProfile.quoConnectedAt = Date.now(); }
+    if (el) el.value = '';
+    quoRenderStatus(); intgRenderStatus();
+    // Straight into loading their numbers — a saved key with no sending number chosen cannot
+    // send anything, so it is not really connected yet.
+    quoTestConnection();
+  } catch(e) { alert('Could not save that key: ' + (e && e.message)); }
+}
+window.quoSaveKey = quoSaveKey;
+
+function quoRenderStatus() {
+  var st = document.getElementById('quo-status');
+  var acts = document.getElementById('quo-actions');
+  var wrap = document.getElementById('quo-numbers-wrap');
+  var on = !!(userProfile && userProfile.quoApiKey);
+  if (st) {
+    st.textContent = on
+      ? (userProfile.quoFrom ? ('\u2713 Connected \u00b7 sending from ' + userProfile.quoFrom) : '\u2713 Key saved \u2014 now choose a sending number.')
+      : 'In Quo go to Settings \u2192 API and generate a key, then paste it here.';
+  }
+  if (acts) acts.style.display = on ? 'flex' : 'none';
+  if (wrap) wrap.style.display = (on && userProfile.quoNumbers && userProfile.quoNumbers.length) ? 'block' : 'none';
+}
+window.quoRenderStatus = quoRenderStatus;
+
+// Verifies the key and fills the number picker. Called on save and from the button, because
+// a key that has stopped working should be findable without waiting for a step to fail.
+async function quoTestConnection() {
+  var btn = document.getElementById('quo-test-btn');
+  var out = document.getElementById('quo-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking\u2026'; }
+  if (out) out.innerHTML = '';
+  try {
+    var k = (typeof _ensureLeadToken === 'function') ? await _ensureLeadToken() : (userProfile && userProfile.leadToken);
+    var res = await fetch(PROXY_URL + '/api/v1/quo-numbers?api_key=' + encodeURIComponent(k || ''));
+    var d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Could not reach Quo.');
+
+    var nums = d.numbers || [];
+    if (userProfile) userProfile.quoNumbers = nums;
+    var sel = document.getElementById('quo-from');
+    if (sel) {
+      sel.innerHTML = nums.map(function(n){
+        var label = n.number + (n.name ? (' \u2014 ' + n.name) : '');
+        var on = (userProfile && userProfile.quoFrom === n.number) ? ' selected' : '';
+        return '<option value="' + partnerEsc(n.number) + '"' + on + '>' + partnerEsc(label) + '</option>';
+      }).join('');
+    }
+    var wrap = document.getElementById('quo-numbers-wrap');
+    if (wrap) wrap.style.display = nums.length ? 'block' : 'none';
+
+    if (out) {
+      out.innerHTML = nums.length
+        ? '<span style="color:var(--green-dk);">Connected \u2014 ' + nums.length + ' number' + (nums.length === 1 ? '' : 's') + ' available.</span>'
+        : '<span style="color:#8A5A08;">Quo answered, but there are no phone numbers on this workspace.</span>';
+    }
+    // Nothing chosen yet: pick the first so a connected account can actually send.
+    if (nums.length && userProfile && !userProfile.quoFrom) { await quoSaveFrom(); }
+    quoRenderStatus(); intgRenderStatus();
+  } catch(e) {
+    if (out) out.innerHTML = '<span style="color:var(--red-dk);">' + partnerEsc(e.message || 'Could not reach Quo.') + '</span>';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Check connection'; }
+  }
+}
+window.quoTestConnection = quoTestConnection;
+
+async function quoSaveFrom() {
+  var sel = document.getElementById('quo-from');
+  var from = sel ? sel.value : '';
+  if (!from) return;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { quoFrom: from });
+    if (userProfile) userProfile.quoFrom = from;
+    quoRenderStatus(); intgRenderStatus();
+  } catch(e) { console.log('quoSaveFrom:', e && e.message); }
+}
+window.quoSaveFrom = quoSaveFrom;
+
+async function quoDisconnect() {
+  if (!confirm('Disconnect Quo? Any Smart Plan steps set to send automatically will go back to drafts.')) return;
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { quoApiKey: '', quoFrom: '' });
+    if (userProfile) { userProfile.quoApiKey = ''; userProfile.quoFrom = ''; userProfile.quoNumbers = []; }
+    quoRenderStatus(); intgRenderStatus();
+    var r = document.getElementById('quo-result'); if (r) r.innerHTML = '';
+  } catch(e) { alert('Could not disconnect: ' + (e && e.message)); }
+}
+window.quoDisconnect = quoDisconnect;
+
 function intgRenderStatus() {
   var set = function(id, text, on) {
     var el = document.getElementById('intg-dot-' + id);
@@ -7484,7 +7614,11 @@ function intgRenderStatus() {
 
   set('fub', fb_ ? (p.fubLastCount != null ? ('\u25CF ' + p.fubLastCount + ' last sync') : '\u25CF Connected') : 'Not set up', fb_);
 
-  var n = 1 + (st ? 1 : 0) + (zp ? 1 : 0) + (fb_ ? 1 : 0);   // lead sources always counts
+  // Connected but with no sending number cannot send, so it is not really connected.
+  var quo = !!(p.quoApiKey && p.quoFrom);
+  set('quo', p.quoApiKey ? (quo ? '\u25CF Connected' : 'Needs a number') : 'Not set up', quo);
+
+  var n = 1 + (st ? 1 : 0) + (zp ? 1 : 0) + (fb_ ? 1 : 0) + (quo ? 1 : 0);   // lead sources always counts
   var hdr = document.getElementById('intg-count');
   if (hdr) hdr.textContent = n + ' connected \u00b7 tap a card to change it';
 }
@@ -10030,7 +10164,7 @@ function go(page, el) {
   if (page === 'doc-templates') { dtLoadLibrary(); }
   if (page === 'docs-explainer') { _populateDocExplainer(); }
   if (page === 'messages') { renderMessagesPage(); loadDmThreads().then(function(){ try{ renderMessagesPage(); }catch(e){} }); }
-  if (page === 'agent') { try { fubRenderStatus(); intgRenderStatus(); } catch(e){} }
+  if (page === 'agent') { try { fubRenderStatus(); quoRenderStatus(); intgRenderStatus(); } catch(e){} }
   if (page === 'newsletter') {
     _nlContainerId = 'nl-blocks'; _nlBlocks = []; _nlBlockId = 0; renderNlBlocks();
     // Load fresh complete buyer list directly — don't use myBuyers which is filtered
