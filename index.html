@@ -34143,7 +34143,7 @@ var SP_CHANNELS = {
   email:   { label:'Email',    icon:'\uD83D\uDCE7', color:'#1D9E75', bg:'#E6F7F0', desc:'Automated email \u2014 sent for you' },
   vm:      { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
   letter:  { label:'Letter',   icon:'✉️', color:'#92400E', bg:'#FEF3C7', desc:'Physical mail (thanks.io)' },
-  texttap: { label:'Text (you send)', icon:'📲', color:'#0369A1', bg:'#E0F2FE', desc:'Push reminder — you tap to send from your own phone' },
+  texttap: { label:'Text', icon:'📲', color:'#0369A1', bg:'#E0F2FE', desc:'Push reminder — you tap to send from your own phone' },
   zapier:  { label:'Zapier',   icon:'⚡', color:'#6D28D9', bg:'#EDE9FE', desc:'Fire any custom Zap (text, letter, AI call, audience…)' },
   nesttracker: { label:'Add to NestTracker', icon:'🏡', color:'#0F6E56', bg:'#E1F5EE', desc:'Auto-enroll in the home-value report' },
   setstatus:   { label:'Change status',      icon:'🔀', color:'#B45309', bg:'#FEF3C7', desc:'Move to a pipeline stage (cold, nurture…)' },
@@ -34882,7 +34882,14 @@ function spEditStep(i){
     var hdr='<div style="font-size:15px;font-weight:600;margin-bottom:4px;">'+(c.icon||'')+' '+(c.label||'Action')+'</div>';
     if(s.channel==='texttap'){
       inner=hdr
-        +'<div style="font-size:11px;color:var(--text3);margin-bottom:14px;">When due, you get a push reminder. Tap it to open this queue, then tap Send to text from your own phone with this message pre-filled.</div>'
+        +(function(){
+          var connected = !!(userProfile && userProfile.quoApiKey && userProfile.quoFrom);
+          return '<div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5;">'
+            + (connected
+                ? 'Choose below whether this goes out on its own or waits for you. If it waits, you get a push when it is due and the message is already written \u2014 you just tap send.'
+                : 'When this is due you get a push. The message is already written \u2014 you just tap send from your own phone.')
+          + '</div>';
+        })()
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Pre-written text message</label>'
         +'<textarea id="sp-step-sms" rows="5" placeholder="Hi {first}, just checking in…" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;margin:4px 0 8px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+partnerEsc(s.smsBody||'')+'</textarea>'
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Use {first} or {last} to auto-fill the contact\'s name.</div>'
@@ -34897,11 +34904,11 @@ function spEditStep(i){
           var nums = (userProfile && userProfile.quoNumbers) || [];
           var h = '<label style="font-size:12px;font-weight:700;color:var(--text3);">When this step is due</label>'
             + '<select id="sp-step-sendmode" onchange="spToggleSendMode()" style="width:100%;font-size:13px;margin:4px 0 8px;">'
-              + '<option value="draft"' + (auto ? '' : ' selected') + '>Remind me \u2014 I will send it myself</option>'
-              + '<option value="auto"' + (auto ? ' selected' : '') + '>Send it automatically through Quo</option>'
+              + '<option value="draft"' + (auto ? '' : ' selected') + '>Draft it on my phone \u2014 I tap send</option>'
+              + '<option value="auto"' + (auto ? ' selected' : '') + '>Send it for me through Quo</option>'
             + '</select>';
           // Only worth showing when there is a genuine choice to make.
-          h += '<div id="sp-step-from-wrap" style="' + (auto && nums.length > 1 ? '' : 'display:none;') + '">'
+          h += '<div id="sp-step-from-wrap" style="' + (auto ? '' : 'display:none;') + '">'
             + '<label style="font-size:12px;font-weight:700;color:var(--text3);">Send from</label>'
             + '<select id="sp-step-from" style="width:100%;font-size:13px;margin:4px 0 8px;">'
             + '<option value="">Default \u2014 ' + partnerEsc((userProfile && userProfile.quoFrom) || '') + '</option>'
@@ -35227,7 +35234,7 @@ function spToggleSendMode() {
   var w = document.getElementById('sp-step-from-wrap');
   if (!w) return;
   var nums = (userProfile && userProfile.quoNumbers) || [];
-  w.style.display = (m && m.value === 'auto' && nums.length > 1) ? 'block' : 'none';
+  w.style.display = (m && m.value === 'auto') ? 'block' : 'none';
 }
 window.spToggleSendMode = spToggleSendMode;
 
@@ -36117,7 +36124,9 @@ async function spFireNow(uid, btn){
     var j = await r.json();
     if(j && j.ok){
       if(btn){ btn.textContent = j.fired>0 ? ('✓ Fired '+j.fired) : '✓ Done'; }
-      if(typeof showToast==='function') showToast(j.fired>0 ? ('Fired '+j.fired+' step'+(j.fired!==1?'s':'')) : 'Nothing due to fire right now');
+      if(typeof showToast==='function') showToast(j.fired>0
+        ? ('Fired '+j.fired+' step'+(j.fired!==1?'s':''))
+        : (j.reason ? ('Nothing fired \u2014 ' + j.reason) : 'Nothing due to fire right now'));
       // refresh the contact's plan state
       setTimeout(function(){ if(typeof loadBuyers==='function'){ loadBuyers(); } else if(typeof renderBuyers==='function'){ renderBuyers(); } }, 1200);
     } else {
