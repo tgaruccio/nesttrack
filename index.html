@@ -3051,6 +3051,10 @@ setTimeout(function(){
               <label class="flabel" style="color:var(--text2);font-weight:600;">Send from</label>
               <select id="quo-from" onchange="quoSaveFrom()" style="width:100%;font-size:13px;"></select>
             </div>
+            <label id="quo-toggle-wrap" style="display:none;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--text2);margin-top:12px;padding-top:12px;border-top:1px solid var(--border);cursor:pointer;">
+              <input type="checkbox" id="quo-text-updates" onchange="quoToggleUpdates()" style="margin-top:2px;">
+              <span><strong>Send updates by text</strong><br><span style="font-size:11.5px;color:var(--text3);line-height:1.5;">Step updates, seller report links and confirmed showings go out as texts as well as email. Anyone assigned to the client \u2014 co-agent, lender \u2014 is on the thread.</span></span>
+            </label>
             <div id="quo-actions" style="display:none;margin-top:10px;">
               <button type="button" class="btn btn-sm" onclick="quoTestConnection()" id="quo-test-btn">Check connection</button>
               <button type="button" class="btn btn-sm" onclick="quoDisconnect()" style="color:var(--red-dk);">Disconnect</button>
@@ -7496,6 +7500,65 @@ window.fubSaveKey = fubSaveKey;
 // That is the whole reason for cards over a stack of fields.
 // Write-only, like the Follow Up Boss key. It can send texts from the agent's own number, so
 // nothing in the browser should be able to read it back once saved.
+// ── Texting clients through the agent's own Quo number ──
+// One entry point for every place that texts, so the recipient rules and the on/off checks
+// live in a single spot rather than being re-implemented three times.
+//
+// Recipients are whoever is already assigned to the client: a co-agent is working the deal
+// and a lender is on the buyer side, so both belong on the thread. Nothing here decides who
+// is involved - the client card already did.
+async function textClient(clientUid, body, opts) {
+  opts = opts || {};
+  if (!clientUid || !String(body || '').trim()) return { ok: false, reason: 'nothing to send' };
+
+  // Off unless the agent turned it on, and unless this client has not opted out.
+  if (!(userProfile && userProfile.quoApiKey && userProfile.quoFrom)) return { ok: false, reason: 'Quo not connected' };
+  if (userProfile.textUpdates === false) return { ok: false, reason: 'texting is off' };
+
+  var client = (allBuyers || []).find(function(b){ return b.uid === clientUid; });
+  if (!client) return { ok: false, reason: 'client not found' };
+  if (client.textUpdates === false) return { ok: false, reason: 'this client has texting off' };
+  if (client.isPracticeClient) return { ok: false, reason: 'practice client' };
+
+  var to = [];
+  if (client.phone) to.push(client.phone);
+
+  // Everyone else already assigned to this client.
+  try {
+    if (client.coAgentId && typeof DEFAULT_AGENTS !== 'undefined') {
+      var ca = DEFAULT_AGENTS.find(function(a){ return a && a.id === client.coAgentId; });
+      if (ca && ca.phone) to.push(ca.phone);
+    }
+    if (client.lenderId && client.lenderId !== 'none' && typeof DEFAULT_LENDERS !== 'undefined') {
+      var ln = DEFAULT_LENDERS.find(function(l){ return l && l.id === client.lenderId; });
+      if (ln && ln.phone) to.push(ln.phone);
+    }
+  } catch(e) {}
+
+  if (!to.length) return { ok: false, reason: 'nobody has a phone number' };
+
+  try {
+    var key = (typeof _ensureLeadToken === 'function') ? await _ensureLeadToken() : (userProfile && userProfile.leadToken);
+    var res = await fetch(PROXY_URL + '/api/v1/quo-send?api_key=' + encodeURIComponent(key || ''), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: to, body: String(body), clientUid: clientUid })
+    });
+    var d = await res.json();
+    if (!res.ok || d.error) {
+      // A failed text must be visible. Silence is how an agent finds out weeks later that
+      // their credits ran dry and nothing has been going out.
+      if (typeof showToast === 'function') showToast('Text not sent: ' + (d.error || 'unknown error'));
+      return { ok: false, reason: d.error || 'send failed' };
+    }
+    return { ok: true, sent: d.sent || to.length };
+  } catch(e) {
+    console.log('textClient:', e && e.message);
+    return { ok: false, reason: e && e.message };
+  }
+}
+window.textClient = textClient;
+
 async function quoSaveKey() {
   var el = document.getElementById('ap-quo-key');
   var key = el ? el.value.trim() : '';
@@ -7525,6 +7588,12 @@ function quoRenderStatus() {
   }
   if (acts) acts.style.display = on ? 'flex' : 'none';
   if (wrap) wrap.style.display = (on && userProfile.quoNumbers && userProfile.quoNumbers.length) ? 'block' : 'none';
+  var tw = document.getElementById('quo-toggle-wrap');
+  var tc = document.getElementById('quo-text-updates');
+  // Only offered once it could actually send — a toggle with no number behind it does
+  // nothing and looks broken.
+  if (tw) tw.style.display = (on && userProfile.quoFrom) ? 'flex' : 'none';
+  if (tc) tc.checked = (userProfile.textUpdates === true);
 }
 window.quoRenderStatus = quoRenderStatus;
 
@@ -7581,6 +7650,17 @@ async function quoSaveFrom() {
   } catch(e) { console.log('quoSaveFrom:', e && e.message); }
 }
 window.quoSaveFrom = quoSaveFrom;
+
+async function quoToggleUpdates() {
+  var el = document.getElementById('quo-text-updates');
+  var on = !!(el && el.checked);
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { textUpdates: on });
+    if (userProfile) userProfile.textUpdates = on;
+    if (typeof showToast === 'function') showToast(on ? 'Updates will now text as well as email.' : 'Texting turned off.');
+  } catch(e) { alert('Could not save that: ' + (e && e.message)); }
+}
+window.quoToggleUpdates = quoToggleUpdates;
 
 async function quoDisconnect() {
   if (!confirm('Disconnect Quo? Any Smart Plan steps set to send automatically will go back to drafts.')) return;
@@ -11448,6 +11528,34 @@ var MORTGAGE_STEP_EMAILS = {
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:10px 0 0;\">Congratulations on making this happen!</p>';
     }},
 };
+// Saves what was sent and returns its public link, so the chat message and any text can be a
+// headline plus a link rather than the whole email.
+async function saveStepUpdate(uid, data) {
+  if (!uid || !data || !data.html) return '';
+  var tok = (typeof _srMakeToken === 'function') ? _srMakeToken()
+    : (Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+  try {
+    await fb.setDoc(fb.doc(fb.db, 'step_updates', tok), {
+      token: tok,
+      clientUid: uid,
+      agentId: (userProfile && userProfile.agentId) || '',
+      subject: data.subject || 'Your update',
+      html: data.html,
+      stepNum: data.stepNum || 0,
+      journeyType: data.type || 'buyer',
+      sentDateStr: new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0],
+      createdAt: Date.now(),
+      // Read by the nightly sweep. A number, so the cron needs no date parsing.
+      expiresAt: Date.now() + 30*24*60*60*1000
+    });
+    return PROXY_URL + '/api/v1/step-update?u=' + encodeURIComponent(tok);
+  } catch(e) {
+    console.log('saveStepUpdate:', e && e.message);
+    return '';
+  }
+}
+window.saveStepUpdate = saveStepUpdate;
+
 async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
   type = type || 'buyer';
   try {
@@ -11519,6 +11627,23 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
           headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
           body: JSON.stringify(stepPayload)
         });
+
+        try {
+          window._lastStepUpdateUrl = await saveStepUpdate(uid, {
+            subject: subject,
+            html: stepPayload.html || finalHtml || html,
+            stepNum: stepNum,
+            type: type
+          });
+        } catch(e) { console.log('saveStepUpdate:', e && e.message); window._lastStepUpdateUrl = ''; }
+
+        // Text the same headline and link. Fails quietly if Quo is not connected — this
+        // is an addition to the email, never a replacement for it.
+        try {
+          if (window._lastStepUpdateUrl) {
+            textClient(uid, subject + '\n\n' + 'Read the full update: ' + window._lastStepUpdateUrl);
+          }
+        } catch(e) { console.log('step text:', e && e.message); }
 
         // The in-app message fires here — only after the email actually sent.
         // (_postStepToChat handles the message + its own push, exactly as before;
@@ -17338,8 +17463,26 @@ function _stepChatParts(isSeller, stepNum, client){
     if(bl.length){ text += '\n'; for(var b=0;b<bl.length;b++){ text += '\n\u2022 ' + A(bl[b]); } }
     if(sObj.tip) text += '\n\n\uD83D\uDCA1 ' + A(sObj.tip);
   }
-  var full = (subject ? subject + '\n\n' : '') + (text||'');
-  if(videoUrl) full += '\n\n\u25B6 Watch: ' + videoUrl;
+  var link = window._lastStepUpdateUrl || '';
+  var full;
+  if (link) {
+    // Skip the greeting — "Hi Nick," is not a preview. Take the first line that says
+    // something about the update itself.
+    var lines = String(text||'').split('\n').filter(function(l){ return l.trim(); });
+    var lead = '';
+    for (var li = 0; li < lines.length; li++) {
+      var L = lines[li].trim();
+      if (/^(hi|hey|hello|dear)\b/i.test(L)) continue;
+      if (L.length < 12) continue;   // stray fragments and emoji-only lines
+      lead = L; break;
+    }
+    if (lead.length > 140) lead = lead.slice(0,137) + '\u2026';
+    full = (subject ? subject + '\n\n' : '') + (lead ? lead + '\n\n' : '') + 'Read the full update: ' + link;
+    if(videoUrl) full += '\n\n\u25B6 Watch: ' + videoUrl;
+  } else {
+    full = (subject ? subject + '\n\n' : '') + (text||'');
+    if(videoUrl) full += '\n\n\u25B6 Watch: ' + videoUrl;
+  }
   return { title: subject || ('Step '+stepNum), text: full.replace(/^\s+|\s+$/g,'') };
 }
 
@@ -26383,6 +26526,13 @@ async function assignShowingToBuyer(evKey) {
 
     // 4. Push to client
     sendPushToUser(buyer.uid, 'Showing Confirmed 📅', 'Your showing at '+(ev.address||'the property')+' is confirmed.');
+
+    // Text it too — a push is gone once dismissed, and this is the detail they will want
+    // on their phone later.
+    try {
+      textClient(buyer.uid, 'Showing confirmed: ' + (ev.address || 'your showing')
+        + (ev.start ? (', ' + new Date(ev.start).toLocaleString('en-US', { weekday:'long', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })) : ''));
+    } catch(e) { console.log('showing text:', e && e.message); }
 
     // 5. Save assignment with stable key
     await fb.setDoc(fb.doc(fb.db,'agents',agentId,'showingAssignments',assignKey), {
