@@ -18614,6 +18614,49 @@ function renderClientDealsSection(uid) {
 }
 window.renderClientDealsSection = renderClientDealsSection;
 
+// One line under the contact details showing whether automatic texts reach this person.
+// Hidden when Quo is not connected or texting is off globally — a control that decides
+// nothing is just another thing to read.
+function _clientTextRow(b) {
+  var p = userProfile || {};
+  if (!(p.quoApiKey && p.quoFrom) || p.textUpdates !== true) return '';
+
+  var base = 'display:flex;align-items:center;gap:7px;margin-top:6px;padding-top:6px;border-top:0.5px solid var(--border);font-size:11.5px;';
+  var lbl = '<span style="color:var(--text3);">\uD83D\uDCAC Auto-texts</span>';
+
+  // Worth stating rather than hiding: it is a gap the agent can close.
+  if (!b.phone) {
+    return '<div style="' + base + '">' + lbl
+      + '<span style="color:var(--text3);">no phone number on file</span></div>';
+  }
+
+  var off = (b.textUpdates === false);
+  var first = escapeHtml((b.firstName || 'them').split(' ')[0]);
+  return '<div id="bd-text-row-' + b.uid + '" style="' + base + '">' + lbl
+    + '<span style="color:' + (off ? 'var(--text2)' : 'var(--green-dk)') + ';">' + (off ? 'off for this client' : 'on') + '</span>'
+    + '<span style="color:var(--border2);">\u00b7</span>'
+    + '<span onclick="toggleClientTexts(\'' + b.uid + '\')" style="color:var(--green-dk);cursor:pointer;text-decoration:underline;">'
+      + (off ? 'turn back on' : ('turn off for ' + first))
+    + '</span></div>';
+}
+
+async function toggleClientTexts(uid) {
+  var b = (allBuyers || []).find(function(x){ return x.uid === uid; });
+  if (!b) return;
+  var next = (b.textUpdates === false);   // currently off, so turn it on
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { textUpdates: next });
+    b.textUpdates = next;
+    var host = document.getElementById('bd-text-row-' + uid);
+    if (host) host.outerHTML = _clientTextRow(b);
+    else await openBuyerDetail(uid);
+    if (typeof showToast === 'function') {
+      showToast(next ? 'Auto-texts back on for this client.' : 'Auto-texts off for this client \u2014 emails still send.');
+    }
+  } catch(e) { alert('Could not save that: ' + (e && e.message)); }
+}
+window.toggleClientTexts = toggleClientTexts;
+
 async function openBuyerDetail(uid, scrollTo) {
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) {
@@ -18645,6 +18688,7 @@ async function openBuyerDetail(uid, scrollTo) {
           <div style="display:flex;align-items:center;gap:8px;"><div class="mtitle">${escapeHtml((b.firstName||'')+' '+(b.lastName||''))}</div><button onclick="editClientInfo('${uid}')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;" title="Edit">✏</button></div>
           <div style="font-size:12px;color:var(--text2);">${b.email ? '<a href="mailto:'+escapeHtml(b.email)+'" style="color:var(--text2);text-decoration:none;">'+escapeHtml(b.email)+'</a>' : ''}${b.phone?' · <a href="tel:'+b.phone.replace(/[^0-9+]/g,'')+'" style="color:var(--text2);text-decoration:none;font-weight:600;">'+escapeHtml(b.phone)+'</a>':''}</div>
           ${b.email2 ? '<div style="font-size:12px;color:var(--text2);margin-top:1px;">+ <a href="mailto:'+escapeHtml(b.email2)+'" style="color:var(--text2);text-decoration:none;">'+escapeHtml(b.email2)+'</a></div>' : ''}
+          ${_clientTextRow(b)}
           <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
             <span style="font-size:12px;color:var(--text2);">📍</span>
             <input id="bd-mailing-${uid}" type="text" autocomplete="street-address" placeholder="Mailing address" value="${escapeHtml(b.mailingAddress||'')}" onchange="saveClientAddress('${uid}',this)" style="font-size:12px;color:var(--text2);border:none;border-bottom:1px solid var(--border);background:transparent;outline:none;flex:1;padding:1px 0;font-family:inherit;" />
