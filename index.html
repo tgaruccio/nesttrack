@@ -34886,6 +34886,34 @@ function spEditStep(i){
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Pre-written text message</label>'
         +'<textarea id="sp-step-sms" rows="5" placeholder="Hi {first}, just checking in…" style="width:100%;box-sizing:border-box;font-size:13px;padding:10px;margin:4px 0 8px;border:1px solid var(--border);border-radius:var(--r-sm);resize:vertical;font-family:inherit;">'+partnerEsc(s.smsBody||'')+'</textarea>'
         +'<div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Use {first} or {last} to auto-fill the contact\'s name.</div>'
+        +(function(){
+          var connected = !!(userProfile && userProfile.quoApiKey && userProfile.quoFrom);
+          if (!connected) {
+            return '<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px;margin-bottom:10px;line-height:1.5;">'
+              + 'Connect Quo in <strong>Profile \u2192 Integrations</strong> and this step can send on its own instead of waiting for you.'
+              + '</div>';
+          }
+          var auto = (s.sendMode === 'auto');
+          var nums = (userProfile && userProfile.quoNumbers) || [];
+          var h = '<label style="font-size:12px;font-weight:700;color:var(--text3);">When this step is due</label>'
+            + '<select id="sp-step-sendmode" onchange="spToggleSendMode()" style="width:100%;font-size:13px;margin:4px 0 8px;">'
+              + '<option value="draft"' + (auto ? '' : ' selected') + '>Remind me \u2014 I will send it myself</option>'
+              + '<option value="auto"' + (auto ? ' selected' : '') + '>Send it automatically through Quo</option>'
+            + '</select>';
+          // Only worth showing when there is a genuine choice to make.
+          h += '<div id="sp-step-from-wrap" style="' + (auto && nums.length > 1 ? '' : 'display:none;') + '">'
+            + '<label style="font-size:12px;font-weight:700;color:var(--text3);">Send from</label>'
+            + '<select id="sp-step-from" style="width:100%;font-size:13px;margin:4px 0 8px;">'
+            + '<option value="">Default \u2014 ' + partnerEsc((userProfile && userProfile.quoFrom) || '') + '</option>'
+            + nums.map(function(n){
+                var on = (s.sendFrom === n.number) ? ' selected' : '';
+                return '<option value="' + partnerEsc(n.number) + '"' + on + '>' + partnerEsc(n.number + (n.name ? (' \u2014 ' + n.name) : '')) + '</option>';
+              }).join('')
+            + '</select>'
+            + '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Cold outreach and client check-ins are different kinds of message \u2014 worth keeping on separate numbers.</div>'
+          + '</div>';
+          return h;
+        })()
         +'<label style="font-size:12px;font-weight:700;color:var(--text3);">Label / note</label>'
         +'<input type="text" id="sp-step-content" placeholder="What this text is for" value="'+partnerEsc(s.content||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;margin-top:4px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:inherit;"/>';
     } else if(s.channel==='vm'){
@@ -35179,6 +35207,12 @@ function spSaveStep(i){
     if(newSegEl) s.newSegment=newSegEl.value;
     var smsEl=document.getElementById('sp-step-sms');
     if(smsEl) s.smsBody=smsEl.value;
+    var modeEl=document.getElementById('sp-step-sendmode');
+    if(modeEl) s.sendMode=modeEl.value;
+    var fromEl=document.getElementById('sp-step-from');
+    // Blank means the agent's default number, so a plan built before this existed
+    // keeps working unchanged.
+    if(fromEl) s.sendFrom=fromEl.value||'';
     var subjEl=document.getElementById('sp-step-subject');
     if(subjEl) s.emailSubject=subjEl.value;
     var emailEl=document.getElementById('sp-step-email');
@@ -35187,6 +35221,16 @@ function spSaveStep(i){
   document.getElementById('sp-edit-overlay').remove();
   spRenderCanvas();
 }
+// Shows the number picker only when auto-send is chosen and there is a real choice to make.
+function spToggleSendMode() {
+  var m = document.getElementById('sp-step-sendmode');
+  var w = document.getElementById('sp-step-from-wrap');
+  if (!w) return;
+  var nums = (userProfile && userProfile.quoNumbers) || [];
+  w.style.display = (m && m.value === 'auto' && nums.length > 1) ? 'block' : 'none';
+}
+window.spToggleSendMode = spToggleSendMode;
+
 window.spSaveStep = spSaveStep;
 
 // Load the agent's Slybroadcast recordings into the VM step picker (also a credential test)
