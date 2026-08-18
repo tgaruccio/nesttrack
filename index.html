@@ -18946,7 +18946,7 @@ async function setBuyerAgent(uid) {
   try {
     await fb.updateDoc(fb.doc(fb.db, 'users', uid), { agentId: newAgId });
     // Their deals need the new agent on them, wherever those deals live.
-    try { await _syncDealMembersForClient(uid); } catch(e) {}
+    try { await _syncDealMembersForClient(uid); } catch(e) { console.log('member sync skipped:', e && e.message); }
     await loadBuyersForAgent();
     renderBuyers();
     var b = allBuyers.find(function(x){ return x.uid === uid; });
@@ -18985,30 +18985,41 @@ async function setBuyerAgent(uid) {
     });
   } catch(e) { alert('Failed: ' + e.message); }
 }
-// Re-stamps membership on every deal belonging to a client, from wherever those deals live.
-// Called whenever an assignment changes, so a deal's members always match the client card.
+// Re-stamps membership on every deal for a client, so a deal's members always match the
+// client card. Called when an assignment changes rather than repaired on load, because a
+// repair pass only ever walks the folder currently loaded and misses deals living elsewhere.
+//
+// Reads only what the rules allow: the caller's own folder, plus deals they are already a
+// member of. A collection-group query by clientUid is denied outright, and a denied query
+// fails silently - which is exactly how this went unnoticed.
 async function _syncDealMembersForClient(uid) {
   if (!uid) return { updated: 0 };
-  var updated = 0;
+  var updated = 0, seen = {};
+
+  var apply = async function(ref, data) {
+    if (seen[ref.path]) return;
+    seen[ref.path] = 1;
+    if (data.clientUid !== uid) return;
+    var before = (data.memberIds || []).slice().sort().join(',');
+    _stampDealMembers(data, data.agentId || (userProfile && userProfile.agentId) || '');
+    if ((data.memberIds || []).slice().sort().join(',') === before) return;
+    try {
+      await fb.updateDoc(ref, { members: data.members, memberIds: data.memberIds });
+      updated++;
+    } catch(e) { console.log('member sync write:', e && e.message); }
+  };
+
+  // The caller's own deal folder.
   try {
-    // Collection group, because the deal may sit in another agent's folder — which is exactly
-    // the case the old repair pass could never reach.
-    var snap = await fb.getDocs(fb.query(
-      fb.collectionGroup(fb.db, 'deals'),
-      fb.where('clientUid', '==', uid)
-    ));
-    for (var i = 0; i < snap.docs.length; i++) {
-      var d = snap.docs[i];
-      var data = Object.assign({ id: d.id }, d.data());
-      var before = (data.memberIds || []).slice().sort().join(',');
-      _stampDealMembers(data, data.agentId || (userProfile && userProfile.agentId) || '');
-      if ((data.memberIds || []).slice().sort().join(',') === before) continue;
-      try {
-        await fb.updateDoc(d.ref, { members: data.members, memberIds: data.memberIds });
-        updated++;
-      } catch(e) { console.log('member sync write:', e && e.message); }
+    var mine = await fb.getDocs(_dealCol());
+    for (var i = 0; i < mine.docs.length; i++) {
+      await apply(mine.docs[i].ref, Object.assign({ id: mine.docs[i].id }, mine.docs[i].data()));
     }
-  } catch(e) { console.log('_syncDealMembersForClient:', e && e.message); }
+  } catch(e) { console.log('member sync own folder:', e && e.message); }
+
+  // Own folder only. A collection-group query here is denied by the rules, and a denied
+  // query throws — which made a successful reassign look like a failure.
+
   return { updated: updated };
 }
 window._syncDealMembersForClient = _syncDealMembersForClient;
@@ -19023,7 +19034,7 @@ async function setCoAgent(uid) {
     var buyer = allBuyers.find(function(b){ return b.uid===uid; });
     if (buyer) buyer.coAgentId = newCoId || null;
     // Push the change onto their deals now, rather than hoping a later load repairs it.
-    try { await _syncDealMembersForClient(uid); } catch(e) {}
+    try { await _syncDealMembersForClient(uid); } catch(e) { console.log('member sync skipped:', e && e.message); }
     if (!newCoId) { alert('Co-agent removed.'); return; }
     // Send notification email to co-agent
     var coAgentObj = DEFAULT_AGENTS.find(function(a){ return a.id === newCoId; });
@@ -19292,7 +19303,7 @@ async function setBuyerLender(uid) {
     var buyer = allBuyers.find(function(b){ return b.uid === uid; });
     if (buyer) buyer.lenderId = newLid;
     // Same reason as the agent and co-agent paths — the deal has to learn about it.
-    try { await _syncDealMembersForClient(uid); } catch(e) {}
+    try { await _syncDealMembersForClient(uid); } catch(e) { console.log('member sync skipped:', e && e.message); }
     var lender = DEFAULT_LENDERS.find(function(l){ return l.id === newLid; });
     alert('Lender reassigned to ' + (lender ? lender.name : newLid) + '!');
     await loadBuyersForAgent();
@@ -32299,12 +32310,18 @@ function _stampDealMembers(data, ownerId) {
     if (data.clientUid && typeof allBuyers !== 'undefined' && allBuyers)
       _c = allBuyers.find(function(b){ return b && b.uid === data.clientUid; });
   } catch(e){}
-  var _agent  = data.agentId   || (_c && _c.agentId)   || '';
-  var _co     = data.coAgentId || (_c && _c.coAgentId) || '';
-  var _lender = data.lenderId  || (_c && _c.lenderId)  || '';
-  if (_agent  && !m[_agent])  m[_agent]  = 'agent';
-  if (_co     && !m[_co])     m[_co]     = 'coagent';
-  if (_lender && !m[_lender]) m[_lender] = 'lender';
+  // The client card decides who is on a client. Reading the deal first meant a
+  // reassignment never reached the deal — the stale value kept winning.
+  var _agent  = (_c && _c.agentId)   || data.agentId   || '';
+  var _co     = (_c && _c.coAgentId) || data.coAgentId || '';
+  var _lender = (_c && _c.lenderId)  || data.lenderId  || '';
+  // 'none' is the lender placeholder, not a person.
+  var _real = function(v){ return v && v !== 'none' && v !== 'null'; };
+  if (_real(_agent)  && !m[_agent])  m[_agent]  = 'agent';
+  if (_real(_co)     && !m[_co])     m[_co]     = 'coagent';
+  if (_real(_lender) && !m[_lender]) m[_lender] = 'lender';
+  // Drop a placeholder any earlier stamp left behind.
+  delete m['none']; delete m['null'];
   data.members = m;
   data.memberIds = Object.keys(m);
   if (!data.teamId) data.teamId = _teamIdForAgent(ownerId);
