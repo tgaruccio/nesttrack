@@ -4450,7 +4450,9 @@ const DEFAULT_AGENTS = [
   {id:'brittney',name:'Brittney Dirskell',role:'REALTOR®',phone:'216-394-7087',email:'Brittney@GaruccioGroup.com',teamId:'tom'},
 ];
 
-const DEFAULT_LENDERS = [];
+const DEFAULT_LENDERS = [
+  {id:'tom',name:'Tom Garuccio',role:'Licensed Mortgage Professional',phone:'440-754-7449',email:'Tom@GaruccioGroup.com',applyLink:'https://1660690.my1003app.com/2784866/register',teamId:'tom',isDefault:true},
+];
 
 async function loadTeamLenders() {
   try {
@@ -17982,7 +17984,10 @@ async function sendPreApprovalEmail() {
       if (status) { status.textContent='✓ Pre-approval email sent to '+toEmail; status.style.background='var(--green-lt)'; status.style.color='var(--green-dk)'; }
       if (manual) manual.value='';
       if (noteEl) noteEl.value='';
-      if (sel) sel.value='';
+      // Clear the client picker by its own id. The old `sel` variable never existed in
+      // this scope, so this line threw after a successful send and reported failure.
+      var _picker = document.getElementById('pa-client-search');
+      if (_picker) _picker.value='';
     } catch(e) {
       if (status) { status.textContent='Failed to send. Try again.'; status.style.background='var(--red-lt)'; status.style.color='var(--red-dk)'; }
     }
