@@ -18663,6 +18663,10 @@ async function toggleClientTexts(uid) {
 window.toggleClientTexts = toggleClientTexts;
 
 async function openBuyerDetail(uid, scrollTo) {
+  // The lender dropdown is built from DEFAULT_LENDERS, which loadTeamLenders fills from
+  // Firestore. If the card renders first the dropdown is empty and a reassign saves
+  // nothing — which is what produced "reassigned to undefined".
+  try { if (!DEFAULT_LENDERS.length) await loadTeamLenders(); } catch(e){}
   const b = allBuyers.find(x => x.uid === uid);
   if (!b) {
     // Try loading directly from Firestore (e.g. pending record)
@@ -19310,7 +19314,17 @@ async function setBuyerLender(uid) {
     // Same reason as the agent and co-agent paths — the deal has to learn about it.
     try { await _syncDealMembersForClient(uid); } catch(e) { console.log('member sync skipped:', e && e.message); }
     var lender = DEFAULT_LENDERS.find(function(l){ return l.id === newLid; });
-    alert('Lender reassigned to ' + (lender ? lender.name : newLid) + '!');
+    if (!newLid || newLid === 'none') {
+      alert('Lender removed.');
+    } else if (lender) {
+      alert('Lender reassigned to ' + lender.name + '!');
+    } else {
+      // Saved, but the list had not loaded so the name is unknown. Reload it rather
+      // than printing undefined at someone.
+      try { await loadTeamLenders(); } catch(e){}
+      var _l2 = DEFAULT_LENDERS.find(function(l){ return l.id === newLid; });
+      alert(_l2 ? ('Lender reassigned to ' + _l2.name + '!') : 'Lender saved. Reopen the card to see the name.');
+    }
     await loadBuyersForAgent();
     renderBuyers();
   } catch(e) { alert('Failed: ' + e.message); }
@@ -31181,6 +31195,15 @@ function renderDealCards(deals) {
       +'<div style="font-size:11px;font-weight:600;color:#fff;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:3px 8px;">'+autoStatus+'</div>'
       +'</div>'
       +'</div>'
+      +( (deal.dealType==='seller' && hasAddr && !deal.offerListingId) ?
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);">'
+        +'<span style="font-size:12px;color:var(--text2);min-width:0;overflow:hidden;text-overflow:ellipsis;">\uD83D\uDCCB Not in Offer Manager yet</span>'
+        +'<button class="btn btn-sm btn-g" style="font-size:11px;flex-shrink:0;" onclick="_goLiveByDeal(\'' + deal.id + '\')">Set up offers</button>'
+        +'</div>' : '')
+      +( (deal.dealType==='seller' && deal.offerListingId) ?
+        '<div style="padding:7px 14px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:11.5px;color:var(--text3);">'
+        +'\uD83D\uDCCB <span onclick="gsGoOffers()" style="color:var(--green-dk);cursor:pointer;text-decoration:underline;">Open in Offer Manager</span>'
+        +'</div>' : '')
       +( (deal.dealType!=='seller' && hasAddr && autoStatus==='Pipeline' && deal.offerStatus!=='accepted') ?
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 14px;background:#FEF9C3;border-bottom:1px solid #FDE047;">'
         +'<span style="font-size:12px;font-weight:600;color:#854D0E;min-width:0;overflow:hidden;text-overflow:ellipsis;">📤 Offer out on '+partnerEsc(deal.address)+'</span>'
