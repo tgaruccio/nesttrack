@@ -11667,7 +11667,7 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
         // (_postStepToChat handles the message + its own push, exactly as before;
         // we just moved WHEN it runs so it sends with the email, not before.)
         if (pushInfo && pushInfo.postChat && pushInfo.uid && typeof _postStepToChat === 'function') {
-          try { _postStepToChat(pushInfo.uid, pushInfo.isSeller, pushInfo.chatStep); } catch(e){}
+          try { _postStepToChat(pushInfo.uid, (pushInfo.kind || pushInfo.isSeller), pushInfo.chatStep); } catch(e){}
         }
 
         // Mortgage: send separate promo email to listing agent if CC enabled and has email
@@ -17459,8 +17459,13 @@ function _emailToChatText(html){
   return text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
 }
 
-function _stepChatParts(isSeller, stepNum, client){
-  var emap = isSeller ? ((typeof SELLER_STEP_EMAILS!=='undefined')?SELLER_STEP_EMAILS:{}) : ((typeof BUYER_STEP_EMAILS!=='undefined')?BUYER_STEP_EMAILS:{});
+function _stepChatParts(kind, stepNum, client){
+  // Accepts the old boolean as well as a type string, because the deal tracker still
+  // passes isSeller.
+  var _k = (kind === true) ? 'seller' : (kind === false ? 'buyer' : String(kind || 'buyer'));
+  var emap = _k === 'seller' ? ((typeof SELLER_STEP_EMAILS!=='undefined')?SELLER_STEP_EMAILS:{})
+    : _k === 'mortgage' ? ((typeof MORTGAGE_STEP_EMAILS!=='undefined')?MORTGAGE_STEP_EMAILS:{})
+    : ((typeof BUYER_STEP_EMAILS!=='undefined')?BUYER_STEP_EMAILS:{});
   var def = emap[stepNum];
   var first = (client && client.firstName) || 'there';
   var agentObj = (client && typeof DEFAULT_AGENTS!=='undefined') ? DEFAULT_AGENTS.find(function(a){ return a.id===client.agentId; }) : null;
@@ -17504,10 +17509,10 @@ function _stepChatParts(isSeller, stepNum, client){
   return { title: subject || ('Step '+stepNum), text: full.replace(/^\s+|\s+$/g,'') };
 }
 
-function _postStepToChat(clientUid, isSeller, stepNum){
+function _postStepToChat(clientUid, kind, stepNum){
   if(!clientUid) return;
   var client = (typeof allBuyers!=='undefined' && allBuyers) ? allBuyers.find(function(b){ return b.uid===clientUid; }) : null;
-  var p = _stepChatParts(isSeller, stepNum, client);
+  var p = _stepChatParts(kind, stepNum, client);
   if(!p || !p.text) return;
   var agentName = (((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim()||'Your Agent';
   try{
@@ -19535,7 +19540,8 @@ async function setMortgageStep(uid) {
     if (buyer) buyer.currentMortgageStep = newStep;
     if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') {
       var _mStepName = (typeof MORTGAGE_STEPS !== 'undefined' && MORTGAGE_STEPS[newStep-1]) || ('Step '+newStep);
-      sendStepEmail(uid, newStep, 'mortgage');
+      // postChat so the update reaches chat, push and text — not email alone.
+      sendStepEmail(uid, newStep, 'mortgage', { uid: uid, postChat: true, kind: 'mortgage', chatStep: newStep, title: 'Loan Update \uD83C\uDFE6' });
       sendPushToUser(uid, 'Mortgage Update 💰', 'You\'ve reached Step '+newStep+': '+_mStepName);
     }
     window._pendingStepEmailChoice = null;
@@ -22354,7 +22360,7 @@ async function mjSaveStep(uid, id) {
   await mjRenderBlock(uid);
 
   if (newStep > 0 && window._pendingStepEmailChoice !== 'nosend') {
-    try { sendStepEmail(uid, newStep, 'mortgage', null, id); } catch(e) { console.log('mj email:', e && e.message); }
+    try { sendStepEmail(uid, newStep, 'mortgage', { uid: uid, postChat: true, kind: 'mortgage', chatStep: newStep, title: 'Loan Update \uD83C\uDFE6' }, id); } catch(e) { console.log('mj email:', e && e.message); }
     try { await fb.updateDoc(_mjDoc(uid, id), { lastClientEmailAt: fb.serverTimestamp() }); } catch(e){}
     try { sendPushToUser(uid, 'Mortgage Update \uD83D\uDCB0', 'You\u2019ve reached Step ' + newStep + ': ' + mjStepLabel(newStep)); } catch(e){}
   }
