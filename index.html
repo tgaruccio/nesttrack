@@ -11576,8 +11576,14 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
     var client = snap.data();
     if (!client.email) return;
     var first = client.firstName || 'there';
-    var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
-    var agentName = agentObj ? agentObj.name : '';
+    // Whoever sends it is who it comes from. The photo and signature are already theirs.
+    var _meId = (userProfile && (userProfile.agentId || userProfile.lenderId)) || '';
+    var agentObj = DEFAULT_AGENTS.find(function(a){ return a.id === _meId; })
+      || (typeof DEFAULT_LENDERS!=='undefined' ? DEFAULT_LENDERS : []).find(function(l){ return l.id === _meId; })
+      // Only if the sender cannot be resolved at all: fall back to the assigned agent.
+      || DEFAULT_AGENTS.find(function(a){ return a.id === client.agentId; });
+    var agentName = agentObj ? agentObj.name
+      : (((userProfile && userProfile.firstName) || '') + ' ' + ((userProfile && userProfile.lastName) || '')).trim();
     var emailMap = type === 'seller' ? SELLER_STEP_EMAILS : type === 'mortgage' ? MORTGAGE_STEP_EMAILS : BUYER_STEP_EMAILS;
     var hardcoded = emailMap[stepNum];
     if (!hardcoded) return;
@@ -19392,7 +19398,14 @@ function _goLiveOpen(deal){
   var addr = (deal.address && deal.address.trim())
     || (b && (b.listingAddress || b.propertyAddress || b.mailingAddress))
     || '';
-  var existing = (window._listings||[]).find(function(l){ return deal.clientUid && l.clientUid===deal.clientUid && l.active!==false; });
+  // Match on ADDRESS, not client. A seller can have more than one property, and matching
+  // on client alone silently linked a new deal to their other house — so nothing new
+  // appeared in Offer Manager and the existing listing quietly changed hands.
+  var _norm = function(a){ return String(a||'').toLowerCase().replace(/[^a-z0-9]/g,''); };
+  var _target = _norm(addr);
+  var existing = _target
+    ? (window._listings||[]).find(function(l){ return _norm(l.address) === _target && l.active!==false; })
+    : null;
   _goLiveCtx = { uid: deal.clientUid||'', dealId: deal.id, existingListingId: existing ? existing.id : '' };
   _goLiveEnsureModal();
   var ai = document.getElementById('goLiveAddr'); if (ai) ai.value = addr;
