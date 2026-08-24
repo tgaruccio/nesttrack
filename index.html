@@ -17609,9 +17609,12 @@ function sendAgentChatMessage() {
   }).then(function(){
     input.value=''; input.style.height='auto';
     // Push to buyer — buyer UID is last part of room ID
-    var parts = agentCurrentRoom.replace('chat_','').split('_');
-    if (parts.length >= 2) {
-      var buyerUid = parts[parts.length-1];
+    // A client uid contains underscores (contact_1784825983484_7tx18), so the buyer id is
+    // everything after the agent id — not the last underscore-separated piece.
+    var _rest = agentCurrentRoom.replace(/^chat_/, '');
+    var _cut = _rest.indexOf('_');
+    var buyerUid = _cut > -1 ? _rest.slice(_cut + 1) : '';
+    if (buyerUid) {
       sendPushToUser(buyerUid, 'New message from '+agentName, text.substring(0,80));
       // Text it too. Gated by the same checks as every other auto-text, so the
       // per-client toggle turns this off along with the rest.
