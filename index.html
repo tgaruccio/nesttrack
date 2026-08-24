@@ -7537,6 +7537,15 @@ async function textClient(clientUid, body, opts) {
     }
   } catch(e) {}
 
+  // Never text the sender their own message. As lender or co-agent on a client, their
+  // number is on this list, and a text from yourself is confusing at best.
+  try {
+    var _myPhone = String((userProfile && userProfile.phone) || '').replace(/\D/g,'').slice(-10);
+    if (_myPhone) {
+      to = to.filter(function(p){ return String(p||'').replace(/\D/g,'').slice(-10) !== _myPhone; });
+    }
+  } catch(e) {}
+
   if (!to.length) return { ok: false, reason: 'nobody has a phone number' };
 
   try {
@@ -17572,6 +17581,9 @@ function sendAgentMsg() {
     text: text, senderId: currentUser.uid, senderName: agentName, ts: Date.now(), role: 'agent'
   });
   try{ if(typeof _bumpThread==='function') _bumpThread(_msgCurrentBuyer.uid, text, 'agent'); }catch(e){}
+  // Text it too. Same gate as every other auto-text, so the per-client toggle turns this
+  // off with the rest, and the sender is never texted their own message.
+  try { textClient(_msgCurrentBuyer.uid, text); } catch(e) { console.log('chat text:', e && e.message); }
   // Auto-complete reply to-do for this client
   var replyId = 'reply_'+_msgCurrentBuyer.uid;
   var replyTodo = _todos && _todos.find(function(t){ return t.id===replyId && !t.done; });
