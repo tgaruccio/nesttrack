@@ -17613,6 +17613,9 @@ function sendAgentChatMessage() {
     if (parts.length >= 2) {
       var buyerUid = parts[parts.length-1];
       sendPushToUser(buyerUid, 'New message from '+agentName, text.substring(0,80));
+      // Text it too. Gated by the same checks as every other auto-text, so the
+      // per-client toggle turns this off along with the rest.
+      try { textClient(buyerUid, text); } catch(e) { console.log('chat text:', e && e.message); }
     }
   })
   .catch(function(e){ console.log('Agent send failed:',e.message); });
