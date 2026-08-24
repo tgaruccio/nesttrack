@@ -11700,7 +11700,14 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
           await fetch(PROXY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Action': 'email' },
-            body: JSON.stringify({ to: _promoAddr, subject: subject + ' — ' + first, html: promoHtml , from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() })
+            // A listing agent knows the property, not the buyer's first name. Address
+            // first, then a full name, and only then the first name.
+            body: JSON.stringify({ to: _promoAddr,
+              subject: subject + ' — ' + (
+                (_mj && _mj.address)
+                || ((((client.firstName||'') + ' ' + (client.lastName||'')).trim()) || first)
+              ),
+              html: promoHtml , from: agentFromField(), reply_to: agentReplyTo(), signature: agentSignatureHtml() })
           });
         }
         console.log('Step email sent:', type, stepNum, client.email);
@@ -22210,7 +22217,9 @@ async function mjCreate(uid, address) {
   } catch(e){}
   var rec = {
     buyerAgentEmail: _ba,
-    address: String(address || '').trim(),
+    // Falls back to the address already on the client, so a loan created for someone with
+    // a known property does not start life saying "No address yet".
+    address: String(address || b.propertyAddress || b.listingAddress || b.mailingAddress || '').trim(),
     step: 0,
     dates: {},
     lenderId: (userProfile && (userProfile.lenderId || userProfile.agentId)) || '',
@@ -27213,7 +27222,11 @@ function _mjTouchBar(j) {
 function _mjPipelineCard(j) {
   var stage = mjStage(j.step);
   var tint  = stage === 'closed' ? 'var(--text3)' : (stage === 'active' ? '#0F7A52' : '#185FA5');
-  var addr  = j.address || 'No address yet';
+  // Tappable when missing: the pipeline is where you notice it, so it should be where
+  // you can fix it.
+  var addr  = j.address
+    ? partnerEsc(j.address)
+    : '<span onclick="mjEditAddress(\'' + (j.clientUid || j.uid || '') + '\',\'' + j.id + '\')" style="color:#185FA5;cursor:pointer;text-decoration:underline;">Add address</span>';
   var step  = Number(j.step) || 0;
 
   // Amber past a fortnight: a file sitting in one step is the one worth a phone call, and it
