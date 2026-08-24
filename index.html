@@ -13496,6 +13496,14 @@ function sendChatMessage() {
     input.value = '';
     input.style.height = 'auto';
     try{ if(typeof _bumpThread==='function') _bumpThread((currentChatRoom||'').replace('chat_',''), text, isAgent?'agent':'buyer'); }catch(e){}
+    // Text it too, when the agent or lender is the one sending. Same gate as every other
+    // auto-text, so the per-client toggle turns this off with the rest.
+    try {
+      if (isAgent || isLender) {
+        var _cUid = (currentChatRoom||'').replace(/^chat_/, '');
+        if (_cUid) textClient(_cUid, text);
+      }
+    } catch(e) { console.log('chat text:', e && e.message); }
     var badge = document.getElementById('chat-unread-badge');
     if (badge) badge.remove();
     // Push notification to all relevant recipients
