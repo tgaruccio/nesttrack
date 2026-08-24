@@ -31056,6 +31056,12 @@ async function srSendReport() {
     }
 
     srClearDraft(_srCurrent.listingId);   // sent — the draft has served its purpose
+
+    // Text the link too. This is the report most likely to be opened on a phone, and a
+    // link in a text gets read where one in an inbox does not.
+    try {
+      textClient(client.uid, 'Your weekly update for ' + (l.address || 'your listing') + ' is ready.\n\n' + srReportUrl(reportData.token));
+    } catch(e) { console.log('report text:', e && e.message); }
     srSentDialog(client, reportData.token, l.address || '');
     var ov = document.getElementById('sr-builder-overlay');
     if (ov) ov.remove();
