@@ -33882,11 +33882,15 @@ async function loadSellerSignals() {
     var r = await fetch(PROXY_URL + '/api/v1/nt-signals?api_key=' + encodeURIComponent(userProfile.leadToken || ''));
     var j = await r.json();
     if (!j || !j.ok) { console.log('seller signals:', j && j.reason); return; }
-    var day = Math.floor(Date.now() / 86400000);
-    // Dismissals last the day. Tomorrow's behaviour is new information, and a name buried
-    // permanently because you looked at it once in March is worse than seeing it twice.
+    // Keyed on the person, not the day. A daily key expired at midnight and the same name
+    // came back every morning — their score does not reset, so nothing had changed.
+    // Dismissed now means quiet until they open the report again.
     _ntSignals = (j.signals || []).filter(function(x){
-      return x.score >= 30 && !_ntSignalSeen[x.token + ':' + day];
+      if (x.score < 30) return false;
+      var seenAt = _ntSignalSeen[x.token];
+      if (!seenAt) return true;
+      var last = x.lastViewAt ? Date.parse(x.lastViewAt) : 0;
+      return last > Number(seenAt);
     });
     renderFollowUpDeck();
   } catch(e) { console.log('seller signals:', e && e.message); }
@@ -33895,13 +33899,12 @@ window.loadSellerSignals = loadSellerSignals;
 
 function _ntSignalRows() {
   if (!_ntSignals.length) return '';
-  var day = Math.floor(Date.now() / 86400000);
   return _ntSignals.slice(0, 3).map(function(x){
     var first = String(x.name).split(' ')[0];
     // The top two reasons only. Four facts in a row stops reading like a prompt and starts
     // reading like a report, and nobody acts on a report.
     var why = (x.why || []).slice(0, 2).join(' \u00b7 ');
-    var key = x.token + ':' + day;
+    var key = x.token;
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border);background:#FDF4E3;">'
       + '<span style="font-size:14px;flex-shrink:0;">\uD83C\uDFE1</span>'
       + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="ntSignalOpen(\'' + x.contactUid + '\',\'' + key + '\')">'
@@ -33916,7 +33919,7 @@ function _ntSignalRows() {
 
 function ntSignalOpen(uid, key) {
   _ntSignalSeen[key] = Date.now(); _ntSaveSeen();
-  _ntSignals = _ntSignals.filter(function(x){ return (x.token + ':' + key.split(':')[1]) !== key; });
+  _ntSignals = _ntSignals.filter(function(x){ return x.token !== key; });
   renderFollowUpDeck();
   if (uid && typeof openBuyerDetail === 'function') openBuyerDetail(uid);
 }
@@ -33924,7 +33927,7 @@ window.ntSignalOpen = ntSignalOpen;
 
 function ntSignalDismiss(key) {
   _ntSignalSeen[key] = Date.now(); _ntSaveSeen();
-  _ntSignals = _ntSignals.filter(function(x){ return (x.token + ':' + key.split(':')[1]) !== key; });
+  _ntSignals = _ntSignals.filter(function(x){ return x.token !== key; });
   renderFollowUpDeck();
 }
 window.ntSignalDismiss = ntSignalDismiss;
@@ -33985,7 +33988,13 @@ async function loadListingSignals() {
 
     _lsSignals = Object.keys(byClient).map(function(k){ return byClient[k]; })
       .filter(function(x){ return x.asked || x.loves || x.views; })
-      .filter(function(x){ return !_lsSignalSeen[x.uid + ':' + Math.floor(x.when.getTime()/60000)]; })
+      .filter(function(x){
+        var seenAt = _lsSignalSeen[x.uid];
+        if (!seenAt) return true;
+        // Dismissed means “dealt with”, not “never tell me again”. New activity since then
+        // is genuinely new and should surface.
+        return x.when && x.when.getTime() > Number(seenAt);
+      })
       .sort(function(a,b){
         var ra = a.asked ? 0 : (a.loves ? 1 : 2);
         var rb = b.asked ? 0 : (b.loves ? 1 : 2);
@@ -34041,7 +34050,7 @@ function _lsSignalRows() {
     }
     if (!parts.length) return '';
     var text = first + ' ' + parts.join(' \u00b7 ');
-    var key = x.uid + ':' + Math.floor(x.when.getTime()/60000);
+    var key = x.uid;
     return '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:0.5px solid var(--border);background:#E1F5EE;">'
       + '<span style="font-size:14px;flex-shrink:0;">' + icon + '</span>'
       + '<div style="flex:1;min-width:0;cursor:pointer;" onclick="lsSignalOpen(\'' + x.uid + '\',\'' + key + '\')">'
@@ -34064,7 +34073,7 @@ function _lsSignalRows() {
 // Opening the client is acknowledgement enough — no need to dismiss as well.
 function lsSignalOpen(uid, key) {
   _lsSignalSeen[key] = Date.now(); _lsSaveSeen();
-  _lsSignals = _lsSignals.filter(function(x){ return (x.uid + ':' + Math.floor(x.when.getTime()/60000)) !== key; });
+  _lsSignals = _lsSignals.filter(function(x){ return (x.uid) !== key; });
   renderFollowUpDeck();
   if (typeof openBuyerDetail === 'function') openBuyerDetail(uid);
 }
@@ -34072,7 +34081,7 @@ window.lsSignalOpen = lsSignalOpen;
 
 function lsSignalDismiss(key) {
   _lsSignalSeen[key] = Date.now(); _lsSaveSeen();
-  _lsSignals = _lsSignals.filter(function(x){ return (x.uid + ':' + Math.floor(x.when.getTime()/60000)) !== key; });
+  _lsSignals = _lsSignals.filter(function(x){ return (x.uid) !== key; });
   renderFollowUpDeck();
 }
 window.lsSignalDismiss = lsSignalDismiss;
