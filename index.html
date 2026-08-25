@@ -7538,15 +7538,6 @@ async function textClient(clientUid, body, opts) {
     }
   } catch(e) {}
 
-  // Never text the sender their own message. As lender or co-agent on a client, their
-  // number is on this list, and a text from yourself is confusing at best.
-  try {
-    var _myPhone = String((userProfile && userProfile.phone) || '').replace(/\D/g,'').slice(-10);
-    if (_myPhone) {
-      to = to.filter(function(p){ return String(p||'').replace(/\D/g,'').slice(-10) !== _myPhone; });
-    }
-  } catch(e) {}
-
   if (!to.length) return { ok: false, reason: 'nobody has a phone number' };
 
   try {
@@ -11560,7 +11551,7 @@ async function saveStepUpdate(uid, data) {
     await fb.setDoc(fb.doc(fb.db, 'step_updates', tok), {
       token: tok,
       clientUid: uid,
-      agentId: (userProfile && userProfile.agentId) || '',
+      agentId: (userProfile && (userProfile.agentId || userProfile.lenderId)) || '',
       subject: data.subject || 'Your update',
       html: data.html,
       stepNum: data.stepNum || 0,
@@ -11680,9 +11671,11 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
         // Text the same headline and link. Fails quietly if Quo is not connected — this
         // is an addition to the email, never a replacement for it.
         try {
+          var _txt = subject;
           if (window._lastStepUpdateUrl) {
-            textClient(uid, subject + '\n\n' + 'Read the full update: ' + window._lastStepUpdateUrl);
+            _txt += '\n\nRead the full update: ' + window._lastStepUpdateUrl;
           }
+          textClient(uid, _txt);
         } catch(e) { console.log('step text:', e && e.message); }
 
         // The in-app message fires here — only after the email actually sent.
