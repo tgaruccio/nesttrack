@@ -33565,8 +33565,10 @@ function editClientInfo(uid) {
   document.getElementById('ec-save').onclick = async function() {
     var first = document.getElementById('ec-first').value.trim();
     var last  = document.getElementById('ec-last').value.trim();
-    var email = document.getElementById('ec-email').value.trim();
-    var email2 = document.getElementById('ec-email2').value.trim();
+    // Lowercased on the way in. Every duplicate check and portal match queries on a
+    // lowercased email, so a capital letter here creates a record none of them can find.
+    var email = document.getElementById('ec-email').value.trim().toLowerCase();
+    var email2 = document.getElementById('ec-email2').value.trim().toLowerCase();
     var name2 = document.getElementById('ec-name2').value.trim();
     var phone = document.getElementById('ec-phone').value.trim();
     if (!first) { alert('First name is required.'); return; }
@@ -38069,7 +38071,7 @@ async function sendPortalInvite() {
 
   // Save invite code to Firestore
   await fb.setDoc(fb.doc(fb.db, 'invites', code), {
-    firstName: b.firstName, lastName: b.lastName, email: b.email,
+    firstName: b.firstName, lastName: b.lastName, email: String(b.email||'').toLowerCase(),
     agentId: b.agentId, journeyType: b.journeyType || 'buyer',
     contactUid: uid,
     invitedBy: currentUser.uid, invitedAt: fb.serverTimestamp(), used: false,
