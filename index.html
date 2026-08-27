@@ -37083,8 +37083,28 @@ function soldFeedCopy(uid) {
 }
 window.soldFeedCopy = soldFeedCopy;
 
+// Clears the pending state once the agent has tapped through, so the row stops asking.
+async function soldFeedTapped(uid) {
+  var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+  if (!b) return;
+  try {
+    await fb.updateDoc(fb.doc(fb.db,'users',uid), { soldFeedActivateUrl: '' });
+    b.soldFeedActivateUrl = '';
+    var row = document.querySelector('#bd-sold-feed-'+uid);
+    if (row) row.innerHTML = soldFeedRowHtml(b);
+  } catch(e) { console.log('soldFeedTapped:', e && e.message); }
+}
+window.soldFeedTapped = soldFeedTapped;
+
 function soldFeedRowHtml(b) {
   var addr = soldFeedAddress(b);
+  // Auto-activation failed, so the agent finishes it manually — same fallback the
+  // listing feed has. Shown before anything else because nothing arrives until it is done.
+  if (addr && b.soldFeedActivateUrl) {
+    return '<div style="font-size:11.5px;color:#B45309;font-weight:600;">\uD83D\uDCCA Neighbourhood report \u00b7 one tap to finish</div>'
+      + '<a href="' + partnerEsc(b.soldFeedActivateUrl) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();soldFeedTapped(\'' + b.uid + '\')" style="display:block;text-align:center;margin-top:7px;background:#B45309;color:#fff;font-size:12px;font-weight:600;padding:9px;border-radius:var(--r);text-decoration:none;">Activate the sold search</a>'
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.5;">Your MLS needs one click before it will start sending. This opens it and finishes the setup.</div>';
+  }
   var help = ' <span onclick="event.stopPropagation();showHelp(\'marketreport\')" title="What is this? How does it connect?" style="width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;">?</span>';
   if (!addr) {
     return '<span style="font-size:11.5px;color:var(--text3);">\uD83D\uDCCA Neighbourhood report \u2014 not set up</span>'
