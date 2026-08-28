@@ -4804,7 +4804,13 @@ async function signUp() {
       'mortLAName','mortLAEmail','mortLACCEnabled','onboardingAssigned','mentorAgentId',
       // Already live in the MLS by the time a client signs up — losing it here silently
       // kills a feed that still looks set up from the MLS side.
-      'mlsFeedToken','mlsFeedActive','mlsFeedActivateUrl','lenderId'];
+      'mlsFeedToken','mlsFeedActive','mlsFeedActivateUrl','lenderId',
+      // Everything the agent typed on the client card before the invite was accepted.
+      // Omitted here, these were silently wiped on signup.
+      'phone','email2','name2','mailingAddress','propertyAddress','listingAddress',
+      'segment','tags','birthday','anniversary','preApprovalLink',
+      'soldFeedToken','soldFeedActivateUrl','ntEnrolled','ntToken','ntValue',
+      'textUpdates','fubId','importedFrom'];
     copyFields.forEach(function(f) {
       if (existingContact && existingContact[f] !== undefined) newProfile[f] = existingContact[f];
     });
@@ -4867,6 +4873,28 @@ async function signUp() {
           used: true, usedBy: cred.user.uid, usedAt: fb.serverTimestamp()
         });
       } catch(x) { console.log('Invite mark used:', x); }
+    }
+
+    // Repoint everything that referenced the OLD uid before the record disappears.
+    // Without this a client keeps their deals in the database but nothing can find
+    // them — the card offers to start a journey that is already underway.
+    if (existingContact && existingContact.uid && existingContact.uid !== cred.user.uid) {
+      var _oldUid = existingContact.uid, _newUid = cred.user.uid;
+      try {
+        var _dealSnap = await fb.getDocs(fb.query(fb.collectionGroup(fb.db,'deals'),
+                                                  fb.where('clientUid','==',_oldUid)));
+        for (var _di = 0; _di < _dealSnap.docs.length; _di++) {
+          try { await fb.updateDoc(_dealSnap.docs[_di].ref, { clientUid: _newUid }); } catch(x){}
+        }
+        if (_dealSnap.docs.length) console.log('repointed', _dealSnap.docs.length, 'deals to', _newUid);
+      } catch(x) { console.log('deal repoint:', x && x.message); }
+      try {
+        var _olSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings'),
+                                                fb.where('clientUid','==',_oldUid)));
+        for (var _oi = 0; _oi < _olSnap.docs.length; _oi++) {
+          try { await fb.updateDoc(_olSnap.docs[_oi].ref, { clientUid: _newUid }); } catch(x){}
+        }
+      } catch(x) { console.log('listing repoint:', x && x.message); }
     }
 
     // Delete the orphan contact record now that data is merged
@@ -5088,7 +5116,13 @@ async function _mergeOrphanContactInBackground(){
         'buyerIsCash','sellerIsCash','crmStatus','notes','mortLAName','mortLAEmail','mortLACCEnabled',
         // The MLS is already sending to this token. Losing it here breaks a feed that
         // still looks healthy from the MLS side.
-        'mlsFeedToken','mlsFeedActive','mlsFeedActivateUrl','lenderId'];
+        'mlsFeedToken','mlsFeedActive','mlsFeedActivateUrl','lenderId',
+        // Everything the agent typed on the client card before the invite was accepted.
+        // Omitted here, these were silently wiped on signup.
+        'phone','email2','name2','mailingAddress','propertyAddress','listingAddress',
+        'segment','tags','birthday','anniversary','preApprovalLink',
+        'soldFeedToken','soldFeedActivateUrl','ntEnrolled','ntToken','ntValue',
+        'textUpdates','fubId','importedFrom'];
       copyFields.forEach(function(f){ if (contact[f] !== undefined && userProfile[f] === undefined) patch[f] = contact[f]; });
       if (Object.keys(patch).length) {
         patch.portalUid = currentUser.uid;
