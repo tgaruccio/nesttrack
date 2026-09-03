@@ -7381,7 +7381,7 @@ window.coachDemo = coachDemo;
 var HELP_DEFAULTS = {
   dealtabs:    { title:'The four deal tabs', body:'<strong>Timeline</strong> \u2014 the running record of the transaction: milestones, key dates, and status. Set the dates here and the client\u2019s portal timeline, the milestone emails, and your to-dos all update off them.<br><br><strong>Parties</strong> \u2014 everyone on the deal: your client, the other agent, lender, title, inspector. Add them once and they feed the Comms tab, get CC\u2019d on the right emails, and fill in on generated documents.<br><br><strong>Docs</strong> \u2014 every document tied to the deal. Generate from your templates (auto-filled from the deal), or upload signed copies. Posts to the client\u2019s timeline so both sides see what\u2019s done.<br><br><strong>Comms</strong> \u2014 the communication log: messages, emails, and notes in one place. When someone asks what was said in week two, this is where you look.' },
   quo: { title:'Auto-texting through Quo', body:'<strong>What it does:</strong> lets NestTrack send a text from your own business number instead of drafting it for you. Texts stay drafts by default \u2014 connecting Quo only makes auto-send available as a choice on individual Smart Plan steps.<br><br><strong>What you need first:</strong> an active Quo subscription with Owner or Admin access, US carrier registration completed in Quo, and prepaid API credits. All three are required before a single text will send, and they are set up inside Quo rather than here.<br><br><strong>To connect:</strong> in Quo go to <strong>Settings \u2192 API</strong>, generate a key, paste it here and hit <em>Save key</em>. Then pick which of your numbers should send.<br><br><strong>Worth knowing:</strong> API messaging draws on prepaid credits separate from your subscription, so texts stop if those run out \u2014 NestTrack falls back to drafting the message and tells you why rather than silently skipping it. Automatic texts never send outside 8am to 8pm in your client\u2019s local time.' },
-  marketreport: { title:'Neighbourhood market reports', body:'<strong>What it does:</strong> once a month your client gets an email showing what sold near them \u2014 how many, the price range, and a few recent sales. Free to send, and it keeps you in front of a past client between their paid home value reports.<br><br><strong>To set it up:</strong> tap <em>Get address</em> to create their report address. Then in your MLS build a saved search: <strong>status Sold</strong>, <strong>sold in the last 30 days</strong>, and a radius around their home. Set it to email <strong>daily</strong>, and paste the report address as the recipient.<br><br><strong>Why daily:</strong> sales are collected as they happen and the report is built from what has accumulated. A monthly email would mean one missed send costs a whole month \u2014 and there would be no history to say \u201Csix more than last month\u201D, which is the line that starts a conversation.<br><br><strong>Keep it separate:</strong> this is a <em>second</em> address, not the listing feed one. A buyer\u2019s search often includes sold comps on purpose and those belong in their swipe feed \u2014 pointing a sold search at the listing feed address would mix the two.<br><br><strong>Worth knowing:</strong> sales are kept for 13 months so a report can compare with the same month last year. Photos come from the MLS and may expire on older reports.' },
+  marketreport: { title:'Neighbourhood market reports', body:'<strong>What it does:</strong> once a month your client gets an email showing what sold near them \u2014 how many, the price range, and a few recent sales. Free to send, and it keeps you in front of a past client between their paid home value reports.<br><br><strong>To set it up:</strong> tap <em>Get address</em> to create their report address. Then in your MLS build a saved search: <strong>status Sold</strong>, a radius around their home, and set the date range to <strong>the last 30 days</strong>. Set it to email <strong>daily</strong>, and paste the report address as the recipient.<br><br><strong>The date range does not matter.</strong> The first email is only a link to the portal \u2014 no listings travel in it. Everything that reaches the report comes from the daily sends afterwards, each carrying that day\u2019s sales, so the months always line up.<br><br><strong>Why daily:</strong> sales are collected as they happen and the report is built from what has accumulated. A monthly email would mean one missed send costs a whole month \u2014 and there would be no history to say \u201Csix more than last month\u201D, which is the line that starts a conversation.<br><br><strong>Keep it separate:</strong> this is a <em>second</em> address, not the listing feed one. A buyer\u2019s search often includes sold comps on purpose and those belong in their swipe feed \u2014 pointing a sold search at the listing feed address would mix the two.<br><br><strong>Worth knowing:</strong> sales are kept for 13 months so a report can compare with the same month last year. Photos come from the MLS and may expire on older reports.' },
   fub: { title:'Importing from Follow Up Boss', body:'<strong>To set it up:</strong> in Follow Up Boss go to <strong>Admin \u2192 API</strong> and generate a new key \u2014 name it NestTrack. Copy it straight away, because FUB only shows a key once. Paste it here, hit <em>Save key</em>, then <em>Import my contacts</em>.<br><br><strong>What comes across:</strong> names, emails, phone numbers, and a note recording their FUB stage and lead source. Everything lands in your Clients list as a nurture contact, so a large import does not flood the pipeline you work each morning.<br><br><strong>What it does not do:</strong> this is a one-way import, not a sync. Nothing is written back to Follow Up Boss, and changes made there afterwards will not appear here. Run the import again whenever you like \u2014 anyone already in NestTrack is skipped rather than duplicated.<br><br><strong>Worth knowing:</strong> your key only reaches the contacts <em>you</em> can see in Follow Up Boss. An agent key brings across the people assigned to you; an account owner\u2019s key brings the whole database. Contacts with only a phone number import fine, but cannot be invited to the client portal until you add an email. Very large databases import 2,500 at a time \u2014 just run it again to continue.' },
   showingtime: { title:'How to connect ShowingTime', body:'<strong>To set it up:</strong> in ShowingTime go to <strong>Settings → Calendar Sync → Subscribe Link</strong>, copy the <em>webcal://</em> URL, and paste it in the field here. <strong>Where it connects:</strong> once linked, your showings flow automatically into the Showings tab and your Seller Reports — so feedback and activity show up without you entering anything.' },
   zapier:      { title:'How to set up Zapier', body:'<strong>To set it up:</strong> in Zapier create a new Zap → <strong>Webhooks by Zapier → Catch Hook</strong>, then copy the webhook URL it gives you and paste it here. <strong>Where it connects:</strong> new and updated clients in NestTrack push out to whatever you wire on the other end of the Zap (your old CRM, a sheet, etc.).' },
@@ -17534,7 +17534,7 @@ function _stepChatParts(kind, stepNum, client){
   var first = (client && client.firstName) || 'there';
   var agentObj = (client && typeof DEFAULT_AGENTS!=='undefined') ? DEFAULT_AGENTS.find(function(a){ return a.id===client.agentId; }) : null;
   var agentName = agentObj ? agentObj.name : ((((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim() || 'Your Agent');
-  var steps = isSeller ? ((typeof SELLER_STEPS!=='undefined')?SELLER_STEPS:[]) : ((typeof TIMELINE_STEPS!=='undefined')?TIMELINE_STEPS:[]);
+  var steps = _k === 'seller' ? ((typeof SELLER_STEPS!=='undefined')?SELLER_STEPS:[]) : ((typeof TIMELINE_STEPS!=='undefined')?TIMELINE_STEPS:[]);
   var sidx=-1; for(var i=0;i<steps.length;i++){ if((steps[i].id||(i+1))===stepNum){ sidx=i; break; } }
   if(sidx<0) sidx=Math.max(0,Math.min(steps.length-1, stepNum-1));
   var sObj = steps[sidx]||{};
@@ -19026,7 +19026,8 @@ async function setBuyerStep(uid) {
     var skipForCash = buyerForEmail && buyerForEmail.buyerIsCash && (newStep === 6 || newStep === 8);
     if (newStep > 0 && newStep !== 5 && !skipForCash && window._pendingStepEmailChoice !== 'nosend') {
       var _bStepName = (typeof BUYER_STEPS !== 'undefined' && BUYER_STEPS[newStep-1]) || ('Step '+newStep);
-      sendStepEmail(uid, newStep, 'buyer');
+      // postChat so the update reaches chat, push and text — not email alone.
+      sendStepEmail(uid, newStep, 'buyer', { uid: uid, postChat: true, kind: 'buyer', chatStep: newStep, title: 'Step Update \uD83C\uDFE0' });
       sendPushToUser(uid, 'Step Update 🏠', 'You\'ve reached Step '+newStep+': '+_bStepName);
     } else if (newStep === 5) {
       sendPushToUser(uid, '🏠 You\'re Under Contract!', 'Congratulations — your offer was accepted. Your agent will send you full details shortly.');
@@ -19585,7 +19586,8 @@ async function setSellerStep(uid) {
     }
     if (newStep > 0 && newStep !== 9 && window._pendingStepEmailChoice !== 'nosend') {
       var _sStepName = (typeof SELLER_STEPS !== 'undefined' && SELLER_STEPS[newStep-1]) || ('Step '+newStep);
-      sendStepEmail(uid, newStep, 'seller');
+      // postChat so the update reaches chat, push and text — not email alone.
+      sendStepEmail(uid, newStep, 'seller', { uid: uid, postChat: true, kind: 'seller', chatStep: newStep, title: 'Listing Update \uD83C\uDFE1' });
       sendPushToUser(uid, 'Listing Update 🏡', 'You\'ve reached Step '+newStep+': '+_sStepName);
     } else if (newStep === 9) {
       // Push only — email will fire after agent previews and approves
@@ -21357,7 +21359,8 @@ async function agentSetStepForBuyer(stepId) {
     var skipCash = bForEmail && bForEmail.buyerIsCash && (stepId === 6 || stepId === 8);
     if (!skipCash) {
       var _bsName = (typeof BUYER_STEPS !== 'undefined' && BUYER_STEPS[stepId-1]) || ('Step '+stepId);
-      sendStepEmail(uid, stepId, 'buyer');
+      // postChat so the update reaches chat, push and text — not email alone.
+      sendStepEmail(uid, stepId, 'buyer', { uid: uid, postChat: true, kind: 'buyer', chatStep: stepId, title: 'Step Update \uD83C\uDFE0' });
       sendPushToUser(uid, 'Step Update 🏠', 'You\'ve reached Step '+stepId+': '+_bsName);
     }
   } catch(e) { alert('Failed: '+e.message); }
@@ -37130,6 +37133,34 @@ async function soldFeedTapped(uid) {
 }
 window.soldFeedTapped = soldFeedTapped;
 
+// Emails the agent a report built from whatever has accumulated, so they can see what a
+// client would get without waiting for the 1st.
+async function soldReportTest(uid) {
+  var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+  if (!b) return;
+  var me = (userProfile && userProfile.email) || '';
+  if (!me) { alert('No email on your profile to send the sample to.'); return; }
+  if (typeof showToast === 'function') showToast('Building your sample\u2026');
+  try {
+    var key = (typeof _ensureLeadToken === 'function') ? await _ensureLeadToken() : (userProfile && userProfile.leadToken);
+    var res = await fetch(PROXY_URL + '/api/v1/sold-report-test?api_key=' + encodeURIComponent(key || ''), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uid: uid, to: me,
+        agentName: (((userProfile.firstName||'') + ' ' + (userProfile.lastName||'')).trim()),
+        agentPhone: userProfile.phone || ''
+      })
+    });
+    var d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || 'Could not send the sample.');
+    if (typeof showToast === 'function') showToast('Sample sent to ' + me + ' \u2014 ' + d.count + ' sales.');
+  } catch(e) {
+    alert(e.message || 'Could not send the sample.');
+  }
+}
+window.soldReportTest = soldReportTest;
+
 function soldFeedRowHtml(b) {
   var addr = soldFeedAddress(b);
   // Auto-activation failed, so the agent finishes it manually — same fallback the
@@ -37144,7 +37175,8 @@ function soldFeedRowHtml(b) {
     return '<span style="font-size:11.5px;color:var(--text3);">\uD83D\uDCCA Neighbourhood report \u2014 not set up</span>'
       + help
       + ' <a onclick="soldFeedCreate(\''+b.uid+'\')" style="font-size:11px;color:var(--green-dk);cursor:pointer;text-decoration:underline;margin-left:6px;">Get address</a>'
-      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Point a <strong style="color:var(--text2);">sold</strong> search at this address and they get a monthly report on what sold near them \u2014 free, and it keeps you in front of a past client between home value reports.</div>';
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Point a <strong style="color:var(--text2);">sold</strong> search at this address and they get a monthly report on what sold near them \u2014 free, and it keeps you in front of a past client between home value reports.'
+      + '</div>';
   }
   // How many have accumulated, so a search that has stopped sending is visible.
   var n = (b.soldCount != null) ? Number(b.soldCount) : null;
@@ -37155,7 +37187,9 @@ function soldFeedRowHtml(b) {
       + '<code style="flex:1;min-width:160px;font-size:11px;background:var(--surface2);padding:5px 8px;border-radius:5px;overflow:hidden;text-overflow:ellipsis;">' + partnerEsc(addr) + '</code>'
       + '<button class="btn btn-sm" style="font-size:10.5px;" onclick="event.stopPropagation();soldFeedCopy(\''+b.uid+'\')">Copy</button>'
     + '</div>'
-    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;">' + stat + '</div>';
+    + '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;">' + stat
+      + (n ? ' \u00b7 <span onclick="event.stopPropagation();soldReportTest(\'' + b.uid + '\')" style="color:var(--green-dk);cursor:pointer;text-decoration:underline;">send me a sample</span>' : '')
+    + '</div>';
 }
 window.soldFeedRowHtml = soldFeedRowHtml;
 
