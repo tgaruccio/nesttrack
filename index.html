@@ -12136,10 +12136,30 @@ async function showUnderContractEmailPreview(uid, dates, type) {
         body:JSON.stringify({to:clientToList(buyer),subject:subject,html:finalHtml,from:agentFromField(),reply_to:agentReplyTo(),signature:agentSignatureHtml(),cc:_ccArray(ccValue,[],buyer.email)})});
       showDealToast('Under Contract email sent!', null, null);
       logEmailActivity(uid, subject, 'under_contract');
+
+      // Store what was sent so the chat message and the text can be a headline and a
+      // link, exactly as a step update is. Best-effort — a failure here must never make
+      // a sent email look like it failed.
+      try {
+        window._lastStepUpdateUrl = await saveStepUpdate(uid, {
+          subject: subject,
+          html: finalHtml || fullHtml,
+          stepNum: (type === 'seller' ? 9 : 5),
+          type: type
+        });
+      } catch(e) { console.log('saveStepUpdate (UC):', e && e.message); window._lastStepUpdateUrl = ''; }
+
       // In-app message fires only after the UC email actually sent.
       if (typeof _postStepToChat === 'function') {
         try { _postStepToChat(uid, type==='seller', type==='seller'?9:5); } catch(e){}
       }
+
+      // And the text, same shape as a step update.
+      try {
+        var _ucTxt = subject;
+        if (window._lastStepUpdateUrl) _ucTxt += '\n\nRead the full update: ' + window._lastStepUpdateUrl;
+        textClient(uid, _ucTxt);
+      } catch(e) { console.log('UC text:', e && e.message); }
     } catch(e) { showDealToast('Failed to send: '+e.message, null, null); }
   }, isSeller ? 9 : 5, type, ccParts.join(', '));
 }
