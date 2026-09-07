@@ -4778,6 +4778,9 @@ async function signUp() {
       || 'buyer';
 
     var newProfile = {
+      // Where this record came from. Their deals, journeys and listings still reference
+      // the old contact uid, and only the agent has permission to repoint them.
+      previousUid: (existingContact && existingContact.uid && existingContact.uid !== cred.user.uid) ? existingContact.uid : '',
       email: email.toLowerCase(),
       firstName: first,
       lastName: last,
@@ -4875,26 +4878,22 @@ async function signUp() {
       } catch(x) { console.log('Invite mark used:', x); }
     }
 
-    // Repoint everything that referenced the OLD uid before the record disappears.
-    // Without this a client keeps their deals in the database but nothing can find
-    // them — the card offers to start a journey that is already underway.
+    // Move everything keyed to the old contact uid onto the new account, before the old
+    // record is deleted. Worker-side because a client has no permission to touch deals.
     if (existingContact && existingContact.uid && existingContact.uid !== cred.user.uid) {
-      var _oldUid = existingContact.uid, _newUid = cred.user.uid;
       try {
-        var _dealSnap = await fb.getDocs(fb.query(fb.collectionGroup(fb.db,'deals'),
-                                                  fb.where('clientUid','==',_oldUid)));
-        for (var _di = 0; _di < _dealSnap.docs.length; _di++) {
-          try { await fb.updateDoc(_dealSnap.docs[_di].ref, { clientUid: _newUid }); } catch(x){}
-        }
-        if (_dealSnap.docs.length) console.log('repointed', _dealSnap.docs.length, 'deals to', _newUid);
-      } catch(x) { console.log('deal repoint:', x && x.message); }
-      try {
-        var _olSnap = await fb.getDocs(fb.query(fb.collection(fb.db,'offer_listings'),
-                                                fb.where('clientUid','==',_oldUid)));
-        for (var _oi = 0; _oi < _olSnap.docs.length; _oi++) {
-          try { await fb.updateDoc(_olSnap.docs[_oi].ref, { clientUid: _newUid }); } catch(x){}
-        }
-      } catch(x) { console.log('listing repoint:', x && x.message); }
+        var _cr = await fetch(PROXY_URL + '/api/v1/claim-contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            oldUid: existingContact.uid,
+            newUid: cred.user.uid,
+            code: invite || ''
+          })
+        });
+        var _cj = await _cr.json().catch(function(){ return {}; });
+        console.log('claimed contact records:', JSON.stringify(_cj));
+      } catch(x) { console.log('claim-contact skipped:', x && x.message); }
     }
 
     // Delete the orphan contact record now that data is merged
@@ -27058,6 +27057,25 @@ async function loadDeals() {
       data._storedStatus = data.status;
       _deals.push(data);
     });
+
+    // Heal deals orphaned by a client accepting their portal invite.
+    try {
+      var _moved = (allBuyers || []).filter(function(b){ return b && b.previousUid; });
+      if (_moved.length) {
+        for (var _mi = 0; _mi < _moved.length; _mi++) {
+          var _b = _moved[_mi];
+          var _orphans = _deals.filter(function(d){ return d.clientUid === _b.previousUid; });
+          for (var _oi = 0; _oi < _orphans.length; _oi++) {
+            var _d = _orphans[_oi];
+            try {
+              await fb.updateDoc(_dealDoc(_d.id), { clientUid: _b.uid });
+              _d.clientUid = _b.uid;
+              console.log('healed deal', _d.id, 'to', _b.uid);
+            } catch(e) { console.log('deal heal:', e && e.message); }
+          }
+        }
+      }
+    } catch(e) { console.log('deal heal pass:', e && e.message); }
     // Deals you are on, wherever they live. memberIds is stamped on the deal itself because
     // security rules cannot look up the client doc on a query — Firestore caps rule get()
     // calls at 10 per query, so anything bigger is denied outright.
