@@ -26295,6 +26295,102 @@ function _ccArray(ccValue, extras, toEmail){
   return list.filter(function(e){ var k=String(e).toLowerCase(); if(!k||k===to||seen[k]) return false; seen[k]=1; return true; });
 }
 window._ccArray=_ccArray;
+// ── Calendar attachment for appointment emails ──
+// An .ics rather than an “add to Google Calendar” link: every mail client recognises it and
+// offers to add the event, so Apple and Outlook users are covered too rather than only Gmail.
+//
+// The appointment record has a start time but no end, so duration is inferred from the type.
+// A rough end time is far better than none — without one, clients default differently and some
+// create an all-day event.
+var APPT_MINUTES = {
+  'Listing Appointment': 60,
+  'Buyer Consultation':  60,
+  'Showing':             30,
+  'Final Walkthrough':   30,
+  'Signing':             60,   // Signing / Closing
+  'Inspection':         120,
+  'Appraisal':           60,
+  'Open House':         120,
+  'Call':                30,
+  'Meeting':             30,
+  'Other':               30    // Custom
+};
+
+function _icsEscape(t) {
+  // Commas, semicolons and backslashes are field separators in iCalendar and have to be
+  // escaped, or an address with a comma silently truncates the event.
+  return String(t == null ? '' : t)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+function _icsStamp(d) {
+  // UTC, basic format. Local times would need a VTIMEZONE block; UTC avoids that entirely and
+  // every client converts it back to the reader's own zone.
+  return d.getUTCFullYear()
+    + String(d.getUTCMonth() + 1).padStart(2, '0')
+    + String(d.getUTCDate()).padStart(2, '0') + 'T'
+    + String(d.getUTCHours()).padStart(2, '0')
+    + String(d.getUTCMinutes()).padStart(2, '0')
+    + String(d.getUTCSeconds()).padStart(2, '0') + 'Z';
+}
+
+// Returns a Resend attachment object, or null when there is nothing valid to build from.
+function _apptIcs(appt) {
+  try {
+    if (!appt || !appt.date) return null;
+    var start = new Date(appt.date);
+    if (isNaN(start.getTime())) return null;
+    var mins = APPT_MINUTES[appt.type] || 60;
+    var end = new Date(start.getTime() + mins * 60000);
+
+    var title = (appt.type === 'Other' && appt.typeCustom) ? appt.typeCustom : (appt.type || 'Appointment');
+    var summary = title + (appt.clientName ? (' \u2014 ' + appt.clientName) : '');
+    var desc = [
+      appt.notes || '',
+      appt.agentName ? ('With ' + appt.agentName) : '',
+      appt.agentEmail || ''
+    ].filter(Boolean).join('\n');
+
+    // A stable UID means re-sending an edited appointment UPDATES the client's calendar entry
+    // rather than creating a second one.
+    var uid = 'appt-' + (appt._editId || (appt.clientUid || 'x') + '-' + start.getTime()) + '@nesttrack.io';
+
+    var lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//NestTrack//Appointments//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      'UID:' + uid,
+      'DTSTAMP:' + _icsStamp(new Date()),
+      'DTSTART:' + _icsStamp(start),
+      'DTEND:' + _icsStamp(end),
+      'SUMMARY:' + _icsEscape(summary),
+      appt.address ? ('LOCATION:' + _icsEscape(appt.address)) : '',
+      desc ? ('DESCRIPTION:' + _icsEscape(desc)) : '',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].filter(Boolean);
+
+    // iCalendar requires CRLF line endings. Some clients tolerate bare newlines; others
+    // reject the file outright.
+    var ics = lines.join('\r\n') + '\r\n';
+
+    // Resend takes base64. btoa needs latin1, so anything non-ASCII is stripped first — an
+    // emoji in a note would otherwise throw and lose the whole attachment.
+    var safe = ics.replace(/[^\x00-\xFF]/g, '');
+    return { filename: 'appointment.ics', content: btoa(safe) };
+  } catch(e) {
+    console.log('ics build:', e && e.message);
+    return null;
+  }
+}
+window._apptIcs = _apptIcs;
+
 async function _commitAppt(appt, sendEmail) {
   var agentId = appt.agentId || userProfile.agentId || '';
 
@@ -26390,6 +26486,11 @@ async function _commitAppt(appt, sendEmail) {
       var _seen={}, _to=String(appt.clientEmail||'').toLowerCase();
       ccList = ccList.filter(function(e){ var k=String(e).toLowerCase(); if(!k||k===_to||_seen[k]) return false; _seen[k]=1; return true; });
       if (ccList.length) payload.cc = ccList;
+      // Calendar file, so the client can add it in one tap from any mail app.
+      try {
+        var _ics = _apptIcs(appt);
+        if (_ics) payload.attachments = [_ics];
+      } catch(e) { console.log('ics attach:', e && e.message); }
       await fetch(PROXY_URL, {
         method:'POST',
         headers:{'Content-Type':'application/json','X-Action':'email'},
