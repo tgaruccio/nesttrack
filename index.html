@@ -22328,9 +22328,10 @@ async function mjCreate(uid, address) {
   } catch(e){}
   var rec = {
     buyerAgentEmail: _ba,
-    // Falls back to the address already on the client, so a loan created for someone with
-    // a known property does not start life saying "No address yet".
-    address: String(address || b.propertyAddress || b.listingAddress || b.mailingAddress || '').trim(),
+    // Only what was actually entered. A buyer's own address is where they LIVE, not the
+    // property they are financing — inheriting it put the wrong house on the loan and
+    // made a genuinely blank address impossible. Blank until they are under contract.
+    address: String(address || '').trim(),
     step: 0,
     dates: {},
     lenderId: (userProfile && (userProfile.lenderId || userProfile.agentId)) || '',
