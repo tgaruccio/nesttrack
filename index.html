@@ -4745,7 +4745,27 @@ async function signUp() {
     // so we always find and claim the pending record instead of spawning a second one.
     let existingContact = null;
     var _emailLc = email.toLowerCase();
-    try {
+
+    // The invite knows exactly which contact this is, so no search is needed — and a
+    // search cannot work anyway: a new client may only read their own user document,
+    // so the queries below are denied by the rules before any matching happens.
+    if (inviteData) {
+      var _cuid = inviteData.contactUid || (invite ? ('pending_' + invite) : '');
+      if (_cuid && _cuid !== cred.user.uid) {
+        try {
+          var _cSnap = await fb.getDoc(fb.doc(fb.db, 'users', _cuid));
+          if (_cSnap.exists()) {
+            var _cd = _cSnap.data();
+            if (!_cd.portalUid) {
+              existingContact = Object.assign({ uid: _cuid }, _cd);
+              console.log('claimed contact from invite:', _cuid);
+            }
+          }
+        } catch(x) { console.log('invite contact lookup:', x && x.message); }
+      }
+    }
+
+    if (!existingContact) try {
       // Firestore string equality is case-SENSITIVE, and agent-created contacts historically
       // stored the email with original casing (e.g. "JamesBlaha32@gmail.com"). A lowercase
       // query therefore missed them and a DUPLICATE account was created on accept. We can't
