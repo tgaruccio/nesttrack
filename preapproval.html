@@ -150,10 +150,10 @@
 </div></section>
 
 <section style="background:#f7f9fc;"><div class="wrap reveal">
-  <div class="kicker">The part nobody enjoys</div>
-  <h2 class="sec">Better to know now</h2>
-  <p class="lead">Almost every problem that blows up a purchase was findable at the start. Credit, income documentation, a debt someone forgot about &mdash; none of it is unusual, and none of it is fatal when there is time to deal with it.</p>
-  <p class="lead" style="margin-bottom:0;">What makes it painful is finding out in the middle of a transaction, with a seller waiting and a closing date on the calendar. That is the only real argument for doing this before you start looking rather than after you have found the house.</p>
+  <div class="kicker" id="why-kicker">The part nobody enjoys</div>
+  <h2 class="sec" id="why-head">Better to know now</h2>
+  <p class="lead" id="why-p1">Almost every problem that blows up a purchase was findable at the start. Credit, income documentation, a debt someone forgot about &mdash; none of it is unusual, and none of it is fatal when there is time to deal with it.</p>
+  <p class="lead" style="margin-bottom:0;" id="why-p2">What makes it painful is finding out in the middle of a transaction, with a seller waiting and a closing date on the calendar. That is the only real argument for doing this before you start looking rather than after you have found the house.</p>
   <div class="pitch" id="pitch"></div>
 </div></section>
 
@@ -251,6 +251,14 @@
     setText('subhead', c.subhead);
     if(c.ctaText) document.getElementById('submit-btn').innerHTML = esc(c.ctaText)+' &rarr;';
     if(c.pitch) document.getElementById('pitch').innerHTML = c.pitch;
+    // The 'why now' section, in the lender's own words. An empty paragraph is removed
+    // rather than left as a gap, so shortening it to one paragraph reads correctly.
+    setText('why-kicker', c.whyKicker);
+    setText('why-head', c.whyHead);
+    setText('why-p1', c.whyP1);
+    if(c.whyP2 !== undefined && String(c.whyP2).trim() === ''){
+      var p2 = document.getElementById('why-p2'); if(p2) p2.style.display = 'none';
+    } else { setText('why-p2', c.whyP2); }
     if(c.thanksMsg) setText('thanks-msg', c.thanksMsg);
 
     setText('a-name', c.agentName); setText('a-brok', c.brokerage);
