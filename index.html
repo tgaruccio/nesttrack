@@ -35924,6 +35924,25 @@ var LP_TEMPLATES = {
       required:'first,email',
       thanksMsg:'Thanks \u2014 I\u2019ll be in touch shortly.'
     }
+  },
+  // Lender-side. Captures the lead FIRST, then offers the application on the thank-you
+  // screen — so someone who abandons a half-finished 1003 is still in the pipeline.
+  preapproval: {
+    name:'Get Pre-Approved', icon:'\uD83C\uDFE6', tag:'Lender lead magnet', file:'preapproval.html',
+    defaults:{
+      eyebrow:'Free Pre-Approval',
+      headline:'Know what you can afford before you fall in love with a house',
+      subhead:'A few minutes now saves a lot of disappointment later \u2014 and makes your offer the one a seller takes seriously.',
+      ctaText:'Get Started',
+      source:'Pre-Approval Request',
+      stats:'',
+      pitch:'',
+      accent:'#2A6EF4',
+      applyHead:'Want to get moving now?',
+      applyText:'Start your application \u2014 it only takes a few minutes, and it\u2019s just your basic information to begin.',
+      applyBtn:'Start My Application',
+      thanksMsg:'I\u2019ll be in touch shortly.'
+    }
   }
 };
 function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)|| '')); }
@@ -36054,6 +36073,14 @@ async function lpEditTemplate(t){
         _lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
       ):'')
     +_lpField('Eyebrow (small label above headline)','lp-eyebrow',cfg.eyebrow)
+    +(t==='preapproval'?(
+        '<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px;">After they submit</label>'
+        +'<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:8px;">They become a lead first, then see this. Leave the link blank and the button is hidden entirely.</div>'
+        +_lpField('Application link','lp-applylink',cfg.applyLink||(typeof agentPreApproval==='function'?agentPreApproval(userProfile):''))
+        +_lpField('Heading above the button','lp-applyhead',cfg.applyHead)
+        +_lpField('Line under the heading','lp-applytext',cfg.applyText,true)
+        +_lpField('Button text','lp-applybtn',cfg.applyBtn)
+      ):'')
     +(t==='signup'?(function(){
         // Show and require are independent: an address can be offered without being
         // demanded, which is the whole point of this page.
@@ -36130,6 +36157,7 @@ async function lpSaveTemplate(t){
     stats:v('lp-stats'), pitch:v('lp-pitch'), videoUrl:v('lp-video'),
     areas:_lpCompileList('areas-rows'), prices:_lpCompileList('prices-rows'), valueProps:_lpCompileRows('vprops-rows'), buyerSteps:_lpCompileRows('steps-rows'),
     fields:_lpFieldCsv('show'), required:_lpFieldCsv('req'),
+    applyLink:v('lp-applylink'), applyHead:v('lp-applyhead'), applyText:v('lp-applytext'), applyBtn:v('lp-applybtn'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
