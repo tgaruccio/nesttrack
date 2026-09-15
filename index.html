@@ -36074,7 +36074,13 @@ async function lpEditTemplate(t){
       ):'')
     +_lpField('Eyebrow (small label above headline)','lp-eyebrow',cfg.eyebrow)
     +(t==='preapproval'?(
-        '<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px;">After they submit</label>'
+        '<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px;">Why do this now</label>'
+        +'<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:8px;">The argument for getting pre-approved before they start looking. Put it in your own words.</div>'
+        +_lpField('Small label above the heading','lp-whykicker',cfg.whyKicker||'The part nobody enjoys')
+        +_lpField('Heading','lp-whyhead',cfg.whyHead||'Better to know now')
+        +_lpField('First paragraph','lp-whyp1',cfg.whyP1||'Almost every problem that blows up a purchase was findable at the start. Credit, income documentation, a debt someone forgot about \u2014 none of it is unusual, and none of it is fatal when there is time to deal with it.',true)
+        +_lpField('Second paragraph (leave blank to hide)','lp-whyp2',cfg.whyP2!==undefined?cfg.whyP2:'What makes it painful is finding out in the middle of a transaction, with a seller waiting and a closing date on the calendar. That is the only real argument for doing this before you start looking rather than after you have found the house.',true)
+        +'<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px;">After they submit</label>'
         +'<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:8px;">They become a lead first, then see this. Leave the link blank and the button is hidden entirely.</div>'
         +_lpField('Application link','lp-applylink',cfg.applyLink||(typeof agentPreApproval==='function'?agentPreApproval(userProfile):''))
         +_lpField('Heading above the button','lp-applyhead',cfg.applyHead)
@@ -36158,6 +36164,7 @@ async function lpSaveTemplate(t){
     areas:_lpCompileList('areas-rows'), prices:_lpCompileList('prices-rows'), valueProps:_lpCompileRows('vprops-rows'), buyerSteps:_lpCompileRows('steps-rows'),
     fields:_lpFieldCsv('show'), required:_lpFieldCsv('req'),
     applyLink:v('lp-applylink'), applyHead:v('lp-applyhead'), applyText:v('lp-applytext'), applyBtn:v('lp-applybtn'),
+    whyKicker:v('lp-whykicker'), whyHead:v('lp-whyhead'), whyP1:v('lp-whyp1'), whyP2:v('lp-whyp2'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
