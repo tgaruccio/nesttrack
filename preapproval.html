@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Get Pre-Approved</title>
+<style>
+  :root{ --accent:#2A6EF4; --ink:#0F1B33; --muted:#5b6472; --line:#e8ebf1; --bg:#ffffff; --good:#1D9E75; --warn:#E08A1E; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px;}
+  a{color:var(--accent);}
+
+  .hero{background:linear-gradient(158deg,var(--accent) 0%,#0e1830 140%);color:#fff;padding:22px 0 40px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-90px;top:-90px;width:300px;height:300px;border-radius:50%;background:rgba(255,255,255,0.07);}
+  .achip{display:flex;align-items:center;gap:10px;margin-bottom:26px;position:relative;z-index:1;}
+  .achip img{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.45);}
+  .achip .n{font-size:13.5px;font-weight:700;}
+  .achip .b{font-size:11.5px;opacity:.75;}
+  .eyebrow{display:inline-block;font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;background:rgba(255,255,255,0.16);padding:6px 12px;border-radius:30px;margin-bottom:16px;position:relative;z-index:1;}
+  .hero h1{font-size:33px;line-height:1.16;font-weight:800;letter-spacing:-.8px;position:relative;z-index:1;}
+  .hero .sub{font-size:16px;opacity:.9;margin-top:14px;position:relative;z-index:1;}
+
+  .tool{margin-top:-24px;position:relative;z-index:3;padding:0 20px 8px;}
+  .toolcard{max-width:640px;margin:0 auto;background:#fff;border-radius:20px;box-shadow:0 18px 50px rgba(15,27,51,0.16);border:1px solid var(--line);padding:22px;}
+  .tt{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:6px;}
+  .th{font-size:19px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px;}
+  .tp{font-size:13.5px;color:var(--muted);margin-bottom:16px;}
+
+  .meters{display:flex;flex-direction:column;gap:11px;margin-bottom:6px;}
+  .meter .ml{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px;}
+  .meter .ml span:last-child{color:var(--muted);font-weight:600;}
+  .bar{height:9px;background:#eef2f9;border-radius:6px;overflow:hidden;}
+  .bar i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,var(--accent),#5b9bff);transition:width .7s cubic-bezier(.3,1,.4,1);}
+  .seg{display:flex;gap:8px;background:#f2f5fa;padding:5px;border-radius:14px;margin-bottom:18px;}
+  .seg button{flex:1;padding:11px 8px;border:0;border-radius:10px;background:transparent;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--muted);cursor:pointer;transition:.2s;}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(15,27,51,0.09);}
+
+  section{padding:44px 0;}
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s,transform .7s;}
+  .reveal.in{opacity:1;transform:none;}
+  .kicker{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+  h2.sec{font-size:25px;font-weight:800;letter-spacing:-.5px;margin-bottom:10px;}
+  .lead{font-size:15.5px;color:var(--muted);margin-bottom:22px;}
+
+  .steps{display:flex;flex-direction:column;gap:12px;}
+  .step{display:flex;gap:14px;align-items:flex-start;background:#f7f9fc;border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .step .num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:800;text-align:center;line-height:28px;}
+  .step .sh{font-size:15px;font-weight:700;margin-bottom:3px;}
+  .step .sb{font-size:13.5px;color:var(--muted);}
+
+  .qa{display:flex;flex-direction:column;gap:10px;}
+  .q{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;}
+  .q .qh{font-size:15px;font-weight:700;margin-bottom:5px;}
+  .q .qb{font-size:13.5px;color:var(--muted);}
+
+  .compare{display:flex;gap:12px;}
+  .col{flex:1;border-radius:16px;padding:18px;border:1.5px solid var(--line);}
+  .col.cons{background:#fff7ef;border-color:#f3dcc0;}
+  .col.pros{background:#eefaf4;border-color:#c5ebdb;}
+  .col .p-tag{font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+  .col.cons .p-tag{color:var(--warn);}
+  .col.pros .p-tag{color:var(--good);}
+  .col .p-title{font-size:15px;font-weight:800;margin-bottom:9px;}
+  .col ul{list-style:none;}
+  .col li{font-size:13px;color:var(--muted);padding:5px 0 5px 17px;position:relative;}
+  .col li::before{content:"\2022";position:absolute;left:3px;color:var(--accent);font-weight:800;}
+
+  .pitch{font-size:15px;color:var(--muted);background:#f7f9fc;border-left:3px solid var(--accent);border-radius:0 12px 12px 0;padding:16px 18px;margin-top:20px;}
+  .pitch:empty{display:none;}
+
+  .ctasec{background:linear-gradient(158deg,#0e1830 0%,var(--accent) 170%);padding:44px 0 52px;}
+  .ctasec .wrap{max-width:560px;}
+  .cta-card{background:#fff;border-radius:22px;padding:28px 24px;box-shadow:0 22px 55px rgba(15,27,51,0.24);border:1px solid var(--line);}
+  .cta-card .ch{font-size:22px;font-weight:800;letter-spacing:-.4px;margin-bottom:6px;}
+  .cta-card .cp{font-size:14px;color:var(--muted);margin-bottom:18px;}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 5px;}
+  label:first-of-type{margin-top:0;}
+  .opt{font-weight:500;color:#9aa3b0;font-size:11px;}
+  input{width:100%;font-size:16px;font-family:inherit;color:var(--ink);padding:13px;border:1.5px solid var(--line);border-radius:12px;background:#fff;}
+  input:focus{outline:none;border-color:var(--accent);}
+  .row2{display:flex;gap:10px;}
+  .row2>div{flex:1;min-width:0;}
+  .row2>div>label{margin-top:0;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:5px;}
+  .chip{flex:1 1 calc(50% - 4px);padding:12px 8px;border:1.5px solid var(--line);border-radius:12px;background:#f7f9fc;font-size:13.5px;font-family:inherit;font-weight:600;color:var(--muted);cursor:pointer;text-align:center;transition:.15s;}
+  .chip.on{border-color:var(--accent);background:var(--accent);color:#fff;}
+  .submit{width:100%;margin-top:20px;padding:16px;border:0;border-radius:13px;background:var(--accent);color:#fff;font-size:16.5px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 8px 22px rgba(42,110,244,0.32);}
+  .submit:disabled{opacity:.6;cursor:default;box-shadow:none;}
+  .err{color:#B3261E;font-size:13px;margin-top:10px;display:none;}
+  .fine{font-size:11.5px;color:#9aa3b0;text-align:center;margin-top:13px;}
+
+  .thanks{display:none;text-align:center;}
+  .thanks .tick{width:58px;height:58px;border-radius:50%;background:var(--good);color:#fff;font-size:28px;line-height:58px;margin:0 auto 16px;}
+  .thanks h2{font-size:23px;font-weight:800;margin-bottom:8px;}
+  .thanks p{font-size:15px;color:var(--muted);}
+  .applybox{margin-top:24px;padding-top:22px;border-top:1px solid var(--line);}
+  .applybox .ah{font-size:16px;font-weight:800;margin-bottom:6px;}
+  .applybox .ab{font-size:13.5px;color:var(--muted);margin-bottom:16px;}
+  .applybtn{display:block;padding:16px;border-radius:13px;background:var(--good);color:#fff;font-size:16px;font-weight:800;text-decoration:none;box-shadow:0 8px 22px rgba(29,158,117,0.3);}
+
+  .ftr{background:#0e1830;color:rgba(255,255,255,0.62);padding:26px 0 32px;text-align:center;font-size:11.5px;line-height:1.7;}
+  .ftr .fn{color:#fff;font-size:13.5px;font-weight:700;margin-bottom:3px;}
+
+  @media(max-width:520px){
+    .hero h1{font-size:28px;}
+    .compare{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="achip"><img id="a-photo" src="" alt="" style="display:none;"/><div><div class="n" id="a-name">Your Lender</div><div class="b" id="a-brok"></div></div></div>
+    <span class="eyebrow" id="eyebrow">Free Pre-Approval</span>
+    <h1 id="headline">Know what you can afford<br>before you fall in love with a house.</h1>
+    <p class="sub" id="subhead">A few minutes now saves a lot of disappointment later &mdash; and makes your offer the one a seller actually takes seriously.</p>
+  </div>
+</div>
+
+<!-- Deliberately no second option. The research is one-directional: every competing path
+     increases decision paralysis, and an "instant estimate" toggle would invite exactly the
+     choice this page exists to talk someone out of. One page, one action. -->
+<div class="tool">
+  <div class="toolcard">
+    <div class="tt">Why bother before you shop</div>
+    <div class="th" id="p-title">The number you assume and the number you qualify for are rarely the same</div>
+    <div class="tp" id="p-desc">Sometimes it is higher than people expect. Sometimes there is a debt they had forgotten, or the monthly payment lands differently once taxes and insurance are in it. Either way, the time to find out is now &mdash; while there is still time to do something about it.</div>
+    <div class="steps" style="margin-top:4px;">
+      <div class="step"><div class="num">&#9679;</div><div><div class="sh">You shop with a real number</div><div class="sb">Not a guess, and not a range you talked yourself into.</div></div></div>
+      <div class="step"><div class="num">&#9679;</div><div><div class="sh">Your offer carries weight</div><div class="sb">Sellers can tell the difference between a verified approval and a printout.</div></div></div>
+      <div class="step"><div class="num">&#9679;</div><div><div class="sh">Surprises surface early</div><div class="sb">Anything that needs fixing is far easier to fix now than three days before closing.</div></div></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<section><div class="wrap reveal">
+  <div class="kicker">What actually happens</div>
+  <h2 class="sec">Three steps, and the first one is short</h2>
+  <p class="lead">Most people expect this to be painful. It isn&rsquo;t &mdash; not at the start.</p>
+  <div class="steps">
+    <div class="step"><div class="num">1</div><div><div class="sh">Tell me the basics</div><div class="sb">A few minutes, just your basic information. No documents needed to get started.</div></div></div>
+    <div class="step"><div class="num">2</div><div><div class="sh">We talk it through</div><div class="sb">What you&rsquo;re hoping to buy, what you&rsquo;re comfortable spending, and what the monthly number really looks like.</div></div></div>
+    <div class="step"><div class="num">3</div><div><div class="sh">Get your letter</div><div class="sb">This is where the paperwork comes in &mdash; photo ID, recent pay stubs, tax returns. Then you&rsquo;re shopping with a real number behind you.</div></div></div>
+  </div>
+</div></section>
+
+<section style="background:#f7f9fc;"><div class="wrap reveal">
+  <div class="kicker">The part nobody enjoys</div>
+  <h2 class="sec">Better to know now</h2>
+  <p class="lead">Almost every problem that blows up a purchase was findable at the start. Credit, income documentation, a debt someone forgot about &mdash; none of it is unusual, and none of it is fatal when there is time to deal with it.</p>
+  <p class="lead" style="margin-bottom:0;">What makes it painful is finding out in the middle of a transaction, with a seller waiting and a closing date on the calendar. That is the only real argument for doing this before you start looking rather than after you have found the house.</p>
+  <div class="pitch" id="pitch"></div>
+</div></section>
+
+<section><div class="wrap reveal">
+  <div class="kicker">Questions people ask</div>
+  <h2 class="sec">Before you start</h2>
+  <div class="qa">
+    <div class="q"><div class="qh">How long does this take?</div><div class="qb">Only a few minutes to get started &mdash; it&rsquo;s just your basic information. Nothing complicated.</div></div>
+    <div class="q"><div class="qh">What do I need to have ready?</div><div class="qb">Nothing to begin. Later you&rsquo;ll need the usual paperwork &mdash; photo ID, recent pay stubs, tax returns &mdash; but none of that is needed today.</div></div>
+    <div class="q"><div class="qh">What if I&rsquo;m not ready to buy yet?</div><div class="qb">That&rsquo;s a good reason to do it now rather than later. Knowing your number shapes what you look at &mdash; and if something needs fixing first, better to find out with time to fix it.</div></div>
+  </div>
+</div></section>
+
+<div class="ctasec" id="cta">
+  <div class="wrap">
+    <div class="cta-card">
+
+      <div id="form-view">
+        <div class="ch" id="cta-head">Let&rsquo;s get you a real number</div>
+        <div class="cp" id="cta-sub">Takes a couple of minutes. I&rsquo;ll be in touch to talk it through.</div>
+
+        <div class="row2">
+          <div><label for="f-first">First name</label><input type="text" id="f-first" autocomplete="given-name"/></div>
+          <div><label for="f-last">Last name</label><input type="text" id="f-last" autocomplete="family-name"/></div>
+        </div>
+        <label for="f-email">Email</label>
+        <input type="email" id="f-email" placeholder="you@email.com" autocomplete="email"/>
+        <label for="f-phone">Phone</label>
+        <input type="tel" id="f-phone" placeholder="(440) 555-0123" autocomplete="tel"/>
+
+        <label>When are you hoping to buy? <span class="opt">optional</span></label>
+        <div class="chips" id="tf-chips">
+          <button type="button" class="chip" data-tf="Within 30 days">Within 30 days</button>
+          <button type="button" class="chip" data-tf="1-3 months">1&ndash;3 months</button>
+          <button type="button" class="chip" data-tf="3-6 months">3&ndash;6 months</button>
+          <button type="button" class="chip" data-tf="Just exploring">Just exploring</button>
+        </div>
+
+        <div class="err" id="err"></div>
+        <button class="submit" id="submit-btn" onclick="submitLead()">Get Started &rarr;</button>
+        <div class="fine">&#128274; Private &amp; secure. Never sold or shared.</div>
+      </div>
+
+      <div class="thanks" id="thanks-view">
+        <div class="tick">&#10003;</div>
+        <h2>Thank you</h2>
+        <p id="thanks-msg">I&rsquo;ll be in touch shortly.</p>
+        <!-- Only shown once a link resolves. A button that goes nowhere is worse than none. -->
+        <div class="applybox" id="apply-box" style="display:none;">
+          <div class="ah" id="apply-head">Want to get moving now?</div>
+          <div class="ab" id="apply-text">Start your application &mdash; it only takes a few minutes, and it&rsquo;s just your basic information to begin.</div>
+          <a class="applybtn" id="apply-btn" href="#" target="_blank" rel="noopener">Start My Application &rarr;</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="ftr">
+  <div class="wrap">
+    <div class="fn" id="f-name"></div>
+    <div id="f-contact"></div>
+    <div id="f-license" style="margin-top:4px;"></div>
+    <div style="margin-top:8px;">Equal Housing Opportunity. This is not a commitment to lend.</div>
+  </div>
+</div>
+
+<script>
+  var WORKER_URL = 'https://app.tom-b52.workers.dev';
+  var FB_PROJECT = 'buyers-880bc';
+  var FB_KEY = 'AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY';
+
+  var params = new URLSearchParams(location.search);
+  var AGENT = (params.get('a') || 'tom').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var TEMPLATE = (params.get('t') || 'preapproval').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var CFG = {}, TIMEFRAME = '';
+
+  function fsVal(v){
+    if(!v) return '';
+    if(v.stringValue !== undefined) return v.stringValue;
+    if(v.integerValue !== undefined) return v.integerValue;
+    if(v.booleanValue !== undefined) return v.booleanValue;
+    if(v.doubleValue !== undefined) return v.doubleValue;
+    return '';
+  }
+  function setText(id,t){ var el=document.getElementById(id); if(el&&t) el.textContent=t; }
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function applyConfig(c){
+    CFG = c || {};
+    if(c.accent) document.documentElement.style.setProperty('--accent', c.accent);
+    setText('eyebrow', c.eyebrow);
+    if(c.headline){ document.getElementById('headline').textContent = c.headline; document.title = c.headline; }
+    setText('subhead', c.subhead);
+    if(c.ctaText) document.getElementById('submit-btn').innerHTML = esc(c.ctaText)+' &rarr;';
+    if(c.pitch) document.getElementById('pitch').innerHTML = c.pitch;
+    if(c.thanksMsg) setText('thanks-msg', c.thanksMsg);
+
+    setText('a-name', c.agentName); setText('a-brok', c.brokerage);
+    setText('f-name', c.agentName);
+    if(c.agentPhoto){ var ph=document.getElementById('a-photo'); ph.src=c.agentPhoto; ph.style.display='block'; }
+
+    var fc=[];
+    if(c.agentPhone) fc.push(c.agentPhone);
+    if(c.agentEmail) fc.push(c.agentEmail);
+    setText('f-contact', fc.join(' \u00b7 '));
+    if(c.licenseNumber) setText('f-license', 'NMLS #' + c.licenseNumber);
+
+    if(c.applyLink){
+      var btn=document.getElementById('apply-btn');
+      btn.href=c.applyLink;
+      if(c.applyHead) setText('apply-head', c.applyHead);
+      if(c.applyText) setText('apply-text', c.applyText);
+      if(c.applyBtn)  btn.innerHTML = esc(c.applyBtn)+' &rarr;';
+      document.getElementById('apply-box').setAttribute('data-ready','1');
+    }
+  }
+
+  function load(){
+    var docId = AGENT + '_' + TEMPLATE;
+    fetch('https://firestore.googleapis.com/v1/projects/'+FB_PROJECT+'/databases/(default)/documents/landing_pages/'+docId+'?key='+FB_KEY)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && d.fields){ var c={}; Object.keys(d.fields).forEach(function(k){ c[k]=fsVal(d.fields[k]); }); applyConfig(c); }
+      })
+      .catch(function(){});
+  }
+
+  document.getElementById('tf-chips').addEventListener('click', function(e){
+    var b = e.target.closest('.chip'); if(!b) return;
+    var was = b.classList.contains('on');
+    Array.prototype.forEach.call(this.querySelectorAll('.chip'), function(c){ c.classList.remove('on'); });
+    // Optional, so tapping the selected chip clears it again.
+    if(was){ TIMEFRAME=''; } else { b.classList.add('on'); TIMEFRAME = b.getAttribute('data-tf') || ''; }
+  });
+
+  function showErr(m){ var e=document.getElementById('err'); e.textContent=m; e.style.display='block'; }
+
+  function submitLead(){
+    document.getElementById('err').style.display='none';
+    var first=document.getElementById('f-first').value.trim();
+    var last =document.getElementById('f-last').value.trim();
+    var email=document.getElementById('f-email').value.trim();
+    var phone=document.getElementById('f-phone').value.trim();
+
+    if(!first){ showErr('Please enter your first name.'); document.getElementById('f-first').focus(); return; }
+    if(!email && !phone){ showErr('Please leave an email address or a phone number so I can reach you.'); return; }
+
+    var btn=document.getElementById('submit-btn');
+    btn.disabled=true; btn.textContent='Sending\u2026';
+
+    var payload={
+      firstName:first, lastName:last, email:email, phone:phone,
+      agentId:AGENT,
+      source:(CFG.source||'Pre-Approval Request'),
+      // Timeframe goes in the notes, where it reads as what it is.
+      notes: TIMEFRAME ? ('Looking to buy: '+TIMEFRAME) : '',
+      leadStatus:(CFG.leadStatus||'pipeline'),
+      leadSegment:(CFG.leadSegment||''),
+      smartPlanId:(CFG.smartPlanId||''),
+      smartPlanName:(CFG.smartPlanName||'')
+    };
+
+    fetch(WORKER_URL,{ method:'POST', headers:{'Content-Type':'application/json','X-Action':'inbound-lead'}, body:JSON.stringify(payload) })
+      .then(function(r){ return r.json().catch(function(){return {};}); })
+      .then(function(){
+        document.getElementById('form-view').style.display='none';
+        document.getElementById('thanks-view').style.display='block';
+        // A lead first, an applicant second \u2014 so a half-finished application still leaves
+        // their details behind.
+        var box=document.getElementById('apply-box');
+        if(box && box.getAttribute('data-ready')==='1') box.style.display='block';
+        document.getElementById('cta').scrollIntoView({behavior:'smooth',block:'center'});
+      })
+      .catch(function(){
+        btn.disabled=false; btn.textContent='Get Started \u2192';
+        showErr('Something went wrong. Please try again.');
+      });
+  }
+
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold:0.12 });
+  Array.prototype.forEach.call(document.querySelectorAll('.reveal'), function(el){ io.observe(el); });
+
+  load();
+</script>
+</body>
+</html>
