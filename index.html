@@ -35905,6 +35905,25 @@ var LP_TEMPLATES = {
       accent:'#2A6EF4',
       thanksMsg:'Thanks! I\u2019ll put together your report and reach out shortly.'
     }
+  },
+  // Deliberately generic, and on its own file rather than the shared lp.html fallback —
+  // this is the only page where the fields are configurable, and lp.html is used by any
+  // template that does not name a file of its own.
+  signup: {
+    name:'Simple Sign-Up', icon:'\u270D\uFE0F', tag:'Blank page — your headline, your fields', file:'signup.html',
+    defaults:{
+      eyebrow:'',
+      headline:'Get In Touch',
+      subhead:'Leave your details and I\u2019ll get back to you shortly.',
+      ctaText:'Send',
+      source:'Sign-Up Page',
+      stats:'',
+      pitch:'',
+      accent:'#2A6EF4',
+      fields:'first,last,email,phone,comments',
+      required:'first,email',
+      thanksMsg:'Thanks \u2014 I\u2019ll be in touch shortly.'
+    }
   }
 };
 function _lpAgentId(){ return (typeof _spAgentId==='function'?_spAgentId():((userProfile&&userProfile.agentId)|| '')); }
@@ -36035,6 +36054,29 @@ async function lpEditTemplate(t){
         _lpField('Differentiation pitch (the \u201Cnot a robot\u201D line)','lp-pitch',cfg.pitch,true)
       ):'')
     +_lpField('Eyebrow (small label above headline)','lp-eyebrow',cfg.eyebrow)
+    +(t==='signup'?(function(){
+        // Show and require are independent: an address can be offered without being
+        // demanded, which is the whole point of this page.
+        var _shown=String(cfg.fields||'first,last,email,phone,comments').toLowerCase();
+        var _req=String(cfg.required||'first,email').toLowerCase();
+        var _rows=[['first','First name'],['last','Last name'],['email','Email'],
+                   ['phone','Phone'],['address','Address'],['comments','Message']];
+        return '<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px;">Form fields</label>'
+          + '<div style="font-size:11.5px;color:var(--text3);line-height:1.5;margin-bottom:8px;">Tick what to ask for, and which of those they must fill in.</div>'
+          + '<table style="width:100%;font-size:13px;border-collapse:collapse;">'
+          + '<tr><td></td><td align="center" style="font-size:11px;color:var(--text3);padding-bottom:4px;">Show</td><td align="center" style="font-size:11px;color:var(--text3);padding-bottom:4px;">Required</td></tr>'
+          + _rows.map(function(r){
+              var on=_shown.split(',').indexOf(r[0])!==-1;
+              var rq=_req.split(',').indexOf(r[0])!==-1;
+              return '<tr style="border-top:1px solid var(--border);">'
+                + '<td style="padding:7px 0;font-weight:600;">'+r[1]+'</td>'
+                + '<td align="center"><input type="checkbox" id="lpf-show-'+r[0]+'"'+(on?' checked':'')+' style="width:17px;height:17px;"/></td>'
+                + '<td align="center"><input type="checkbox" id="lpf-req-'+r[0]+'"'+(rq?' checked':'')+' style="width:17px;height:17px;"/></td>'
+              + '</tr>';
+            }).join('')
+          + '</table>'
+          + '<div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5;">Keep email or phone on, or a lead arrives with no way to reach them.</div>';
+      })():'')
     +_lpField('Button text','lp-cta',cfg.ctaText)
     +_lpField('Your phone (shown on the page)','lp-phone',aPhone)
     +_lpField('Lead source tag','lp-source',cfg.source)
@@ -36057,6 +36099,22 @@ async function lpEditTemplate(t){
 }
 window.lpEditTemplate = lpEditTemplate;
 
+// Reads the show/require checkboxes into the two comma-separated lists signup.html expects.
+// Returns '' when the editor has no such checkboxes on screen, so every other template saves
+// exactly as it did before and is unaffected by this.
+function _lpFieldCsv(kind){
+  var keys = ['first','last','email','phone','address','comments'];
+  var any = document.getElementById('lpf-show-first');
+  if (!any) return '';
+  var out = [];
+  keys.forEach(function(k){
+    var el = document.getElementById('lpf-' + kind + '-' + k);
+    if (el && el.checked) out.push(k);
+  });
+  return out.join(',');
+}
+window._lpFieldCsv = _lpFieldCsv;
+
 async function lpSaveTemplate(t){
   var agentId=_lpAgentId();
   var v=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
@@ -36071,6 +36129,7 @@ async function lpSaveTemplate(t){
     headline:v('lp-headline'), subhead:v('lp-subhead'), eyebrow:v('lp-eyebrow'),
     stats:v('lp-stats'), pitch:v('lp-pitch'), videoUrl:v('lp-video'),
     areas:_lpCompileList('areas-rows'), prices:_lpCompileList('prices-rows'), valueProps:_lpCompileRows('vprops-rows'), buyerSteps:_lpCompileRows('steps-rows'),
+    fields:_lpFieldCsv('show'), required:_lpFieldCsv('req'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
