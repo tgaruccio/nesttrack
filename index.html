@@ -11646,6 +11646,7 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
     // Check for custom template
     var custom = window.getCustomStepEmail ? window.getCustomStepEmail(stepNum, type) : null;
     var subject = custom ? custom.subject : hardcoded.subject;
+    subject = (typeof subjectText === 'function') ? subjectText(subject) : subject;
     var bodyHtml;
     if (custom && custom.body) {
       bodyHtml = custom.body
