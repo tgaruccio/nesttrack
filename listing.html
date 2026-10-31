@@ -117,6 +117,8 @@
   @media(max-width:680px){
     .hero-price{font-size:32px;} .hero-addr{font-size:16px;} h2.sec{font-size:23px;}
     .grid{grid-template-columns:repeat(2,1fr);} section{padding:42px 0;}
+    /* A 3D tour needs height to be walkable. A video keeps 16:9 — letterboxing it would be worse. */
+    .tour-frame.is-tour{padding-top:115%;min-height:380px;}
     .mcta{display:block;} body.has-mcta{padding-bottom:78px;}
   }
 </style>
@@ -147,7 +149,9 @@
 
   <section id="gallery-sec" style="background:#f7f9fc;"><div class="wrap reveal"><div class="kicker">Gallery</div><h2 class="sec">Take a look inside</h2><div class="grid" id="grid"></div></div></section>
 
-  <section id="tour-sec" style="display:none;"><div class="wrap reveal"><div class="kicker">Virtual tour</div><h2 class="sec">Walk through in 3D</h2><div class="tour-frame" id="tour-frame"></div></div></section>
+  <section id="video-sec" style="display:none;"><div class="wrap reveal"><div class="kicker">Video tour</div><h2 class="sec">Take the video tour</h2><div class="tour-frame is-video" id="video-frame"></div></div></section>
+
+  <section id="tour-sec" style="display:none;"><div class="wrap reveal"><div class="kicker">Virtual tour</div><h2 class="sec">Walk through in 3D</h2><div class="tour-frame is-tour" id="tour-frame"></div></div></section>
 
   <section id="map-sec"><div class="wrap reveal"><div class="kicker">Location</div><h2 class="sec">The neighborhood</h2><div class="map-frame" id="map-frame"></div></div></section>
 
@@ -194,6 +198,32 @@
     return '';
   }
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  // esc() is for text nodes and leaves quotes alone. Anything going inside an attribute needs
+  // them encoded too, or a stray quote breaks out of src="...".
+  function attr(s){ return esc(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+  // Agents paste whatever the share button handed them. Matterport and most tour providers
+  // frame fine as-is; YouTube and Vimeo only frame from their player URLs.
+  function showFrame(secId, frameId, src){
+    var sec=document.getElementById(secId), fr=document.getElementById(frameId);
+    if(!sec||!fr||!src) return;
+    sec.style.display='block';
+    // The allow list covers both: Matterport needs spatial tracking and fullscreen, YouTube
+    // needs autoplay and encrypted media.
+    fr.innerHTML='<iframe src="'+attr(src)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; xr-spatial-tracking" allowfullscreen loading="lazy"></iframe>';
+  }
+
+  function embedSrc(raw){
+    var u=String(raw==null?'':raw).trim();
+    if(!u) return { src:'', kind:'tour' };
+    var m;
+    // youtu.be/ID, /watch?v=ID, /shorts/ID, /live/ID, /embed/ID
+    m=u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
+    if(m) return { src:'https://www.youtube.com/embed/'+m[1], kind:'video' };
+    m=u.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+    if(m) return { src:'https://player.vimeo.com/video/'+m[1], kind:'video' };
+    return { src:u, kind:'tour' };
+  }
   function money(n){ n=parseInt(n,10); if(isNaN(n)) return ''; return '$'+n.toLocaleString('en-US'); }
   function setT(id,val){ var el=document.getElementById(id); if(el) el.textContent=val||''; }
 
@@ -242,10 +272,15 @@
       }).join('');
     } else { document.getElementById('gallery-sec').style.display='none'; }
 
-    if(c.tourUrl){
-      document.getElementById('tour-sec').style.display='block';
-      document.getElementById('tour-frame').innerHTML='<iframe src="'+esc(c.tourUrl)+'" all- allowfullscreen loading="lazy"></iframe>';
-    }
+    // Video and 3D tour are independent: fill in one and only that section appears, fill in
+    // both and both do, fill in neither and neither does.
+    var vid=embedSrc(c.videoUrl), tour=embedSrc(c.tourUrl);
+    // A listing saved before the video field existed may hold a YouTube link in the TOUR
+    // field. Keep it working: show it as the video rather than cramming it into the 3D frame.
+    if(!vid.src && tour.kind==='video'){ vid=tour; tour={ src:'', kind:'tour' }; }
+
+    if(vid.src) showFrame('video-sec','video-frame',vid.src);
+    if(tour.src) showFrame('tour-sec','tour-frame',tour.src);
 
     if(c.address){
       document.getElementById('map-frame').innerHTML='<iframe loading="lazy" src="https://www.google.com/maps/embed/v1/place?key='+FB_KEY+'&q='+encodeURIComponent(c.address)+'"></iframe>';
