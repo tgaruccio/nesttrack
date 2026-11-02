@@ -34555,6 +34555,18 @@ window.fuTestDueNow = fuTestDueNow;
 var _smartPlans = [];          // loaded plan templates
 var _currentPlan = null;       // plan being edited in the builder
 
+// The Text step has two modes: push a ready-written draft to your phone for you to tap send,
+// or send it for you through Quo. Which modes exist depends on the agent's own Quo connection,
+// so the step picker has to say so here. A fixed label claiming 'you tap to send from your own
+// phone' sent agents hunting for a Quo option the builder already had, one level deeper in.
+function spChannelDesc(k){
+  var c = SP_CHANNELS[k] || {};
+  if (k !== 'texttap') return c.desc || '';
+  var connected = !!(userProfile && userProfile.quoApiKey && userProfile.quoFrom);
+  return connected
+    ? 'Quo sends it for you \u2014 or push it to your phone to tap send'
+    : 'Push reminder you tap to send \u2014 connect Quo to send it for you';
+}
 var SP_CHANNELS = {
   email:   { label:'Email',    icon:'\uD83D\uDCE7', color:'#1D9E75', bg:'#E6F7F0', desc:'Automated email \u2014 sent for you' },
   vm:      { label:'VM Drop',  icon:'📞', color:'#1D4ED8', bg:'#EFF6FF', desc:'Ringless voicemail (Slybroadcast)' },
@@ -35227,7 +35239,7 @@ function spAddStep(idx){
     +'<div style="font-size:15px;font-weight:600;margin-bottom:14px;">Add a step</div>'
     +'<div style="display:flex;flex-direction:column;gap:8px;">'
       +'<button class="btn" onclick="spInsertStep('+idx+',\'wait\')" style="justify-content:flex-start;text-align:left;">⏱️ Wait — delay before next step</button>'
-      +Object.keys(SP_CHANNELS).map(function(k){ var c=SP_CHANNELS[k]; return '<button class="btn" onclick="spInsertStep('+idx+',\''+k+'\')" style="justify-content:flex-start;text-align:left;">'+c.icon+' '+c.label+' <span style=\"font-size:11px;color:var(--text3);margin-left:4px;\">'+c.desc+'</span></button>'; }).join('')
+      +Object.keys(SP_CHANNELS).map(function(k){ var c=SP_CHANNELS[k]; return '<button class="btn" onclick="spInsertStep('+idx+',\''+k+'\')" style="justify-content:flex-start;text-align:left;">'+c.icon+' '+c.label+' <span style=\"font-size:11px;color:var(--text3);margin-left:4px;\">'+partnerEsc(spChannelDesc(k))+'</span></button>'; }).join('')
     +'</div>'
     +'<button class="btn btn-sm" onclick="document.getElementById(\'sp-pick-overlay\').remove()" style="margin-top:14px;width:100%;">Cancel</button>'
   +'</div>';
