@@ -26131,7 +26131,18 @@ function openApptModal() {
   var errEl = document.getElementById('appt-error');
   if (errEl) errEl.style.display = 'none';
   var overlay = document.getElementById('appt-overlay');
-  if (overlay) { overlay.style.display = 'flex'; }
+  if (overlay) {
+    // This pop-up's markup sits inside the Appointments page block, and any page block
+    // that is not the active one is display:none - so opening it from anywhere else (the
+    // main search bar, the to-do list, a deal card; 29 places open a client card) set it
+    // visible inside a hidden container and nothing appeared, while the code reported
+    // success. Re-parent to <body> on first open, making it a sibling of #buyer-modal -
+    // which is exactly why that modal has always worked from every page. Done BEFORE
+    // display is set, so there is no flicker. Moving a live node keeps its handlers,
+    // fields and values; the guard makes a repeat open a no-op.
+    if (overlay.parentElement !== document.body) document.body.appendChild(overlay);
+    overlay.style.display = 'flex';
+  }
 }
 function apptClientSearch(q) {
   var results = document.getElementById('appt-client-results');
