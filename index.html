@@ -31929,6 +31929,52 @@ async function updateDealStatus(dealId, status) {
 }
 window.updateDealStatus = updateDealStatus;
 
+// Offer to undo a contract when a seller listing goes back on the market. Asks first, because
+// an agent correcting a mis-click is not the same as a deal collapsing, and the dates are not
+// recoverable once cleared.
+async function _dealFellOutOfContract(deal, client){
+  var addr = (deal.address && deal.address.trim()) ? deal.address : 'this listing';
+  var _msg = 'Back to Listed \u2014 did the contract fall apart on ' + addr + '?\n\n'
+    + 'OK clears the contract dates from the deal and from the client\u2019s timeline, and stops the AI Transaction Coordinator tasks for it.\n\n'
+    + 'Cancel leaves everything exactly as it is.';
+  if (!confirm(_msg)) return;
+  var cleared = { contractDate:null, earnestDate:null, closingDate:null, inspectionDate:null,
+                  appraisalDate:null, walkthroughDate:null, financingDate:null };
+  try {
+    Object.assign(deal, cleared);
+    await fb.updateDoc(_dealDoc(deal.id), cleared);
+  } catch(e){
+    console.log('fell-out: deal clear failed:', e.message);
+    alert('Could not clear the dates on the deal \u2014 check your connection and try again.');
+    return;
+  }
+  // The client's dashboard reads their OWN record, not the deal, so it has to be cleared too or
+  // they keep seeing the dead countdown. Only sellerContractDates is safe to blank outright:
+  // contractDates is the shared legacy field, and wiping it when it belongs to this client's
+  // BUYER side would delete a live buyer timeline. Touch it only when it is demonstrably theirs.
+  if (deal.clientUid) {
+    var patch = { sellerContractDates: null };
+    var cd = client && client.contractDates;
+    if (cd && cd.contractType === 'seller') patch.contractDates = null;
+    try {
+      await fb.updateDoc(fb.doc(fb.db,'users',deal.clientUid), patch);
+      if (client) { client.sellerContractDates = null; if (patch.contractDates === null) client.contractDates = null; }
+    } catch(e){
+      console.log('fell-out: client clear failed:', e.message);
+      alert('Dates cleared on the deal, but the client\u2019s copy could not be \u2014 they may still see the old timeline.');
+    }
+  }
+  // Auto-reminders are keyed dr_<dealId>_ and rebuild from the dates, so drop the stale ones.
+  if (typeof _todos !== 'undefined' && _todos) {
+    _todos = _todos.filter(function(t){ return !(t.id && t.id.startsWith('dr_'+deal.id+'_')); });
+    try { if (typeof todoSave==='function') todoSave(); } catch(e){}
+  }
+  try { if (typeof injectDealReminders==='function') injectDealReminders(); } catch(e){}
+  try { if (typeof todoRender==='function') todoRender(); } catch(e){}
+  try { if (typeof todoUpdateBadge==='function') todoUpdateBadge(); } catch(e){}
+}
+window._dealFellOutOfContract = _dealFellOutOfContract;
+
 async function setDealStep(dealId, next) {
   if (window._billBlock && _billBlock()) return;
   var deal = (_deals||[]).find(function(d){ return d.id===dealId; });
@@ -31975,6 +32021,15 @@ async function setDealStep(dealId, next) {
   var justReopened = (!isSeller && cur>=11 && next<11) || (isSeller && cur>=13 && next<13);
   if (justClosed && typeof markListingClosedForDeal==='function') markListingClosedForDeal(deal);
   if (justReopened && typeof reopenListingForDeal==='function') reopenListingForDeal(deal);
+  // A seller deal dropping from Under Contract (9+) back to Listed (6-8) means the contract fell
+  // apart. Nothing used to react: the dates stayed on the deal AND on the client's own record —
+  // which is what their dashboard reads — so the client kept counting down to a closing that was
+  // never going to happen, and the AITC kept raising deadline tasks. Those tasks are built FROM
+  // the dates (injectDealReminders returns early without a closingDate), so clearing the dates is
+  // what actually stops the coordinator; tcEnabled is deliberately left alone, since the agent's
+  // master switch is theirs to set and the next contract on this listing should pick it up.
+  var justFellOut = isSeller && cur >= 9 && next >= 6 && next < 9;
+  if (justFellOut) { try { await _dealFellOutOfContract(deal, client); } catch(e){ console.log('fell-out:', e.message); } }
   filterDeals(_activeFilter);
   // Follow the deal to its new tab — scroll to it + highlight, so it's never lost in the list.
   if (justUC || justClosed || justListed) {
