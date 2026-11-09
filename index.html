@@ -17165,14 +17165,63 @@ function saveNlBlockValues() {
   });
 }
 
-function addNlBlock(type) {
+// Which gap is currently showing its type buttons, or -1 for none. Kept outside the blocks
+// so it survives the re-render that every add/move/remove triggers.
+var _nlInsertAt = -1;
+
+// `at` inserts at that position instead of appending. Existing callers pass no position and
+// still append, so the toolbars above the list are unaffected.
+function addNlBlock(type, at) {
   saveNlBlockValues();
   var id = ++_nlBlockId;
   var block = { id: id, type: type };
-  _nlBlocks.push(block);
+  if (typeof at === 'number' && at >= 0 && at <= _nlBlocks.length) _nlBlocks.splice(at, 0, block);
+  else _nlBlocks.push(block);
+  _nlInsertAt = -1;
   renderNlBlocks();
 }
 window.addNlBlock = addNlBlock;
+
+// dir is -1 for up, +1 for down. saveNlBlockValues() first is load-bearing: what you have
+// typed lives in the DOM until it is called, and the re-render below rebuilds those fields
+// from the array — so without it, moving a block discards the text you were part-way through.
+function moveNlBlock(id, dir) {
+  saveNlBlockValues();
+  var i = -1;
+  for (var k = 0; k < _nlBlocks.length; k++) { if (_nlBlocks[k].id === id) { i = k; break; } }
+  if (i < 0) return;
+  var j = i + dir;
+  if (j < 0 || j >= _nlBlocks.length) return;   // already at an end
+  var tmp = _nlBlocks[i]; _nlBlocks[i] = _nlBlocks[j]; _nlBlocks[j] = tmp;
+  _nlInsertAt = -1;
+  renderNlBlocks();
+}
+window.moveNlBlock = moveNlBlock;
+
+function nlToggleInsert(at) {
+  saveNlBlockValues();
+  _nlInsertAt = (_nlInsertAt === at) ? -1 : at;
+  renderNlBlocks();
+}
+window.nlToggleInsert = nlToggleInsert;
+
+// The gap between two blocks: a quiet '+ Add here' until clicked, then the same block types
+// the toolbar offers — so a forgotten divider goes in where it belongs instead of being
+// rebuilt from the bottom.
+function nlInsertRow(at) {
+  if (_nlInsertAt === at) {
+    var types = [['text','Text'],['button','Button'],['video','Video'],['image','Image'],['pdf','PDF'],['divider','Divider']];
+    return '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 0;">'
+      + types.map(function(t){ return '<button type="button" class="btn btn-sm" onclick="addNlBlock(\''+t[0]+'\','+at+')">+ '+t[1]+'</button>'; }).join('')
+      + '<button type="button" onclick="nlToggleInsert('+at+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11.5px;font-family:inherit;">cancel</button>'
+      + '</div>';
+  }
+  return '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<div style="flex:1;height:1px;background:var(--border);"></div>'
+    + '<button type="button" onclick="nlToggleInsert('+at+')" style="background:none;border:1px dashed var(--border);color:var(--text3);cursor:pointer;font-size:11px;border-radius:10px;padding:2px 10px;font-family:inherit;">+ Add here</button>'
+    + '<div style="flex:1;height:1px;background:var(--border);"></div>'
+    + '</div>';
+}
 
 function removeNlBlock(id) {
   saveNlBlockValues();
@@ -17188,7 +17237,7 @@ function renderNlBlocks() {
     container.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">Add blocks above to build your email</div>';
     return;
   }
-  container.innerHTML = _nlBlocks.map(function(block) {
+  container.innerHTML = _nlBlocks.map(function(block, idx) {
     var inner = '';
     if (block.type === 'text') {
       inner = '<textarea id="nl-block-'+block.id+'" placeholder="Write your message here..." rows="4" style="width:100%;box-sizing:border-box;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;resize:vertical;">'+(block.value||'')+'</textarea>'
@@ -17226,14 +17275,29 @@ function renderNlBlocks() {
       inner = '<div style="border-top:1px solid var(--border);margin:4px 0;"></div>';
     }
     var labels = { text:'📝 Text', button:'🔗 Button', video:'🎥 Video', image:'🖼 Image', pdf:'📄 PDF', divider:'— Divider' };
-    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px;">'
+    // Arrows are dimmed and inert at the ends rather than hidden, so the control does not
+    // jump around as blocks move — and nothing offers an action that would do nothing.
+    var first = (idx === 0), last = (idx === _nlBlocks.length - 1);
+    function arrow(dir, glyph, off, title) {
+      return '<button type="button" title="' + title + '"' + (off ? ' disabled' : '')
+        + ' onclick="moveNlBlock(' + block.id + ',' + dir + ')"'
+        + ' style="background:none;border:none;font-size:12px;padding:2px 3px;font-family:inherit;'
+        + 'color:var(--text3);cursor:' + (off ? 'default' : 'pointer') + ';opacity:' + (off ? '.25' : '1') + ';">'
+        + glyph + '</button>';
+    }
+    return nlInsertRow(idx)
+      + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px;">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;">'
       + '<span style="font-size:11px;font-weight:600;color:var(--text2);">' + (labels[block.type]||block.type) + '</span>'
-      + '<button onclick="removeNlBlock('+block.id+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;">✕</button>'
+      + '<div style="display:flex;align-items:center;gap:2px;">'
+        + arrow(-1, '\u25B2', first, 'Move up')
+        + arrow(1,  '\u25BC', last,  'Move down')
+        + '<button onclick="removeNlBlock('+block.id+')" title="Remove" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 3px;">✕</button>'
+      + '</div>'
       + '</div>'
       + inner
       + '</div>';
-  }).join('');
+  }).join('') + nlInsertRow(_nlBlocks.length);
 }
 window.renderNlBlocks = renderNlBlocks;
 
@@ -39491,3 +39555,4 @@ window.showEmailPreview = showEmailPreview;
   </div>
 </body>
 </html>
+    
