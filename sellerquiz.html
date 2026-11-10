@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>What will cash buyers pay for your house?</title>
+<meta name="description" content="Get real cash offers on your house from vetted buyers, with a local licensed agent walking you through the numbers.">
+
+<!--
+  NestTrack landing page template: "sellerquiz" — Cash Offer seller screening quiz.
+  URL:  /sellerquiz.html?a=<agentId>   (optional &t=<templateId>, default 'sellerquiz')
+
+  Reads the agent's config from Firestore landing_pages/<agent>_<template>, same as cashoffer.html.
+  Config fields used (all optional except where noted):
+    agentName, brokerage, agentPhoto, accent, headline, subhead, videoUrl, thanksMsg,
+    source, leadStatus, leadSegment, smartPlanId, smartPlanName,
+    pixelId   ← NEW field: the agent's Meta Pixel ID. No pixel ID = no Meta tracking.
+
+  Submits EVERY seller to the NestTrack worker (X-Action: inbound-lead) with every answer in notes.
+  Qualified sellers are routed to the agent's own segment/plan; the rest to the nurture segment/plan.
+  Meta is told about everyone as a plain Lead, but only qualified sellers also fire QualifiedLead
+  with a value — so a lookalike audience is seeded from real sellers, never from tyre-kickers.
+-->
+
+<style>
+  :root{
+    --accent:#2A6EF4; --ink:#0F1B33; --muted:#5b6472; --line:#e8ebf1; --bg:#ffffff;
+    --good:#1D9E75; --warn:#E08A1E; --soft:#f6f8fc; --r:14px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  body{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+  header{padding:14px 20px;display:flex;justify-content:center;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+  header img{width:42px;height:42px;border-radius:50%;object-fit:cover;display:none}
+  header .who{line-height:1.2}
+  header .who b{display:block;font-size:17px;font-weight:700}
+  header .who span{font-size:12.5px;color:var(--muted)}
+  main{flex:1;width:100%;max-width:680px;margin:0 auto;padding:26px 20px 40px}
+
+  .hero h1{font-size:31px;line-height:1.18;font-weight:800;letter-spacing:-.6px;color:var(--ink)}
+  .hero h1 span{color:var(--accent)}
+  .hero p{margin-top:14px;font-size:16.5px;line-height:1.55;color:var(--muted)}
+  .video{margin-top:20px;border-radius:var(--r);overflow:hidden;background:#000;aspect-ratio:16/9;box-shadow:0 8px 26px rgba(15,27,51,.14)}
+  .video iframe,.video video{display:block;width:100%;height:100%;border:0}
+  .bullets{margin:20px 0 26px;display:grid;gap:11px}
+  .bullets div{display:flex;gap:10px;align-items:flex-start;font-size:15.5px;line-height:1.4}
+  .bullets i{flex:none;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-style:normal;font-size:13px;font-weight:700;display:grid;place-items:center;margin-top:1px}
+
+  .card{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:var(--r);padding:22px 18px;box-shadow:0 10px 34px rgba(15,27,51,.09)}
+  .progress{height:6px;background:var(--soft);border-radius:3px;overflow:hidden;margin-bottom:8px}
+  .progress div{height:100%;width:0;background:var(--accent);transition:width .3s}
+  .step-count{font-size:13px;color:var(--muted);margin-bottom:14px}
+  .q h2{font-size:22px;line-height:1.28;font-weight:700;letter-spacing:-.3px;margin-bottom:6px}
+  .q .sub{font-size:15px;color:var(--muted);line-height:1.4;margin-bottom:16px}
+  .opts{display:grid;gap:10px;margin-top:14px}
+  .opt{width:100%;text-align:left;font:inherit;font-size:16.5px;padding:15px 16px;border:1.5px solid var(--line);border-radius:11px;background:#fbfcfe;color:var(--ink);cursor:pointer;transition:border-color .15s,background .15s}
+  .opt:hover{border-color:var(--accent)}
+  .opt.sel{border-color:var(--accent);background:#eef4ff}
+  label.f{display:block;font-size:14px;font-weight:600;margin:12px 0 6px}
+  input.t{width:100%;font:inherit;font-size:16px;padding:13px;border:1.5px solid var(--line);border-radius:11px;background:#fbfcfe;color:var(--ink)}
+  input.t:focus{outline:none;border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1.4fr 1fr;gap:10px}
+  .row3{display:grid;grid-template-columns:1.5fr .7fr .9fr;gap:8px}
+  .ac-dd{position:absolute;z-index:99999;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:230px;overflow:auto;font-size:15px}
+  .ac-dd div{padding:11px 12px;cursor:pointer;border-bottom:1px solid var(--line)}
+  .ac-dd div:last-child{border-bottom:0}
+  .btn{width:100%;margin-top:18px;font:inherit;font-size:17px;font-weight:700;padding:16px;border:0;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer}
+  .btn:disabled{opacity:.5;cursor:default}
+  .back{background:none;border:0;font:inherit;font-size:15px;color:var(--muted);margin-top:14px;cursor:pointer;padding:6px 0}
+  .consent{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:12.5px;line-height:1.45;color:var(--muted)}
+  .consent input{margin-top:3px;width:18px;height:18px;flex:none;accent-color:var(--accent)}
+  .err{color:#b3261e;font-size:14px;margin-top:10px;display:none}
+  .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+  .done h2{font-size:25px;font-weight:800;letter-spacing:-.4px;margin-bottom:10px}
+  .done p{font-size:16px;line-height:1.55;color:var(--muted);margin-top:10px}
+  .trust{margin-top:22px;font-size:13px;line-height:1.5;color:var(--muted);text-align:center}
+  footer{font-size:12px;color:var(--muted);text-align:center;padding:18px 20px 28px;line-height:1.5;border-top:1px solid var(--line)}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+
+<header>
+  <img id="a-photo" alt="">
+  <div class="who"><b id="a-name"></b><span id="a-brok"></span></div>
+</header>
+
+<main>
+  <section class="hero" id="hero">
+    <h1 id="headline">See what <span>cash buyers</span> will pay for your house.</h1>
+    <div id="video" class="video hidden"></div>
+    <p id="subhead">Answer a few questions and I’ll bring you real offers from vetted buyers — then we’ll go through the numbers together.</p>
+    <div class="bullets" id="bullets"></div>
+  </section>
+
+  <div class="card" id="quiz">
+    <div class="progress"><div id="bar"></div></div>
+    <div class="step-count" id="count"></div>
+    <div id="stage"></div>
+    <div class="err" id="err"></div>
+    <button class="back hidden" id="back" type="button">← Back</button>
+  </div>
+
+  <p class="trust" id="trust">Takes about 60 seconds. Your info is never sold.</p>
+</main>
+
+<footer>
+  <span id="f-who"></span><br>
+  Cash offers come from independent third-party buyers. Requesting offers does not obligate you to sell. Not affiliated with Facebook or Meta.
+</footer>
+
+<script>
+(function(){
+  'use strict';
+
+  // ===== NestTrack wiring (same as cashoffer.html) =====
+  var WORKER_URL = 'https://app.tom-b52.workers.dev';
+  var FB_PROJECT = 'buyers-880bc';
+  var FB_KEY     = 'AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY';
+  var params   = new URLSearchParams(location.search);
+  var AGENT    = (params.get('a') || '').toLowerCase().replace(/[^a-z0-9]/g, '');   // no fallback agent
+  var TEMPLATE = (params.get('t') || 'sellerquiz').toLowerCase().replace(/[^a-z0-9]/g, '');
+  var CFG = {};
+
+  // ===== Screening rules =====
+  var QUALIFIED_TIMELINES = ['asap', '1to3', '3to6'];
+  var SHOPPING = ['cashoffer', 'agent', 'both'];
+  var ROUGH = ['major', 'rehab'];
+
+  // A seller outside the agent's state is still a real lead — it is a referral they can send to
+  // an agent there and be paid on. Treated as qualified with its own track, not discarded.
+  // With no agentState configured nothing is treated as out of area.
+  function scoreLead(a){
+    var disqualified = a.owner === 'no' || a.listed === 'yes';
+    var shopping = SHOPPING.indexOf(a.shopping) > -1;
+    var qualified = !disqualified && a.path !== 'curious' &&
+      (QUALIFIED_TIMELINES.indexOf(a.timeline) > -1 || (a.timeline === '6plus' && shopping));
+    var home = String(CFG.agentState || '').toUpperCase().replace(/[^A-Z]/g, '');
+    var where = String((a.address && a.address.state) || '').toUpperCase().replace(/[^A-Z]/g, '');
+    var outOfArea = !!(home && where && where !== home);
+    var lean = a.path === 'cash' ? 'cash' : 'listing';
+    var track = !qualified ? 'nurture' : outOfArea ? 'referral' : lean;
+    // A referral earns less than a deal of their own, so it is reported to Meta at the lowest
+    // value rather than teaching the lookalike that out-of-state sellers are the best ones.
+    var value = !qualified ? 0 : outOfArea ? 1 : ROUGH.indexOf(a.condition) > -1 ? 1 : lean === 'listing' ? 3 : 2;
+    return { qualified: qualified, track: track, value: value, shopping: shopping, outOfArea: outOfArea };
+  }
+
+  var LABELS = {
+    owner:     { yes:'Owner', co:'Co-owner', heir:'Inherited / estate', no:'Not the owner' },
+    listed:    { no:'Not listed', expired:'EXPIRED / cancelled listing', yes:'Currently listed' },
+    timeline:  { asap:'ASAP (<30 days)', '1to3':'1–3 months', '3to6':'3–6 months', '6plus':'6+ months', curious:'Just curious' },
+    condition: { ready:'Move-in ready', updating:'Needs some updating', major:'Major repairs', rehab:'Full rehab' },
+    nexthome:  { local:'BUYING LOCALLY — buyer + mortgage opp', away:'Buying out of area — referral opp', no:'Not buying another home' },
+    shopping:  { none:'Not yet', cashoffer:'Already has a cash offer', agent:'Talked to an agent', both:'Cash offer + talked to agent' },
+    path:      { cash:'Wants quick cash sale (knows it’s lower)', options:'Wants most money — open to other ways to sell', curious:'Just curious — not selling' }
+  };
+  var LABEL_NAMES = { owner:'Title', listed:'Listed', timeline:'Timeline', condition:'Condition', nexthome:'Next home', shopping:'Shopping', path:'Goal' };
+
+  // ===== Questions =====
+  var Q = [
+    { key:'address', type:'address', title:"What's the property address?", sub:'Buyers need the address to price it.' },
+    { key:'owner', title:'Are you on the title?', opts:[
+        ['yes','Yes, I own it'], ['co','Yes, with someone else'], ['heir','It was inherited / it’s an estate'], ['no',"No, I don't own it"] ] },
+    { key:'listed', title:'Is it listed with an agent right now?', opts:[
+        ['no','No'], ['expired','It was — the listing expired or was cancelled'], ['yes','Yes, it’s listed now'] ] },
+    { key:'timeline', title:'When are you hoping to sell?', opts:[
+        ['asap','As soon as possible (under 30 days)'], ['1to3','1–3 months'], ['3to6','3–6 months'], ['6plus','6+ months'], ['curious','Just curious what it’s worth'] ] },
+    { key:'condition', title:'What shape is the house in?', opts:[
+        ['ready','Move-in ready'], ['updating','Needs some updating'], ['major','Needs major repairs (roof, HVAC, foundation…)'], ['rehab','Needs a full rehab'] ] },
+    { key:'nexthome', title:'Will you be buying another home?', opts:[
+        ['local','Yes — in the area'], ['away','Yes — out of the area'], ['no','No, I’m not buying another home'] ] },
+    { key:'shopping', title:'Have you gotten a cash offer or talked to an agent yet?', opts:[
+        ['none','Not yet'], ['cashoffer','I’ve gotten a cash offer'], ['agent','I’ve talked to an agent'], ['both','Both'] ] },
+    { key:'path', title:'Which sounds most like you?', opts:[
+        ['cash','A quick, easy cash sale — I know it’ll be a bit lower'],
+        ['options','The most money possible — I’m open to different ways to sell if it nets me more'],
+        ['curious','I’m just curious what it’s worth — not looking to sell right now'] ] }
+  ];
+
+  // ===== helpers =====
+  var $ = function(id){ return document.getElementById(id); };
+  var stage = $('stage'), bar = $('bar'), count = $('count'), back = $('back'), err = $('err');
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function showErr(m){ err.textContent = m; err.style.display = m ? 'block' : 'none'; }
+  function setT(id, v){ var e = $(id); if (e && v) e.textContent = v; }
+  function fsVal(v){ if(!v)return''; if(v.stringValue!==undefined)return v.stringValue; if(v.integerValue!==undefined)return v.integerValue; if(v.booleanValue!==undefined)return v.booleanValue; if(v.arrayValue!==undefined)return(v.arrayValue.values||[]).map(fsVal); return ''; }
+
+  // ===== Meta pixel (only if the agent has a pixel ID in their config) =====
+  var pixelOn = false;
+  function loadPixel(id){
+    if (!id || pixelOn) return;
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+    document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', String(id));
+    fbq('track', 'PageView');
+    pixelOn = true;
+  }
+  function px(){ if (pixelOn && window.fbq) { try { fbq.apply(null, arguments); } catch(e){} } }
+
+  // Meta's click identifiers. _fbc is set by the pixel when someone arrives from an ad, but it is
+  // written after the pixel boots — so on a fast submit it may not exist yet. Rebuilding it from
+  // the fbclid in the URL is Meta's documented fallback and keeps the click attributable.
+  function cookie(n){
+    var m = document.cookie.match('(^|;)\\s*' + n + '\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+  function getFbc(){
+    var c = cookie('_fbc'); if (c) return c;
+    var id = params.get('fbclid');
+    return id ? 'fb.1.' + Date.now() + '.' + id : '';
+  }
+
+  // ===== address autocomplete =====
+  // Same browser key and same Places API the NestTrack app uses, so there is nothing extra to
+  // enable. Typing the street fills city, state and ZIP from Google rather than from however
+  // someone chooses to type it — which is what makes the state reliable enough to screen on
+  // and to send to Meta.
+  var PLACES_KEY = 'AIzaSyCy5ZkbPcGtk7I_88dVbNsX40LY-M4R_sY';
+  var placesReady = false, placesLoading = false;
+  function loadPlaces(){
+    if (placesReady || placesLoading) return;
+    placesLoading = true;
+    var s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(PLACES_KEY) + '&libraries=places&loading=async&v=weekly';
+    s.async = true;
+    s.onload  = function(){ placesReady = true; setupAC('street'); };
+    s.onerror = function(){ placesLoading = false; };   // typing by hand still works
+    document.head.appendChild(s);
+  }
+  function partsFromGoogle(components){
+    var r = { street:'', city:'', state:'', zip:'' }, num = '', route = '';
+    (components || []).forEach(function(c){
+      var t = c.types || [], long = c.longText || c.long_name || '', short = c.shortText || c.short_name || '';
+      if (t.indexOf('street_number') !== -1) num = long;
+      else if (t.indexOf('route') !== -1) route = long;
+      else if (t.indexOf('locality') !== -1) r.city = long;
+      else if (t.indexOf('postal_town') !== -1 && !r.city) r.city = long;
+      else if (t.indexOf('sublocality') !== -1 && !r.city) r.city = long;
+      else if (t.indexOf('administrative_area_level_1') !== -1) r.state = short || long;   // short = 2-letter
+      else if (t.indexOf('postal_code') !== -1) r.zip = long;
+    });
+    r.street = (num ? num + ' ' : '') + route;
+    return r;
+  }
+  function setupAC(id){
+    if (!placesReady || !(window.google && google.maps && google.maps.places && google.maps.places.AutocompleteSuggestion)) return;
+    var input = $(id);
+    if (!input || input.dataset.acReady) return;
+    input.dataset.acReady = '1';
+    input.setAttribute('autocomplete', 'off');
+    var dd = null, preds = [], active = -1, deb = null, seq = 0, just = false;
+    function close(){ if (dd) { dd.remove(); dd = null; } preds = []; active = -1; }
+    function place(){
+      if (!dd) return;
+      var r = input.getBoundingClientRect();
+      dd.style.left = (r.left + window.scrollX) + 'px';
+      dd.style.width = r.width + 'px';
+      dd.style.top = (r.bottom + window.scrollY + 2) + 'px';
+    }
+    function hl(){ if (dd) [].forEach.call(dd.children, function(c,i){ c.style.background = (i===active) ? '#f1f9fe' : '#fff'; }); }
+    function draw(list){
+      close();
+      if (!list.length) return;
+      preds = list;
+      dd = document.createElement('div');
+      dd.className = 'ac-dd';
+      list.forEach(function(pp,i){
+        var row = document.createElement('div');
+        row.textContent = pp.text;
+        row.addEventListener('pointerdown', function(ev){ ev.preventDefault(); pick(pp); });
+        row.addEventListener('mouseenter', function(){ active = i; hl(); });
+        dd.appendChild(row);
+      });
+      document.body.appendChild(dd);
+      place();
+    }
+    async function pick(pp){
+      try {
+        var pl = pp.prediction.toPlace();
+        await pl.fetchFields({ fields:['formattedAddress','addressComponents'] });
+        var parts = partsFromGoogle(pl.addressComponents || []);
+        input.value = parts.street || pp.text;
+        if (parts.city  && $('city'))  $('city').value  = parts.city;
+        if (parts.state && $('state')) $('state').value = parts.state;
+        if (parts.zip   && $('zip'))   $('zip').value   = parts.zip;
+      } catch(e){ input.value = pp.text; }
+      just = true; clearTimeout(deb); seq++;
+      close();
+      setTimeout(function(){ just = false; }, 0);
+    }
+    async function query(v){
+      if (!v || v.trim().length < 3) { close(); return; }
+      var mine = ++seq;
+      try {
+        var resp = await google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions({ input: v });
+        if (mine !== seq) return;
+        draw((resp.suggestions || []).filter(function(s){ return s.placePrediction; }).map(function(s){
+          var tt = s.placePrediction.text;
+          return { text: (tt && tt.text) ? tt.text : String(tt || ''), prediction: s.placePrediction };
+        }));
+      } catch(e){ close(); }
+    }
+    input.addEventListener('input', function(){ if (just) return; var v = input.value; clearTimeout(deb); deb = setTimeout(function(){ query(v); }, 250); });
+    input.addEventListener('keydown', function(e){
+      if (!dd) return;
+      if (e.key === 'ArrowDown'){ e.preventDefault(); active = Math.min(active+1, preds.length-1); hl(); }
+      else if (e.key === 'ArrowUp'){ e.preventDefault(); active = Math.max(active-1, 0); hl(); }
+      else if (e.key === 'Enter' && active >= 0){ e.preventDefault(); pick(preds[active]); }
+      else if (e.key === 'Escape'){ close(); }
+    });
+    input.addEventListener('blur', function(){ setTimeout(close, 150); });
+    window.addEventListener('scroll', place, true);
+  }
+
+  // ===== video =====
+  var vbox = $('video');
+  function setVideo(url){
+    if (!url) return;
+    var u = String(url).trim(), m;
+    if ((m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)))
+      vbox.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + m[1] + '?rel=0&modestbranding=1&playsinline=1&enablejsapi=1" title="Intro video" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+    else if ((m = u.match(/vimeo\.com\/(?:video\/)?(\d+)/)))
+      vbox.innerHTML = '<iframe src="https://player.vimeo.com/video/' + m[1] + '" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+    else
+      vbox.innerHTML = '<video controls playsinline preload="metadata" src="' + esc(u) + '"></video>';
+    vbox.classList.remove('hidden');
+  }
+  function pauseVideo(){
+    var v = vbox.querySelector('video'); if (v) v.pause();
+    var f = vbox.querySelector('iframe');
+    if (f && f.contentWindow) f.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+  }
+
+  // Bullets come from the agent's template config, one per line. Defaults are deliberately
+  // modest — a page should not promise something the agent cannot deliver yet.
+  var DEFAULT_BULLETS = [
+    'Real offers from vetted buyers — not “we buy houses” texts',
+    'Honest numbers from a local licensed agent, not an investor',
+    'No obligation — you decide what to do next'
+  ];
+  function setBullets(raw){
+    var list = String(raw || '').split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean);
+    if (!list.length) list = DEFAULT_BULLETS;
+    var box = $('bullets'); if (!box) return;
+    box.innerHTML = list.map(function(b){ return '<div><i>\u2713</i>' + esc(b) + '</div>'; }).join('');
+  }
+
+  // ===== agent config from NestTrack =====
+  function applyConfig(c){
+    CFG = c;
+    if (c.accent) document.documentElement.style.setProperty('--accent', c.accent);
+    setT('a-name', c.agentName); setT('a-brok', c.brokerage);
+    if (c.agentPhoto){ var p = $('a-photo'); p.src = c.agentPhoto; p.style.display = 'block'; }
+    if (c.headline){ setT('headline', c.headline); document.title = c.headline; }
+    setT('subhead', c.subhead);
+    setT('f-who', [c.agentName, c.brokerage].filter(Boolean).join(' · '));
+    setBullets(c.bullets);
+    setVideo(c.videoUrl);
+    loadPixel(c.pixelId);
+  }
+  function load(){
+    if (!AGENT) return;
+    fetch('https://firestore.googleapis.com/v1/projects/' + FB_PROJECT + '/databases/(default)/documents/landing_pages/' + AGENT + '_' + TEMPLATE + '?key=' + FB_KEY)
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d && d.fields){ var c = {}; Object.keys(d.fields).forEach(function(k){ c[k] = fsVal(d.fields[k]); }); applyConfig(c); } })
+      .catch(function(){});
+  }
+
+  // ===== quiz flow =====
+  var answers = {}, i = 0;
+  function total(){ return Q.length + 1; }
+
+  function render(){
+    showErr('');
+    bar.style.width = Math.round((i / total()) * 100) + '%';
+    count.textContent = 'Step ' + (i + 1) + ' of ' + total();
+    back.classList.toggle('hidden', i === 0);
+    var hideHero = i > 0 && window.innerWidth < 700;
+    if (hideHero) pauseVideo();
+    $('hero').classList.toggle('hidden', hideHero);
+
+    if (i === Q.length) return renderContact();
+    var q = Q[i];
+    var h = '<div class="q"><h2>' + esc(q.title) + '</h2>' + (q.sub ? '<div class="sub">' + esc(q.sub) + '</div>' : '');
+    if (q.type === 'address'){
+      var a = answers.address || {};
+      h += '<label class="f" for="street">Street address</label><input class="t" id="street" autocomplete="street-address" placeholder="Start typing\u2026" value="' + esc(a.street) + '">' +
+           '<div class="row3"><div><label class="f" for="city">City</label><input class="t" id="city" autocomplete="address-level2" value="' + esc(a.city) + '"></div>' +
+           '<div><label class="f" for="state">State</label><input class="t" id="state" maxlength="2" autocomplete="address-level1" value="' + esc(a.state) + '"></div>' +
+           '<div><label class="f" for="zip">ZIP</label><input class="t" id="zip" inputmode="numeric" maxlength="5" autocomplete="postal-code" value="' + esc(a.zip) + '"></div></div>' +
+           '<button class="btn" id="next" type="button">Next \u2192</button>';
+    } else {
+      h += '<div class="opts">' + q.opts.map(function(o){
+        return '<button type="button" class="opt' + (answers[q.key] === o[0] ? ' sel' : '') + '" data-v="' + o[0] + '">' + esc(o[1]) + '</button>';
+      }).join('') + '</div>';
+    }
+    stage.innerHTML = h + '</div>';
+
+    if (q.type === 'address'){
+      setupAC('street');
+      $('next').onclick = function(){
+        var street = $('street').value.trim(), city = $('city').value.trim(), zip = $('zip').value.trim();
+        var state = $('state').value.trim().toUpperCase().replace(/[^A-Z]/g, '');
+        if (!street || !city || state.length !== 2 || !/^\d{5}$/.test(zip))
+          return showErr('Please enter the street, city, 2-letter state and 5-digit ZIP.');
+        answers.address = { street:street, city:city, state:state, zip:zip };
+        go(1);
+      };
+    } else {
+      [].forEach.call(stage.querySelectorAll('.opt'), function(b){
+        b.onclick = function(){ answers[q.key] = b.getAttribute('data-v'); afterAnswer(q.key); };
+      });
+    }
+    if (i === 1) px('trackCustom', 'QuizStart');
+  }
+
+  function afterAnswer(key){
+    if (key === 'owner' && answers.owner === 'no')
+      return endScreen('Offers need to come from the owner', 'Buyers can only make offers to the person on the title. If you’re helping a family member, have them fill this out and we’ll take it from there.');
+    if (key === 'listed' && answers.listed === 'yes')
+      return endScreen('Talk to your listing agent first', 'Since your home is listed right now, your agent is the right person to bring cash buyers to the table. If your listing ends and you’d like options, come back anytime.');
+    go(1);
+  }
+  function go(d){ i = Math.max(0, Math.min(Q.length, i + d)); render(); window.scrollTo({top:0, behavior:'smooth'}); }
+  back.onclick = function(){ go(-1); };
+
+  function consentText(){
+    var who = CFG.agentName || 'this agent';
+    var brok = CFG.brokerage ? ' (' + CFG.brokerage + ')' : '';
+    return 'By checking this box, I agree that ' + who + brok + ' may call and text me at the number above about my property, including by automated means. Consent isn’t a condition of any purchase. Msg & data rates may apply; reply STOP to opt out.';
+  }
+
+  function renderContact(){
+    var c = answers.contact || {};
+    stage.innerHTML =
+      '<div class="q"><h2>Where should we send your offers?</h2><div class="sub">Last step. You’ll get a quick call to confirm details before buyers bid.</div>' +
+      '<div class="row"><div><label class="f" for="fn">First name</label><input class="t" id="fn" autocomplete="given-name" value="' + esc(c.fn) + '"></div>' +
+      '<div><label class="f" for="ln">Last name</label><input class="t" id="ln" autocomplete="family-name" value="' + esc(c.ln) + '"></div></div>' +
+      '<label class="f" for="ph">Mobile phone</label><input class="t" id="ph" type="tel" inputmode="tel" autocomplete="tel" value="' + esc(c.ph) + '">' +
+      '<label class="f" for="em">Email</label><input class="t" id="em" type="email" autocomplete="email" value="' + esc(c.em) + '">' +
+      '<div class="hp"><label>Leave blank<input id="website" tabindex="-1" autocomplete="off"></label></div>' +
+      '<label class="consent"><input type="checkbox" id="tcpa"><span>' + esc(consentText()) + '</span></label>' +
+      '<button class="btn" id="submit" type="button">Get my cash offers →</button></div>';
+    $('submit').onclick = submit;
+  }
+
+  function buildNotes(r){
+    var a = answers, addr = a.address;
+    var head = r.qualified ? 'QUALIFIED — leaning ' + r.track : 'NURTURE — not ready';
+    var flags = [r.outOfArea && 'OUT OF AREA \u2014 REFERRAL', r.shopping && 'SHOPPING', a.nexthome === 'local' && 'BUYING LOCAL', a.listed === 'expired' && 'EXPIRED'].filter(Boolean);
+    var lines = Object.keys(LABELS).map(function(k){ return LABEL_NAMES[k] + ': ' + (LABELS[k][a[k]] || a[k] || '—'); });
+    return 'Seller quiz · ' + head + (flags.length ? ' · ' + flags.join(' · ') : '') + '\n' +
+           addr.street + ', ' + addr.city + ', ' + (addr.state || '') + ' ' + addr.zip + '\n' + lines.join('\n');
+  }
+
+  function submit(){
+    var fn = $('fn').value.trim(), ln = $('ln').value.trim(), ph = $('ph').value.trim(), em = $('em').value.trim();
+    answers.contact = { fn:fn, ln:ln, ph:ph, em:em };
+    if (!fn || !ln) return showErr('Please enter your first and last name.');
+    if (ph.replace(/\D/g,'').length < 10) return showErr('Please enter a valid 10-digit phone number.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return showErr('Please enter a valid email.');
+    if (!$('tcpa').checked) return showErr('Please check the box so we can contact you about your offers.');
+    if (!AGENT) return showErr('This page link is missing its agent code. Please use the link from the ad or the agent.');
+    if ($('website').value) return thanks('nurture');   // honeypot: bot
+
+    var r = scoreLead(answers);
+    var addr = answers.address;
+
+    // One id, both reports. The browser pixel and the worker each tell Meta about this lead, so
+    // one can cover for the other when an ad blocker eats the browser one — and Meta collapses
+    // the pair into a single lead only if they share an id. It must exist before either is sent.
+    var eventId = 'sq-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+
+    function trackMeta(){
+      if (!CFG.pixelId) return;
+      px('init', String(CFG.pixelId), { em: em.toLowerCase(), ph: ph.replace(/\D/g,''), fn: fn.toLowerCase(), ln: ln.toLowerCase(),
+                                        ct: addr.city.toLowerCase().replace(/[^a-z]/g,''), st: String(addr.state||'').toLowerCase(),
+                                        zp: addr.zip, country: 'us' });
+      px('track', 'Lead', {}, { eventID: eventId });
+      if (r.qualified) px('trackCustom', 'QualifiedLead', { value: r.value, currency: 'USD' }, { eventID: eventId + '-q' });
+    }
+
+    var btn = $('submit'); btn.disabled = true; btn.textContent = 'Sending…';
+    var payload = {
+      firstName: fn, lastName: ln, email: em.toLowerCase(), phone: ph.replace(/\D/g,''),
+      address: addr.street + ', ' + addr.city + ', ' + (addr.state || '') + ' ' + addr.zip,
+      agentId: AGENT,
+      source: CFG.source || 'Seller Quiz — Cash Offer',
+      notes: buildNotes(r),
+      // Everyone becomes a contact: a seller six months out is still a seller, and they were
+      // paid for either way. Only the routing differs — qualified sellers land where the agent
+      // calls from, the rest on a nurture plan — so the call list stays people who are ready.
+      leadStatus: r.qualified ? (CFG.leadStatus || 'pipeline') : 'nurture',
+      leadSegment: r.qualified ? (CFG.leadSegment || '') : (CFG.nurtureSegment || CFG.leadSegment || ''),
+      smartPlanId: r.qualified ? (CFG.smartPlanId || '') : (CFG.nurtureSmartPlanId || ''),
+      smartPlanName: r.qualified ? (CFG.smartPlanName || '') : (CFG.nurtureSmartPlanName || ''),
+      crm: true,
+      // Deliberately no quiz answers. Meta gets the event, its value, the click ids and the
+      // contact details it hashes for matching — never what the seller actually told us.
+      meta: {
+        eventId: eventId,
+        pixelId: String(CFG.pixelId || ''),
+        qualified: r.qualified,
+        value: r.value,
+        fbc: getFbc(),
+        fbp: cookie('_fbp'),
+        eventSourceUrl: location.href,
+        userAgent: navigator.userAgent,
+        city: addr.city, state: addr.state, zip: addr.zip
+      }
+    };
+    fetch(WORKER_URL, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-Action':'inbound-lead' }, body: JSON.stringify(payload) })
+      .then(function(res){ if (!res.ok) throw new Error('HTTP ' + res.status); return res.json().catch(function(){ return {}; }); })
+      .then(function(){ trackMeta(); thanks(r.track); })
+      .catch(function(e){
+        console.error('[sellerquiz] submit failed', e);
+        btn.disabled = false; btn.textContent = 'Get my cash offers →';
+        showErr('Something went wrong sending that. Please try again in a moment.');
+      });
+  }
+
+  function thanks(track){
+    var title, body;
+    if (track === 'cash'){
+      title = 'You’re in — next step is a quick call.';
+      body  = 'I’ll reach out shortly to confirm a few details so buyers can make offers on your house.';
+    } else if (track === 'referral'){
+      title = 'You’re in — I’ll connect you with the right agent.';
+      body  = 'Your home is outside the area I cover, so I’ll personally line you up with an agent I trust there — and stay involved to make sure you’re looked after.';
+    } else if (track === 'listing'){
+      title = 'You’re in — let’s find your best number.';
+      body  = 'I’ll reach out shortly with real numbers for your house, so you know what you’re working with before deciding anything.';
+    } else {
+      title = 'Thanks — I’ve got your info.';
+      body  = 'Whenever you’re ready to look at real numbers — cash offers or what it could sell for — I’m here to help.';
+    }
+    if (track !== 'nurture' && CFG.thanksMsg) body = CFG.thanksMsg;
+    endScreen(title, body, true);
+  }
+
+  function endScreen(title, body, complete){
+    if (complete) bar.style.width = '100%';
+    count.textContent = ''; back.classList.add('hidden'); showErr(''); pauseVideo();
+    $('hero').classList.add('hidden'); $('trust').classList.add('hidden');
+    stage.innerHTML = '<div class="done"><h2>' + esc(title) + '</h2><p>' + esc(body) + '</p></div>';
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  setBullets('');
+  load();
+  loadPlaces();
+  render();
+})();
+</script>
+</body>
+</html>
