@@ -228,9 +228,29 @@
     var s = document.createElement('script');
     s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(PLACES_KEY) + '&libraries=places&loading=async&v=weekly';
     s.async = true;
-    s.onload  = function(){ placesReady = true; setupAC('street'); };
+    // With loading=async, the script's onload only means the loader arrived — the places
+    // library itself lands a moment later. Wiring the field at onload is a race the field
+    // usually loses, so wait until AutocompleteSuggestion actually exists.
+    s.onload  = function(){ placesArrived(); };
     s.onerror = function(){ placesLoading = false; };   // typing by hand still works
     document.head.appendChild(s);
+  }
+  function placesArrived(){
+    if (window.google && google.maps && google.maps.places && google.maps.places.AutocompleteSuggestion){
+      placesReady = true;
+      setupAC('street');          // no-op unless the address step is on screen
+      return;
+    }
+    if (window.google && google.maps && typeof google.maps.importLibrary === 'function'){
+      google.maps.importLibrary('places').then(function(){
+        placesReady = true;
+        setupAC('street');
+      }).catch(function(){ placesLoading = false; });
+      return;
+    }
+    if (placesArrived.tries === undefined) placesArrived.tries = 0;
+    if (++placesArrived.tries < 40) setTimeout(placesArrived, 150);
+    else placesLoading = false;   // gave up; typing by hand still works
   }
   function partsFromGoogle(components){
     var r = { street:'', city:'', state:'', zip:'' }, num = '', route = '';
