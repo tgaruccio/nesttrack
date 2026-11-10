@@ -36136,7 +36136,7 @@ function lpShowTemplateList(){
         +'</button>';
       }).join('')
     + '<button onclick="lpListingsHome()" style="width:100%;text-align:left;background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:16px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:14px;"><span style="font-size:30px;">\uD83C\uDFE1</span><div style="flex:1;"><div style="font-size:15px;font-weight:600;color:#1D4ED8;">Listing Showcase</div><div style="font-size:12px;color:#1D4ED8;opacity:0.8;">Per-property page \u2014 photos, 3D tour, tour requests</div></div><span style="color:#1D4ED8;font-size:18px;">\u203A</span></button>'
-    + '<button onclick="lpOpenWidget()" style="width:100%;text-align:left;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--r);padding:16px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:14px;"><span style="font-size:30px;">\uD83E\uDDE9</span><div style="flex:1;"><div style="font-size:15px;font-weight:600;color:#047857;">Contact Widget</div><div style="font-size:12px;color:#047857;opacity:0.85;">Drop-in code for any website \u2014 leads flow into NestTrack</div></div><span style="color:#047857;font-size:18px;">\u203A</span></button>'
+    + '<button onclick="lpWidgetList()" style="width:100%;text-align:left;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:var(--r);padding:16px;margin-bottom:10px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:14px;"><span style="font-size:30px;">\uD83E\uDDE9</span><div style="flex:1;"><div style="font-size:15px;font-weight:600;color:#047857;">Contact Widget</div><div style="font-size:12px;color:#047857;opacity:0.85;">Drop-in code for any website \u2014 leads flow into NestTrack</div></div><span style="color:#047857;font-size:18px;">\u203A</span></button>'
     + '<div style="font-size:11px;color:var(--text3);text-align:center;margin-top:8px;">More templates coming.</div>';
 }
 window.lpShowTemplateList = lpShowTemplateList;
@@ -36347,10 +36347,79 @@ async function lpSaveTemplate(t){
 }
 window.lpSaveTemplate = lpSaveTemplate;
 
-async function lpOpenWidget(){
+// Which widget the builder is editing. '' is the original one, whose record keeps its old
+// name (agentId_widget) so every page already embedding it carries on working untouched.
+// '__new__' means the form is blank and the slug gets made from the name on save.
+var _lpWidgetSlug = '';
+
+function _lpWidgetDocId(agentId, slug){ return agentId + '_widget' + (slug ? '_' + slug : ''); }
+function _lpSlugify(s){
+  return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+}
+
+// Lists this agent's widgets. Single-field query on agentId then template filtered in code:
+// two equality filters would need a composite index, and a missing one reads as a permissions
+// denial rather than an error you can act on.
+async function lpWidgetList(){
   var agentId=_lpAgentId();
+  var b=document.getElementById('lp-body'); if(!b) return; b.scrollTop=0;
+  b.innerHTML='<div style="font-size:13px;color:var(--text3);padding:20px 0;">Loading your widgets…</div>';
+  var rows=[];
+  try{
+    var snap=await fb.getDocs(fb.query(fb.collection(fb.db,'landing_pages'), fb.where('agentId','==',agentId)));
+    snap.forEach(function(d){
+      var x=d.data()||{};
+      if(x.template!=='widget') return;
+      var id=d.id, slug='';
+      var pfx=agentId+'_widget_';
+      if(id.indexOf(pfx)===0) slug=id.slice(pfx.length);
+      rows.push({ slug:slug, name:x.name||'', source:x.source||'Website Contact' });
+    });
+  }catch(e){ console.log('lpWidgetList:', e && e.message); }
+  rows.sort(function(a,c){ return (a.slug?1:0)-(c.slug?1:0) || (a.name||a.source).localeCompare(c.name||c.source); });
+
+  var html='<button class="btn btn-sm" onclick="lpShowTemplateList()" style="margin-bottom:14px;">\u2190 Templates</button>'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83E\uDDE9 Contact Widgets</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">One per page or campaign, each with its own lead source, fields and smart plan — so you can tell where every lead came from.</div>';
+  if(!rows.length){
+    html+='<div style="font-size:13px;color:var(--text3);margin-bottom:14px;">You haven\u2019t made one yet.</div>';
+  }
+  rows.forEach(function(r){
+    var label = r.name || r.source || 'Contact Widget';
+    html+='<div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;margin-bottom:9px;">'
+      +'<div style="flex:1;min-width:0;cursor:pointer;" onclick="lpOpenWidget(\''+r.slug+'\')">'
+        +'<div style="font-size:14px;font-weight:600;">'+partnerEsc(label)+(r.slug?'':' <span style="font-size:11px;font-weight:400;color:var(--text3);">(your original)</span>')+'</div>'
+        +'<div style="font-size:11.5px;color:var(--text3);margin-top:2px;">Leads tagged “'+partnerEsc(r.source)+'”</div>'
+      +'</div>'
+      +'<button class="btn btn-sm" onclick="lpOpenWidget(\''+r.slug+'\')">Edit</button>'
+      +(r.slug?'<button title="Delete" onclick="lpDeleteWidget(\''+r.slug+'\',\''+partnerEsc(label).replace(/\x27/g,'')+'\')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:4px 6px;">\u2715</button>':'')
+    +'</div>';
+  });
+  html+='<button class="btn btn-g" style="width:100%;margin-top:10px;" onclick="lpOpenWidget(\'__new__\')">+ New widget</button>';
+  b.innerHTML=html;
+}
+window.lpWidgetList = lpWidgetList;
+
+// Deleting only removes the settings. Any page still embedding that widget will stop showing a
+// form, so the confirm says so rather than letting it fail quietly on a live site.
+async function lpDeleteWidget(slug, label){
+  if(!slug) return;   // the original is never removable: too many pages may rely on it
+  if(!confirm('Delete the “'+label+'” widget?\n\nAny page still using its code will stop showing the form. This cannot be undone.')) return;
+  try{ await fb.deleteDoc(fb.doc(fb.db,'landing_pages',_lpWidgetDocId(_lpAgentId(), slug))); }
+  catch(e){ alert('Could not delete that widget: ' + (e && e.message ? e.message : 'unknown error')); return; }
+  lpWidgetList();
+}
+window.lpDeleteWidget = lpDeleteWidget;
+
+async function lpOpenWidget(slug){
+  var agentId=_lpAgentId();
+  // undefined/'' keeps the original record; '__new__' starts blank; anything else edits that one.
+  _lpWidgetSlug = (slug===undefined||slug===null) ? '' : String(slug);
+  var isNew = (_lpWidgetSlug === '__new__');
   var cfg={};
-  try{ var snap=await fb.getDoc(fb.doc(fb.db,'landing_pages',agentId+'_widget')); if(snap.exists()){ cfg=snap.data(); } }catch(e){}
+  if(!isNew){
+    try{ var snap=await fb.getDoc(fb.doc(fb.db,'landing_pages',_lpWidgetDocId(agentId,_lpWidgetSlug))); if(snap.exists()){ cfg=snap.data(); } }catch(e){}
+  }
   if(!_smartPlans.length){ try{ await loadSmartPlans(); }catch(e){} }
   var _segSet={}; (allBuyers||myBuyers||[]).forEach(function(x){ if(x&&x.segment) _segSet[x.segment]=1; });
   var _segList=Object.keys(_segSet).sort();
@@ -36363,9 +36432,10 @@ async function lpOpenWidget(){
   }
   var b=document.getElementById('lp-body'); if(!b) return; b.scrollTop=0;
   b.innerHTML=
-    '<button class="btn btn-sm" onclick="lpShowTemplateList()" style="margin-bottom:14px;">\u2190 Templates</button>'
-    +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83E\uDDE9 Contact Widget</div>'
+    '<button class="btn btn-sm" onclick="lpWidgetList()" style="margin-bottom:14px;">\u2190 All widgets</button>'
+    +'<div style="font-size:17px;font-weight:700;margin-bottom:2px;">\uD83E\uDDE9 '+(isNew?'New Contact Widget':'Contact Widget')+'</div>'
     +'<div style="font-size:12px;color:var(--text3);margin-bottom:16px;">A contact form you can paste into any website \u2014 your own site, a Carrd/Wix/Squarespace page, anywhere. Leads flow straight into NestTrack.</div>'
+    +_lpField('Widget name \u2014 so you can tell them apart in your list','lpw-name',cfg.name||'')
     +'<div style="background:#EAF2FF;border:1px solid #B9D2FF;border-radius:var(--r);padding:14px;margin-bottom:20px;">'
       +'<div style="font-size:13px;font-weight:800;color:#1D4ED8;margin-bottom:2px;">\u2699\uFE0F When a lead comes in</div>'
       +'<div style="font-size:11px;color:#1D4ED8;opacity:0.85;margin-bottom:10px;">Where widget leads land \u2014 and what happens next.</div>'
@@ -36417,19 +36487,37 @@ async function lpSaveWidget(){
     leadSegment:v('lp-leadseg'),
     smartPlanId:_planId,
     smartPlanName:_planObj?(_planObj.name||'Plan'):'',
+    name:v('lpw-name'),
     agentId:agentId,
     updatedAt:Date.now()
   };
+  // A new widget earns its slug from the name on first save. The original keeps the empty
+  // slug and therefore its original record id, so its embedded code never has to change.
+  var slug=_lpWidgetSlug;
+  if(slug==='__new__'){
+    var base=_lpSlugify(docData.name) || _lpSlugify(docData.source) || 'widget';
+    slug=base;
+    try{
+      for(var n=2; n<60; n++){
+        var ex=await fb.getDoc(fb.doc(fb.db,'landing_pages',_lpWidgetDocId(agentId,slug)));
+        if(!ex.exists()) break;
+        slug=base+'-'+n;   // same name twice gets its own record rather than overwriting
+      }
+    }catch(e){ console.log('widget slug check:', e && e.message); }
+  }
   try{
-    await fb.setDoc(fb.doc(fb.db,'landing_pages',agentId+'_widget'), docData);
+    await fb.setDoc(fb.doc(fb.db,'landing_pages',_lpWidgetDocId(agentId,slug)), docData);
+    _lpWidgetSlug=slug;   // saving again edits this one, it does not make another
     var srcAttr=String(docData.source).replace(/"/g,'&quot;');
-    var code='<div id="nesttrack-form"></div>\n<script src="https://app.nesttrack.io/widget.js" data-agent="'+agentId+'" data-source="'+srcAttr+'"><\/script>';
+    var wAttr=slug ? ' data-widget="'+slug+'"' : '';
+    var code='<div id="nesttrack-form"></div>\n<script src="https://app.nesttrack.io/widget.js" data-agent="'+agentId+'"'+wAttr+' data-source="'+srcAttr+'"><\/script>';
     var disp=code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     var out=document.getElementById('lpw-out'); out.style.display='block';
     out.innerHTML='<div style="font-size:12px;font-weight:700;color:#047857;margin-bottom:6px;">\u2705 Saved! Paste this into any page:</div>'
       +'<pre id="lpw-code" style="white-space:pre-wrap;word-break:break-all;font-size:12px;background:#0F1B33;color:#cfe3ff;border-radius:10px;padding:12px;margin:0 0 8px;font-family:ui-monospace,Menlo,monospace;">'+disp+'</pre>'
       +'<button class="btn btn-sm" onclick="lpCopyWidgetCode()">\uD83D\uDCCB Copy code</button>'
-      +'<div style="font-size:11px;color:var(--text3);margin-top:8px;">Styling, fields, and lead routing are saved to your account \u2014 change them here anytime without touching the embedded page.</div>';
+      +'<button class="btn btn-sm" onclick="lpWidgetList()" style="margin-left:8px;">\u2190 All widgets</button>'
+      +'<div style="font-size:11px;color:var(--text3);margin-top:8px;">Styling, fields, and lead routing are saved to your account \u2014 change them here anytime without touching the embedded page. This code is for <b>this</b> widget only.</div>';
     if(typeof showDealToast==='function') showDealToast('Widget saved!',null,null);
   }catch(e){ alert('Save failed: '+e.message); }
 }
@@ -39555,4 +39643,3 @@ window.showEmailPreview = showEmailPreview;
   </div>
 </body>
 </html>
-    
