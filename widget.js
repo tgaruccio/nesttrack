@@ -16,6 +16,10 @@
   function attr(n,d){ var v=me&&me.getAttribute('data-'+n); return (v==null||v==='')?d:v; }
 
   var AGENT=(attr('agent','')||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  // Which of this agent's widgets this embed is. Absent means the original one, so every page
+  // embedded before named widgets existed keeps loading exactly the record it always did.
+  var WIDGET=(attr('widget','')||'').toLowerCase().replace(/[^a-z0-9-]/g,'');
+  var DOC_ID = AGENT + '_widget' + (WIDGET ? '_' + WIDGET : '');
   var TARGET=attr('target','nesttrack-form');
   var CFG={
     accent:attr('accent','#2A6EF4'),
@@ -117,7 +121,7 @@
 
   function loadConfig(cb){
     if(!AGENT){ cb(); return; }
-    fetch('https://firestore.googleapis.com/v1/projects/'+FB_PROJECT+'/databases/(default)/documents/landing_pages/'+AGENT+'_widget?key='+FB_KEY)
+    fetch('https://firestore.googleapis.com/v1/projects/'+FB_PROJECT+'/databases/(default)/documents/landing_pages/'+DOC_ID+'?key='+FB_KEY)
       .then(function(r){ return r.ok?r.json():null; })
       .then(function(d){ if(d&&d.fields){ var k,o={}; for(k in d.fields){ o[k]=fsVal(d.fields[k]); }
         // doc overrides data- attributes only where set
