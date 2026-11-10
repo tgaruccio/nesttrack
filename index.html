@@ -3064,7 +3064,27 @@ setTimeout(function(){
           </div>
         </details>
 
-        <details class="intg-card" id="intg-zapier" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+        <details class="intg-card" id="intg-meta" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;">
+<summary style="list-style:none;cursor:pointer;padding:13px 14px;">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+<div style="font-size:13.5px;font-weight:600;">📊 Meta Pixels</div>
+<span id="intg-dot-meta" style="font-size:10.5px;color:var(--text3);white-space:nowrap;"></span>
+</div>
+</summary>
+<div style="padding:0 14px 14px;">
+<div style="font-size:11.5px;color:var(--text3);line-height:1.55;margin-bottom:10px;">Add a pixel’s access token so leads can be reported to Meta from the server as well as the browser — ad blockers and iPhone privacy settings hide a large share of browser events, and those are the leads your lookalike audience is built from. Tokens are stored privately on your account and never appear in a landing page.</div>
+<div id="meta-px-list"></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+<input id="meta-px-id" inputmode="numeric" placeholder="Pixel ID" style="flex:1;min-width:130px;font-size:13px;">
+<input type="password" id="meta-px-token" placeholder="Access token" autocomplete="new-password" name="meta-token-nofill" style="flex:2;min-width:180px;font-size:13px;">
+</div>
+<input id="meta-px-test" placeholder="Test events code — only while testing" style="width:100%;margin-top:6px;font-size:13px;">
+<button type="button" class="btn btn-sm" style="margin-top:8px;" onclick="metaPxSave()">Save pixel</button>
+<div id="meta-px-msg" style="font-size:12px;line-height:1.6;margin-top:8px;"></div>
+</div>
+</details>
+
+<details class="intg-card" id="intg-zapier" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
           <summary style="list-style:none;cursor:pointer;padding:13px 14px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
               <div style="font-size:13.5px;font-weight:600;">⚡ Zapier</div>
@@ -7724,6 +7744,86 @@ async function quoToggleUpdates() {
 }
 window.quoToggleUpdates = quoToggleUpdates;
 
+// ── Meta pixel credentials ──────────────────────────────────────────────────────────────
+// Stored on the agent's own user record: only they can write it and no public key can read it.
+// Deliberately NOT in landing_pages — that collection is fetched by landing pages through a
+// public API key, so an access token there would be readable by anyone who views one.
+function _metaPixels(){ return (userProfile && Array.isArray(userProfile.metaPixels)) ? userProfile.metaPixels : []; }
+
+function metaPxRender(){
+  var box = document.getElementById('meta-px-list'); if (!box) return;
+  var list = _metaPixels();
+  var dot = document.getElementById('intg-dot-meta');
+  if (dot) dot.textContent = list.length ? ('\u25CF ' + list.length + ' pixel' + (list.length > 1 ? 's' : '')) : 'Not set up';
+  if (!list.length){ box.innerHTML = '<div style="font-size:12px;color:var(--text3);font-style:italic;">No pixels saved yet.</div>'; return; }
+  box.innerHTML = list.map(function(px){
+    var id = String(px.pixelId || '');
+    return '<div style="display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 11px;margin-bottom:6px;">'
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:13px;font-weight:600;">' + partnerEsc(id) + '</div>'
+        + '<div style="font-size:11px;color:var(--text3);margin-top:2px;">' + (px.token ? 'Token saved \u2713' : 'No token \u2014 browser only')
+        + (px.testCode ? ' \u00B7 <b style="color:#B45309;">TEST MODE: ' + partnerEsc(px.testCode) + '</b>' : '') + '</div>'
+      + '</div>'
+      + (px.testCode ? '<button type="button" class="btn btn-sm" onclick="metaPxClearTest(\'' + id + '\')">Clear test</button>' : '')
+      + '<button type="button" onclick="metaPxRemove(\'' + id + '\')" title="Remove" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:4px 6px;">\u2715</button>'
+    + '</div>';
+  }).join('');
+}
+window.metaPxRender = metaPxRender;
+
+async function _metaPxWrite(list, msg){
+  try {
+    await fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { metaPixels: list });
+    if (userProfile) userProfile.metaPixels = list;
+    metaPxRender();
+    var m = document.getElementById('meta-px-msg');
+    if (m && msg){ m.textContent = msg; m.style.color = '#047857'; }
+  } catch(e){
+    var m2 = document.getElementById('meta-px-msg');
+    if (m2){ m2.textContent = 'Could not save: ' + (e && e.message ? e.message : 'unknown error'); m2.style.color = 'var(--red-dk)'; }
+  }
+}
+
+async function metaPxSave(){
+  var v = function(id){ var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  var id = v('meta-px-id').replace(/[^0-9]/g, '');
+  var token = v('meta-px-token');
+  var test = v('meta-px-test');
+  var m = document.getElementById('meta-px-msg');
+  if (!id){ if (m){ m.textContent = 'Enter the Pixel ID.'; m.style.color = 'var(--red-dk)'; } return; }
+  var list = _metaPixels().slice();
+  var found = null;
+  for (var i = 0; i < list.length; i++){ if (String(list[i].pixelId) === id) { found = list[i]; break; } }
+  if (found){
+    // Re-saving without retyping the token keeps the one already stored, since it is never
+    // shown back and would otherwise be wiped by an empty field.
+    if (token) found.token = token;
+    found.testCode = test;
+  } else {
+    list.push({ pixelId: id, token: token, testCode: test });
+  }
+  ['meta-px-id','meta-px-token','meta-px-test'].forEach(function(x){ var el = document.getElementById(x); if (el) el.value = ''; });
+  await _metaPxWrite(list, 'Saved \u2713');
+}
+window.metaPxSave = metaPxSave;
+
+async function metaPxRemove(pixelId){
+  if (!confirm('Remove pixel ' + pixelId + '?\n\nLanding pages using it keep working, but leads will only be reported from the browser.')) return;
+  await _metaPxWrite(_metaPixels().filter(function(px){ return String(px.pixelId) !== String(pixelId); }), 'Removed');
+}
+window.metaPxRemove = metaPxRemove;
+
+// Leaving a test code on would quietly mark real ad traffic as test data, so clearing it is
+// one click rather than buried in an edit form.
+async function metaPxClearTest(pixelId){
+  var list = _metaPixels().map(function(px){
+    if (String(px.pixelId) === String(pixelId)) px.testCode = '';
+    return px;
+  });
+  await _metaPxWrite(list, 'Test mode off \u2014 events now count as real');
+}
+window.metaPxClearTest = metaPxClearTest;
+
 async function quoDisconnect() {
   if (!confirm('Disconnect Quo? Any Smart Plan steps set to send automatically will go back to drafts.')) return;
   try {
@@ -7757,6 +7857,7 @@ function intgRenderStatus() {
   set('fub', fb_ ? (p.fubLastCount != null ? ('\u25CF ' + p.fubLastCount + ' last sync') : '\u25CF Connected') : 'Not set up', fb_);
 
   // Connected but with no sending number cannot send, so it is not really connected.
+  try { metaPxRender(); } catch(e){}
   var quo = !!(p.quoApiKey && p.quoFrom);
   set('quo', p.quoApiKey ? (quo ? '\u25CF Connected' : 'Needs a number') : 'Not set up', quo);
 
@@ -35966,6 +36067,18 @@ var LP_TEMPLATES = {
       thanksMsg:'Thanks \u2014 your request is in. I\u2019ll pull together your home\u2019s value and reach out shortly.'
     }
   },
+  sellerquiz: {
+    name:'Seller Screening Quiz', icon:'\uD83C\uDFAF', tag:'Qualifies before it contacts you', file:'sellerquiz.html',
+    defaults:{
+      eyebrow:'Your Cash Offer',
+      headline:'See what cash buyers will pay for your house.',
+      subhead:'Answer a few questions and I\u2019ll bring you real offers from vetted buyers \u2014 then we\u2019ll go through the numbers together.',
+      ctaText:'Get my cash offers',
+      source:'Seller Quiz \u2014 Cash Offer',
+      accent:'#2A6EF4',
+      thanksMsg:''
+    }
+  },
   cashoffer: {
     name:'Cash Offer vs. Listing', icon:'\uD83D\uDCB0', tag:'Seller decision tool', file:'cashoffer.html',
     defaults:{
@@ -36259,6 +36372,21 @@ async function lpEditTemplate(t){
     +_lpField('Your phone (shown on the page)','lp-phone',aPhone)
     +_lpField('Lead source tag','lp-source',cfg.source)
     +_lpField('Thank-you message','lp-thanks',cfg.thanksMsg,true)
+    +_lpField('Bullet points \u2014 one per line','lp-bullets',cfg.bullets||'',true)
+    +_lpField('Your state (2 letters) \u2014 sellers outside it become referral leads','lp-agentstate',cfg.agentState||'')
+    +_lpField('Meta Pixel (optional) \u2014 paste the ID or the whole code block Meta gave you','lp-pixelid',cfg.pixelId||'',true)
+    +'<div style="font-size:11px;color:var(--text3);margin-top:-6px;margin-bottom:10px;">To report leads to Meta from the server as well as the browser, add this pixel\u2019s access token under Profile \u2192 Meta Pixels. Server reporting catches the leads ad blockers hide.</div>'
+    +'<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:var(--r);padding:14px;margin:14px 0 4px;">'
+      +'<div style="font-size:13px;font-weight:800;color:#9A3412;margin-bottom:2px;">\uD83C\uDF31 Leads who don\u2019t qualify yet</div>'
+      +'<div style="font-size:11px;color:#9A3412;opacity:0.85;margin-bottom:10px;">They still become contacts \u2014 a seller who is six months out is a seller. Route them somewhere separate so your call list stays the people who are ready.</div>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#9A3412;margin:8px 0 5px;">Their segment / tag</label>'
+      +'<input id="lp-nurtureseg" list="lp-seg-options" value="'+partnerEsc(cfg.nurtureSegment||'')+'" placeholder="e.g. Seller Nurture" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #FED7AA;border-radius:var(--r-sm);font-family:inherit;background:#fff;"/>'
+      +'<label style="display:block;font-size:12px;font-weight:700;color:#9A3412;margin:11px 0 5px;">Put them on this smart plan</label>'
+      +'<select id="lp-nurtureplan" style="width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px;border:1px solid #FED7AA;border-radius:var(--r-sm);font-family:inherit;background:#fff;">'
+        +'<option value="">\u2014 None \u2014</option>'
+        +_smartPlans.map(function(p){ return '<option value="'+p.id+'"'+(cfg.nurtureSmartPlanId===p.id?' selected':'')+'>'+partnerEsc(p.name||'Untitled')+'</option>'; }).join('')
+      +'</select>'
+    +'</div>'
     +'<label style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin:12px 0 5px;">Accent color</label>'
     +'<input type="color" id="lp-accent" value="'+(cfg.accent||'#2A6EF4')+'" style="width:54px;height:38px;border:1px solid var(--border);border-radius:8px;padding:2px;cursor:pointer;"/>'
     +'<div style="display:flex;gap:8px;margin-top:18px;">'
@@ -36293,11 +36421,28 @@ function _lpFieldCsv(kind){
 }
 window._lpFieldCsv = _lpFieldCsv;
 
+// Accepts whatever Meta actually hands you. Their snippet is boilerplate apart from one
+// number, so making someone find and extract that number by hand is a step we can just do.
+// Paste the whole block, the noscript line, or the bare id — all three work.
+function _lpPixelId(raw){
+  var s = String(raw || '').trim();
+  if (/^\d{6,20}$/.test(s)) return s;                                   // already just the id
+  var m = s.match(/fbq\s*\(\s*['\"]init['\"]\s*,\s*['\"](\d{6,20})['\"]/);   // from the script block
+  if (m) return m[1];
+  m = s.match(/[?&]id=(\d{6,20})/);                                     // from the noscript image
+  if (m) return m[1];
+  m = s.match(/(\d{10,20})/);                                           // last resort: first long number
+  return m ? m[1] : '';
+}
+window._lpPixelId = _lpPixelId;
+
 async function lpSaveTemplate(t){
   var agentId=_lpAgentId();
   var v=function(id){ var el=document.getElementById(id); return el?el.value.trim():''; };
   var _planId=(document.getElementById('lp-leadplan')||{}).value||'';
   var _planObj=(_smartPlans||[]).find(function(p){return p.id===_planId;});
+  var _nurturePlanId=(document.getElementById('lp-nurtureplan')||{}).value||'';
+  var _nurturePlanObj=(_smartPlans||[]).find(function(p){return p.id===_nurturePlanId;});
   var docData={
     template:t,
     leadStatus:(document.getElementById('lp-leadstatus')||{}).value||'pipeline',
@@ -36311,6 +36456,17 @@ async function lpSaveTemplate(t){
     applyLink:v('lp-applylink'), applyHead:v('lp-applyhead'), applyText:v('lp-applytext'), applyBtn:v('lp-applybtn'),
     whyKicker:v('lp-whykicker'), whyHead:v('lp-whyhead'), whyP1:v('lp-whyp1'), whyP2:v('lp-whyp2'),
     ctaText:v('lp-cta'), source:v('lp-source')||'Home Valuation', thanksMsg:v('lp-thanks'),
+    // Public by nature: the pixel id appears in the page source of anything that uses it.
+    // The access token is NOT here \u2014 landing_pages is served to browsers through a public
+    // API key, so a token in it would be readable by anyone who opens a landing page.
+    pixelId:_lpPixelId(v('lp-pixelid')),
+    agentState:v('lp-agentstate').toUpperCase().replace(/[^A-Z]/g,'').slice(0,2),
+    // Where leads who don't qualify yet go. They still become contacts; only their routing
+    // differs, so the agent's call list stays the people who are actually ready.
+    bullets:v('lp-bullets'),
+    nurtureSegment:v('lp-nurtureseg'),
+    nurtureSmartPlanId:_nurturePlanId,
+    nurtureSmartPlanName:_nurturePlanObj?(_nurturePlanObj.name||'Plan'):'',
     accent:(document.getElementById('lp-accent')||{}).value||'#2A6EF4',
     agentName:(((userProfile&&userProfile.firstName)||'')+' '+((userProfile&&userProfile.lastName)||'')).trim(),
     agentEmail:(userProfile&&userProfile.email)||'',
