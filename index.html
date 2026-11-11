@@ -14631,8 +14631,15 @@ function renderHome() {
   // they are thinking about, not a pre-approval they opened months ago.
   _liveMJ.sort(function(a,b){ return (Number(b.step)||0) - (Number(a.step)||0); });
   var _topMJ = _liveMJ[0] || null;
-  var mortStep = _topMJ ? (Number(_topMJ.step)||0) : ((userProfile && userProfile.currentMortgageStep) || 0);
-  var mortDates = _topMJ ? (_topMJ.dates || null) : (userProfile && userProfile.mortgageContractDates);
+  // The legacy fields are a fallback for a client who was never migrated — NOT a backstop
+  // for one whose journeys are all at step 0. Reading them in that case resurrects an old
+  // step the lender has already cleared, which is exactly what "set it to Not started and
+  // it comes back" was. Once any journey record exists, the records are the only truth.
+  var _hasMJ = _myMJ.length > 0;
+  var mortStep = _topMJ ? (Number(_topMJ.step)||0)
+               : (_hasMJ ? 0 : ((userProfile && userProfile.currentMortgageStep) || 0));
+  var mortDates = _topMJ ? (_topMJ.dates || null)
+               : (_hasMJ ? null : (userProfile && userProfile.mortgageContractDates));
   var mortHasDates = mortDates && Object.keys(mortDates).some(function(k){ return mortDates[k]; });
   var sellStep = (userProfile && userProfile.currentSellerStep) || 0;
   var sellerDates = (userProfile && userProfile.sellerContractDates)
@@ -22499,7 +22506,10 @@ async function mjCreate(uid, address) {
     // property they are financing — inheriting it put the wrong house on the loan and
     // made a genuinely blank address impossible. Blank until they are under contract.
     address: String(address || '').trim(),
-    step: 0,
+    // Step 1, the way addToDealTracker opens a buyer or seller deal (its step ends in `|| 1`).
+    // Starting at 0 was what forced a "Not started" option into the step dropdown and left
+    // every new loan sitting in the pipeline as something that had not begun.
+    step: 1,
     dates: {},
     lenderId: (userProfile && (userProfile.lenderId || userProfile.agentId)) || '',
     agentId: b.agentId || '',
@@ -22582,13 +22592,22 @@ function _mjCardHtml(uid, j) {
   // A pre-approval genuinely has no property yet — say so rather than showing an empty line.
   var addr  = j.address || 'No address yet';
   return '<div style="padding:12px 0;border-bottom:1px solid var(--border);">'
-    + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
-      + '<div style="font-size:13px;font-weight:600;color:#185FA5;">\uD83C\uDFE6 ' + partnerEsc(addr) + '</div>'
-      + '<div style="font-size:11px;font-weight:600;color:' + tint + ';">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
+    // Tappable, exactly like a buyer or seller deal row: a loan should open from the client
+    // card instead of making the agent close it and hunt through Deals -> Loans.
+    + '<div onclick="_gotoLoan(\'' + uid + '\',\'' + j.id + '\',' + (Number(j.step)||0) + ')" '
+      + 'style="cursor:pointer;border:1px solid #BBD6F0;border-radius:var(--r-sm);padding:8px 10px;margin-bottom:4px;background:var(--surface);">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+        + '<div style="font-size:13px;font-weight:600;color:#185FA5;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">\uD83C\uDFE6 ' + partnerEsc(addr) + '</div>'
+        + '<div style="font-size:10px;color:var(--text3);flex-shrink:0;">Mortgage \u2192</div>'
+      + '</div>'
+      + '<div style="font-size:11px;font-weight:600;color:' + tint + ';margin-top:2px;">' + partnerEsc(mjStepLabel(j.step)) + '</div>'
     + '</div>'
     + '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;">'
       + '<select id="mj-step-' + j.id + '" style="flex:1;max-width:220px;font-size:13px;">'
-        + '<option value="0">-- Not started --</option>'
+        // A loan always has a step now, so there is nothing to not-start — use the X to remove
+        // one. Kept only for a legacy record already sitting at 0, so its dropdown shows what
+        // it actually is instead of silently reading as Step 1 and emailing the client on save.
+        + ((Number(j.step)||0) === 0 ? '<option value="0" selected>-- Not started --</option>' : '')
         + MJ_STEPS.map(function(s0, i){
             return '<option value="' + (i+1) + '"' + ((i+1) === (Number(j.step)||0) ? ' selected' : '') + '>'
                  + 'Step ' + (i+1) + ' - ' + partnerEsc(mjStepLabel(i+1)) + '</option>';
@@ -22750,6 +22769,23 @@ window.mjSaveCc = mjSaveCc;
 async function mjRemove(uid, id) {
   if (!confirm('Remove this mortgage journey? Their Mortgage Trail will stop showing it.')) return;
   await mjDelete(uid, id);
+  // Deleting the journey is not enough on its own. mjMigrateClient re-seeds a journey from
+  // the legacy currentMortgageStep / mortgageContractDates on the client record, so without
+  // clearing those the loan reappears at its old step the next time the card opens — and the
+  // client portal goes on reading them too. Only when the last journey is gone: a client with
+  // two loans still needs the other one.
+  try {
+    var left = await mjLoadForClient(uid);
+    if (!left.length) {
+      await fb.updateDoc(fb.doc(fb.db, 'users', uid), {
+        currentMortgageStep: 0,
+        mortgageContractDates: {},
+        mjMigrated: true          // and never re-seed from the legacy fields again
+      });
+      var _b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+      if (_b) { _b.currentMortgageStep = 0; _b.mortgageContractDates = {}; _b.mjMigrated = true; }
+    }
+  } catch(e) { console.log('mjRemove clear legacy:', e && e.message); }
   await mjRenderBlock(uid);
 }
 window.mjRemove = mjRemove;
@@ -22765,6 +22801,10 @@ async function mjMigrateClient(uid) {
   if (!uid) return [];
   var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
   if (!b) return [];
+
+  // Migrated once already — including the case where the journey was then deleted on
+  // purpose. Without this the legacy fields keep resurrecting a loan the agent removed.
+  if (b.mjMigrated) return [];
 
   var existing = await mjLoadForClient(uid);
   if (existing.length) return existing;          // already migrated, or already using journeys
@@ -22795,6 +22835,9 @@ async function mjMigrateClient(uid) {
     });
     rec.step = step;
     rec.dates = hasDates ? dates : {};
+    // Stamp the client so this never runs twice, even if the journey is later deleted.
+    await fb.updateDoc(fb.doc(fb.db, 'users', uid), { mjMigrated: true });
+    b.mjMigrated = true;
   } catch(e) { console.log('mjMigrateClient:', e && e.message); }
   return [rec];
 }
@@ -27674,7 +27717,8 @@ function _mjPipelineCard(j) {
 
   var meta = [stepBit, toldBit, closing].filter(Boolean).join('<span style="color:var(--border2);"> \u00b7 </span>');
 
-  return '<div class="card" style="cursor:pointer;margin-bottom:9px;" onclick="openBuyerDetail(\'' + j.clientUid + '\')">'
+  // Addressable so the client card can jump straight to this loan, the way a deal row does.
+  return '<div class="card" id="mj-pcard-' + j.id + '" style="cursor:pointer;margin-bottom:9px;" onclick="openBuyerDetail(\'' + j.clientUid + '\')">'
     + '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">'
       + '<div style="font-size:14.5px;font-weight:600;">' + partnerEsc(j.clientName) + '</div>'
       + '<div style="font-size:11.5px;font-weight:600;color:' + tint + ';white-space:nowrap;">'
@@ -33887,6 +33931,27 @@ function _gotoDeal(dealId) {
   }, 350);
 }
 window._gotoDeal = _gotoDeal;
+
+// The mortgage equivalent of _gotoDeal. Loans live in their own pipeline behind the Deals
+// tab, so without this a lender has to close the client card and hunt for the file by hand —
+// the one journey of the three that could not be opened from the card.
+async function _gotoLoan(uid, id, step) {
+  closeM('buyer-modal');
+  try { if (typeof go === 'function') go('agent', document.querySelector('[data-pg=agent]')); } catch(e){}
+  if (typeof switchAgentTab === 'function') switchAgentTab('deals');
+  try { if (typeof renderLoanPipeline === 'function') await renderLoanPipeline(); } catch(e){ console.log('_gotoLoan pipeline:', e && e.message); }
+  // Land on the chip the loan actually sits under, or it renders into a hidden filter.
+  try { if (typeof filterLoans === 'function') filterLoans(mjStage(step)); } catch(e){}
+  setTimeout(function(){
+    var el = document.getElementById('mj-pcard-' + id);
+    if (!el) return;
+    el.scrollIntoView({ behavior:'smooth', block:'center' });
+    el.style.transition = 'box-shadow .3s';
+    el.style.boxShadow = '0 0 0 3px #185FA5';
+    setTimeout(function(){ el.style.boxShadow = ''; }, 1800);
+  }, 260);
+}
+window._gotoLoan = _gotoLoan;
 
 async function setListingAddress(uid) {
   var b = allBuyers.find(function(x){ return x.uid===uid; });
