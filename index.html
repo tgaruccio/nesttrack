@@ -34758,6 +34758,9 @@ function renderTextTasks(){
         return '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:6px;">'
           +'<div style="font-size:13px;font-weight:600;color:var(--text);">'+partnerEsc(t.contactName||'Contact')+(t.planName?' <span style="font-weight:400;color:var(--text3);font-size:11px;">· '+partnerEsc(t.planName)+'</span>':'')+'</div>'
           +'<div style="font-size:12px;color:var(--text2);margin:4px 0 8px;white-space:pre-wrap;">'+partnerEsc(t.message||'')+'</div>'
+          // Only set when Quo was supposed to send this and could not. Without it an
+          // auto step that failed looks exactly like one meant to be drafted.
+          +(t.quoNote ? '<div style="font-size:11.5px;color:#92400E;background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--r-sm);padding:6px 9px;margin-bottom:8px;">⚠ '+partnerEsc(t.quoNote)+'</div>' : '')
           +'<div style="display:flex;gap:6px;">'
             +'<button class="btn btn-sm btn-g" onclick="ttSend(\''+t.id+'\')" style="flex:1;">💬 Send text</button>'
             +'<button class="btn btn-sm" onclick="ttDone(\''+t.id+'\')">✓ Done</button>'
@@ -35497,7 +35500,11 @@ function _spStepCard(s,i){
   var preview=(s.content||'').slice(0,90);
   var _rdy, _rdyLabel;
   if(s.channel==='vm'){ _rdy=!!(s.audioName&&s.audioName.trim()); _rdyLabel=_rdy?'✓ Recording selected':'⚠ No recording — tap Edit to pick one'; }
-  else if(s.channel==='texttap'){ _rdy=!!(s.smsBody&&s.smsBody.trim()); _rdyLabel=_rdy?'✓ Text written':'⚠ No message — tap Edit to write it'; }
+  // Say which mode the step is in. 'Text written' alone read as "this will be a draft" even
+  // on a step set to send through Quo, so a correct setting looked like it had not taken.
+  else if(s.channel==='texttap'){ _rdy=!!(s.smsBody&&s.smsBody.trim());
+    _rdyLabel = !_rdy ? '⚠ No message — tap Edit to write it'
+              : (s.sendMode==='auto' ? '✓ Quo sends it for you' : '✓ Written — drafts to your phone'); }
   else if(s.channel==='letter'){
     if(s.mailerType==='postcard'){
       var _hasImg=!!(s.imageTemplateId&&String(s.imageTemplateId).trim());
@@ -35632,13 +35639,23 @@ function spEditStep(i){
               + '<option value="auto"' + (auto ? ' selected' : '') + '>Send it for me through Quo</option>'
             + '</select>';
           // Only worth showing when there is a genuine choice to make.
+          // Every option carries a real number. There used to be a "Default" entry that
+          // displayed the agent's number but stored an empty string, leaving the send to
+          // fall back to a quoFrom field on the agent record at run time \u2014 and when that
+          // field was missing the worker skipped Quo entirely, with no error anywhere.
+          // The step now carries the number it sends from.
+          var _def = (userProfile && userProfile.quoFrom) || '';
+          var _cur = s.sendFrom || _def;
+          var _opts = nums.slice();
+          // Keep the dropdown usable if the number list has not loaded this session.
+          if (!_opts.length && _def) _opts = [{ number:_def, name:'' }];
           h += '<div id="sp-step-from-wrap" style="' + (auto ? '' : 'display:none;') + '">'
             + '<label style="font-size:12px;font-weight:700;color:var(--text3);">Send from</label>'
             + '<select id="sp-step-from" style="width:100%;font-size:13px;margin:4px 0 8px;">'
-            + '<option value="">Default \u2014 ' + partnerEsc((userProfile && userProfile.quoFrom) || '') + '</option>'
-            + nums.map(function(n){
-                var on = (s.sendFrom === n.number) ? ' selected' : '';
-                return '<option value="' + partnerEsc(n.number) + '"' + on + '>' + partnerEsc(n.number + (n.name ? (' \u2014 ' + n.name) : '')) + '</option>';
+            + _opts.map(function(n){
+                var on = (_cur === n.number) ? ' selected' : '';
+                var isDef = (n.number === _def) ? ' \u2014 default' : '';
+                return '<option value="' + partnerEsc(n.number) + '"' + on + '>' + partnerEsc(n.number + (n.name ? (' \u2014 ' + n.name) : '') + isDef) + '</option>';
               }).join('')
             + '</select>'
             + '<div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">Cold outreach and client check-ins are different kinds of message \u2014 worth keeping on separate numbers.</div>'
@@ -35941,9 +35958,9 @@ function spSaveStep(i){
     var modeEl=document.getElementById('sp-step-sendmode');
     if(modeEl) s.sendMode=modeEl.value;
     var fromEl=document.getElementById('sp-step-from');
-    // Blank means the agent's default number, so a plan built before this existed
-    // keeps working unchanged.
-    if(fromEl) s.sendFrom=fromEl.value||'';
+    // Always store a real number. A blank here is what made a step silently skip Quo, so if
+    // the select somehow has no value fall back to the agent's own number rather than ''.
+    if(fromEl) s.sendFrom = fromEl.value || ((userProfile && userProfile.quoFrom) || '');
     var subjEl=document.getElementById('sp-step-subject');
     if(subjEl) s.emailSubject=subjEl.value;
     var emailEl=document.getElementById('sp-step-email');
@@ -38516,7 +38533,9 @@ async function spRunNow(){
     var msg = (j.fired>0 ? '✓ ' : '') + (j.processed||0)+' contact'+((j.processed||0)!==1?'s':'')+' processed, '+(j.fired||0)+' step'+((j.fired||0)!==1?'s':'')+' sent.';
     if (j.diag && j.diag.fires && j.diag.fires.length) {
       msg += '\n';
-      j.diag.fires.forEach(function(f){ msg += '\n'+(f.ok?'✓':'✗')+' '+(f.contact||'').trim()+' ['+f.channel+']'+(f.ok?'':': '+f.reason); });
+      // Show the reason on success too. A text step that falls back to a draft still returns
+      // ok, so hiding the reason there made "Quo didn't send" look identical to "Quo sent it".
+      j.diag.fires.forEach(function(f){ msg += '\n'+(f.ok?'✓':'✗')+' '+(f.contact||'').trim()+' ['+f.channel+']'+(f.reason?': '+f.reason:''); });
     } else if ((j.processed||0)===0) {
       msg += '\n\nNo contacts were due. Assign a plan to a contact (their next step must be today or earlier).';
     }
