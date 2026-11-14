@@ -4320,7 +4320,7 @@ var ALL_SELLER_TASKS = [
 const TIMELINE_STEPS = [
   {id:1,name:'Initial Consult',short:'Initial',
    summary:'We sit down (in person or virtually) to understand your goals, timeline, must-haves, and budget. This is where I learn what you really want — and you learn how I work for you.',
-   bullets:['What you\'re looking for: home style, must-haves, deal-breakers','Your timeline — when do you want to move?','Budget conversation (we don\'t pre-judge)','Sign the Buyer Representation Agreement — establishes {agentFirst} as your exclusive agent','Sign the Consumer Guide to Agency Relationships — explains the types of agent relationships in Ohio'],
+   bullets:['What you\'re looking for: home style, must-haves, deal-breakers','Your timeline — when do you want to move?','Budget conversation (we don\'t pre-judge)','Go over the paperwork to start working together — {agentFirst} explains each document before you sign'],
    videoId:'51ca13389c1942caa24ab33c7c327803'},
   {id:2,name:'Pre-Approval',short:'Pre-Approval',
    summary:'Before we look at homes, we get you pre-approved with a trusted lender. This tells you exactly what you can afford, makes your offers stronger, and removes surprises.',
@@ -4334,7 +4334,7 @@ const TIMELINE_STEPS = [
    videoId:null},
   {id:4,name:'Writing Offers',short:'Writing Offers',
    summary:'When you find "the one," we craft a strategic offer — not just a price. We consider terms, contingencies, earnest money, and timing to win without overpaying.',
-   bullets:['Comparative market analysis (CMA) to determine fair offer price','Strategy on contingencies, closing date, and earnest money','Sign the Purchase Agreement — the legally binding offer to buy','Review the Agency Disclosure Statement — confirms who each agent represents','Review the Wire Fraud Alert — critical protection for your money','Seller must provide the Ohio Property Disclosure Form within 3 days of acceptance'],
+   bullets:['Comparative market analysis (CMA) to determine fair offer price','Strategy on contingencies, closing date, and earnest money','Review and sign your offer documents — {agentFirst} explains each one before you sign','Wire fraud protection — always verify wire instructions by phone before sending money'],
    videoId:'1ad911030e6841c7a1abf18249c14959'},
   {id:5,name:'Under Contract',short:'Under Contract',
    summary:'Your offer was accepted! Now begins the timeline of due diligence. There are several deadlines we need to hit — {agentFirst} tracks every single one for you.',
@@ -4346,7 +4346,7 @@ const TIMELINE_STEPS = [
    videoId:null},
   {id:7,name:'Home Inspection',short:'Inspection',
    summary:'A licensed inspector evaluates the home from top to bottom. We use this to negotiate repairs, credits, or — if something major shows up — to walk away.',
-   bullets:['{agentFirst} attends inspections with you whenever possible','Inspector covers: structure, roof, HVAC, plumbing, electrical, more','Optional add-ons: radon, sewer scope, mold, well/septic','Within 5 days of inspection: submit Release of Contingency, Request to Remedy, or Notice of Termination','Sign the Amendment — Removal of Contingencies to formally close the inspection period'],
+   bullets:['{agentFirst} attends inspections with you whenever possible','Inspector covers: structure, roof, HVAC, plumbing, electrical, more','Optional add-ons: radon, sewer scope, mold, well/septic','After the inspection, decide with {agentFirst} whether to move forward, ask for repairs or a credit, or walk away — before your contract\'s inspection deadline','{agentFirst} prepares whatever paperwork that decision needs'],
    videoId:'895cabe671ed4f51b0cdc876c46f538b'},
   {id:8,name:'Appraisal',short:'Appraisal',
    summary:'The lender orders an appraisal to confirm the home is worth what you\'re paying. If it comes in low, we have options — negotiate, dispute, or walk.',
@@ -5065,6 +5065,7 @@ async function _ensureRosterForUser(){
     }
   }
   try { _syncAgentPublic(); } catch(e){}
+  try { if (!window._dtTemplates && typeof _ensureTrailTemplates === 'function') _ensureTrailTemplates().catch(function(){}); } catch(e){}
 }
 window._ensureRosterForUser = _ensureRosterForUser;
 
@@ -10745,44 +10746,36 @@ function openStep(id) {
     <div style="display:flex;gap:8px;flex-wrap:wrap;">${actionBtn}</div>
   `;
 
-  // Add doc chips for steps that have documents
-  const _docMap = {1:['buyer-rep'],4:['purchase','agency','disclosure'],7:['contingency'],10:['closing']};
-  const _stepDocs = _docMap[id] || [];
-  if (_stepDocs.length) {
-    var _docNames = {'buyer-rep':'Buyer Rep Agreement','consumer-guide':'Consumer Guide','purchase':'Purchase Agreement','agency':'Agency Disclosure','wire-fraud':'Wire Fraud Alert','disclosure':'Property Disclosure','contingency':'Removal of Contingencies','closing':'Closing Statement'};
-    var _wrap = document.createElement('div');
-    _wrap.style.cssText = 'margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border);';
-    var _label = document.createElement('div');
-    _label.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
-    _label.textContent = 'Documents for this step';
-    _wrap.appendChild(_label);
-    var _row = document.createElement('div');
-    _row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
-    _stepDocs.forEach(function(dk) {
-      var _b = document.createElement('button');
-      _b.className = 'btn btn-sm';
-      _b.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;font-size:11.5px;';
-      _b.textContent = _docNames[dk] || dk;
-      (function(key) {
-        _b.onclick = function() {
-          closeM('step-modal');
-          go('docs-explainer', document.querySelector('[data-pg=docs-explainer]'));
-          setTimeout(function() {
-            var sel = document.getElementById('de-doc');
-            if (sel) {
-              sel.value = key; showDocInfo();
-              document.getElementById('de-question').value = 'Give me a plain-English overview of what this document is, when I sign it, and what I should know as a buyer.';
-              document.getElementById('de-text').value = '';
-              explainDoc();
-            }
-          }, 300);
-        };
-      })(dk);
-      _row.appendChild(_b);
-    });
-    _wrap.appendChild(_row);
-    body.appendChild(_wrap);
-  }
+  // Documents for this step — the agent's own uploaded documents tagged to this trail stage
+  (function(){
+    function _paintStepDocs(){
+      var tpls = (window._dtTemplates||[]).filter(function(tp){ return (tp.trailStages||[]).indexOf(id)>=0; });
+      if (!tpls.length) return;
+      var _b0 = document.getElementById('step-modal-body');
+      if (!_b0 || _b0.querySelector('[data-step-docs]')) return;
+      var _wrap = document.createElement('div');
+      _wrap.setAttribute('data-step-docs', String(id));
+      _wrap.style.cssText = 'margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border);';
+      var _label = document.createElement('div');
+      _label.style.cssText = 'font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px;';
+      _label.textContent = 'Documents for this step';
+      _wrap.appendChild(_label);
+      var _row = document.createElement('div');
+      _row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;';
+      tpls.forEach(function(tp){
+        var _b = document.createElement('button');
+        _b.className = 'btn btn-sm';
+        _b.style.cssText = 'background:var(--blue-lt);color:var(--blue-dk);border-color:#B5D4F4;font-size:11.5px;';
+        _b.textContent = tp.name || 'Document';
+        _b.onclick = function(){ closeM('step-modal'); openDocInExplainer(tp.id); };
+        _row.appendChild(_b);
+      });
+      _wrap.appendChild(_row);
+      _b0.appendChild(_wrap);
+    }
+    if (window._dtTemplates) _paintStepDocs();
+    else if (typeof _ensureTrailTemplates === 'function') _ensureTrailTemplates().then(_paintStepDocs).catch(function(){});
+  })();
 
   document.getElementById('step-modal').style.display = 'flex';
 }
@@ -11422,6 +11415,25 @@ async function sendClientEmail(uid, subject, bodyHtml) {
 }
 window.sendClientEmail = sendClientEmail;
 
+// Names of the sending agent's own uploaded documents tagged to a journey step.
+// Buyer steps are tagged by step id (1-11); seller steps by position (0-based) — same as the trail.
+function _stepDocNames(kind, n){
+  return (window._dtTemplates || []).filter(function(tp){
+    return kind === 'seller' ? (tp.sellerStages||[]).indexOf(n) >= 0 : (tp.trailStages||[]).indexOf(n) >= 0;
+  }).map(function(tp){ return String(tp.name || '').trim(); }).filter(Boolean);
+}
+var _STEP_LI = '<li style="font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;">';
+function _stepDocsLi(kind, n){
+  var names = _stepDocNames(kind, n);
+  if (!names.length) return '';
+  return _STEP_LI + 'Documents we\u2019ll go over: ' + names.map(escapeHtml).join(', ') + '</li>';
+}
+function _stepDocsBlock(kind, n, heading){
+  var names = _stepDocNames(kind, n);
+  if (!names.length) return '';
+  return '<p style="font-size:14px;color:#444;line-height:1.7;margin:0 0 8px;">' + heading + '</p>'
+    + '<ul style="padding-left:18px;margin:10px 0;">' + names.map(function(nm){ return _STEP_LI + escapeHtml(nm) + '</li>'; }).join('') + '</ul>';
+}
 var BUYER_STEP_EMAILS = {
   1: {
     subject: 'Your home buying file is open — here\'s what\'s next',
@@ -11429,7 +11441,7 @@ var BUYER_STEP_EMAILS = {
       return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">' + agentName + ' has opened your buyer file in Nest Track. Your entire journey — from search to closing — is tracked here so nothing falls through the cracks.</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 8px;\">Your first step: <strong>Initial Consultation.</strong> This sets the direction for everything.</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">What you want — must-haves, deal-breakers, style</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Your timeline and budget</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">How the buying process works in Ohio</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Sign the Buyer Representation Agreement — establishes ' + agentName + ' as your agent</li></ul>'
+        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">What you want — must-haves, deal-breakers, style</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Your timeline and budget</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">How the buying process works</li>' + _stepDocsLi('buyer', 1) + '</ul>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:10px 0 0;\">Questions before we meet? Reply to this email or call ' + agentName + ' directly.</p>';
     }},
   2: {
@@ -11456,8 +11468,7 @@ var BUYER_STEP_EMAILS = {
     body: function(first, agentName) {
       return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">You\'ve found a home worth pursuing. An offer isn\'t just a number — it\'s a strategy. ' + agentName + ' will run a comparative market analysis and craft an offer designed to win without overpaying.</p>'
-        + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 8px;\">What you\'ll review and sign:</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Purchase Agreement — the legally binding offer</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Agency Disclosure Statement — confirms who represents who</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Wire Fraud Alert — read this carefully. Always verify wire instructions by phone before sending money.</li></ul>'
+        + _stepDocsBlock('buyer', 4, 'What you\'ll review and sign:')
         + '<div style=\"background:#FEF3C7;border-left:3px solid #F59E0B;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#92400E;\">⚠️ Wire fraud is the #1 real estate scam. Never wire money based on email instructions alone — always call to verify.</div>';
     }},
   5: { subject: '\uD83C\uDF89 You\'re Under Contract — Here\'s What Happens Next',
@@ -11478,7 +11489,7 @@ var BUYER_STEP_EMAILS = {
     body: function(first, agentName) {
       return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">Your home inspection is scheduled. Plan on 2-3 hours. ' + agentName + ' will be there when possible. The inspection isn\'t about finding a perfect house — it\'s about knowing exactly what you\'re buying.</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Inspector covers: structure, roof, HVAC, plumbing, electrical, and more</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Consider add-ons: radon test, sewer scope, mold — worth every dollar</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">After inspection, you have 3 options: request repairs, take a credit, or walk away</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">You\'ll sign an Amendment — Removal of Contingencies to formally close the inspection period</li></ul>'
+        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Inspector covers: structure, roof, HVAC, plumbing, electrical, and more</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Consider add-ons: radon test, sewer scope, mold — worth every dollar</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">After inspection, you have 3 options: request repairs, take a credit, or walk away</li>' + _stepDocsLi('buyer', 7) + '</ul>'
         + '<div style=\"background:#f0fdf4;border-left:3px solid #1D9E75;padding:10px 14px;border-radius:0 6px 6px 0;margin:12px 0;font-size:12.5px;color:#065F46;\">💡 Attend the inspection if you can — the inspector walking you through issues in person is invaluable.</div>';
     }},
   8: {
@@ -11537,7 +11548,7 @@ var SELLER_STEP_EMAILS = {
       return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">' + agentName + ' has opened your seller file in Nest Track. Your personalized selling guide, timeline, and transaction tools are all here — every step of the way.</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 8px;\">What we cover in the initial consultation:</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Your timeline — when do you need to close?</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">What the home is worth in today\'s market</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">What we do to prepare, price, and market it</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Sign the Listing Agreement and Consumer Guide to Agency Relationships</li></ul>'
+        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Your timeline — when do you need to close?</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">What the home is worth in today\'s market</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">What we do to prepare, price, and market it</li>' + _stepDocsLi('seller', 0) + '</ul>'
         + nsEmailBtn('Open My Portal →', APP_LINK);
     }},
   2: { subject: 'Step 2: Home prep — what to do and what to skip',
@@ -11572,7 +11583,7 @@ var SELLER_STEP_EMAILS = {
     body: function(first, agentName) {
       return '<p style=\"font-size:16px;font-weight:300;margin:0 0 10px;\">Hi ' + first + ',</p>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:0 0 12px;\">' + agentName + ' is finalizing your MLS listing. Before it goes live, you\'ll review and approve everything — photos, description, pricing, and key details.</p>'
-        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">MLS reaches every buyer\'s agent in the region automatically</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Your home will appear on Zillow, Realtor.com, and hundreds of other sites within hours</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Ohio requires the seller to complete the Property Disclosure Form — if not done yet, complete it now</li></ul>'
+        + '<ul style=\"padding-left:18px;margin:10px 0;\"><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">MLS reaches every buyer\'s agent in the region automatically</li><li style=\"font-size:13px;color:#444;line-height:1.7;margin-bottom:4px;\">Your home will appear on Zillow, Realtor.com, and hundreds of other sites within hours</li></ul>'
         + '<p style=\"font-size:14px;color:#444;line-height:1.7;margin:10px 0 0;\">Review everything carefully before approving. Once it\'s live, buyers are watching.</p>';
     }},
   6: { subject: 'You\'re live — here\'s how the marketing works',
@@ -22421,7 +22432,7 @@ const SELLER_STEPS = [
     tip:'Have the home spotless, lights on, and cars out of the driveway before the photographer arrives.' },
   { icon:'\u{1F4DD}', title:'Listing Creation & Approval',
     body:'We write a compelling property description, finalize pricing, prepare disclosures, and get your final approval before anything goes live. Every word and photo is reviewed together.',
-    tip:'Ohio requires a Property Disclosure form — we complete this together before listing.' },
+    tip:'Any seller disclosures required where you live get completed together before the listing goes live.' },
   { icon:'\u{1F680}', title:'Go Live',
     body:'Your listing goes live on the MLS and syndicates automatically to Zillow, Realtor.com, Redfin, Homes.com, and hundreds of other sites within hours.',
     tip:'Showings often start within the first hour. Make sure the home is ready the night before go-live.' },
@@ -40067,3 +40078,4 @@ window.showEmailPreview = showEmailPreview;
   </div>
 </body>
 </html>
+  
