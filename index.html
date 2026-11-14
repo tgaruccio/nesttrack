@@ -19190,16 +19190,21 @@ async function openBuyerDetail(uid, scrollTo) {
     }
   }, 80);
 }
-// True when a step update can be texted from the agent's own phone: Quo is NOT the one sending
-// (if it is connected it already texts with the email), and this client has a number, has
-// auto-texts on, and is not a practice client.
+// True when a step update can be texted from the agent's own phone: the client has a number,
+// is not a practice client, and Quo is NOT going to text them for this update. Quo texts only
+// when it is connected, texting is on for the agent, and auto-texts are on for this client -
+// the same three checks textClient() makes. So turning auto-texts off for one client (someone
+// who knows the agent by their personal number) brings this option back for that client.
 function _stepCanNativeText(uid) {
   try {
     if (!uid) return false;
-    if (userProfile && userProfile.quoApiKey && userProfile.quoFrom) return false;
     var c = (allBuyers || []).find(function(b){ return b.uid === uid; });
-    if (!c || c.isPracticeClient || c.textUpdates === false) return false;
-    return String(c.phone || '').replace(/[^0-9]/g, '').length >= 10;
+    if (!c || c.isPracticeClient) return false;
+    if (String(c.phone || '').replace(/[^0-9]/g, '').length < 10) return false;
+    var quoWillSend = !!(userProfile && userProfile.quoApiKey && userProfile.quoFrom)
+      && userProfile.textUpdates !== false
+      && c.textUpdates !== false;
+    return !quoWillSend;
   } catch(e) { return false; }
 }
 
