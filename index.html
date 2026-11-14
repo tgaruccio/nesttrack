@@ -5077,7 +5077,10 @@ window._ensureRosterForUser = _ensureRosterForUser;
 async function _syncAgentPublic(){
   try {
     if (!userProfile || !currentUser || !isAgent) return;
-    if (window._manageAsId || (typeof _previewMode !== 'undefined' && _previewMode)) return;
+    if (typeof _previewMode !== 'undefined' && _previewMode) return;
+    // Managing another agent's account: userProfile IS that agent's own profile, so this still
+    // only writes their records. Skip only when they have no account yet (nothing real to copy).
+    if (window._manageAsId && (!userProfile._impersonated || String(window._manageAsUid||'').indexOf('noacct_') === 0)) return;
     var id = userProfile.agentId;
     if (!id) return;
     if (userProfile.role === 'lender' || (userProfile.lenderId && userProfile.lenderId === id)) return;
@@ -5103,7 +5106,7 @@ async function _syncAgentPublic(){
         var cw = { name: nm, brokerage: userProfile.brokerage || '', photo: userProfile.photoUrl || '', phone: userProfile.phone || '', email: userProfile.email || '' };
         var cp = {};
         Object.keys(cw).forEach(function(k){ if (cw[k] && cw[k] !== (c[k] || '')) cp[k] = cw[k]; });
-        if (Object.keys(cp).length) await fb.updateDoc(fb.doc(fb.db, 'card_config', cardId), cp);
+        if (Object.keys(cp).length) { await fb.updateDoc(fb.doc(fb.db, 'card_config', cardId), cp); return true; }
       }
     } catch(e) { console.log('card identity sync:', e && e.message); }
   } catch(e) { console.log('_syncAgentPublic:', e && e.message); }
@@ -9768,6 +9771,15 @@ function openBizCardHub(){
     +'</div>';
   document.body.appendChild(ov);
   var l=document.getElementById('hub-link'); if(l) l.value=url;
+  // Bring the published card in step with the profile (photo, name, brokerage, phone, email),
+  // then reload the preview if anything changed.
+  try {
+    _syncAgentPublic().then(function(changed){
+      if (!changed) return;
+      var fr = ov.querySelector('iframe');
+      if (fr) fr.src = url + (url.indexOf('?')>=0 ? '&' : '?') + 'r=' + Date.now();
+    }).catch(function(){});
+  } catch(e){}
 }
 window.openBizCardHub = openBizCardHub;
 
@@ -40078,4 +40090,3 @@ window.showEmailPreview = showEmailPreview;
   </div>
 </body>
 </html>
-  
