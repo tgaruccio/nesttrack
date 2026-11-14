@@ -5026,6 +5026,19 @@ async function _ensureRosterForUser(){
     }
   }
   try { _syncAgentPublic(); } catch(e){}
+  try {
+    // Only the signed-in agent's own record, and only if none is saved yet - so a trip to
+    // another time zone does not quietly move their campaign-text hours.
+    if (currentUser && !window._manageAsId && !userProfile._impersonated && !userProfile.timeZone
+        && !(typeof _previewMode !== 'undefined' && _previewMode)) {
+      var _tz = '';
+      try { _tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch(e){}
+      if (_tz) {
+        userProfile.timeZone = _tz;
+        fb.updateDoc(fb.doc(fb.db, 'users', currentUser.uid), { timeZone: _tz }).catch(function(e){ console.log('timeZone save:', e && e.message); });
+      }
+    }
+  } catch(e){}
   try { if (!window._dtTemplates && typeof _ensureTrailTemplates === 'function') _ensureTrailTemplates().catch(function(){}); } catch(e){}
 }
 window._ensureRosterForUser = _ensureRosterForUser;
@@ -11710,6 +11723,9 @@ window.saveStepUpdate = saveStepUpdate;
 
 async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
   type = type || 'buyer';
+  // Read now, before the first await: the callers clear _pendingStepEmailChoice as soon as
+  // this function hands control back.
+  var _nativeText = (window._pendingStepEmailChoice === 'sendtext') || !!(pushInfo && pushInfo.nativeText);
   try {
     var snap = await fb.getDoc(fb.doc(fb.db, 'users', uid));
     if (!snap.exists()) return;
@@ -11816,6 +11832,8 @@ async function sendStepEmail(uid, stepNum, type, pushInfo, journeyId) {
             _txt += '\n\nRead the full update: ' + window._lastStepUpdateUrl;
           }
           textClient(uid, _txt);
+          // No Quo line and the agent asked for a text: hand it to their own Messages app.
+          if (_nativeText && _stepCanNativeText(uid)) _stepTextPrompt(client, _txt);
         } catch(e) { console.log('step text:', e && e.message); }
 
         // The in-app message fires here — only after the email actually sent.
@@ -19172,7 +19190,50 @@ async function openBuyerDetail(uid, scrollTo) {
     }
   }, 80);
 }
-function stepEmailPrompt(message) {
+// True when a step update can be texted from the agent's own phone: Quo is NOT the one sending
+// (if it is connected it already texts with the email), and this client has a number, has
+// auto-texts on, and is not a practice client.
+function _stepCanNativeText(uid) {
+  try {
+    if (!uid) return false;
+    if (userProfile && userProfile.quoApiKey && userProfile.quoFrom) return false;
+    var c = (allBuyers || []).find(function(b){ return b.uid === uid; });
+    if (!c || c.isPracticeClient || c.textUpdates === false) return false;
+    return String(c.phone || '').replace(/[^0-9]/g, '').length >= 10;
+  } catch(e) { return false; }
+}
+
+// Shown after the email has gone, when the agent chose "email + text" and has no Quo line.
+// A real link the agent taps, because phones will not open Messages from code that has been
+// waiting on a network call. Client only - from a personal phone, adding the lender or
+// co-agent would turn it into a group text.
+function _stepTextPrompt(client, text) {
+  try {
+    var phone = String((client && client.phone) || '').replace(/[^0-9+]/g, '');
+    if (!phone || !String(text || '').trim()) return;
+    var first = (client && client.firstName) || 'your client';
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = '<div style="background:var(--surface);border-radius:var(--r);padding:24px;max-width:360px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,0.2);">'
+      + '<div style="font-size:15px;font-weight:600;margin-bottom:4px;">\u2713 Email sent</div>'
+      + '<div style="font-size:13px;color:var(--text2);margin-bottom:12px;">Now send the text to ' + partnerEsc(first) + '.</div>'
+      + '<div style="font-size:12px;color:var(--text2);background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:14px;white-space:pre-wrap;word-break:break-word;max-height:150px;overflow:auto;">' + partnerEsc(text) + '</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + '<a id="stp-open" href="sms:' + phone + '?&body=' + encodeURIComponent(text) + '" style="display:block;text-align:center;padding:11px;background:var(--green);color:#fff;border-radius:var(--r-sm);font-size:13px;font-weight:600;text-decoration:none;">\uD83D\uDCAC Open text message</a>'
+      + '<div style="font-size:11px;color:var(--text3);text-align:center;margin:-4px 0 2px;">Opens Messages with this filled in. You press send.</div>'
+      + '<button id="stp-skip" style="padding:8px;background:none;color:var(--text3);border:none;font-size:12px;cursor:pointer;">Skip the text</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    var close = function(){ try { document.body.removeChild(overlay); } catch(e){} };
+    overlay.querySelector('#stp-skip').onclick = close;
+    // Let the link do its job first, then clear the box.
+    overlay.querySelector('#stp-open').addEventListener('click', function(){ setTimeout(close, 600); });
+  } catch(e) { console.log('_stepTextPrompt:', e && e.message); }
+}
+window._stepTextPrompt = _stepTextPrompt;
+
+function stepEmailPrompt(message, uid) {
+  var _canText = _stepCanNativeText(uid);
   return new Promise(function(resolve) {
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
@@ -19182,11 +19243,17 @@ function stepEmailPrompt(message) {
       + '<div style="display:flex;flex-direction:column;gap:8px;">'
       + '<button id="sep-send" style="padding:10px;background:var(--green);color:#fff;border:none;border-radius:var(--r-sm);font-size:13px;font-weight:500;cursor:pointer;">Save &amp; Review Email →</button>'
       + '<div style="font-size:11px;color:var(--text3);text-align:center;margin:-4px 0 2px;">You\'ll preview &amp; approve the email before anything sends to your client.</div>'
+      + (_canText
+          ? '<button id="sep-sendtext" style="padding:10px;background:var(--surface);color:var(--green-dk);border:1.5px solid var(--green);border-radius:var(--r-sm);font-size:13px;font-weight:500;cursor:pointer;">Save &amp; Review Email + Text \u2192</button>'
+            + '<div style="font-size:11px;color:var(--text3);text-align:center;margin:-4px 0 2px;">Same email, then your Messages app opens with the text ready to send.</div>'
+          : '')
       + '<button id="sep-nosend" style="padding:10px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:var(--r-sm);font-size:13px;cursor:pointer;">Save Only (No Email)</button>'
       + '<button id="sep-cancel" style="padding:8px;background:none;color:var(--text3);border:none;font-size:12px;cursor:pointer;">Cancel</button>'
       + '</div></div>';
     document.body.appendChild(overlay);
     overlay.querySelector('#sep-send').onclick = function(){ document.body.removeChild(overlay); resolve('send'); };
+    var _stBtn = overlay.querySelector('#sep-sendtext');
+    if (_stBtn) _stBtn.onclick = function(){ document.body.removeChild(overlay); resolve('sendtext'); };
     overlay.querySelector('#sep-nosend').onclick = function(){ document.body.removeChild(overlay); resolve('nosend'); };
     overlay.querySelector('#sep-cancel').onclick = function(){ document.body.removeChild(overlay); resolve('cancel'); };
   });
@@ -19197,7 +19264,7 @@ async function setBuyerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-step').value);
   if (newStep !== 0 && newStep !== 5) {
     var stepName = (TIMELINE_STEPS.find(function(s){ return s.id===newStep; })||{}).name||'Step '+newStep;
-    var choice = await stepEmailPrompt('Move buyer to "'+stepName+'"?');
+    var choice = await stepEmailPrompt('Move buyer to "'+stepName+'"?', uid);
     if (choice === 'cancel') return;
     window._pendingStepEmailChoice = choice;
   } else if (newStep === 5) {
@@ -19757,7 +19824,7 @@ async function setSellerStep(uid) {
   const newStep = parseInt(document.getElementById('bd-seller-step').value);
   if (newStep !== 0 && newStep !== 9) {
     var sName = SELLER_STEPS[newStep-1] ? SELLER_STEPS[newStep-1].title : 'Step '+newStep;
-    var choice = await stepEmailPrompt('Move seller to "'+sName+'"?');
+    var choice = await stepEmailPrompt('Move seller to "'+sName+'"?', uid);
     if (choice === 'cancel') return;
     window._pendingStepEmailChoice = choice;
   } else if (newStep === 9) {
@@ -19807,7 +19874,7 @@ async function setMortgageStep(uid) {
   if (newStep !== 0) {
     var stepObj = MJ_STEPS[newStep-1];
     var stepName = stepObj ? stepObj.title.replace(/^Step \d+ — /,'') : 'Step '+newStep;
-    var choice = await stepEmailPrompt('Move mortgage to "'+stepName+'"?');
+    var choice = await stepEmailPrompt('Move mortgage to "'+stepName+'"?', uid);
     if (choice === 'cancel') return;
     window._pendingStepEmailChoice = choice;
   }
@@ -22646,7 +22713,7 @@ async function mjSaveStep(uid, id) {
   // Same prompt the per-client version used: moving a step is the moment a client wants
   // to hear from you, and burying it behind a separate action means it never happens.
   if (newStep !== 0 && typeof stepEmailPrompt === 'function') {
-    var choice = await stepEmailPrompt('Move mortgage to "' + mjStepLabel(newStep) + '"?');
+    var choice = await stepEmailPrompt('Move mortgage to "' + mjStepLabel(newStep) + '"?', uid);
     if (choice === 'cancel') return;
     window._pendingStepEmailChoice = choice;
   }
@@ -32373,10 +32440,10 @@ async function setDealStep(dealId, next) {
   if (deal.clientUid && next > cur && !(isSeller && next===9) && !(!isSeller && next===5)) {
     var _emap = isSeller ? (typeof SELLER_STEP_EMAILS!=='undefined'?SELLER_STEP_EMAILS:{}) : (typeof BUYER_STEP_EMAILS!=='undefined'?BUYER_STEP_EMAILS:{});
     if (_emap[next]) {
-      var _choice = await stepEmailPrompt('Send the update email for this step to '+(deal.clientName||'your client')+'?');
-      if (_choice === 'send') {
+      var _choice = await stepEmailPrompt('Send the update email for this step to '+(deal.clientName||'your client')+'?', deal.clientUid);
+      if (_choice === 'send' || _choice === 'sendtext') {
         var _sn = isSeller ? ((typeof SELLER_STEPS!=='undefined' && SELLER_STEPS[next-1] && SELLER_STEPS[next-1].title)||('Step '+next)) : (((typeof TIMELINE_STEPS!=='undefined' && TIMELINE_STEPS.find(function(s){return s.id===next;}))||{}).name||('Step '+next));
-        sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer', { uid: deal.clientUid, title: (isSeller?'Listing Update 🏡':'Step Update 🏠'), body: 'You\'ve reached '+_sn, postChat: true, isSeller: isSeller, chatStep: next });
+        sendStepEmail(deal.clientUid, next, isSeller?'seller':'buyer', { uid: deal.clientUid, title: (isSeller?'Listing Update 🏡':'Step Update 🏠'), body: 'You\'ve reached '+_sn, postChat: true, isSeller: isSeller, chatStep: next, nativeText: (_choice === 'sendtext') });
         logDealComm(deal.id, 'step', 'Step update \u2014 '+_sn);
       }
     }
