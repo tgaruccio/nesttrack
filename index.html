@@ -585,7 +585,6 @@ setTimeout(function(){
   <div class="ns">Buyer Tools</div>
   <button class="nb" data-pg="mortgage" onclick="go('mortgage',this)">💰 Mortgage Calc</button>
   <button class="nb" data-pg="school" onclick="go('school',this)">🏫 School Districts</button>
-  <button class="nb" data-pg="neighborhood" onclick="go('neighborhood',this)">🏘️ Neighborhood Intel</button>
   <button class="nb" data-pg="movinglist" onclick="go('movinglist',this)">📦 Moving Checklist</button>
 
   <div class="ns">Seller Tools</div>
@@ -1887,44 +1886,6 @@ setTimeout(function(){
   <div class="card" style="background:var(--green-lt);border-color:var(--green-md);">
     <div style="font-size:13px;color:var(--green-dk);line-height:1.7;">💬 After reviewing, send {agentFirst} a message with your thoughts. {agentFirst} will fine-tune the strategy and write the actual offer with you.</div>
     <button class="btn btn-g btn-sm" style="margin-top:8px;" onclick="go('chat',document.querySelector('[data-pg=chat]'))">Message {agentFirst} →</button>
-  </div>
-</div>
-
-<!-- NEIGHBORHOOD INTEL -->
-<div class="page" id="page-neighborhood">
-  <div class="ph"><div class="pt">Neighborhood Intel</div><span class="pill pill-p">✦ Claude AI</span></div>
-  <div class="notice">Enter any address to get a deep dive on the neighborhood — schools, commute, vibe, what to know before you buy.</div>
-  <div class="card" style="display:flex;flex-direction:column;gap:13px;">
-    <div><label class="flabel">Address or Neighborhood</label><input type="text" id="nbhd-addr" autocomplete="street-address" placeholder="123 Maple St, Anytown, ST  —  or just a city or neighborhood"/></div>
-    <div class="fg2">
-      <div><label class="flabel">Household Type</label>
-        <select id="nbhd-type">
-          <option value="">Select</option>
-          <option>Young couple / no kids yet</option>
-          <option>Family with young kids</option>
-          <option>Family with school-age kids</option>
-          <option>Empty nesters</option>
-          <option>Single professional</option>
-          <option>Retirees</option>
-        </select>
-      </div>
-      <div><label class="flabel">Work Location (commute from)</label><input type="text" id="nbhd-work" placeholder="City or address where you work"/></div>
-    </div>
-    <div><label class="flabel">What matters most to you?</label>
-      <div class="chips" id="nbhd-chips" style="margin-top:4px;">
-        <span class="chip" onclick="toggleChip(this)">Top schools</span>
-        <span class="chip" onclick="toggleChip(this)">Safety</span>
-        <span class="chip" onclick="toggleChip(this)">Walkability</span>
-        <span class="chip" onclick="toggleChip(this)">Commute time</span>
-        <span class="chip" onclick="toggleChip(this)">Parks & outdoors</span>
-        <span class="chip" onclick="toggleChip(this)">Restaurants & shops</span>
-        <span class="chip" onclick="toggleChip(this)">Quiet / low traffic</span>
-        <span class="chip" onclick="toggleChip(this)">Community feel</span>
-        <span class="chip" onclick="toggleChip(this)">Property values trending up</span>
-      </div>
-    </div>
-    <button class="btn btn-g" onclick="runNeighborhood()">Analyze Neighborhood ✦</button>
-    <div id="nbhd-result" style="display:none;"></div>
   </div>
 </div>
 
@@ -4083,7 +4044,7 @@ window.promptAddress = promptAddress;
 })();
 
 // Lazily attach address autocomplete to any address field the user focuses (handles dynamically rendered forms)
-var _AC_ADDR_IDS = ['off-addr','nbhd-addr','mv-addr','sc-addr','val-addr','f-addr','t-addr','lm-address','appt-address','inv-address','nd-address','ld-address','ms-address','bd-title-address','new-netpay-address','new-sale-address','txn-buyer-address','txn-seller-address'];
+var _AC_ADDR_IDS = ['off-addr','mv-addr','sc-addr','val-addr','f-addr','t-addr','lm-address','appt-address','inv-address','nd-address','ld-address','ms-address','bd-title-address','new-netpay-address','new-sale-address','txn-buyer-address','txn-seller-address'];
 document.addEventListener('focusin', function(e){
   var el = e.target;
   if (!el || el.tagName !== 'INPUT' || el.dataset.acAttached) return;
@@ -8304,31 +8265,6 @@ window.dismissInstallNudge = dismissInstallNudge;
 
 
 
-// ── DOCUMENT LIBRARY ──
-const DOC_LIBRARY_KEYS = [
-  {key:'buyer-rep',      label:'Buyer\'s Agreement'},
-  {key:'purchase',       label:'Purchase Agreement'},
-  {key:'agency',         label:'Agency Disclosure'},
-  {key:'disclosure',     label:'Property Disclosures'},
-  {key:'contingency',    label:'Removal of Contingency'},
-  {key:'closing',        label:'Closing Statement'},
-  {key:'listing-agreement', label:'Listing Agreement'},
-  {key:'consumer-guide', label:'Consumer Guide'},
-  {key:'anti-discrimination', label:'Anti-Discrimination'},
-];
-
-function renderDocLibrary() {
-  var list = document.getElementById('doc-library-list');
-  if (!list) return;
-  if (!isTeamLeader()) { list.closest('.card').style.display='none'; return; }
-  list.innerHTML = DOC_LIBRARY_KEYS.map(function(d){
-    var url = DOC_PDFS[d.key] || '';
-    return '<div style="display:flex;align-items:center;gap:10px;">'
-      + '<div style="font-size:13px;font-weight:500;min-width:180px;color:var(--text2);">'+d.label+'</div>'
-      + '<input type="url" id="doc-lib-'+d.key+'" value="'+partnerEsc(url)+'" placeholder="Google Drive preview URL..." style="flex:1;font-size:12px;"/>'
-      + '</div>';
-  }).join('');
-}
 // ── TEAM STATS ──
 // Leaderboard + financials are PER-TEAM. Owner (tom) keeps the original global docs (no migration);
 // every other team namespaces its docs by team id. A leader's team id is themselves.
@@ -9375,23 +9311,6 @@ function exportFinancesCSV(){
 }
 window.exportFinancesCSV=exportFinancesCSV;
 
-window.renderDocLibrary = renderDocLibrary;
-
-async function saveDocLibrary() {
-  var updates = {};
-  DOC_LIBRARY_KEYS.forEach(function(d){
-    var el = document.getElementById('doc-lib-'+d.key);
-    if (el) updates[d.key] = el.value.trim();
-  });
-  // Update in-memory DOC_PDFS
-  Object.assign(DOC_PDFS, updates);
-  // Save to Firestore
-  try {
-    await fb.setDoc(fb.doc(fb.db,'agent_config','doc_library'), updates);
-    showDealToast('✅ Document library saved!', null, null);
-  } catch(e) { showDealToast('Failed to save: '+e.message, null, null); }
-}
-
 // ── EMAIL EDITOR ──
 var _customEmailTemplates = {};
 
@@ -9696,15 +9615,6 @@ window.getCustomStepEmail = function(stepNum, type) {
   return _customEmailTemplates[key] || null;
 };
 
-window.saveDocLibrary = saveDocLibrary;
-
-async function loadDocLibrary() {
-  try {
-    var snap = await fb.getDoc(fb.doc(fb.db,'agent_config','doc_library'));
-    if (snap.exists()) Object.assign(DOC_PDFS, snap.data());
-  } catch(e){}
-}
-
 window.saveAgentProfile = saveAgentProfile;
 
 // ─── DIGITAL BUSINESS CARD ───
@@ -9962,7 +9872,7 @@ function renderYourAgent() {
       photo +
       '<div style="flex:1;min-width:220px;">' +
         '<div style="font-family:Fraunces,serif;font-size:24px;font-weight:300;letter-spacing:-.4px;">' + a.name + '</div>' +
-        '<div style="font-size:12px;color:var(--text2);margin-top:2px;">' + (a.role || 'REALTOR®') + '</div>' +
+        '<div style="font-size:12px;color:var(--text2);margin-top:2px;">' + ((a.role && ['agent','lender','buyer','seller'].indexOf(String(a.role).toLowerCase()) === -1) ? a.role : 'REALTOR®') + '</div>' +
         '<div style="font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px;">' + (a.bio || 'Your agent is here to guide you through the process, answer questions, and help you make confident decisions from search to closing.') + '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">' +
           '<button class="btn btn-g btn-sm" onclick="contactAgent(\'text\',\'Hi, I had a quick question.\')">Text</button>' +
@@ -9979,6 +9889,9 @@ function renderYourAgent() {
     if (a.zillowReviewUrl) reviewButtons.push('<a class="btn btn-w" href="' + a.zillowReviewUrl + '" target="_blank">★ Zillow Reviews / Leave Review</a>');
     reviews.innerHTML = reviewButtons.join('');
     reviews.style.display = reviewButtons.length ? 'grid' : 'none';
+    // No review links = no Reviews card at all (an empty one reads as "this agent has no reviews").
+    var _revCard = reviews.closest('.card');
+    if (_revCard) _revCard.style.display = reviewButtons.length ? '' : 'none';
   }
 }
 window.renderYourAgent = renderYourAgent;
@@ -10518,7 +10431,6 @@ function go(page, el) {
   if (page === 'mortgage') buildMortgageDropdown();
   if (page === 'agent' && isAgent) { renderAgentProfileEditor(); renderBuyers(); }
   if (page === 'offer') { document.getElementById('offer-result').style.display='none'; }
-  if (page === 'neighborhood') { document.getElementById('nbhd-result').style.display='none'; }
   if (page === 'movinglist') { renderMovingChecklist(); }
   if (page === 'idx') { loadClientListings(); }
   if (page === 'guide') {
@@ -23382,25 +23294,6 @@ window.runOffer = runOffer;
 function toggleChip(el) { el.classList.toggle('sel'); }
 window.toggleChip = toggleChip;
 
-async function runNeighborhood() {
-  var addr = document.getElementById('nbhd-addr').value.trim();
-  if (!addr) { alert('Please enter an address or neighborhood'); return; }
-  var type = document.getElementById('nbhd-type').value;
-  var work = document.getElementById('nbhd-work').value;
-  var chips = Array.from(document.querySelectorAll('#nbhd-chips .chip.sel')).map(function(c){return c.textContent;}).join(', ');
-  var out = document.getElementById('nbhd-result'); think(out);
-  try {
-    var prompt = 'You are a neighborhood research assistant. Work only from the location given below, wherever in the country it is. Do not assume any other region.\n\nLocation: '+addr+'\nHousehold: '+(type||'not specified')+'\nWork location: '+(work||'not specified')+'\nPriorities: '+(chips||'general overview')+'\n\nProvide a thorough analysis:\n\nNEIGHBORHOOD OVERVIEW: Character, vibe, who lives there.\n\nSCHOOLS: Name the public school district that likely serves this location, and nothing more. Do not rate, rank, or describe the quality or reputation of any school or district. Tell the reader to use the School District Lookup tool and to confirm school assignment with the district.\n\nCOMMUTE: Drive time to '+(work||'the nearest major employment center')+' at rush hour, route, pain points.\n\nAMENITIES: Nearest grocery, restaurants, parks, shopping.\n\nPROPERTY VALUES: Recent trend and 5-year outlook.\n\nSAFETY: General reputation.\n\n'+(chips?'YOUR PRIORITIES: Specific feedback on: '+chips+'.\n\n':'')+'INSIDER TIPS: 2-3 things a local would tell you that you cannot find on Zillow.\n\nBe honest. If there are drawbacks, say so.';
-    var d = await claudeAPI({model:CLAUDE_MODEL,max_tokens:900,messages:[{role:'user',content:prompt}]});
-    out.innerHTML = '<div class="ai-resp">'+d.content[0].text+'</div>';
-    out.style.display = 'block';
-  } catch(e) {
-    out.innerHTML = '<div class="ai-resp" style="color:var(--red-dk);">Failed: '+e.message+'</div>';
-    out.style.display = 'block';
-  }
-}
-window.runNeighborhood = runNeighborhood;
-
 // ─── MOVING CHECKLIST (static, saves locally) ───
 const MOVING_CHECKLIST = [
   { section:"\ud83d\udccb Once your move is confirmed", items:["Create a moving binder/folder for documents, receipts, and contracts", "Get quotes from 2\u20133 moving companies (or reserve a rental truck)", "Confirm any mover's licensing, insurance, and reviews", "Decide what to keep, donate, sell, or toss \u2014 declutter room by room", "Photograph/inventory valuables for insurance", "Measure large furniture against the new home's doorways and rooms", "Start using up freezer/pantry food and cleaning supplies"] },
@@ -23923,7 +23816,6 @@ const _origLoadProps = loadProperties;
 
 
 // ─── DOCUMENT EXPLAINER ───
-const DOC_PDFS = {};
 
 
 const DOC_DATA = {};
@@ -28576,7 +28468,6 @@ var SEARCH_PAGES = [
   {label:'Tour Mode', icon:'🚶', pg:'tour'},
   {label:'School Districts', icon:'🏫', pg:'school'},
   {label:'Moving Checklist', icon:'📦', pg:'movinglist'},
-  {label:'Neighborhood Intel', icon:'🏘️', pg:'neighborhood'},
   {label:'Home Prep Analyzer', icon:'🏡', pg:'homeprep'},
   {label:'Photo Checklist', icon:'📷', pg:'photochecklist'},
   {label:'Listing Updates', icon:'📊', pg:'listing-updates'},
