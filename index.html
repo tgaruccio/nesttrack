@@ -419,9 +419,9 @@ textarea{resize:vertical;min-height:68px;}
 </style>
 </head>
 <body>
-<div id="manage-as-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:100000;background:#7C3AED;color:#fff;padding:8px 14px;font-size:13px;font-weight:600;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
+<div id="manage-as-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:100000;background:#7C3AED;color:#fff;padding:3px 12px;font-size:12px;font-weight:600;align-items:center;justify-content:space-between;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.25);">
   <span id="manage-as-text">&#128081; Managing account</span>
-  <button onclick="exitManageAs()" style="background:rgba(255,255,255,0.22);color:#fff;border:1px solid rgba(255,255,255,0.55);border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Exit &#10005;</button>
+  <button onclick="exitManageAs()" style="background:rgba(255,255,255,0.22);color:#fff;border:1px solid rgba(255,255,255,0.55);border-radius:20px;padding:1px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">Exit &#10005;</button>
 </div>
 
 <!-- LOGIN SCREEN -->
@@ -15456,7 +15456,7 @@ window._startPreview = async function(buyerUid) {
   if (ats) ats.style.display = 'none';
   var startLabel = document.getElementById('sidebar-start-label');
   if (startLabel) startLabel.style.display = '';
-  document.body.style.paddingTop = (banner ? banner.offsetHeight : 46) + 'px'; // make room for banner (incl. safe-area / wrap)
+  _layoutTopBanners(); // make room for the bar(s), stacked if an account is also being managed
 
   // Re-render as buyer
   
@@ -15492,7 +15492,7 @@ function exitClientPreview() {
   if (banner) banner.style.display = 'none';
   var ats = document.getElementById('agent-tools-section');
   if (ats) ats.style.display = 'flex';
-  document.body.style.paddingTop = '';
+  _layoutTopBanners();
 
   // Go back to agent dashboard
   updateAgentRefs();
@@ -16671,8 +16671,29 @@ function showManageBanner(ag, hasAccount){
   var t=document.getElementById('manage-as-text');
   if(t) t.innerHTML='\uD83D\uDC51 Managing <u>'+partnerEsc(ag.name||ag.id)+'</u>\u2019s account' + ((hasAccount===false)?' <span style="opacity:.85;font-weight:400;">\u00b7 not set up yet (no personal data)</span>':'');
   b.style.display='flex';
-  try{ document.body.style.paddingTop='40px'; }catch(e){}
+  _layoutTopBanners();
 }
+// Two bars can be up at once: managing an agent's account (purple) and previewing as their
+// client (green). Both were pinned to the very top, so the purple one sat on top of the green
+// one and hid its Exit Preview button - the only way back out of the client view. Put the
+// green bar directly under the purple one and pad the page by whatever is showing.
+function _layoutTopBanners(){
+  try {
+    var m = document.getElementById('manage-as-banner'), p = document.getElementById('client-preview-banner');
+    var mOn = !!(m && m.style.display && m.style.display !== 'none');
+    var pOn = !!(p && p.style.display && p.style.display !== 'none');
+    var mh = mOn ? m.offsetHeight : 0;
+    if (p) {
+      p.style.top = mh + 'px';
+      // Under the purple bar it no longer touches the top edge, so drop the notch allowance.
+      p.style.paddingTop = mOn ? '10px' : 'calc(10px + env(safe-area-inset-top,0px))';
+    }
+    var total = mh + (pOn ? p.offsetHeight : 0);
+    document.body.style.paddingTop = total ? (total + 'px') : '';
+  } catch(e){}
+}
+window._layoutTopBanners = _layoutTopBanners;
+try { window.addEventListener('resize', _layoutTopBanners); } catch(e){}
 window.enterManageAs=enterManageAs; window.exitManageAs=exitManageAs; window.applyManageAsOverride=applyManageAsOverride;
 
 function switchAgentTab(tab) {
