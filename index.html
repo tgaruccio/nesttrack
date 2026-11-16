@@ -1489,6 +1489,9 @@ setTimeout(function(){
        Claude never sees a shell. -->
   <div id="ad-briefing" style="display:none;"></div>
 
+  <!-- MLS feeds that fell back to the manual Activate button. Hidden when there are none. -->
+  <div id="ad-feed-alerts" style="display:none;"></div>
+
   <!-- Follow-Ups Due -->
   <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:0;flex-shrink:0;">
     <div style="padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
@@ -17978,6 +17981,7 @@ async function renderAgentDashboard() {
   // Only now is there anything to navigate to — the app is signed in and loaded.
   try { runPendingGo(); } catch(e) { console.log('deep link err:', e.message); }
   try { loadTextTasks(); } catch(e) { console.log('text tasks err:', e.message); }
+  try { renderFeedAlerts(); } catch(e) { console.log('feed alerts err:', e.message); }
 
   // ── Stat banner ──
   el = document.getElementById('ad-stat-clients');
@@ -38049,6 +38053,7 @@ async function soldFeedTapped(uid) {
     b.soldFeedActivateUrl = '';
     var row = document.querySelector('#bd-sold-feed-'+uid);
     if (row) row.innerHTML = soldFeedRowHtml(b);
+    try { renderFeedAlerts(); } catch(_e){}
   } catch(e) { console.log('soldFeedTapped:', e && e.message); }
 }
 window.soldFeedTapped = soldFeedTapped;
@@ -38088,7 +38093,8 @@ function soldFeedRowHtml(b) {
   if (addr && b.soldFeedActivateUrl) {
     return '<div style="font-size:11.5px;color:#B45309;font-weight:600;">\uD83D\uDCCA Neighbourhood report \u00b7 one tap to finish</div>'
       + '<a href="' + partnerEsc(b.soldFeedActivateUrl) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();soldFeedTapped(\'' + b.uid + '\')" style="display:block;text-align:center;margin-top:7px;background:#B45309;color:#fff;font-size:12px;font-weight:600;padding:9px;border-radius:var(--r);text-decoration:none;">Activate the sold search</a>'
-      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.5;">Your MLS needs one click before it will start sending. This opens it and finishes the setup.</div>';
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.5;">Your MLS needs one click before it will start sending. This opens it and finishes the setup.</div>'
+      + _feedReasonHtml(b.soldFeedActivateReason);
   }
   var help = ' <span onclick="event.stopPropagation();showHelp(\'marketreport\')" title="What is this? How does it connect?" style="width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;">?</span>';
   if (!addr) {
@@ -38164,12 +38170,22 @@ function mlsFeedRowHtml(b) {
   }
   var live = (b.mlsFeedActive === true);
   var pending = !live && !!b.mlsFeedActivateUrl;
+  var _tapMs = _feedTsMs(b.mlsFeedActivateTappedAt);
+  if (pending && _tapMs && (Date.now() - _tapMs) < _FEED_TAP_GRACE_MS) {
+    // Opened recently. Nothing proves it worked until a listing arrives, so say exactly that
+    // instead of showing the same orange button as if the tap never happened.
+    return '<div style="font-size:11.5px;color:var(--text2);font-weight:600;">\uD83D\uDCE7 MLS listing feed \u00b7 opened ' + _feedAgo(_tapMs) + ', waiting for the first listings</div>'
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Your MLS sends on its next run. This switches to Active by itself when the first listing arrives.'
+      + ' <a href="' + b.mlsFeedActivateUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation();mlsFeedTapped(\'' + b.uid + '\')" style="color:var(--green-dk);text-decoration:underline;">Open it again</a></div>';
+  }
   if (pending) {
     return '<div style="font-size:11.5px;color:#B45309;font-weight:600;">\uD83D\uDCE7 MLS listing feed \u00b7 one tap to finish'
         + ' <span onclick="event.stopPropagation();showHelp(\'mlsfeed\')" title="What is this? How does it connect?" style="width:15px;height:15px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);cursor:pointer;vertical-align:middle;margin-left:3px;">?</span>'
         + '</div>'
       + '<a href="' + b.mlsFeedActivateUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation();mlsFeedTapped(\'' + b.uid + '\')" style="display:block;text-align:center;margin-top:7px;background:#B45309;color:#fff;font-size:12px;font-weight:600;padding:9px;border-radius:var(--r);text-decoration:none;">Activate this feed \u2192</a>'
-      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Your MLS won\'t start sending until someone opens the search once. Tap above \u2014 it opens your MLS, and you can close the tab straight away.</div>';
+      + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Your MLS won\'t start sending until someone opens the search once. Tap above \u2014 it opens your MLS, and you can close the tab straight away.</div>'
+      + (_tapMs ? '<div style="font-size:10.5px;color:#8A5A08;margin-top:4px;line-height:1.5;">You opened this ' + _feedAgo(_tapMs) + ' and no listings have arrived. Open it again, and check the search still exists in your MLS.</div>' : '')
+      + _feedReasonHtml(b.mlsFeedActivateReason);
   }
   return '<div style="font-size:11.5px;color:'+(live?'#0F7A52':'var(--text3)')+';font-weight:600;">\uD83D\uDCE7 MLS listing feed'
       + (live ? ' \u00b7 active' : ' \u00b7 waiting for the first email')
@@ -38241,9 +38257,95 @@ async function mlsFeedTapped(uid) {
   try {
     await fb.updateDoc(fb.doc(fb.db,'users',uid), { mlsFeedActivateTappedAt: fb.serverTimestamp() });
   } catch(e) {}
+  try {
+    var b = (allBuyers||[]).find(function(x){ return x.uid === uid; });
+    if (b) {
+      b.mlsFeedActivateTappedAt = { seconds: Math.floor(Date.now() / 1000) };
+      var row = document.querySelector('#bd-mls-feed-' + uid);
+      if (row) row.innerHTML = mlsFeedRowHtml(b);
+    }
+    renderFeedAlerts();
+  } catch(e) { console.log('mlsFeedTapped repaint:', e && e.message); }
   if (typeof showToast === 'function') showToast('Opened your MLS — listings should start arriving on its next run.');
 }
 window.mlsFeedTapped = mlsFeedTapped;
+
+// After a tap the feed is given two days to produce a listing before it is flagged again.
+var _FEED_TAP_GRACE_MS = 48 * 3600000;
+function _feedTsMs(v) {
+  if (!v) return 0;
+  try {
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (v.seconds) return v.seconds * 1000;
+    var t = new Date(v).getTime();
+    return isNaN(t) ? 0 : t;
+  } catch(e) { return 0; }
+}
+function _feedAgo(ms) {
+  var d = Math.floor((Date.now() - ms) / 86400000);
+  return d <= 0 ? 'today' : (d === 1 ? 'yesterday' : d + ' days ago');
+}
+// The worker saves why automatic activation fell back to the button. Only the platform owner
+// can do anything about it, so only the platform owner is shown it.
+function _feedReasonHtml(raw) {
+  raw = String(raw || '').trim();
+  if (!raw) return '';
+  if (!(typeof isPlatformOwner === 'function' && isPlatformOwner())) return '';
+  var msg;
+  if (/not configured/i.test(raw)) msg = 'automatic activation is not set up on the server (CF_ACCOUNT_ID / CF_BROWSER_TOKEN)';
+  else if (/no opt-in link/i.test(raw)) msg = 'the MLS welcome email had no activation link in it';
+  else if (/could not route|render 40[0-9]/i.test(raw)) msg = 'Cloudflare rejected the browser request \u2014 check the CF_ACCOUNT_ID and CF_BROWSER_TOKEN settings';
+  else if (/render 429|limit|quota/i.test(raw)) msg = 'Cloudflare browser usage limit reached';
+  else if (/time/i.test(raw)) msg = 'the MLS page took too long to load';
+  else msg = 'the server could not open the MLS page';
+  return '<div style="font-size:10.5px;color:var(--text3);margin-top:4px;line-height:1.5;">Why it did not activate on its own: ' + partnerEsc(msg) + '.'
+    + ' <span title="' + partnerEsc(raw) + '" style="text-decoration:underline dotted;cursor:help;">details</span></div>';
+}
+
+// Every feed of this agent's that is waiting on the manual Activate button.
+function _feedsNeedingTap() {
+  var out = [];
+  (allBuyers || []).forEach(function(b){
+    if (!b || !b.uid) return;
+    if (b.mlsFeedToken && b.mlsFeedActive !== true && b.mlsFeedActivateUrl) {
+      var t = _feedTsMs(b.mlsFeedActivateTappedAt);
+      if (!(t && (Date.now() - t) < _FEED_TAP_GRACE_MS)) out.push({ b: b, kind: 'mls', url: b.mlsFeedActivateUrl, tapped: t });
+    }
+    if (b.soldFeedToken && b.soldFeedActivateUrl) out.push({ b: b, kind: 'sold', url: b.soldFeedActivateUrl, tapped: 0 });
+  });
+  return out;
+}
+
+// Dashboard line: nothing is sent for these clients until someone taps once, and before this
+// the only way to find out was to open each client's card.
+function renderFeedAlerts() {
+  var el = document.getElementById('ad-feed-alerts');
+  if (!el) return;
+  var items = [];
+  try { items = _feedsNeedingTap(); } catch(e) { items = []; }
+  if (!items.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  var rows = items.map(function(it){
+    var b = it.b;
+    var name = ((b.firstName || '') + ' ' + (b.lastName || '')).trim() || b.email || 'Client';
+    var what = it.kind === 'sold' ? 'Neighborhood sold report' : 'Listing emails';
+    var note = it.tapped ? ' \u00b7 opened ' + _feedAgo(it.tapped) + ', nothing received' : '';
+    var fn = it.kind === 'sold' ? 'soldFeedTapped' : 'mlsFeedTapped';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-top:0.5px solid var(--border);">'
+      + '<div style="flex:1;min-width:0;">'
+      +   '<a onclick="openBuyerDetail(\'' + b.uid + '\')" style="font-size:13px;font-weight:600;color:var(--text);cursor:pointer;">' + partnerEsc(name) + '</a>'
+      +   '<div style="font-size:11.5px;color:var(--text3);">' + what + partnerEsc(note) + '</div>'
+      + '</div>'
+      + '<a href="' + partnerEsc(it.url) + '" target="_blank" rel="noopener" onclick="' + fn + '(\'' + b.uid + '\')" style="flex-shrink:0;background:#B45309;color:#fff;font-size:12px;font-weight:600;padding:7px 12px;border-radius:var(--r-sm);text-decoration:none;white-space:nowrap;">Activate \u2192</a>'
+      + '</div>';
+  }).join('');
+  el.innerHTML = '<div style="background:var(--surface);border:1px solid #F0C97A;border-radius:var(--r);overflow:hidden;">'
+    + '<div style="padding:11px 16px;background:#FFF7E6;">'
+    +   '<div style="font-size:13px;font-weight:600;color:#8A5A08;">\u26A0\uFE0F ' + items.length + ' MLS feed' + (items.length === 1 ? ' needs' : 's need') + ' one tap to start sending</div>'
+    +   '<div style="font-size:11.5px;color:#8A5A08;margin-top:2px;">Nothing goes to these clients until you open the search once. Tap Activate, then close the tab that opens.</div>'
+    + '</div>' + rows + '</div>';
+  el.style.display = '';
+}
+window.renderFeedAlerts = renderFeedAlerts;
 
 // ── NestTracker: native quarterly home-value report (replaces the old Homebot/Zapier bridge). ──
 // Enroll values the home once via the worker (ATTOM), stores the snapshot + a per-home token,
