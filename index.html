@@ -30097,6 +30097,142 @@ function srStartAutosave() {
 }
 window.srStartAutosave = srStartAutosave;
 
+// ───────── Seller report: one reporting period, counted the same way everywhere ─────────
+// The period runs from the day the last report was sent through today (or from the list date
+// for a first report). Showings, views, offers and the wording all read from these helpers, so
+// the builder, the AI and the email can no longer disagree about what "this report" covers.
+function _srYmd(d) {
+  var y = d.getFullYear(), m = d.getMonth() + 1, dd = d.getDate();
+  return y + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd;
+}
+function _srToday() { return _srYmd(new Date()); }
+function _srDefaultPeriodStart(l) {
+  try {
+    var st = null;
+    if (l && l.listDate) st = new Date(String(l.listDate).length === 10 ? l.listDate + 'T12:00:00' : l.listDate);
+    else if (l && l.createdAt) st = l.createdAt.toDate ? l.createdAt.toDate() : new Date(l.createdAt);
+    if (st && !isNaN(st.getTime()) && st.getTime() <= Date.now()) return _srYmd(st);
+  } catch(e) {}
+  return _srYmd(new Date(Date.now() - 7 * 86400000));
+}
+function _srPeriodStart() {
+  return (_srCurrent && _srCurrent.periodStart) || _srYmd(new Date(Date.now() - 7 * 86400000));
+}
+function _srHasPrior() { return !!(_srCurrent && _srCurrent.prevSentYmd); }
+function _srInPeriod(ymd) { return !!ymd && ymd >= _srPeriodStart() && ymd <= _srToday(); }
+function _srFmtDay(ymd) {
+  try { return new Date(ymd + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' }); }
+  catch(e) { return ymd; }
+}
+function _srSinceLabel() { return 'since ' + _srFmtDay(_srPeriodStart()); }
+function _srPeriodDays() {
+  var a = new Date(_srPeriodStart() + 'T12:00:00').getTime(), b = new Date(_srToday() + 'T12:00:00').getTime();
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+function _srNum(n) { return Number(n || 0).toLocaleString('en-US'); }
+function _srPlural(n, w) { return _srNum(n) + ' ' + w + (Number(n) !== 1 ? 's' : ''); }
+
+function srSetPeriod(v) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))) return;
+  if (v > _srToday()) { alert('The start date cannot be in the future.'); _srRerender(_srCurrent._activeTab || 'showings'); return; }
+  srSaveCurrentTab();
+  _srCurrent.periodStart = v;
+  _srCurrent.periodEdited = true;
+  _srRerender(_srCurrent._activeTab || 'showings');
+}
+window.srSetPeriod = srSetPeriod;
+
+// Days on market with no offer before the report recommends a change. Per agent, default 30.
+function _srDomLimit() {
+  var n = Number(userProfile && userProfile.srDomLimit);
+  return (n >= 7 && n <= 365) ? Math.round(n) : 30;
+}
+function srSetDomLimit(v) {
+  var n = parseInt(v, 10);
+  if (!(n >= 7 && n <= 365)) { alert('Enter a number of days between 7 and 365.'); return; }
+  srSaveCurrentTab();
+  userProfile.srDomLimit = n;
+  try { fb.updateDoc(fb.doc(fb.db, 'users', _profileUid()), { srDomLimit: n }).catch(function(e){ console.log('srDomLimit save:', e && e.message); }); } catch(e) {}
+  _srRerender(_srCurrent._activeTab || 'message');
+}
+window.srSetDomLimit = srSetDomLimit;
+
+// Showings, by date. "period" is what happened in the reporting period, "total" is everything
+// to date, "upcoming" is anything dated after today (never counted as having happened).
+function _srShowingCounts() {
+  var today = _srToday();
+  var rows = ((_srCurrent && _srCurrent.showings) || []).filter(function(s){ return s.keep !== false && (s.date || s.agent); });
+  if (!rows.length) {
+    var q  = Number(_srCurrent && _srCurrent.quickShowingCount) || 0;
+    var qt = Number(_srCurrent && _srCurrent.quickTotalShowings) || 0;
+    var ps = _srCurrent && _srCurrent.prevStats;
+    var pt = (ps && typeof ps.totalShowings === 'number') ? ps.totalShowings : 0;
+    return { period: q, total: Math.max(qt, pt + q), upcoming: 0, listed: false };
+  }
+  var period = 0, total = 0, upcoming = 0;
+  rows.forEach(function(s){
+    if (s.date && s.date > today) { upcoming++; return; }
+    total++;
+    if (_srInPeriod(s.date)) period++;
+  });
+  return { period: period, total: total, upcoming: upcoming, listed: true };
+}
+
+// Portal views are typed as running totals. The period figure is this total minus the total
+// saved with the last report. On a first report, every view is "so far".
+function _srViewStats() {
+  var total = _srTotalViews();
+  var entered = total > 0;
+  var ps = (_srCurrent && _srCurrent.prevStats) || null;
+  var prevTotal  = (ps && typeof ps.totalViews === 'number' && ps.totalViews > 0) ? ps.totalViews : null;
+  var prevPeriod = (ps && ps.v === 2 && typeof ps.periodViews === 'number') ? ps.periodViews : null;
+  var period = null, behind = false;
+  if (entered) {
+    if (prevTotal === null) period = total;
+    else if (total < prevTotal) behind = true;   // fewer than last time: a portal was left blank
+    else period = total - prevTotal;
+  }
+  return { total: total, entered: entered, period: period, prevTotal: prevTotal, prevPeriod: prevPeriod, behind: behind };
+}
+
+function _srOfferMs(o) {
+  var t = o && o.submittedAt;
+  if (!t) return 0;
+  try {
+    if (typeof t.toDate === 'function') return t.toDate().getTime();
+    if (typeof t.seconds === 'number') return t.seconds * 1000;
+    var n = new Date(t).getTime();
+    return isNaN(n) ? 0 : n;
+  } catch(e) { return 0; }
+}
+function _srOfferIsNew(o) {
+  var ms = _srOfferMs(o);
+  return !!ms && _srYmd(new Date(ms)) >= _srPeriodStart();
+}
+function _srOffersIncluded() {
+  var ex = (_srCurrent && _srCurrent.offerExclude) || {};
+  return ((_srCurrent && _srCurrent.offers) || []).filter(function(o){ return !ex[o.id]; });
+}
+// total = every included offer; fresh = received in this period; open = not marked Rejected.
+function _srOfferCounts() {
+  var inc = _srOffersIncluded();
+  if (!((_srCurrent && _srCurrent.offers) || []).length) {
+    var man = Number(_srCurrent && _srCurrent.manualOfferCount) || 0;
+    return { total: man, fresh: man, open: man, manual: man > 0 };
+  }
+  return {
+    total: inc.length,
+    fresh: inc.filter(_srOfferIsNew).length,
+    open:  inc.filter(function(o){ return (o.status || 'Received') !== 'Rejected'; }).length,
+    manual: false
+  };
+}
+function srToggleOffer(id, on) {
+  if (!_srCurrent.offerExclude) _srCurrent.offerExclude = {};
+  if (on) delete _srCurrent.offerExclude[id]; else _srCurrent.offerExclude[id] = true;
+}
+window.srToggleOffer = srToggleOffer;
+
 function srOpenBuilderWithListing(listingId, l) {
   var showings = srMatchShowings(l.address||'');
   _srCurrent = {
@@ -30104,7 +30240,12 @@ function srOpenBuilderWithListing(listingId, l) {
     listing: l,
     showings: showings.map(function(s){
       var raw = s.start||s.date||'';
-      var dateStr = raw ? new Date(raw).toISOString().split('T')[0] : '';
+      // Local calendar day. toISOString() is UTC, which pushed evening showings to the next day.
+      var dateStr = '';
+      if (raw) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(raw))) dateStr = String(raw);
+        else { var _dt = new Date(raw); if (!isNaN(_dt.getTime())) dateStr = _srYmd(_dt); }
+      }
       var desc = (s.description||'').replace(/\\n/g,'\n').replace(/\\,/g,',');
       var agentMatch = desc.match(/Buyer['']s Agent:\s*\n?([^\n]+)/i);
       var displayAgent = agentMatch ? agentMatch[1].trim() : (s.title||s.summary||'');
@@ -30134,7 +30275,19 @@ function srOpenBuilderWithListing(listingId, l) {
     verdictEdited: false,
     meaningSource: '',
     verdictMeaning: '',
-    verdictConsider: ''
+    verdictConsider: '',
+    // Reporting period: from the last report's send date (set in srPrefillFromLastReport),
+    // or from the list date on a first report.
+    periodStart: _srDefaultPeriodStart(l),
+    periodEdited: false,
+    prevSentYmd: '',
+    prevOnline: null,
+    quickTotalShowings: 0,
+    rpMatches: 0,
+    rpNew: 0,
+    offerExclude: {},
+    aiNotes: '',
+    pdfParsedFor: ''
   };
 
   // Load offers for this listing
@@ -30227,8 +30380,21 @@ async function srPrefillFromLastReport(listingId, l) {
     });
     var last = rows[0];
     _srCurrent.prevStats = last.stats || null;
+    // This report picks up where the last one stopped, however long ago that was.
+    var _sentYmd = '';
+    try {
+      if (last.sentAt && last.sentAt.toDate) _sentYmd = _srYmd(last.sentAt.toDate());
+      else if (last.sentDateStr) _sentYmd = String(last.sentDateStr);
+    } catch(e) {}
+    if (_sentYmd) {
+      _srCurrent.prevSentYmd = _sentYmd;
+      if (!_srCurrent.periodEdited) _srCurrent.periodStart = _sentYmd;
+    }
     var d0 = last.draft;
-    if (!d0) { srShowCarryBanner(0, true); return; }
+    if (!d0) { srShowCarryBanner(0, true); _srRerender(_srCurrent._activeTab || 'showings'); return; }
+    _srCurrent.prevOnline = d0.onlineViews || null;
+    // An offer left out of the last report stays left out until the agent ticks it again.
+    if (d0.offerExclude && !Object.keys(_srCurrent.offerExclude || {}).length) _srCurrent.offerExclude = Object.assign({}, d0.offerExclude);
 
     var carried = 0, skipped = 0;
     Object.keys(d0.checkedItems||{}).forEach(function(k){
@@ -30341,7 +30507,8 @@ function srSaveCurrentTab() {
       return {
         date: (row.querySelector('.sr-sh-date')||{}).value||'',
         agent: (row.querySelector('.sr-sh-agent')||{}).value||'',
-        keep: (row.querySelector('.sr-sh-keep')||{}).checked!==false
+        keep: (row.querySelector('.sr-sh-keep')||{}).checked!==false,
+        feedback: (row.querySelector('.sr-sh-fb')||{}).value||''
       };
     });
     var rpEl = document.getElementById('sr-rp-count');
@@ -30414,6 +30581,8 @@ function srSaveCurrentTab() {
     // have these fields simply skips them.
     var fsEl = document.getElementById('sr-feedback-summary');
     if (fsEl) _srCurrent.feedbackSummary = fsEl.value;
+    var anEl = document.getElementById('sr-ai-notes');
+    if (anEl) _srCurrent.aiNotes = anEl.value;
     var vm = document.getElementById('sr-verdict-meaning');
     var vc = document.getElementById('sr-verdict-consider');
     if (vm) _srCurrent.verdictMeaning  = vm.value;
@@ -30431,8 +30600,8 @@ function srSaveCurrentTab() {
 
 function srTabShowings() {
   var s = _srCurrent.showings;
-  var dg = _srDiagnose();
-  var cur = _srCurrent.verdictStatus || '';
+  var sc = _srShowingCounts();
+  var today = _srToday();
 
   function stepHead(n, title, sub) {
     return '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px;">'
@@ -30441,50 +30610,76 @@ function srTabShowings() {
       + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px 26px;">'+sub+'</div>';
   }
 
-  // ---- 1. ShowingTime report: the one upload that fills most of this tab ----
-  var html = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + stepHead(1,'ShowingTime report','Attach the PDF here. On the last page it writes your buyer feedback and adds any showings it finds. It is also attached to your seller\'s email.')
+  // ---- The reporting period: everything below is counted against this ----
+  var html = '<div style="background:var(--green-lt);border:1px solid var(--border);border-radius:var(--r);padding:11px 14px;margin-bottom:12px;">'
+    + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+      + '<span style="font-size:13px;font-weight:600;">Reporting activity since</span>'
+      + '<input type="date" id="sr-period-start" value="' + _srPeriodStart() + '" max="' + today + '" onchange="srSetPeriod(this.value)" style="font-size:13px;"/>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:5px;line-height:1.5;">'
+      + (_srHasPrior()
+          ? 'Your last report went out ' + _srFmtDay(_srCurrent.prevSentYmd) + '. Showings, views and offers are counted from that day to today.'
+          : 'This is the first report for this listing, so it covers everything since it was listed.')
+      + ' Change the date if you need a different window.'
+    + '</div></div>';
+
+  // ---- 1. ShowingTime report ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + stepHead(1,'ShowingTime report','Attach the PDF here. When you press Write the report on the last page, it reads every showing and its feedback, adds any showings missing from the list below, and uses only the feedback from this reporting period. It is also attached to your seller\'s email.')
     + '<input type="file" id="sr-pdf-attach" accept=".pdf" onchange="srStorePDFAttachment(event)" style="font-size:12px;"/>'
-    + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">\u2705 '+partnerEsc(_srCurrent.pdfAttachName)+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')
+    + (_srCurrent.pdfAttachName ? '<div style="font-size:11px;color:var(--green-dk);margin-top:4px;">✅ '+partnerEsc(_srCurrent.pdfAttachName)+' ready to attach</div>' : '<div id="sr-pdf-attach-status" style="font-size:11px;color:var(--green-dk);margin-top:4px;display:none;"></div>')
     + '</div>';
 
-  // ---- 2. Reverse prospecting: above the showing list so it is never buried ----
+  // ---- 2. Reverse prospecting ----
+  var _rpExtra = '';
+  if (_srCurrent.rpNew) _rpExtra = ' · ' + _srNum(_srCurrent.rpNew) + ' new ' + _srSinceLabel();
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + stepHead(2,'Reverse prospecting','Paste your Matrix results. The count updates as you paste.')
+    + stepHead(2,'Reverse prospecting','Paste your Matrix results. It counts the buyers whose searches match this home — one per row.')
     + '<textarea id="sr-rp-paste" placeholder="Paste reverse prospecting text from Matrix here..." style="width:100%;box-sizing:border-box;font-size:12px;height:70px;resize:vertical;" oninput="srCountRP()"></textarea>'
-    + '<div style="font-size:13px;font-weight:500;margin-top:6px;">Agents reached: <span id="sr-rp-display" style="color:var(--green);font-weight:700;">0</span></div>'
+    + '<div style="font-size:13px;font-weight:500;margin-top:6px;">Buyers reached: <span id="sr-rp-display" style="color:var(--green);font-weight:700;">' + _srNum(_srCurrent.reverseProspecting || 0) + '</span>'
+      + '<span id="sr-rp-extra" style="font-size:11.5px;font-weight:400;color:var(--text3);">' + _rpExtra + '</span></div>'
     + '<input type="hidden" id="sr-rp-count" value="'+(_srCurrent.reverseProspecting||0)+'"/>'
     + '</div>';
 
-  // ---- 5. Showings: last, because the list can run long and buries whatever follows ----
+  // ---- 3. Showings ----
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + stepHead(5,'Showings','A total is all most sellers need. The list fills itself if you have connected ShowingTime in your profile, or from the PDF above once you run the write-up on the last page. You can also add them by hand.');
+    + stepHead(3,'Showings','Counted by date. The list fills itself if you have connected ShowingTime in your profile, and from the PDF above when the report is written. You can also add them by hand. Agent names are for you only — your seller sees dates, not names.');
 
-  // Total first — it is what most reports actually use.
-  html += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border);">'
-    + '<span style="font-size:12px;color:var(--text3);">Total showings this week:</span>'
-    + '<input type="number" id="sr-quick-count" min="0" placeholder="#" value="'+((_srCurrent.quickShowingCount||''))+'" style="width:80px;font-size:13px;" oninput="_srCurrent.quickShowingCount=parseInt(this.value)||0"/>'
-    + '</div>';
+  html += '<div style="font-size:13px;font-weight:600;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border);">'
+    + _srPlural(sc.period, 'showing') + ' ' + _srSinceLabel()
+    + ' <span style="font-weight:400;color:var(--text3);">· ' + _srNum(sc.total) + ' in total'
+    + (sc.upcoming ? ' · ' + _srNum(sc.upcoming) + ' upcoming' : '') + '</span></div>';
 
   html += '<div id="sr-showings-list">';
-  s.forEach(function(sh, i) {
+  s.forEach(function(sh) {
+    var tag = '', tagCol = 'var(--text3)';
+    if (!sh.date) { tag = 'no date'; }
+    else if (sh.date > today) { tag = 'upcoming'; tagCol = '#1D4ED8'; }
+    else if (_srInPeriod(sh.date)) { tag = 'this report'; tagCol = 'var(--green-dk)'; }
+    else { tag = 'earlier'; }
     html += '<div class="sr-showing-row" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-      + '<input type="checkbox" class="sr-sh-keep" checked style="flex-shrink:0;" title="Include in report"/>'
-      + '<input type="date" class="sr-sh-date" value="'+sh.date+'" style="font-size:12px;flex:1;min-width:110px;"/>'
-      + '<input type="text" class="sr-sh-agent" placeholder="Agent name" value="'+partnerEsc(sh.agent||'')+'" style="font-size:12px;flex:3;min-width:150px;"/>'
-      + '<button onclick="this.closest(\'.sr-showing-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">\u2715</button>'
+      + '<input type="checkbox" class="sr-sh-keep"' + (sh.keep === false ? '' : ' checked') + ' style="flex-shrink:0;" title="Count this showing"/>'
+      + '<input type="date" class="sr-sh-date" value="'+partnerEsc(sh.date||'')+'" style="font-size:12px;flex:1;min-width:110px;"/>'
+      + '<input type="text" class="sr-sh-agent" placeholder="Agent name (not shown to seller)" value="'+partnerEsc(sh.agent||'')+'" style="font-size:12px;flex:3;min-width:150px;"/>'
+      + '<input type="hidden" class="sr-sh-fb" value="'+partnerEsc(sh.feedback||'')+'"/>'
+      + '<span style="font-size:10.5px;font-weight:600;color:'+tagCol+';flex-shrink:0;min-width:62px;text-align:right;">' + tag + (sh.feedback ? ' · fb' : '') + '</span>'
+      + '<button onclick="this.closest(\'.sr-showing-row\').remove()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;">✕</button>'
       + '</div>';
   });
   html += '</div>';
   if (!s.length) {
-    html += '<div style="font-size:11.5px;color:var(--text3);padding:6px 2px 8px;">No showings found yet.</div>';
+    html += '<div style="font-size:11.5px;color:var(--text3);padding:6px 2px 8px;">No showings listed yet.</div>';
   }
-  html += '<button onclick="srAddShowing()" style="width:100%;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);padding:9px;font-size:12.5px;cursor:pointer;margin-bottom:8px;">+ Add a showing</button>'
-    + '</div>';
+  html += '<button onclick="srAddShowing()" style="width:100%;background:var(--surface2);border:1px dashed var(--border);border-radius:var(--r);padding:9px;font-size:12.5px;cursor:pointer;margin-bottom:8px;">+ Add a showing</button>';
 
-  if (_srCurrent.reverseProspecting) {
-    setTimeout(function(){ var el=document.getElementById('sr-rp-display'); if(el) el.textContent=_srCurrent.reverseProspecting; },50);
-  }
+  // Only used when nothing is listed above.
+  html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:10px;margin-top:4px;border-top:1px solid var(--border);">'
+    + '<span style="font-size:11.5px;color:var(--text3);">No list? Enter counts instead — ' + _srSinceLabel() + ':</span>'
+    + '<input type="number" id="sr-quick-count" min="0" placeholder="#" value="'+((_srCurrent.quickShowingCount||''))+'" style="width:70px;font-size:13px;" oninput="_srCurrent.quickShowingCount=parseInt(this.value)||0"/>'
+    + '<span style="font-size:11.5px;color:var(--text3);">total to date:</span>'
+    + '<input type="number" id="sr-quick-total" min="0" placeholder="#" value="'+((_srCurrent.quickTotalShowings||''))+'" style="width:70px;font-size:13px;" oninput="_srCurrent.quickTotalShowings=parseInt(this.value)||0"/>'
+    + '</div>'
+    + '</div>';
   return html;
 }
 
@@ -30506,12 +30701,33 @@ window.srAddShowing = srAddShowing;
 function srCountRP() {
   var el = document.getElementById('sr-rp-paste');
   if (!el || !el.value.trim()) return;
-  // Simple client-side count — count lines with @ or agent-like patterns
-  var lines = el.value.split('\n').filter(function(l){ return l.trim().length > 3; });
+  var text = el.value;
+  // Matrix lists one row per buyer whose saved search matches the home. The seller cares how
+  // many buyers that is, not how many agents, so the count is rows: one email address per
+  // row. The old version counted every line, which doubled it because each row spans two lines.
+  var emails = text.match(/[A-Za-z0-9._%+\-']+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+/g) || [];
+  var agents, matches = 0, fresh = 0;
+  if (emails.length) {
+    matches = emails.length;
+    agents = matches;   // the figure shown and saved is buyers matched
+    var start = _srPeriodStart();
+    (text.match(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g) || []).forEach(function(d){
+      var p = d.split('/');
+      var ymd = p[2] + '-' + (p[0].length < 2 ? '0' : '') + p[0] + '-' + (p[1].length < 2 ? '0' : '') + p[1];
+      if (ymd >= start) fresh++;
+    });
+  } else {
+    // Not the usual Matrix layout: fall back to counting lines that look like a row.
+    agents = text.split('\n').filter(function(l){ return l.trim().length > 3; }).length;
+  }
+  _srCurrent.rpMatches = matches;
+  _srCurrent.rpNew = fresh;
   var display = document.getElementById('sr-rp-display');
   var hidden = document.getElementById('sr-rp-count');
-  if (display) display.textContent = lines.length;
-  if (hidden) hidden.value = lines.length;
+  var extra = document.getElementById('sr-rp-extra');
+  if (display) display.textContent = _srNum(agents);
+  if (hidden) hidden.value = agents;
+  if (extra) extra.textContent = fresh ? ' · ' + _srNum(fresh) + ' new ' + _srSinceLabel() : '';
 }
 window.srCountRP = srCountRP;
 
@@ -30576,15 +30792,43 @@ function _srBlankFields() {
 }
 window._srBlankFields = _srBlankFields;
 
+// Showings read out of the ShowingTime PDF join the list here. A row already in the list (same
+// date, same or unknown agent) just gains its feedback; anything else is added.
+function _srMergePdfShowings(got) {
+  var norm = function(v){ return String(v || '').toLowerCase().replace(/[^a-z]/g, ''); };
+  var added = 0;
+  (got || []).forEach(function(r){
+    if (!r) return;
+    var date = String(r.date || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    var agent = String(r.agent || '').trim();
+    var fbk = String(r.feedback || '').trim();
+    var na = norm(agent);
+    var hit = (_srCurrent.showings || []).find(function(s){
+      if (s.date !== date) return false;
+      var ns = norm(s.agent);
+      return !ns || !na || ns === na || ns.indexOf(na) >= 0 || na.indexOf(ns) >= 0;
+    });
+    if (hit) {
+      if (fbk && !hit.feedback) hit.feedback = fbk;
+      if (agent && !hit.agent) hit.agent = agent;
+    } else {
+      _srCurrent.showings.push({ date: date, agent: agent, keep: true, feedback: fbk });
+      added++;
+    }
+  });
+  _srCurrent.showings.sort(function(a, b){ return String(a.date || '').localeCompare(String(b.date || '')); });
+  return added;
+}
+
 async function srGenerateFeedbackSummary() {
-  // No PDF is fine — there is simply no buyer feedback to summarise, and the rest of the
-  // report is written from the numbers the agent entered.
   var _hasPdf = !!_srCurrent.pdfAttachBase64;
   if (_hasPdf && typeof pdfjsLib === 'undefined') { alert('PDF reader is still loading — try again in a moment.'); return; }
   var btn = document.getElementById('sr-ai-summary-btn');
   var orig = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Reading report\u2026'; }
-  srSaveCurrentTab();   // capture on-screen edits BEFORE we overwrite state below
+  var restore = function(){ if (btn) { btn.disabled = false; btn.textContent = orig || '✨ Write the report'; } };
+  if (btn) { btn.disabled = true; btn.textContent = _hasPdf ? 'Reading the ShowingTime report…' : 'Writing…'; }
+  srSaveCurrentTab();   // capture on-screen edits BEFORE state is overwritten below
   try {
     var text = '';
     if (_hasPdf) {
@@ -30600,103 +30844,145 @@ async function srGenerateFeedbackSummary() {
         parts.push(tc.items.map(function(it){ return it.str; }).join(' '));
       }
       text = parts.join('\n').replace(/[ \t]+/g, ' ').trim();
+      if (!text || text.length < 40) {
+        alert('Could not read text from this PDF (it may be a scan). It will still be attached, and the report will be written from your numbers and notes.');
+        text = '';
+      }
     }
-    if (_hasPdf && (!text || text.length < 40)) {
-      alert('Could not read text from this PDF (it may be a scan). You can still attach it and write the summary manually.');
-      if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
-      return;
+
+    var todayYmd = _srToday();
+    var todayLong = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+
+    // ── Step 1 (only with a PDF, once per file): pull every showing and its feedback out as
+    // data. Code then decides what falls in the reporting period — the model never counts.
+    var pdfKey = _hasPdf ? ((_srCurrent.pdfAttachName || '') + ':' + _srCurrent.pdfAttachBase64.length) : '';
+    var extractFailed = false;
+    if (text && _srCurrent.pdfParsedFor !== pdfKey) {
+      var xPrompt = 'Below is the text of a ShowingTime listing activity report. Today is ' + todayLong + ' (' + todayYmd + ').\n\n'
+        + 'List EVERY showing in it as data. For each one give the date it took place (or is scheduled for) as YYYY-MM-DD, '
+        + 'the showing agent\'s name, and the feedback that agent left, copied as written (ratings and comments together in one string). '
+        + 'Use an empty string when a showing has no feedback. Skip canceled or declined showings, status changes, price changes and the new-listing row. '
+        + 'If the report gives a date without a year, use the most recent such date that is not after today, unless it is clearly an upcoming appointment.\n\n'
+        + 'Respond with ONLY raw JSON, no markdown: {"showings":[{"date":"YYYY-MM-DD","agent":"","feedback":""}]}\n\n'
+        + 'REPORT TEXT:\n' + text.slice(0, 20000);
+      try {
+        var xd = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 4000, messages: [{ role: 'user', content: xPrompt }] });
+        var xo = (xd && xd.content && xd.content[0] && xd.content[0].text) || '';
+        var xp = JSON.parse(xo.replace(/```json|```/g, '').trim());
+        if (xp && Array.isArray(xp.showings)) {
+          _srMergePdfShowings(xp.showings);
+          _srCurrent.pdfParsedFor = pdfKey;
+        } else { extractFailed = true; }
+      } catch(xe) { console.log('sr pdf extract:', xe && xe.message); extractFailed = true; }
     }
-    if (btn) btn.textContent = 'Summarizing\u2026';
-    var addr = (_srCurrent.listing && _srCurrent.listing.address) || '';
+
+    if (btn) btn.textContent = 'Writing…';
+
+    // ── Step 2: write, from facts the code has already counted.
     var dg = _srDiagnose();
+    var vs = _srViewStats();
+    var prior = _srHasPrior();
+    var addr = (_srCurrent.listing && _srCurrent.listing.address) || '';
     var lst = _srCurrent.listing || {};
     var price = lst.listPrice || lst.price || '';
     var comps = (_srCurrent.compsActive||[]).concat(_srCurrent.compsSold||[])
       .slice(0,8).map(function(c){ return '- ' + c.address + ' ' + (c.price||'') + ' ' + (c.sqft||'') + 'sf'; }).join('\n');
+    var notes = String(_srCurrent.aiNotes || '').trim();
 
-    // The AI describes; it never recommends. The agent owns the call, so the model is
-    // told the status the numbers produced and asked to stay consistent with it. It no
-    // longer writes 'what to consider' at all — that comes from the status the agent picks.
+    // Feedback from showings inside the period only, with the names left behind.
+    var periodRows = (_srCurrent.showings || []).filter(function(s){ return s.keep !== false && _srInPeriod(s.date); });
+    var fbRows = periodRows.filter(function(s){ return String(s.feedback || '').trim(); });
+    var fbBlock = fbRows.map(function(s, k){ return (k + 1) + '. (' + s.date + ') ' + String(s.feedback).trim().slice(0, 1200); }).join('\n');
+
     var stanceWord = dg.status === 'adjust' ? 'a change is worth discussing'
                    : dg.status === 'watching' ? 'worth watching but not acting on yet'
                    : 'no change is warranted right now';
+    var _rp = _srProvidedValues().rp;
 
-    // A live listing does not get zero views on Zillow in a week, and reverse prospecting is
-    // never truly zero — so a blank there means the agent skipped the field, not that nothing
-    // happened. Showings and offers are different: zero is real, and worth saying plainly.
-    var _v = _srProvidedValues();
-    var prompt = 'You are an experienced listing agent writing the factual sections of a weekly seller report.\n\n'
+    var prompt = 'You are helping a listing agent write a seller update. You write only from the facts and notes below.\n\n'
+      + 'TODAY: ' + todayLong + '\n'
+      + 'THIS REPORT COVERS: ' + _srFmtDay(_srPeriodStart()) + ' through today (' + _srPeriodDays() + ' days). '
+      + (prior ? 'The previous report was sent ' + _srFmtDay(_srCurrent.prevSentYmd) + '.' : 'This is the FIRST report for this listing, so it covers everything so far.') + '\n'
       + (addr ? ('PROPERTY: ' + addr + '\n') : '')
       + (price ? ('LIST PRICE: ' + price + '\n') : '')
-      + 'THIS WEEK:\n'
-      + '  Showings: ' + dg.showings + '\n'
-      + '  Offers: ' + Math.max(dg.offers, Number(_srCurrent.manualOfferCount)||0) + '\n'
-      + '  Online views: ' + _v.views + '\n'
-      + '  Reverse prospecting matches: ' + _v.rp + '\n'
-      + (dg.dom!==null ? ('  Days on market: ' + dg.dom + '\n') : '')
-      + (dg.prevViews!==null ? ('LAST WEEK: ' + dg.prevViews + ' online views, ' + dg.prevShowings + ' showings\n') : 'No prior report \u2014 first week.\n')
-      + 'SIGNALS DETECTED: ' + dg.signals.join('; ') + '\n'
-      + 'THE AGENT\'S POSITION THIS WEEK: ' + stanceWord + '. Everything you write must be consistent with that.\n'
+      + '\nFACTS FOR THIS PERIOD (already counted — use these exact numbers, never recount):\n'
+      + '  Showings in this period: ' + dg.showings + '\n'
+      + '  Showings in total since listing: ' + dg.totalShowings + '\n'
+      + (dg.upcoming ? ('  Showings scheduled but not yet happened: ' + dg.upcoming + '\n') : '')
+      + '  Online views in this period: ' + (dg.views === null ? 'not provided' : dg.views) + '\n'
+      + '  Online views in total: ' + (vs.entered ? vs.total : 'not provided') + '\n'
+      + '  Offers received in this period: ' + dg.newOffers + '\n'
+      + '  Buyers whose MLS searches match this home (reverse prospecting): ' + _rp + '\n'
+      + (dg.dom !== null ? ('  Days on market: ' + dg.dom + '\n') : '')
+      + (dg.prevShowings !== null ? ('  Previous report: ' + dg.prevShowings + ' showings' + (dg.prevViews !== null ? ', ' + dg.prevViews + ' online views' : '') + '\n') : '')
+      + 'SIGNALS: ' + dg.signals.join('; ') + '\n'
+      + 'THE AGENT\'S POSITION: ' + stanceWord + '. Everything you write must be consistent with that.\n'
       + (comps ? ('COMPARABLES:\n' + comps + '\n') : '')
-      + '\nREPORT TEXT:\n' + text.slice(0, 16000) + '\n\n'
-      + (_hasPdf ? '' : 'NO SHOWING FEEDBACK WAS PROVIDED this week. Leave the buyer-feedback summary empty \u2014 do not invent or infer what buyers said. Write the remaining sections from the numbers alone.\n\n')
-      + 'Where a figure reads "not provided", the agent did not record it. Do not treat it as zero, do not mention it, and do not describe the week as quiet on the strength of a missing number. Showings and offers are always recorded, so zero there is real and can be stated plainly.\n\n'
-      + 'CRITICAL: you are not advising anyone. Do not recommend, suggest, urge or hint at any action \u2014 '
-      + 'no price changes, no staging, no strategy. The agent decides that, not you. Report what happened '
-      + 'and what buyers said. If feedback mentions price, report it as what that agent said, never as a conclusion.\n\n'
-      + 'Return three pieces:\n\n'
-      + '1. "feedback" \u2014 a seller-facing summary of the showing feedback: one opening line on overall activity, '
-      + 'then the 2-3 most common themes with roughly how often each came up, then a couple of short representative '
-      + 'quotes from agent comments. Note how many showings have returned feedback so far, since a small number of '
-      + 'responses is a small sample and should read that way. Under about 200 words.\n\n'
-      + '2. "meaning" \u2014 a plain-language read of what the numbers and feedback show, consistent with the agent\'s '
-      + 'position above. Describe only. If online traffic dropped, explain that the surge a new listing gets naturally '
-      + 'fades after the first couple of weeks, so they do not panic. If the listing is only days old, say plainly that '
-      + 'it is early and there is not much to read into yet. Honest, never spin. Under 70 words.\n\n'
-      + '3. "showings" \u2014 every past, completed or upcoming showing in the activity table, each as '
-      + '{"date":"YYYY-MM-DD","agent":"agent name"}. Skip canceled showings, status changes and the new-listing row. '
-      + 'Return an empty array if there is no activity table.\n\n'
-      + 'No greeting, no signature, no bullet points, no markdown.\n'
-      + 'Respond with ONLY raw JSON: {"feedback":"...","meaning":"...","showings":[]}';
+      + '\nBUYER FEEDBACK FROM SHOWINGS IN THIS PERIOD (' + fbRows.length + ' of ' + periodRows.length + ' listed showings returned feedback):\n'
+      + (fbBlock || 'None returned.') + '\n'
+      + ((extractFailed && text)
+          ? ('\nThe report could not be split into rows, so here is its raw text. Use ONLY feedback from showings dated '
+             + _srPeriodStart() + ' through ' + todayYmd + ' and ignore everything earlier:\n' + text.slice(0, 14000) + '\n')
+          : '')
+      + '\nTHE AGENT\'S OWN NOTES (rough, in their words — may be empty):\n' + (notes || '(none)') + '\n\n'
+      + 'RULES:\n'
+      + '- Never name a showing agent, a buyer\'s agent or a brokerage, and never say who showed the home. Say "one buyer", "one agent", "a showing".\n'
+      + '- Only describe showings and feedback from this period. Do not describe earlier showings as recent, and do not list showings one by one.\n'
+      + '- Where a figure reads "not provided", the agent did not record it. Do not treat it as zero and do not mention it.\n'
+      + '- Do not invent facts, feedback, plans or advice. Recommendations appear ONLY if the agent\'s notes state one, and then in the agent\'s voice ("I").\n'
+      + '- If an offer was received, state that it was received and nothing more. Do not characterise it or suggest what to do with it.\n'
+      + '- Plain, warm, direct language a homeowner would use. No greeting, no signature, no bullet points, no markdown.\n\n'
+      + 'Return five pieces:\n'
+      + '1. "feedback" — what buyers said in this period: the main themes and roughly how often each came up, with one or two short quotes if there are any, '
+      + 'and how many of the showings returned feedback. Fold in anything the agent\'s notes say about buyer reactions. Under 150 words. '
+      + 'If there were showings but no feedback and the notes add nothing, return exactly one sentence saying how many showings took place and that feedback has not come back yet. '
+      + 'If there were no showings and nothing in the notes, return "".\n'
+      + '2. "meaning" — a plain read of what the numbers and feedback show, consistent with the agent\'s position, using the agent\'s notes for context. '
+      + 'Describe only. If the listing is only days old, say it is early. Under 70 words.\n'
+      + '3. "consider" — ONLY if the agent\'s notes state what they recommend or what was agreed with the seller: that, cleaned up, in the agent\'s voice. Otherwise "".\n'
+      + '4. "next_week" — ONLY plans the agent\'s notes mention for the coming days (an open house, a price review, new photos), as one short sentence each. Otherwise "".\n'
+      + '5. "personal_note" — ONLY if the agent\'s notes contain something personal meant for the seller (thanks, encouragement, a heads-up): two or three warm sentences in the agent\'s voice. Otherwise "".\n\n'
+      + 'Respond with ONLY raw JSON: {"feedback":"","meaning":"","consider":"","next_week":"","personal_note":""}';
 
-    var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1600, messages: [{ role: 'user', content: prompt }] });
+    var d = await claudeAPI({ model: CLAUDE_MODEL, max_tokens: 1800, messages: [{ role: 'user', content: prompt }] });
     var out = (d && d.content && d.content[0] && d.content[0].text) || '';
     var parsed = null;
     try { parsed = JSON.parse(out.replace(/```json|```/g,'').trim()); } catch(pe) { parsed = null; }
 
     _srCurrent.verdictEdited = false;
-    if (parsed && parsed.feedback) {
-      _srCurrent.feedbackSummary = String(parsed.feedback).trim();
-      // Status stays deterministic \u2014 the AI writes the words, the data makes the call.
-      _srCurrent.verdictStatus   = dg.status;
-      _srCurrent.verdictMeaning  = String(parsed.meaning  || '').trim();
-      _srCurrent.meaningSource   = 'ai';
-      // The recommendation is the agent's, not the model's — derive it from the status.
-      _srCurrent.verdictConsider = _srVerdictTemplate(dg, dg.status).c;
-      // Only fill showings the calendar did not already provide — never overwrite
-      // rows the agent can see and has possibly already edited.
-      var got = parsed.showings;
-      if (Array.isArray(got) && got.length && !(_srCurrent.showings||[]).length) {
-        _srCurrent.showings = got.filter(function(r){ return r && (r.date || r.agent); })
-          .map(function(r){ return { date:String(r.date||''), agent:String(r.agent||''), keep:true }; });
+    _srCurrent.verdictStatus = dg.status;   // the data makes the call; the AI only writes
+    var tpl = _srVerdictTemplate(dg, dg.status);
+    if (parsed && typeof parsed === 'object') {
+      _srCurrent.feedbackSummary = String(parsed.feedback || '').trim();
+      var mean = String(parsed.meaning || '').trim();
+      _srCurrent.verdictMeaning = mean || tpl.m;
+      _srCurrent.meaningSource  = mean ? 'ai' : 'template';
+      // The recommendation is the agent's: their own words if they gave any, otherwise the
+      // stock line for the status. The model never supplies one of its own.
+      var cons = String(parsed.consider || '').trim();
+      _srCurrent.verdictConsider = (notes && cons) ? cons : tpl.c;
+      // Next week and the personal note are only touched when the notes produced something,
+      // and never overwrite text the agent typed themselves.
+      var nw = String(parsed.next_week || '').trim();
+      if (notes && nw && (!String(_srCurrent.customNextWeek || '').trim() || _srCurrent.customNextWeek === _srCurrent._aiNextWeek)) {
+        _srCurrent.customNextWeek = nw; _srCurrent._aiNextWeek = nw;
+      }
+      var pn = String(parsed.personal_note || '').trim();
+      if (notes && pn && (!String(_srCurrent.personalNote || '').trim() || _srCurrent.personalNote === _srCurrent._aiPersonalNote)) {
+        _srCurrent.personalNote = pn; _srCurrent._aiPersonalNote = pn;
       }
     } else {
-      // Unparseable response: keep the prose as the summary and fall back to the
-      // free template for the verdict rather than losing the whole call.
-      _srCurrent.feedbackSummary = out.trim();
-      var tf = _srVerdictTemplate(dg);
+      // Unreadable reply: fall back to the stock wording rather than putting raw output in
+      // front of a seller.
       _srCurrent.meaningSource   = 'template';
-      _srCurrent.verdictStatus   = dg.status;
-      _srCurrent.verdictMeaning  = tf.m;
-      _srCurrent.verdictConsider = tf.c;
+      _srCurrent.verdictMeaning  = tpl.m;
+      _srCurrent.verdictConsider = tpl.c;
+      alert('The AI reply could not be read, so the stock wording was used. Press Write the report to try again.');
     }
-    // Redraw wherever they are. Sending them back to Showings made sense when the button
-    // lived there; from the final page it throws them away from the text just written.
     _srRerender(_srCurrent._activeTab || 'message');
-    if (btn) { btn.disabled = false; btn.textContent = '\u2728 Rewrite from this week\u2019s numbers'; }
   } catch (e) {
-    alert('Could not generate the summary: ' + e.message);
-    if (btn) { btn.disabled = false; btn.textContent = orig || '\u2728 Generate Feedback Summary'; }
+    alert('Could not write the report: ' + e.message);
+    restore();
   }
 }
 window.srGenerateFeedbackSummary = srGenerateFeedbackSummary;
@@ -30732,7 +31018,7 @@ function srTabOnline() {
   ];
 
   var html = '<div style="font-size:14px;font-weight:600;margin-bottom:4px;">Online Activity</div>'
-    + '<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Save your listing links once — tap Open to check stats, then enter the numbers. Only filled platforms show in the report.</div>'
+    + '<div style="font-size:12px;color:var(--text3);margin-bottom:6px;">Save your listing links once — tap Open to check stats, then enter the numbers. Only filled platforms show in the report. Enter the running total each site shows \u2014 the report works out what is new since your last one.</div>'
     + '<div style="font-size:12px;color:var(--green-dk);background:var(--green-lt);border-radius:6px;padding:7px 10px;margin-bottom:14px;">💾 Links save automatically for future reports — you only need to enter them once.</div>';
 
   platforms.forEach(function(p) {
@@ -30745,7 +31031,9 @@ function srTabOnline() {
       + '<div style="font-size:11px;color:var(--text3);margin-bottom:6px;">Listing URL (save once)</div>'
       + '<input type="text" id="sr-'+p.key+'-url" value="'+partnerEsc(d.url)+'" onchange="srSaveLink(\''+p.key+'\',this.value)" placeholder="Paste your '+p.label+' listing URL" style="width:100%;box-sizing:border-box;font-size:12px;margin-bottom:10px;"/>'
       + '<div style="display:flex;gap:10px;">'
-      + '<div style="flex:1;"><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Views</div><input type="number" id="sr-'+p.key+'-views" value="'+(d.views||'')+'" placeholder="0" style="width:100%;font-size:14px;text-align:center;" min="0"/></div>'
+      + '<div style="flex:1;"><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Views (running total)</div><input type="number" id="sr-'+p.key+'-views" value="'+(d.views||'')+'" placeholder="0" style="width:100%;font-size:14px;text-align:center;" min="0"/>'
+        + ((_srCurrent.prevOnline && Number(_srCurrent.prevOnline[p.key]) > 0) ? '<div style="font-size:10.5px;color:var(--text3);margin-top:3px;text-align:center;">last report: '+_srNum(_srCurrent.prevOnline[p.key])+'</div>' : '')
+        + '</div>'
       + (!p.noSaves ? '<div style="flex:1;"><div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Saves / Favorites</div><input type="number" id="sr-'+p.key+'-saves" value="'+(d.saves||'')+'" placeholder="0" style="width:100%;font-size:14px;text-align:center;" min="0"/></div>' : '<input type="hidden" id="sr-'+p.key+'-saves" value="0"/>')
       + '</div>'
       + '</div>';
@@ -30962,31 +31250,45 @@ function srAddCompRow(type) {
 window.srAddCompRow = srAddCompRow;
 
 function srTabMessage() {
-  var dg = _srDiagnose();   // same numbers the Showings tab uses — deterministic, not AI
+  var dg = _srDiagnose();   // same numbers every other part of the report uses
+  var vs = _srViewStats();
   var cur = _srCurrent.verdictStatus || '';
   var html = '';
+  var since = _srHasPrior() ? _srSinceLabel() : 'so far';
 
-  // Offers are attached from Offer Manager, which many agents will not be using yet. Without
-  // this they would have no idea offers are part of the report until the email had gone out.
-  var _mgrOffers = (_srCurrent.offers || []).length;
+  // ---- Offers: every one on file shows by default; untick to leave one out of this report ----
+  var _all = (_srCurrent.offers || []);
   var _manual = Number(_srCurrent.manualOfferCount) || 0;
   html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;margin-bottom:14px;">'
-    + '<div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:7px;">Offers this week</div>'
-    + (_mgrOffers
-        ? '<div style="font-size:13px;">' + _mgrOffers + ' offer' + (_mgrOffers===1?'':'s') + ' from Offer Manager \u2014 included with full detail.</div>'
-        : '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Nothing attached from Offer Manager.'
-          + '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
-            + '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;">'
-              + '<input type="checkbox" id="sr-manual-offers-on"' + (_manual > 0 ? ' checked' : '') + ' onchange="srToggleManualOffers()"> We received offers this week'
-            + '</label>'
-            + '<input type="number" min="1" id="sr-manual-offers" value="' + (_manual || 1) + '" onchange="srSaveManualOffers()" style="width:64px;font-size:13px;' + (_manual > 0 ? '' : 'display:none;') + '">'
-          + '</div>'
-          + '<div style="font-size:11px;color:var(--text3);margin-top:7px;line-height:1.5;">Working offers through Offer Manager puts the terms in the report automatically.</div>'
-        + '</div>')
-  + '</div>';
+    + '<div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text3);margin-bottom:7px;">Offers</div>';
+  if (_all.length) {
+    var _ex = _srCurrent.offerExclude || {};
+    html += '<div style="font-size:11.5px;color:var(--text3);margin-bottom:7px;line-height:1.5;">Every offer on file is shown to your seller with its status. Untick one to leave it out of this report. Only offers received ' + since + ' are described as new.</div>';
+    _all.slice().sort(function(a, b){ return _srOfferMs(b) - _srOfferMs(a); }).forEach(function(o){
+      var ms = _srOfferMs(o);
+      var isNew = _srOfferIsNew(o);
+      html += '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:0.5px solid var(--border);font-size:12.5px;cursor:pointer;">'
+        + '<input type="checkbox"' + (_ex[o.id] ? '' : ' checked') + ' onchange="srToggleOffer(\'' + o.id + '\',this.checked)" style="flex-shrink:0;"/>'
+        + '<span style="flex:1;min-width:0;">' + partnerEsc(o.offerPrice || 'Offer')
+          + (o.agentName ? ' <span style="color:var(--text3);">· ' + partnerEsc(o.agentName) + '</span>' : '')
+          + (ms ? ' <span style="color:var(--text3);">· ' + _srFmtDay(_srYmd(new Date(ms))) + '</span>' : '') + '</span>'
+        + '<span style="font-size:10.5px;font-weight:600;color:' + (isNew ? 'var(--green-dk)' : 'var(--text3)') + ';flex-shrink:0;">' + (isNew ? 'NEW · ' : '') + partnerEsc(o.status || 'Received') + '</span>'
+        + '</label>';
+    });
+  } else {
+    html += '<div style="font-size:12.5px;color:var(--text2);line-height:1.6;">Nothing attached from Offer Manager.'
+      + '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+        + '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;">'
+          + '<input type="checkbox" id="sr-manual-offers-on"' + (_manual > 0 ? ' checked' : '') + ' onchange="srToggleManualOffers()"> We received offers ' + since
+        + '</label>'
+        + '<input type="number" min="1" id="sr-manual-offers" value="' + (_manual || 1) + '" onchange="srSaveManualOffers()" style="width:64px;font-size:13px;' + (_manual > 0 ? '' : 'display:none;') + '">'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:7px;line-height:1.5;">Working offers through Offer Manager puts the terms in the report automatically.</div>'
+    + '</div>';
+  }
+  html += '</div>';
 
-  // Names the specific fields rather than stating a rule. An agent skims 'check your entries'
-  // and acts on 'Zillow views and reverse prospecting are blank'.
+  // Names the specific gaps rather than stating a rule.
   var _blank = (typeof _srBlankFields === 'function') ? _srBlankFields() : [];
   if (_blank.length) {
     var list = _blank.length === 1 ? _blank[0]
@@ -30994,30 +31296,46 @@ function srTabMessage() {
     html += '<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--r);padding:11px 13px;margin-bottom:14px;">'
       + '<div style="font-size:12.5px;color:#92400E;line-height:1.6;">'
         + 'You have not filled in <strong>' + partnerEsc(list) + '</strong>. '
-        + 'These are left out of the report rather than shown as zero \u2014 go back if you meant to include them.'
+        + 'These are left out of the report rather than shown as zero — go back if you meant to include them.'
+      + '</div></div>';
+  }
+  var _gaps = (typeof _srPortalGaps === 'function') ? _srPortalGaps() : [];
+  if (_gaps.length || vs.behind) {
+    html += '<div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:var(--r);padding:11px 13px;margin-bottom:14px;">'
+      + '<div style="font-size:12.5px;color:#92400E;line-height:1.6;">'
+        + (_gaps.length ? '<strong>' + partnerEsc(_gaps.join(', ')) + '</strong> had views in your last report and ' + (_gaps.length === 1 ? 'is' : 'are') + ' blank now. ' : '')
+        + (vs.behind ? 'Your total online views (' + _srNum(vs.total) + ') are lower than last report\'s (' + _srNum(vs.prevTotal) + '), so views for this period cannot be worked out. ' : '')
+        + 'Enter each portal\'s running total on the Online page so the comparison is right.'
       + '</div></div>';
   }
 
-  // Every earlier page gathers a piece; this is where they come together. The AI sits here
-  // rather than on the Showings tab because it now writes from the whole week — reverse
-  // prospecting, portal figures, offers — not just the ShowingTime PDF.
-  html += '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="width:100%;background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:11px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:14px;">'
-    + (_srCurrent.feedbackSummary ? '\u2728 Rewrite from this week\u2019s numbers' : '\u2728 Write these from this week\u2019s numbers')
-    + '</button>';
-  // ---- 3. What buyers said ----
-  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">What buyers said</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px;">Write it yourself, or let the button above fill it in.</div>'
-    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:150px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
+  // ---- Notes for the AI ----
+  html += '<div style="background:#F5F3FF;border:1px solid #C7D2FE;border-radius:var(--r);padding:12px 14px;margin-bottom:10px;">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">Tell the AI what’s going on <span style="font-weight:400;color:var(--text3);">(optional)</span></div>'
+    + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px;line-height:1.5;">Type anything that helps explain this listing right now: what buyers said, what you and the seller have discussed, what you plan to do. The AI uses it to write the report. Your seller never sees these notes as typed. To change the report, edit these notes and press the button again.</div>'
+    + '<textarea id="sr-ai-notes" oninput="_srCurrent.aiNotes=this.value" placeholder="Both showings loved the kitchen. One said the yard is small. Seller wants to hold the price two more weeks. Open house Sunday." style="width:100%;box-sizing:border-box;font-size:13px;height:84px;resize:vertical;line-height:1.5;">' + partnerEsc(_srCurrent.aiNotes || '') + '</textarea>'
     + '</div>';
 
-  // ---- 4. The read — sits beside the feedback that informs it ----
+  html += '<button id="sr-ai-summary-btn" onclick="srGenerateFeedbackSummary()" style="width:100%;background:#4F46E5;color:#fff;border:none;border-radius:var(--r);padding:12px;font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:14px;">'
+    + ((_srCurrent.feedbackSummary || _srCurrent.verdictMeaning) ? '✨ Rewrite the report' : '✨ Write the report')
+    + '</button>';
+
+  // ---- What buyers said ----
+  html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">What buyers said</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px;">Filled by the button above. Edit it freely, or leave it blank to skip it in the email.</div>'
+    + '<textarea id="sr-feedback-summary" oninput="_srCurrent.feedbackSummary=this.value" placeholder="Themes, interest levels, price opinions..." style="width:100%;box-sizing:border-box;font-size:13px;height:130px;resize:vertical;line-height:1.6;">'+partnerEsc(_srCurrent.feedbackSummary||'')+'</textarea>'
+    + '</div>';
+
+  // ---- The read ----
   html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;">'
     + '<div style="font-size:13px;font-weight:600;margin-bottom:2px;">What it means</div>'
-    + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px;">Your read on the week. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.</div>'
+    + '<div style="font-size:11px;color:var(--text3);margin:0 0 8px;">Your read on where things stand. Tap a status to rewrite the wording; once you edit it yourself it stays put. Leave both blank to skip this in the email.</div>'
     + '<div style="font-size:11px;color:var(--text3);background:var(--surface2);border-radius:var(--r-sm);padding:6px 9px;margin-bottom:8px;">'
-    + 'This week: ' + dg.showings + ' showing' + (dg.showings!==1?'s':'') + ' \u00b7 ' + dg.views + ' online view' + (dg.views!==1?'s':'')
-    + ' \u00b7 ' + dg.offers + ' offer' + (dg.offers!==1?'s':'') + (dg.dom!==null ? ' \u00b7 ' + dg.dom + ' DOM' : '')
+    + (_srHasPrior() ? 'Since ' + _srFmtDay(_srPeriodStart()) : 'So far') + ': ' + _srPlural(dg.showings, 'showing')
+    + (dg.views !== null ? ' · ' + _srPlural(dg.views, 'online view') + (_srHasPrior() ? ' (' + _srNum(vs.total) + ' total)' : '') : '')
+    + (dg.newOffers ? ' · ' + _srPlural(dg.newOffers, 'new offer') : '')
+    + (dg.dom!==null ? ' · ' + dg.dom + ' DOM' : '')
     + '</div>';
 
   html += '<div style="display:flex;gap:6px;margin-bottom:8px;">';
@@ -31027,15 +31345,18 @@ function srTabMessage() {
   });
   html += '</div>';
 
-  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:11.5px;font-weight:600;cursor:pointer;margin-bottom:8px;">Fill from this week\'s numbers</button>'
+  html += '<button id="sr-verdict-ai" onclick="srDraftVerdict()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:8px;font-size:11.5px;font-weight:600;cursor:pointer;margin-bottom:8px;">Use the stock wording for these numbers (no AI)</button>'
     + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What this means</label>'
-    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on the week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;margin-bottom:8px;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
+    + '<textarea id="sr-verdict-meaning" oninput="_srCurrent.verdictEdited=true;" placeholder="Plain-language read on where things stand..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;margin-bottom:8px;">'+partnerEsc(_srCurrent.verdictMeaning||'')+'</textarea>'
     + '<label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:4px;">What to consider</label>'
-    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them this week..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '<textarea id="sr-verdict-consider" oninput="_srCurrent.verdictEdited=true;" placeholder="The decision in front of them..." style="width:100%;box-sizing:border-box;font-size:13px;height:70px;resize:vertical;">'+partnerEsc(_srCurrent.verdictConsider||'')+'</textarea>'
+    + '<div style="font-size:11px;color:var(--text3);margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Recommend a change after'
+      + '<input type="number" min="7" max="365" value="' + _srDomLimit() + '" onchange="srSetDomLimit(this.value)" style="width:58px;font-size:12px;text-align:center;"/>'
+      + 'days on market with no offer. Saved for all your reports.</div>'
     + '</div>';
 
 
-  html += '<div style="font-size:14px;font-weight:600;margin-bottom:14px;">Personal Message</div>';
+  html += '<div style="font-size:14px;font-weight:600;margin:16px 0 14px;">Personal Message</div>';
 
   html += '<div style="margin-bottom:14px;">'
     + '<label style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;display:block;margin-bottom:6px;">Email Subject</label>'
@@ -31057,6 +31378,19 @@ function srTabMessage() {
   return html;
 }
 
+// Portals that carried a number in the last report and are blank in this one. Views are
+// running totals, so a skipped portal makes the period look like traffic fell.
+function _srPortalGaps() {
+  var prev = (_srCurrent && _srCurrent.prevOnline) || null;
+  if (!prev) return [];
+  var oa = _srCurrent.onlineActivity || {};
+  var names = { zillow:'Zillow', realtor:'Realtor.com', redfin:'Redfin', homes:'Homes.com', social:'Social Media' };
+  return Object.keys(names).filter(function(k){
+    return Number(prev[k]) > 0 && !(Number(oa[k] && oa[k].views) > 0);
+  }).map(function(k){ return names[k]; });
+}
+window._srPortalGaps = _srPortalGaps;
+
 // Read this week's numbers and decide which way the listing is trending. Deterministic
 // on purpose — the AI writes the wording, but the call comes from the actual data so two
 // agents with the same numbers get the same verdict.
@@ -31067,55 +31401,65 @@ var SR_VERDICTS = {
 };
 
 function _srDiagnose() {
-  var kept = (_srCurrent.showings||[]).filter(function(s){ return s.keep!==false && (s.date||s.agent); }).length;
-  var showings = kept || (_srCurrent.quickShowingCount||0);
-  var views    = _srTotalViews();
-  var offers   = (_srCurrent.offers||[]).length;
+  var sc = _srShowingCounts();
+  var vs = _srViewStats();
+  var oc = _srOfferCounts();
+  var showings = sc.period;
   var domRaw   = srDom(_srCurrent.listing||{});
   var dom      = (typeof domRaw === 'number') ? domRaw : null;
   var ps       = _srCurrent.prevStats || null;
-  var pv       = (ps && typeof ps.totalViews === 'number') ? ps.totalViews : null;
-  var pshow    = (ps && typeof ps.showings   === 'number') ? ps.showings   : null;
+  // Reports saved before the reporting period existed stored an all-time showing count, which
+  // is not comparable to a period count, so only newer ones (v 2) are used for "up from".
+  var pshow    = (ps && ps.v === 2 && typeof ps.showings === 'number') ? ps.showings : null;
+  var limit    = _srDomLimit();
+  var days     = _srPeriodDays();
 
   var status = 'ontrack';
   var signals = [];
   var primary = 'steady';
+  var drop = false;
 
-  if (offers > 0) {
-    signals.push(offers + ' offer' + (offers!==1?'s':'') + ' in hand');
-    primary = 'offers';
-  } else if (showings >= 12) {
+  // An offer is reported as a fact. It no longer decides the status: one stale offer used to
+  // make every later report read "On track".
+  if (oc.fresh > 0) signals.push(_srPlural(oc.fresh, 'new offer') + ' received in this period');
+
+  if (showings >= 12 && oc.open === 0) {
     signals.push('heavy showing traffic and still no offers — points at price against condition, and the feedback says which');
     status = 'adjust';
     primary = 'heavy';
-  } else if (showings === 0 && dom !== null && dom >= 10) {
-    signals.push('no showings at all this week — that is the signal to act on, whatever the online numbers say');
+  } else if (showings === 0 && oc.fresh === 0 && dom !== null && dom >= 10 && days >= 5) {
+    signals.push('no showings at all in this period');
     status = 'adjust';
     primary = 'noshow';
-  } else if (views >= 150 && showings <= 1) {
-    signals.push('plenty of people finding it online but almost nobody booking — first-glance appeal or price, not exposure');
+  } else if (vs.period !== null && vs.period >= 500 && showings <= 1) {
+    signals.push('plenty of people finding it online but almost nobody booking');
     status = 'watching';
     primary = 'notbooking';
-  } else if (views > 0 && views < 60 && showings <= 1) {
+  } else if (vs.period !== null && vs.period < 100 && showings <= 1) {
     signals.push('low online traffic and low showings — exposure or price band, check the search-filter thresholds');
     status = 'adjust';
     primary = 'lowtraffic';
   }
 
-  if (pv !== null && pv > 0 && views < pv * 0.6) {
-    signals.push('online views down sharply from ' + pv + ' last week');
+  if (vs.period !== null && vs.prevPeriod !== null && vs.prevPeriod > 0 && vs.period < vs.prevPeriod * 0.6) {
+    signals.push('online views slowed: ' + vs.period + ' in this period against ' + vs.prevPeriod + ' in the one before');
+    drop = true;
     if (status === 'ontrack') status = 'watching';
   }
-  if (pshow !== null && showings > pshow) signals.push('showings up from ' + pshow + ' last week');
-  if (dom !== null && dom > 45 && offers === 0) {
-    signals.push(dom + ' days on market with no offers yet');
+  if (pshow !== null && showings > pshow) signals.push('showings up from ' + pshow + ' in the previous report');
+  if (dom !== null && dom > limit && oc.open === 0) {
+    signals.push(dom + ' days on market with no offer');
     status = 'adjust';
-    primary = 'dom45';
+    primary = 'dom';
   }
-  if (!signals.length) signals.push('steady week, nothing out of the ordinary');
+  if (!signals.length) signals.push('steady, nothing out of the ordinary');
 
-  return { status:status, primary:primary, showings:showings, views:views, offers:offers, dom:dom,
-           prevViews:pv, prevShowings:pshow, signals:signals };
+  return { status:status, primary:primary,
+           showings:showings, totalShowings:sc.total, upcoming:sc.upcoming,
+           views:vs.period, totalViews:vs.total,
+           offers:oc.total, newOffers:oc.fresh, openOffers:oc.open,
+           dom:dom, domLimit:limit, drop:drop,
+           prevViews:vs.prevPeriod, prevShowings:pshow, signals:signals };
 }
 window._srDiagnose = _srDiagnose;
 
@@ -31123,60 +31467,70 @@ window._srDiagnose = _srDiagnose;
 // Writes the verdict from the numbers alone — no API call. This covers the ordinary
 // week. The AI version only earns its cost when there's real buyer feedback to fold in.
 function _srVerdictTemplate(dg, forceStatus) {
-  var sh = dg.showings, vw = dg.views, of = dg.offers, dm = dg.dom;
-  var n = function(v, w){ return v + ' ' + w + (v!==1?'s':''); };
-  var week = 'This week the home had ' + n(sh,'showing') + ' and ' + n(vw,'online view') + '.';
-  var drop = (dg.prevViews !== null && vw < dg.prevViews * 0.6)
-    ? ' Online views are down from ' + dg.prevViews + ' last week. That fade is normal — the burst of attention a new listing gets tapers after the first couple of weeks, and from here traffic comes from buyers actively shopping your price range rather than people browsing.'
+  var sh = dg.showings, vw = dg.views, dm = dg.dom;
+  var prior = _srHasPrior();
+  var lead = prior ? 'Since the last report the home had ' : 'So far the home has had ';
+  var week = lead + _srPlural(sh, 'showing') + (vw !== null ? ' and ' + _srPlural(vw, 'online view') : '') + '.';
+  // Offers are stated as a fact and nothing more. What to do with one is the agent's
+  // conversation to have, not the report's.
+  var offer = dg.newOffers > 0
+    ? ' We received ' + _srPlural(dg.newOffers, 'offer') + ' ' + (prior ? 'since the last report' : 'so far') + '. The details are below.'
+    : '';
+  var drop = dg.drop
+    ? ' Online views have slowed from ' + _srNum(dg.prevViews) + ' in the period before. That fade is normal — the burst of attention a new listing gets tapers after the first couple of weeks, and from here traffic comes from buyers actively shopping your price range rather than people browsing.'
     : '';
   var T = {
-    offers: {
-      m: week + ' We have ' + n(of,'offer') + ' in hand, which is the outcome all of this was aimed at.',
-      c: 'Focus now shifts to terms, not exposure — price, financing strength, contingencies and timeline. I will walk you through how each offer compares before you decide.'
-    },
     heavy: {
       m: week + ' That is heavy traffic, and traffic that heavy without an offer usually means buyers like the house enough to walk through it but something stops them at the decision.' + drop,
       c: 'With this many people through the door, the question is price against condition rather than exposure. The showing feedback points to which one. Worth sitting down this week to look at both.'
     },
     noshow: {
-      m: week + ' No showings at all is the number that matters here, whatever the online activity looks like.' + drop,
-      c: 'When nobody is booking, the listing is not competing with the other homes buyers are seeing at this price. That is usually price position or how the home presents in the first two photos. I would like to talk through both this week.'
+      m: (vw !== null
+            ? (prior ? 'Since the last report the home had ' : 'So far the home has had ') + _srPlural(vw, 'online view') + ' and no showings.'
+            : 'The home has had no showings ' + (prior ? 'since the last report.' : 'so far.'))
+         + (dm !== null ? ' At ' + dm + ' days on market, buyers in this price range have seen it online and are choosing not to schedule a visit.' : '') + drop,
+      c: 'When buyers pass on a home without seeing it, it isn’t competing with the other homes at this price. I’d like to talk through our options this week.'
     },
     notbooking: {
-      m: week + ' People are finding the home online but very few are booking a showing, which tells us exposure is not the problem.' + drop,
-      c: 'When views are strong and showings are not, buyers are ruling the home out from the photos and the price before they ever walk in. That points at the lead photo and the price positioning rather than anything inside the house.'
+      m: week + ' Buyers are finding the home online, but very few are scheduling a showing.' + drop,
+      c: 'When views are strong and showings are not, buyers are ruling the home out before they visit. There can be several reasons for that, and I’d like to go over them with you.'
     },
     lowtraffic: {
       m: week + ' Both the online traffic and the showing count are light.' + drop,
       c: 'Buyers set price caps on their searches at round numbers, so a home sitting just above one is invisible to an entire bracket. Worth checking where we land against the nearest threshold.'
     },
-    dom45: {
+    dom: {
       m: week + ' We are at ' + dm + ' days on market without an offer.' + drop,
       c: 'At this point on the calendar it is worth a real conversation about a change, regardless of how any single week looked. Let us find time this week.'
     },
-    steady: {
-      m: week + ' Nothing unusual either direction — a steady week.' + drop,
-      c: 'No change needed right now. I will keep the marketing running and flag it early if the numbers start moving the wrong way.'
-    }
+    steady: (dg.newOffers > 0)
+      ? { m: week + offer + drop, c: '' }
+      : {
+          m: week + ' Nothing unusual either direction — a steady week.' + drop,
+          c: 'No change needed right now. I will keep the marketing running and flag it early if the numbers start moving the wrong way.'
+        }
   };
   // Agent overrode the computed status — speak to the status they chose, not the
   // signal the data found, or the pill and the paragraph end up contradicting.
   var S = {
     ontrack: {
-      m: week + ' Nothing in this week calls for a change.' + drop,
+      m: week + offer + ' Nothing here calls for a change.' + drop,
       c: 'Holding the current plan. I will keep the marketing running and raise it early if the numbers start moving the wrong way.'
     },
     watching: {
-      m: week + ' Worth watching closely rather than acting on yet.' + drop,
+      m: week + offer + ' Worth watching closely rather than acting on yet.' + drop,
       c: 'No change this week. I want another week of data before we decide anything — I will flag it straight away if the trend holds.'
     },
     adjust: {
-      m: week + ' Taken together, this is the point to talk about a change.' + drop,
-      c: 'I would like to sit down this week and look at price against condition. Let us find time.'
+      m: week + offer + ' Taken together, this is the point to talk about a change.' + drop,
+      c: 'I recommend we make a change to boost activity and bring in more buyers. Let’s talk this week about what that should be.'
     }
   };
   if (forceStatus && forceStatus !== dg.status) return S[forceStatus] || S.ontrack;
-  return T[dg.primary] || T.steady;
+  var t = T[dg.primary] || T.steady;
+  // A new offer alongside one of the other readings is still stated, once, as a fact.
+  if (offer && dg.primary !== 'steady') t = { m: t.m.replace(week, week + offer), c: t.c };
+  return t;
 }
 window._srVerdictTemplate = _srVerdictTemplate;
 
@@ -31242,13 +31596,10 @@ function srBuildEmailHtml() {
   var address = l.address || '';
   var dom = srDom(l);
   var showings = _srCurrent.showings.filter(function(s){ return s.keep!==false && (s.date||s.agent); });
-  var totalShowings = (_srCurrent.quickShowingCount > 0) ? _srCurrent.quickShowingCount : showings.length;
-  var thisWeekCount = showings.length ? showings.filter(function(s){
-    if (!s.date) return false;
-    var d = new Date(s.date); var now = new Date();
-    var diff = (now - d) / 86400000;
-    return diff >= 0 && diff <= 7;
-  }).length : (_srCurrent.quickShowingCount||0);
+  // One source for every count in the email: the reporting period helpers.
+  var _sc = _srShowingCounts(), _vs = _srViewStats(), _oc = _srOfferCounts();
+  var totalShowings = _sc.total;
+  var thisWeekCount = _sc.period;
 
   // Totals
   var oa = _srCurrent.onlineActivity;
@@ -31307,36 +31658,37 @@ function srBuildEmailHtml() {
   html += '<div style="font-size:13px;color:#888;">'+address+' &nbsp;·&nbsp; '+new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'</div>';
   html += '</div>';
 
-  var offerCount = (_srCurrent.offers||[]).length;
-  var activeOffers = (_srCurrent.offers||[]).filter(function(o){ return o.status !== 'Archived'; }).length;
+  var offerCount = _oc.total;      // offers the agent left ticked for this report
+  var activeOffers = _oc.open;
 
   // Big stats
-  html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
-  html += '<div style="display:grid;grid-template-columns:repeat('+(offerCount>0?5:4)+',1fr);gap:12px;text-align:center;">';
-  // Week-over-week wording, not percentages — plain numbers keep the seller on the
-  // question instead of arguing with the math. Only shown once a prior report exists.
+  var _hasPriorRpt = _srHasPrior();
+  var _sinceLbl = _srSinceLabel();
   var ps = _srCurrent.prevStats || null;
-  function deltaHtml(cur, prev) {
-    if (prev === null || prev === undefined || isNaN(prev)) return '';
-    var d = cur - prev;
-    var txt, col;
-    if (d > 0)      { txt = '▲ up from '   + prev; col = '#157A5A'; }
-    else if (d < 0) { txt = '▼ down from ' + prev; col = '#B45309'; }
-    else            { txt = 'no change';           col = '#9CA3AF'; }
-    return '<div style="font-size:9.5px;color:'+col+';margin-top:3px;line-height:1.3;">'+txt+'</div>';
-  }
+  var _prevShow = (ps && ps.v === 2 && typeof ps.showings === 'number') ? ps.showings : null;
   var stats = [
-    {label:'Showings This Week', value:thisWeekCount, color:green, prev: ps ? ps.showings : null},
+    {label: _hasPriorRpt ? ('Showings ' + _sinceLbl) : 'Showings So Far', value:thisWeekCount, color:green,
+     sub: (_prevShow === null) ? '' : (thisWeekCount > _prevShow ? '▲ up from ' + _prevShow : (thisWeekCount < _prevShow ? '▼ down from ' + _prevShow : 'no change')),
+     subCol: (_prevShow === null) ? '' : (thisWeekCount > _prevShow ? '#157A5A' : (thisWeekCount < _prevShow ? '#B45309' : '#9CA3AF'))},
     {label:'Total Showings', value:totalShowings, color:'#1D4ED8'},
-    {label:'Days on Market', value:dom, color:'#D97706'},
-    {label:'Total Online Views', value:totalViews, color:'#7C3AED', prev: ps ? ps.totalViews : null}
+    {label:'Days on Market', value:dom, color:'#D97706'}
   ];
-  if (offerCount > 0) stats.push({label:'Offers Received', value:offerCount, color:'#E24B4A', prev: ps ? ps.offers : null});
+  // Left out entirely when no portal numbers were entered, rather than shown as zero.
+  if (_vs.entered) {
+    stats.push({label:'Total Online Views', value:_srNum(totalViews), color:'#7C3AED',
+      sub: (_hasPriorRpt && _vs.period !== null) ? ('+' + _srNum(_vs.period) + ' ' + _sinceLbl) : '', subCol:'#157A5A'});
+  }
+  if (offerCount > 0) {
+    stats.push({label:'Offers Received', value:offerCount, color:'#E24B4A',
+      sub: (_oc.fresh > 0 && _oc.fresh < offerCount) ? (_oc.fresh + ' new') : '', subCol:'#157A5A'});
+  }
+  html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
+  html += '<div style="display:grid;grid-template-columns:repeat('+stats.length+',1fr);gap:12px;text-align:center;">';
   stats.forEach(function(s) {
     html += '<div style="background:#F9FAFB;border-radius:10px;padding:14px 8px;">';
     html += '<div style="font-size:28px;font-weight:800;color:'+s.color+';">'+s.value+'</div>';
     html += '<div style="font-size:10px;color:#888;margin-top:2px;line-height:1.3;">'+s.label+'</div>';
-    html += deltaHtml(s.value, (s.prev===undefined?null:s.prev));
+    if (s.sub) html += '<div style="font-size:9.5px;color:'+(s.subCol||'#9CA3AF')+';margin-top:3px;line-height:1.3;">'+s.sub+'</div>';
     html += '</div>';
   });
   html += '</div></div>';
@@ -31387,20 +31739,34 @@ function srBuildEmailHtml() {
     html += '</div></div>';
   }
 
-  // Offers received
+  // Offers received. Stated as fact: what came in, and where each one stands. New ones first.
   if (offerCount > 0) {
     html += '<div style="background:#FFF5F5;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
     html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:12px;">📋 Offers Received</div>';
-    html += '<div style="font-size:13px;color:#333;margin-bottom:10px;">We have received <strong>'+offerCount+' offer'+(offerCount!==1?'s':'')+'</strong> on your property. Your agent is reviewing and will be in touch.</div>';
-    var activeOfferList = (_srCurrent.offers||[]).filter(function(o){ return o.status !== 'Archived'; });
-    if (activeOfferList.length) {
-      activeOfferList.forEach(function(o) {
-        html += '<div style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:6px;border-left:4px solid #E24B4A;">';
-        if (o.offerPrice) html += '<div style="font-size:14px;font-weight:700;color:#E24B4A;">'+o.offerPrice+'</div>';
-        if (o.agentName) html += '<div style="font-size:12px;color:#666;margin-top:2px;">From: '+o.agentName+(o.agentBrokerage?' · '+o.agentBrokerage:'')+'</div>';
-        if (o.status) html += '<div style="font-size:11px;color:#888;margin-top:2px;">Status: '+o.status+'</div>';
-        html += '</div>';
-      });
+    if (_oc.fresh > 0) {
+      html += '<div style="font-size:13px;color:#333;margin-bottom:10px;">We received <strong>'+_oc.fresh+' offer'+(_oc.fresh!==1?'s':'')+'</strong> '
+        + (_srHasPrior() ? 'since the last report' : 'so far') + '.</div>';
+    }
+    var _incOffers = _srOffersIncluded().slice().sort(function(a, b){ return _srOfferMs(b) - _srOfferMs(a); });
+    var _offerCard = function(o, isNew) {
+      var ms = _srOfferMs(o);
+      var c = '<div style="background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:6px;border-left:4px solid '+(isNew?'#E24B4A':'#D1D5DB')+';">';
+      if (o.offerPrice) c += '<div style="font-size:14px;font-weight:700;color:'+(isNew?'#E24B4A':'#555')+';">'+o.offerPrice+'</div>';
+      if (o.agentName) c += '<div style="font-size:12px;color:#666;margin-top:2px;">From: '+o.agentName+(o.agentBrokerage?' · '+o.agentBrokerage:'')+'</div>';
+      c += '<div style="font-size:11px;color:#888;margin-top:2px;">'
+        + (ms ? 'Received ' + new Date(ms).toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' · ' : '')
+        + 'Status: ' + (o.status || 'Received') + '</div>';
+      return c + '</div>';
+    };
+    var _newOffers = _incOffers.filter(_srOfferIsNew);
+    var _oldOffers = _incOffers.filter(function(o){ return !_srOfferIsNew(o); });
+    if (_newOffers.length) {
+      if (_oldOffers.length) html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin:4px 0 6px;">New</div>';
+      _newOffers.forEach(function(o){ html += _offerCard(o, true); });
+    }
+    if (_oldOffers.length) {
+      html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin:10px 0 6px;">Earlier offers</div>';
+      _oldOffers.forEach(function(o){ html += _offerCard(o, false); });
     }
     html += '</div>';
   }
@@ -31408,22 +31774,39 @@ function srBuildEmailHtml() {
   // Reverse prospecting
   if (_srCurrent.reverseProspecting > 0) {
     html += '<div style="background:#EFF6FF;padding:16px 24px;border-bottom:1px solid #e8e8e8;text-align:center;">';
-    html += '<div style="font-size:28px;font-weight:800;color:#1D4ED8;">'+_srCurrent.reverseProspecting+'</div>';
-    html += '<div style="font-size:13px;color:#1D4ED8;margin-top:4px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.5;">buyer\'s agents in the MLS were sent your property because it matches their active buyers\' search criteria — price range, location, and features.</div>';
+    html += '<div style="font-size:28px;font-weight:800;color:#1D4ED8;">'+_srNum(_srCurrent.reverseProspecting)+'</div>';
+    html += '<div style="font-size:13px;color:#1D4ED8;margin-top:4px;max-width:460px;margin-left:auto;margin-right:auto;line-height:1.5;">active buyers in the MLS have search criteria that match your home — price range, location, and features — and your property was sent to each of them through their agent.</div>';
+    if (_srCurrent.rpNew > 0 && _srHasPrior()) {
+      html += '<div style="font-size:12px;color:#1D4ED8;opacity:0.85;margin-top:6px;">'+_srNum(_srCurrent.rpNew)+' new '+_srSinceLabel()+'</div>';
+    }
     html += '</div>';
   }
 
-  // Showings
-  if (showings.length) {
+  // Showings — dates only. Who showed the home stays with the agent; a seller does not need
+  // the names of other agents in their report.
+  if (_sc.listed ? (_sc.total || _sc.upcoming) : (_sc.period || _sc.total)) {
     html += '<div style="background:#fff;padding:20px 24px;border-bottom:1px solid #e8e8e8;">';
     html += '<div style="font-size:16px;font-weight:700;color:#111;margin-bottom:14px;">📅 Showing Activity</div>';
-    showings.forEach(function(s) {
-      var dateStr = s.date ? new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '';
+    var _byDay = {};
+    showings.forEach(function(s){ if (s.date && _srInPeriod(s.date)) _byDay[s.date] = (_byDay[s.date] || 0) + 1; });
+    var _days = Object.keys(_byDay).sort();
+    _days.forEach(function(ymd) {
+      var dateStr = new Date(ymd+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       html += '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:0.5px solid #f0f0f0;">';
       html += '<div style="width:8px;height:8px;background:'+green+';border-radius:50%;flex-shrink:0;"></div>';
-      html += '<div style="font-size:13px;"><strong>'+dateStr+'</strong>'+(s.agent?' — '+s.agent:'')+(s.brokerage?', '+s.brokerage:'')+'</div>';
+      html += '<div style="font-size:13px;"><strong>'+dateStr+'</strong>'+(_byDay[ymd] > 1 ? ' — '+_byDay[ymd]+' showings' : '')+'</div>';
       html += '</div>';
     });
+    if (!_days.length) {
+      html += '<div style="font-size:13px;color:#555;">'
+        + (_sc.listed ? ('No showings ' + (_srHasPrior() ? _srSinceLabel() : 'yet') + '.')
+                      : (_srPlural(_sc.period, 'showing') + ' ' + (_srHasPrior() ? _srSinceLabel() : 'so far') + '.'))
+        + '</div>';
+    }
+    var _foot = [];
+    if (_sc.total) _foot.push(_srPlural(_sc.total, 'showing') + ' in total since listing');
+    if (_sc.upcoming) _foot.push(_sc.upcoming + ' more scheduled');
+    if (_foot.length) html += '<div style="font-size:12px;color:#888;margin-top:10px;">' + _foot.join(' · ') + '</div>';
     html += '</div>';
   }
 
@@ -31659,13 +32042,14 @@ async function srSendReport() {
     // ----- Email is sent. Everything below is bookkeeping and must NOT
     //       surface as a "failed to send" (which would trigger a re-send). -----
     try {
-      var keptShowings = (_srCurrent.showings || []).filter(function(s){ return s.keep!==false; }).length;
+      var _sendSc = _srShowingCounts(), _sendVs = _srViewStats(), _sendOc = _srOfferCounts();
+      var _oaNow = _srCurrent.onlineActivity || {};
       var reportData = {
         listingId: _srCurrent.listingId,
         address: l.address||'',
         subject: subject,
         sentAt: fb.serverTimestamp(),
-        showingCount: keptShowings || (_srCurrent.quickShowingCount||0),
+        showingCount: _sendSc.period,
         reverseProspecting: _srCurrent.reverseProspecting||0,
         agentId: userProfile.agentId|| '',
         emailHtml: emailHtml,
@@ -31682,7 +32066,16 @@ async function srSendReport() {
           nextWeek:       _srCurrent.nextWeek       || {},
           customNextWeek: _srCurrent.customNextWeek || '',
           compsActive:    _srCurrent.compsActive    || [],
-          compsSold:      _srCurrent.compsSold      || []
+          compsSold:      _srCurrent.compsSold      || [],
+          // Running portal totals, so the next report can spot a portal left blank.
+          onlineViews: {
+            zillow:  parseInt(_oaNow.zillow  && _oaNow.zillow.views)  || 0,
+            realtor: parseInt(_oaNow.realtor && _oaNow.realtor.views) || 0,
+            redfin:  parseInt(_oaNow.redfin  && _oaNow.redfin.views)  || 0,
+            homes:   parseInt(_oaNow.homes   && _oaNow.homes.views)   || 0,
+            social:  parseInt(_oaNow.social  && _oaNow.social.views)  || 0
+          },
+          offerExclude: _srCurrent.offerExclude || {}
         },
         // Recorded for history only — srPrefillFromLastReport never carries these,
         // because last week's read is not this week's read.
@@ -31691,11 +32084,19 @@ async function srSendReport() {
           meaning:  _srCurrent.verdictMeaning  || '',
           consider: _srCurrent.verdictConsider || ''
         },
+        // v 2: showings and periodViews are for the reporting period only; the totals are kept
+        // beside them. Older reports stored an all-time showing count under "showings".
         stats: {
-          totalViews:  _srTotalViews(),
-          showings:    keptShowings || (_srCurrent.quickShowingCount||0),
-          offers:      (_srCurrent.offers||[]).length,
-          rp:          _srCurrent.reverseProspecting||0
+          v:             2,
+          periodStart:   _srPeriodStart(),
+          totalViews:    _srTotalViews(),
+          periodViews:   (_sendVs.period === null ? 0 : _sendVs.period),
+          showings:      _sendSc.period,
+          totalShowings: _sendSc.total,
+          offers:        _sendOc.total,
+          newOffers:     _sendOc.fresh,
+          rp:            _srCurrent.reverseProspecting||0,
+          rpMatches:     _srCurrent.rpMatches||0
         }
       };
       await fb.addDoc(fb.collection(fb.db,'users',client.uid,'sellerReports'), reportData);
@@ -31786,7 +32187,7 @@ function srViewHistory(listingId) {
           var d = r.sentAt && r.sentAt.toDate ? r.sentAt.toDate().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
           return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;">'
             + '<div style="font-size:13px;font-weight:600;">'+d+'</div>'
-            + '<div style="font-size:12px;color:var(--text3);margin-top:2px;">'+r.showingCount+' showings · '+r.reverseProspecting+' agents reached</div>'
+            + '<div style="font-size:12px;color:var(--text3);margin-top:2px;">'+r.showingCount+' showings · '+r.reverseProspecting+' buyers reached</div>'
             + '</div>';
         }).join('')
       + '</div>';
@@ -38184,7 +38585,7 @@ function mlsFeedRowHtml(b) {
         + '</div>'
       + '<a href="' + b.mlsFeedActivateUrl + '" target="_blank" rel="noopener" onclick="event.stopPropagation();mlsFeedTapped(\'' + b.uid + '\')" style="display:block;text-align:center;margin-top:7px;background:#B45309;color:#fff;font-size:12px;font-weight:600;padding:9px;border-radius:var(--r);text-decoration:none;">Activate this feed \u2192</a>'
       + '<div style="font-size:10.5px;color:var(--text3);margin-top:5px;line-height:1.55;">Your MLS won\'t start sending until someone opens the search once. Tap above \u2014 it opens your MLS, and you can close the tab straight away.</div>'
-      + (_tapMs ? '<div style="font-size:10.5px;color:#8A5A08;margin-top:4px;line-height:1.5;">You opened this ' + _feedAgo(_tapMs) + ' and no listings have arrived. Open it again, and check the search still exists in your MLS.</div>' : '')
+      + (_tapMs ? '<div style="font-size:10.5px;color:#8A5A08;margin-top:4px;line-height:1.5;">You opened this ' + _feedAgo(_tapMs) + ' and nothing has arrived yet. It may just be a quiet search. If you expected listings by now, open it again and check the search still exists in your MLS.</div>' : '')
       + _feedReasonHtml(b.mlsFeedActivateReason);
   }
   return '<div style="font-size:11.5px;color:'+(live?'#0F7A52':'var(--text3)')+';font-weight:600;">\uD83D\uDCE7 MLS listing feed'
@@ -38270,8 +38671,9 @@ async function mlsFeedTapped(uid) {
 }
 window.mlsFeedTapped = mlsFeedTapped;
 
-// After a tap the feed is given two days to produce a listing before it is flagged again.
-var _FEED_TAP_GRACE_MS = 48 * 3600000;
+// After a tap the feed is given two weeks before it is flagged again. A search can easily go
+// days with nothing new on the market, so a short window would nag about feeds that are fine.
+var _FEED_TAP_GRACE_MS = 14 * 86400000;
 function _feedTsMs(v) {
   if (!v) return 0;
   try {
@@ -38328,7 +38730,7 @@ function renderFeedAlerts() {
     var b = it.b;
     var name = ((b.firstName || '') + ' ' + (b.lastName || '')).trim() || b.email || 'Client';
     var what = it.kind === 'sold' ? 'Neighborhood sold report' : 'Listing emails';
-    var note = it.tapped ? ' \u00b7 opened ' + _feedAgo(it.tapped) + ', nothing received' : '';
+    var note = it.tapped ? ' \u00b7 opened ' + _feedAgo(it.tapped) + ', nothing received yet' : '';
     var fn = it.kind === 'sold' ? 'soldFeedTapped' : 'mlsFeedTapped';
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-top:0.5px solid var(--border);">'
       + '<div style="flex:1;min-width:0;">'
