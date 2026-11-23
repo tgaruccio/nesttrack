@@ -2247,11 +2247,13 @@ setTimeout(function(){
 .soc-av.fb{background:#1877F2;}
 .soc-av.ig{background:linear-gradient(45deg,#F9CE34,#EE2A7B 55%,#6228D7);}
 .soc-av.tt{background:#111;}
+.soc-av.yt{background:#FF0000;}
 .soc-av.all{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
 .soc-av i{position:absolute;right:-3px;bottom:-3px;width:15px;height:15px;border-radius:50%;border:2px solid var(--surface);font-style:normal;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;color:#fff;}
 .soc-av.fb i{background:#1877F2;}
 .soc-av.ig i{background:#E1306C;}
 .soc-av.tt i{background:#FE2C55;}
+.soc-av.yt i{background:#282828;font-size:6px;}
 .soc-chn{min-width:0;flex:1;}
 .soc-chn b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
 .soc-chn span{display:block;font-size:10.5px;color:var(--text3);}
@@ -2368,6 +2370,8 @@ setTimeout(function(){
 .soc-tt-l{display:block;font-size:12px;font-weight:600;color:var(--text);margin:0 0 5px;}
 .soc-tt-sel{width:100%;max-width:300px;font-size:13px;padding:8px 10px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-family:inherit;}
 .soc-tt-row{display:flex;flex-wrap:wrap;gap:6px 18px;}
+.soc-yt-title{width:100%;box-sizing:border-box;font-size:13.5px;padding:9px 11px;border:1.5px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-family:inherit;}
+.soc-yt-title:focus{outline:none;border-color:var(--green);}
 .soc-tt-c{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);cursor:pointer;}
 .soc-tt-c input{width:auto;margin:0;flex-shrink:0;}
 .soc-tt-c.off{color:var(--text3);cursor:not-allowed;opacity:.55;}
@@ -36069,8 +36073,8 @@ window.ntToggleAllRm = ntToggleAllRm;
 
 // ─── Sending connections (Slybroadcast + thanks.io) ───
 // ─── Social: channels, composer, queue ───
-// Opened from the Social tile in Marketing. Every connected Facebook Page, Instagram account
-// and TikTok account is its own channel; a post goes to whichever ones are ticked. The app is only ever
+// Opened from the Social tile in Marketing. Every connected Facebook Page, Instagram account,
+// TikTok account and YouTube channel is its own channel; a post goes to whichever ones are ticked. The app is only ever
 // told names: the access keys stay on the server. Shown to the platform owner until Meta
 // approves the app, then to everyone (the server says when, via "public").
 var _soc = { status:null, posts:[], tab:'queue', filter:'', timer:null, poll:null, c:null, busy:false, loaded:false };
@@ -36098,8 +36102,14 @@ function _socAllowed(){
 function _socToast(t){ if(typeof showToast==='function') showToast(t); }
 function _socChannels(){ return (_soc.status && _soc.status.channels) || []; }
 function _socTtOn(){ return !!(_soc.status && _soc.status.tiktok && _soc.status.tiktok.configured); }
-function _socTypeName(t){ return t==='instagram' ? 'Instagram' : (t==='tiktok' ? 'TikTok' : 'Facebook Page'); }
-function _socTypeColor(t){ return t==='instagram' ? '#E1306C' : (t==='tiktok' ? '#111111' : '#1877F2'); }
+function _socYtOn(){ return !!(_soc.status && _soc.status.youtube && _soc.status.youtube.configured); }
+function _socTypeName(t){ return t==='instagram' ? 'Instagram' : (t==='tiktok' ? 'TikTok' : (t==='youtube' ? 'YouTube' : 'Facebook Page')); }
+function _socTypeColor(t){ return t==='instagram' ? '#E1306C' : (t==='tiktok' ? '#111111' : (t==='youtube' ? '#FF0000' : '#1877F2')); }
+// The places a post can go, by name, for the wording on the page: only the ones switched on.
+function _socPlaces(){
+  var a=['Facebook','Instagram']; if(_socTtOn()) a.push('TikTok'); if(_socYtOn()) a.push('YouTube');
+  return a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+}
 function _socFmtWhen(ms){
   if(!ms) return '';
   try { return new Date(ms).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; }
@@ -36118,9 +36128,9 @@ function _socLocalInput(ms){
   return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
 }
 function _socAvatar(ch, extra){
-  var t = ch.type==='instagram' ? 'ig' : (ch.type==='tiktok' ? 'tt' : 'fb');
+  var t = ch.type==='instagram' ? 'ig' : (ch.type==='tiktok' ? 'tt' : (ch.type==='youtube' ? 'yt' : 'fb'));
   var letter = String(ch.name||'?').replace(/^@/,'').charAt(0).toUpperCase() || '?';
-  return '<span class="soc-av '+t+'"'+(extra||'')+'>'+partnerEsc(letter)+'<i>'+(t==='ig'?'ig':(t==='tt'?'♪':'f'))+'</i></span>';
+  return '<span class="soc-av '+t+'"'+(extra||'')+'>'+partnerEsc(letter)+'<i>'+(t==='ig'?'ig':(t==='tt'?'♪':(t==='yt'?'▶':'f')))+'</i></span>';
 }
 
 // The tile in Marketing. Hidden until the server says this agent may use Social.
@@ -36131,7 +36141,7 @@ async function socialTileCheck(){
   var sub=document.getElementById('sp-social-tile-sub');
   if(sub){
     var n=_socChannels().length;
-    sub.textContent = n ? (n+' account'+(n===1?'':'s')+' connected · plan, schedule and post') : (_socTtOn() ? 'Schedule posts to Facebook, Instagram and TikTok' : 'Schedule posts to Facebook and Instagram');
+    sub.textContent = n ? (n+' account'+(n===1?'':'s')+' connected · plan, schedule and post') : ('Schedule posts to '+_socPlaces());
   }
 }
 window.socialTileCheck = socialTileCheck;
@@ -36183,15 +36193,17 @@ function socDraw(){
 
   var addBtns = '<button onclick="socAddChannel(\'facebook\')"><span class="soc-av fb" style="width:18px;height:18px;font-size:10px;">f</span> Add Facebook Page</button>'
     + (st.instagram&&st.instagram.configured ? '<button onclick="socAddChannel(\'instagram\')"><span class="soc-av ig" style="width:18px;height:18px;font-size:8px;">ig</span> Add Instagram</button>' : '')
-    + (_socTtOn() ? '<button onclick="socAddChannel(\'tiktok\')"><span class="soc-av tt" style="width:18px;height:18px;font-size:10px;">♪</span> Add TikTok</button>' : '');
+    + (_socTtOn() ? '<button onclick="socAddChannel(\'tiktok\')"><span class="soc-av tt" style="width:18px;height:18px;font-size:10px;">♪</span> Add TikTok</button>' : '')
+    + (_socYtOn() ? '<button onclick="socAddChannel(\'youtube\')"><span class="soc-av yt" style="width:18px;height:18px;font-size:8px;">▶</span> Add YouTube</button>' : '');
 
   if(!chs.length){
     root.innerHTML = '<div class="soc-empty">'
       + '<h3>Connect your first account</h3>'
-      + '<p>Add a Facebook Page, an Instagram professional account'+(_socTtOn()?' or a TikTok account':'')+', then write a post once and send it to any of them, now or on a schedule. You sign in on their own page; NestTrack never sees your password.</p>'
+      + '<p>Add a Facebook Page, an Instagram professional account'+(_socTtOn()?', a TikTok account':'')+(_socYtOn()?', a YouTube channel':'')+', then write a post once and send it to any of them, now or on a schedule. You sign in on their own page; NestTrack never sees your password.</p>'
       + '<button class="soc-big" style="background:#1877F2;" onclick="socAddChannel(\'facebook\')">Add a Facebook Page</button>'
       + (st.instagram&&st.instagram.configured ? '<button class="soc-big" style="background:linear-gradient(45deg,#F9CE34,#EE2A7B 55%,#6228D7);" onclick="socAddChannel(\'instagram\')">Add Instagram</button>' : '')
       + (_socTtOn() ? '<button class="soc-big" style="background:#111;" onclick="socAddChannel(\'tiktok\')">Add TikTok</button>' : '')
+      + (_socYtOn() ? '<button class="soc-big" style="background:#FF0000;" onclick="socAddChannel(\'youtube\')">Add YouTube</button>' : '')
       + '<div class="soc-msg" id="soc-conn-msg"></div></div>';
     return;
   }
@@ -36277,7 +36289,9 @@ function _socCard(p){
   var word = { done:'Posted', failed:'Failed', processing:'Preparing', pending:'Waiting', draft:'' };
   var pills=(p.channels||[]).map(function(c){
     var dot='<s style="background:'+_socTypeColor(c.type)+';"></s>';
-    var inner=dot+partnerEsc(c.name||'')+(word[c.state]&&p.status!=='scheduled'?' · '+word[c.state]:'');
+    // A video on its way to YouTube says how far it has got.
+    var w = (c.state==='processing' && typeof c.progress==='number') ? 'Uploading '+c.progress+'%' : word[c.state];
+    var inner=dot+partnerEsc(c.name||'')+(w&&p.status!=='scheduled'?' · '+w:'');
     var cls='soc-pill'+((c.state==='done'||c.state==='failed'||c.state==='processing')?' '+c.state:'');
     return (c.state==='done'&&c.link&&/^https:\/\//.test(c.link)) ? '<a class="'+cls+'" href="'+partnerEsc(c.link)+'" target="_blank" rel="noopener">'+inner+' ↗</a>' : '<span class="'+cls+'">'+inner+'</span>';
   }).join('');
@@ -36303,14 +36317,14 @@ window.socTab=socTab; window.socFilter=socFilter;
 // this window goes to the sign-in instead and comes back when it is done.
 function _socStopPoll(){ if(_soc.poll){ clearInterval(_soc.poll); _soc.poll=null; } }
 async function socAddChannel(kind){
-  var name = kind==='instagram' ? 'Instagram' : (kind==='tiktok' ? 'TikTok' : 'Facebook');
+  var name = kind==='instagram' ? 'Instagram' : (kind==='tiktok' ? 'TikTok' : (kind==='youtube' ? 'YouTube' : 'Facebook'));
   var say=function(t, bad){ var m=document.getElementById('soc-conn-msg'); if(m){ m.style.color=bad?'#B91C1C':''; m.textContent=t; } };
   var tab=null;
   try { tab = window.open('', '_blank'); } catch(e){ tab=null; }
   try { if(tab && tab.document) tab.document.write('<p style="font-family:sans-serif;padding:24px;color:#444;">Opening '+name+' sign-in…</p>'); } catch(e){}
   say('Opening the '+name+' sign-in…');
   try {
-    var j = await _socialApi(kind==='instagram' ? '/api/v1/social/ig/start' : (kind==='tiktok' ? '/api/v1/social/tiktok/start' : '/api/v1/social/meta/start'), 'POST', {});
+    var j = await _socialApi(kind==='instagram' ? '/api/v1/social/ig/start' : (kind==='tiktok' ? '/api/v1/social/tiktok/start' : (kind==='youtube' ? '/api/v1/social/youtube/start' : '/api/v1/social/meta/start')), 'POST', {});
     if(tab && !tab.closed){ tab.location.href = j.url; }
     else { window.location.href = j.url; return; }
     say('Finish signing in on the other tab. This updates by itself when you are done.');
@@ -36357,7 +36371,7 @@ window.socRemoveChannel=socRemoveChannel;
 async function socDeletePost(id){
   var p=_soc.posts.find(function(x){ return x.id===id; }); if(!p) return;
   var q = p.status==='scheduled' ? 'Cancel this scheduled post? It will not be published.'
-        : (p.status==='draft' ? 'Delete this draft?' : 'Remove this from your list?\n\nAnything already published stays up. Delete it on Facebook, Instagram or TikTok if you want it taken down.');
+        : (p.status==='draft' ? 'Delete this draft?' : 'Remove this from your list?\n\nAnything already published stays up. Delete it on the platform itself if you want it taken down.');
   if(!confirm(q)) return;
   try { await _socialApi('/api/v1/social/posts/delete', 'POST', { id:id }); _socToast(p.status==='scheduled'?'Post cancelled.':'Removed.'); }
   catch(e){ _socToast((e&&e.message)||'Could not do that.'); }
@@ -36373,7 +36387,7 @@ function socCompose(post, slotMs){
   var chs=_socChannels();
   var hasSched=(_socSchedule().slots||[]).length>0;
   // mode: queue (next open posting time) | next (front of the queue) | now | time (picked)
-  var c={ id:'', channels:{}, caption:'', media:[], mode:(hasSched?'queue':'now'), at:Date.now()+3600000, tt:{}, ttInfo:{} };
+  var c={ id:'', channels:{}, caption:'', media:[], mode:(hasSched?'queue':'now'), at:Date.now()+3600000, tt:{}, ttInfo:{}, yt:{} };
   if(slotMs){ c.mode='time'; c.at=slotMs; }
   if(post){
     c.id=post.id; c.caption=post.caption||'';
@@ -36381,6 +36395,7 @@ function socCompose(post, slotMs){
       if(!chs.some(function(k){ return k.id===x.id; })) return;
       c.channels[x.id]=true;
       if(x.type==='tiktok' && x.tiktok) c.tt[x.id]=Object.assign({}, x.tiktok);
+      if(x.type==='youtube' && x.youtube) c.yt[x.id]=Object.assign({}, x.youtube);
     });
     c.media=(post.media||[]).map(function(m){ return { key:m.key, kind:m.kind, url:m.url }; });
     if(post.status==='scheduled' && post.scheduledAt){ c.mode='time'; c.at=post.scheduledAt; }
@@ -36401,7 +36416,7 @@ function socCompose(post, slotMs){
     +   '<div class="soc-lab">Photos or video</div><div class="soc-media" id="soc-media"></div>'
     +   '<input type="file" id="soc-file" multiple accept="image/*,video/mp4,video/quicktime,.mp4,.mov" style="display:none;" onchange="socFilesPicked(this)"/>'
     +   '<div class="soc-hint" id="soc-hint"></div>'
-    +   '<div id="soc-tt"></div>'
+    +   '<div id="soc-tt"></div><div id="soc-yt"></div>'
     +   '<div class="soc-lab">When</div>'
     +   '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;"><div class="soc-seg">'
     +     '<button id="soc-m-queue" onclick="socWhen(\'queue\')">Add to queue</button><button id="soc-m-next" onclick="socWhen(\'next\')">Post next</button>'
@@ -36508,9 +36523,8 @@ function socComposeDraw(light){
     if(at) at.style.display=(c.mode==='time')?'':'none';
     if(go && !_soc.busy) go.textContent={ queue:'Add to queue', next:'Post next', now:'Post now', time:'Schedule' }[c.mode];
     _socTtDraw(c, picked);
-    // TikTok asks that the button stays off until its choices are made.
-    var ttWhy=_socTtProblem(c, picked);
-    if(go && !_soc.busy){ go.disabled=!!ttWhy; go.style.opacity=ttWhy?'0.5':''; go.title=ttWhy; }
+    _socYtDraw(c, picked);
+    _socGate(c, picked);
     if(note){
       var nx=_socNextOpen(c.id), first=(_socSchedule().upcoming||[]).filter(function(ms){ return ms>Date.now()+2*60*1000; })[0];
       note.textContent = !hasSched ? 'Set a posting schedule on the Social page and new posts can drop into the next open time by themselves.'
@@ -36525,6 +36539,7 @@ function socComposeDraw(light){
     var t='Photos, or one MP4 or MOV video up to 1 GB. A vertical video posts to Instagram as a Reel.', warn=false;
     if(igPicked && !c.media.length){ t='Instagram needs a photo or a video. Words alone can only go to a Facebook Page.'; warn=true; }
     if(picked.some(function(k){ return k.type==='tiktok'; }) && !(c.media.length===1 && c.media[0].kind==='video')){ t='TikTok needs one video. Add a video, or untick TikTok.'; warn=true; }
+    else if(picked.some(function(k){ return k.type==='youtube'; }) && !(c.media.length===1 && c.media[0].kind==='video')){ t='YouTube needs one video. Add a video, or untick YouTube.'; warn=true; }
     hint.textContent=t; hint.className='soc-hint'+(warn?' warn':'');
   }
   var pv=document.getElementById('soc-preview');
@@ -36678,6 +36693,79 @@ function _socTtDraw(c, picked){
   }).join('');
 }
 
+// ── YouTube's part of the composer ──
+// YouTube wants three things the other places do not: a title of its own, who can see the
+// video, and whether it is made for kids (asked on every upload; nothing is pre-chosen).
+// The caption above becomes the video's description.
+function _socYtState(c, k){
+  if(!c.yt[k.id]) c.yt[k.id]={ title:'', privacy:'', kids:null };
+  return c.yt[k.id];
+}
+// The first thing still missing for YouTube, in words, or '' when it is ready to go.
+function _socYtProblem(c, picked){
+  var yts=(picked||[]).filter(function(k){ return k.type==='youtube'; });
+  if(!yts.length) return '';
+  if(!(c.media.length===1 && c.media[0].kind==='video')) return 'YouTube needs one video. Add a video, or untick YouTube.';
+  for(var i=0;i<yts.length;i++){
+    var k=yts[i], s=_socYtState(c, k), title=String(s.title||'').trim();
+    if(!title) return 'Give the video a title for YouTube ('+k.name+').';
+    if(title.length>100) return 'The YouTube title is '+title.length+' characters. YouTube allows 100.';
+    if(/[<>]/.test(title) || /[<>]/.test(c.caption)) return 'YouTube does not accept the < or > symbols in a title or description.';
+    if(!s.privacy) return 'Choose who can see this on YouTube ('+k.name+').';
+    if(s.kids!==true && s.kids!==false) return 'Say whether this video is made for kids ('+k.name+').';
+  }
+  return '';
+}
+function _socYtPayload(c, ids){
+  var out={};
+  _socChannels().forEach(function(k){ if(k.type==='youtube' && ids.indexOf(k.id)!==-1){ var s=_socYtState(c, k); out[k.id]={ title:String(s.title||'').trim(), privacy:s.privacy, kids:s.kids }; } });
+  return out;
+}
+// The post button stays off until TikTok's and YouTube's questions are answered, and says why.
+function _socGate(c, picked){
+  var go=document.getElementById('soc-go'); if(!go || _soc.busy) return;
+  var why=_socTtProblem(c, picked) || _socYtProblem(c, picked);
+  go.disabled=!!why; go.style.opacity=why?'0.5':''; go.title=why;
+}
+// "light" is for typing in the title: the choice is kept and the button rechecked, but the
+// section is not redrawn, so the cursor stays where it is.
+function socYtSet(id, field, value, light){
+  var c=_soc.c; if(!c || _soc.busy) return;
+  var k=_socChannels().find(function(x){ return x.id===id; }); if(!k) return;
+  _socYtState(c, k)[field]=value;
+  _socSay('');
+  if(!light) return socComposeDraw();
+  var n=document.getElementById('soc-yt-n-'+id); if(n) n.textContent=String(value||'').length+' / 100';
+  _socGate(c, _socChannels().filter(function(x){ return c.channels[x.id]; }));
+}
+window.socYtSet=socYtSet;
+
+function _socYtDraw(c, picked){
+  var box=document.getElementById('soc-yt'); if(!box) return;
+  var yts=picked.filter(function(k){ return k.type==='youtube'; });
+  if(!yts.length){ box.innerHTML=''; return; }
+  box.innerHTML = yts.map(function(k){
+    var s=_socYtState(c, k), id=partnerEsc(k.id);
+    var call=function(field, expr, light){ return 'socYtSet(\''+id+'\',\''+field+'\','+expr+(light?',true':'')+')'; };
+    var radio=function(val, label){
+      return '<label class="soc-tt-c"><input type="radio" name="soc-yt-k-'+id+'"'+(s.kids===val?' checked':'')+' onchange="'+call('kids', String(val))+'"/>'+label+'</label>';
+    };
+    return '<div class="soc-tt"><div class="soc-tt-h">'+_socAvatar(k)+'<div><b>YouTube</b><span>Uploading to '+partnerEsc(k.name)+'</span></div></div>'
+      + '<label class="soc-tt-l" for="soc-yt-t-'+id+'">Title</label>'
+      + '<input type="text" id="soc-yt-t-'+id+'" class="soc-yt-title" maxlength="100" placeholder="What is this video called?" value="'+partnerEsc(s.title||'')+'" oninput="'+call('title','this.value',true)+'"/>'
+      + '<div class="soc-cnt" id="soc-yt-n-'+id+'" style="margin-bottom:8px;">'+String(s.title||'').length+' / 100</div>'
+      + '<label class="soc-tt-l" for="soc-yt-pv-'+id+'">Who can see this video</label>'
+      + '<select id="soc-yt-pv-'+id+'" class="soc-tt-sel" onchange="'+call('privacy','this.value')+'">'
+      +   '<option value=""'+(s.privacy?'':' selected')+' disabled>Choose…</option>'
+      +   [['public','Public'],['unlisted','Unlisted (only people with the link)'],['private','Private (only you)']].map(function(o){ return '<option value="'+o[0]+'"'+(s.privacy===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')
+      + '</select>'
+      + '<div class="soc-tt-l" style="margin-top:12px;">Is this video made for kids?</div>'
+      + '<div class="soc-tt-row">'+radio(false,'No, it is not made for kids')+radio(true,'Yes, it is made for kids')+'</div>'
+      + '<div class="soc-hint" style="margin:10px 0 0;">Your caption above becomes the video description. A vertical video of three minutes or less is shown as a Short. After uploading, YouTube takes a few minutes to process a video before it can be watched.</div>'
+      + '</div>';
+  }).join('');
+}
+
 // Instagram only takes JPEG photos, so every photo is turned into one here, and large ones are
 // brought down to the biggest size Instagram shows.
 async function _socToJpeg(file){
@@ -36743,7 +36831,8 @@ async function socSubmit(draft){
     if(!ids.length) return _socSay('Choose at least one account to post to.', true);
     if(!c.media.length && !caption) return _socSay('Add a photo, a video, or some words.', true);
     if(!c.media.length && chs.some(function(k){ return c.channels[k.id] && k.type==='instagram'; })) return _socSay('Instagram needs a photo or a video. Add one, or untick Instagram.', true);
-    var ttWhy=_socTtProblem(c, chs.filter(function(k){ return c.channels[k.id]; }));
+    var pickedNow=chs.filter(function(k){ return c.channels[k.id]; });
+    var ttWhy=_socTtProblem(c, pickedNow) || _socYtProblem(c, pickedNow);
     if(ttWhy) return _socSay(ttWhy, true);
     if(c.mode==='time'){
       socAtChanged(); at=c.at;
@@ -36776,7 +36865,7 @@ async function socSubmit(draft){
     _socSay(draft?'Saving…':(c.mode==='now'?'Posting…':'Scheduling…'));
     var out=await _socialApi('/api/v1/social/posts', 'POST', { id:c.id||undefined, draft:!!draft, channels:ids, caption:caption,
       media:c.media.map(function(m){ return m.key; }), scheduledAt:(!draft&&c.mode==='time')?at:0,
-      when:(!draft&&(c.mode==='queue'||c.mode==='next'))?c.mode:'', tiktok:_socTtPayload(c, ids) });
+      when:(!draft&&(c.mode==='queue'||c.mode==='next'))?c.mode:'', tiktok:_socTtPayload(c, ids), youtube:_socYtPayload(c, ids) });
     _soc.busy=false;
     socCloseCompose(true);
     var p=out.post||{};
