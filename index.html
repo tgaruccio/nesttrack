@@ -2281,6 +2281,25 @@ setTimeout(function(){
 .soc-acts{display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end;}
 .soc-acts button{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 11px;font-size:11.5px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;}
 .soc-acts button:hover{background:var(--surface2);color:var(--text);}
+.soc-slot{display:flex;align-items:center;gap:12px;width:100%;background:none;border:1.5px dashed var(--border2,var(--border));border-radius:14px;padding:13px 14px;margin-bottom:10px;cursor:pointer;font-family:inherit;color:var(--text3);text-align:left;}
+.soc-slot b{font-size:12px;font-weight:600;color:var(--text2);min-width:64px;}
+.soc-slot span{font-size:12.5px;font-weight:600;}
+.soc-slot:hover{border-color:var(--green);border-style:solid;background:var(--green-lt);color:var(--green-dk);}
+.soc-seg{flex-wrap:wrap;}
+.soc-seg button:disabled{opacity:.4;cursor:not-allowed;}
+.soc-srow{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--border);}
+.soc-srow:first-child{border-top:none;}
+.soc-srow>b{width:92px;flex-shrink:0;font-size:13px;font-weight:600;padding-top:6px;}
+.soc-stimes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1;min-width:0;}
+.soc-stime{display:inline-flex;align-items:center;gap:6px;background:var(--green-lt);border:1px solid var(--green-md);color:var(--green-dk);border-radius:999px;padding:5px 6px 5px 12px;font-size:12.5px;font-weight:600;}
+.soc-stime i{font-style:normal;cursor:pointer;width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;line-height:1;}
+.soc-stime i:hover{background:var(--green-md);}
+.soc-snone{font-size:12px;color:var(--text3);margin-right:4px;}
+.soc-sadd{font-size:12px;font-weight:600;color:var(--text3);background:none;border:1px dashed var(--border2,var(--border));border-radius:999px;padding:5px 12px;cursor:pointer;font-family:inherit;}
+.soc-sadd:hover{color:var(--green-dk);border-color:var(--green);}
+.soc-sask{display:inline-flex;gap:6px;align-items:center;}
+.soc-sask input{width:auto;font-size:13px;padding:4px 8px;border:1.5px solid var(--green);border-radius:8px;font-family:inherit;}
+.soc-sask button{background:var(--green);color:#fff;border:none;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;}
 .soc-empty{background:var(--surface);border:1px dashed var(--border2,var(--border));border-radius:14px;padding:34px 20px;text-align:center;}
 .soc-empty h3{font-family:'Fraunces',serif;font-weight:300;font-size:20px;margin:0 0 6px;color:var(--text);}
 .soc-empty p{font-size:13px;color:var(--text2);line-height:1.55;margin:0 auto 14px;max-width:420px;}
@@ -2344,7 +2363,10 @@ setTimeout(function(){
       <button class="soc-back" onclick="go('marketing',document.querySelector('[data-pg=marketing]'))">&larr; Marketing</button>
       <div class="pt" style="margin-top:2px;">Social</div>
     </div>
-    <button class="soc-new" id="soc-new-btn" onclick="socCompose()" style="display:none;">+ New post</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="soc-draft" id="soc-sched-btn" onclick="socScheduleOpen()" style="display:none;">Posting schedule</button>
+      <button class="soc-new" id="soc-new-btn" onclick="socCompose()" style="display:none;">+ New post</button>
+    </div>
   </div>
   <div id="soc-root"><div class="soc-msg">Loading…</div></div>
 </div>
@@ -36089,6 +36111,16 @@ async function renderSocialPage(){
 }
 window.renderSocialPage = renderSocialPage;
 
+function _socSchedule(){ return (_soc.status && _soc.status.schedule) || { tz:'', slots:[], upcoming:[] }; }
+// The next time in the posting schedule that no waiting post already has.
+function _socNextOpen(skipId){
+  var taken={};
+  _soc.posts.forEach(function(p){ if(p.status==='scheduled' && p.id!==skipId) taken[p.scheduledAt]=1; });
+  var up=_socSchedule().upcoming||[];
+  for(var i=0;i<up.length;i++){ if(up[i]>Date.now()+2*60*1000 && !taken[up[i]]) return up[i]; }
+  return 0;
+}
+
 function _socTabOf(p){ return p.status==='draft' ? 'drafts' : ((p.status==='scheduled'||p.status==='publishing') ? 'queue' : 'sent'); }
 
 function socDraw(){
@@ -36106,6 +36138,7 @@ function socDraw(){
     return;
   }
   if(newBtn) newBtn.style.display = chs.length ? '' : 'none';
+  var schedBtn=document.getElementById('soc-sched-btn'); if(schedBtn) schedBtn.style.display = chs.length ? '' : 'none';
   if(_soc.filter && !chs.some(function(c){ return c.id===_soc.filter; })) _soc.filter='';
 
   var addBtns = '<button onclick="socAddChannel(\'facebook\')"><span class="soc-av fb" style="width:18px;height:18px;font-size:10px;">f</span> Add Facebook Page</button>'
@@ -36140,7 +36173,31 @@ function socDraw(){
 
   var list = mine.filter(function(p){ return _socTabOf(p)===_soc.tab; });
   var body = '';
-  if(!list.length){
+  var sched = _socSchedule(), hasSched = (sched.slots||[]).length > 0;
+  if(_soc.tab==='queue' && hasSched){
+    // The queue is the posting schedule laid out day by day: each time shows the post that
+    // has it, or an open spot to click into.
+    var rows = list.map(function(p){ return { at:p.scheduledAt||Date.now(), post:p }; });
+    var taken = {}; _soc.posts.forEach(function(p){ if(p.status==='scheduled') taken[p.scheduledAt]=1; });
+    var horizon = Date.now()+7*86400000, shown=0;
+    (sched.upcoming||[]).forEach(function(ms){
+      if(taken[ms] || ms<Date.now()+2*60*1000) return;
+      if(ms>horizon && shown>=3) return;
+      rows.push({ at:ms, open:true }); shown++;
+    });
+    rows.sort(function(a,b){ return a.at-b.at; });
+    var lastDay='';
+    rows.forEach(function(r){
+      var lab=_socDayLabel(r.at);
+      if(lab!==lastDay){ body+='<div class="soc-day">'+partnerEsc(lab)+'</div>'; lastDay=lab; }
+      body += r.open
+        ? '<button class="soc-slot" onclick="socCompose(null,'+r.at+')"><b>'+partnerEsc(_socFmtTime(r.at))+'</b><span>+ Add a post</span></button>'
+        : _socCard(r.post);
+    });
+  } else if(!list.length && _soc.tab==='queue'){
+    body = '<div class="soc-empty"><h3>Set your posting times once</h3><p>Choose how often you want to post and NestTrack lines up the days and times. After that, every new post drops into the next open spot, so you never have to pick a date.</p>'
+      + '<button class="soc-new" onclick="socScheduleOpen()">Set posting schedule</button> <button class="soc-draft" onclick="socCompose()">+ New post</button></div>';
+  } else if(!list.length){
     var empty = { queue:['Nothing scheduled','Posts you schedule show up here in the order they will go out.'],
                   drafts:['No drafts','Start a post and choose Save draft to finish it later.'],
                   sent:['Nothing sent yet','Posts that have gone out show up here with a link to each one.'] }[_soc.tab];
@@ -36265,14 +36322,17 @@ window.socDeletePost=socDeletePost;
 // ── Composer ──
 // _soc.c holds the post being written:
 //   { id, channels:{id:true}, caption, media:[{key,kind,url} | {file,kind,preview}], later, at }
-function socCompose(post){
+function socCompose(post, slotMs){
   var chs=_socChannels();
-  var c={ id:'', channels:{}, caption:'', media:[], later:false, at:Date.now()+3600000 };
+  var hasSched=(_socSchedule().slots||[]).length>0;
+  // mode: queue (next open posting time) | next (front of the queue) | now | time (picked)
+  var c={ id:'', channels:{}, caption:'', media:[], mode:(hasSched?'queue':'now'), at:Date.now()+3600000 };
+  if(slotMs){ c.mode='time'; c.at=slotMs; }
   if(post){
     c.id=post.id; c.caption=post.caption||'';
     (post.channels||[]).forEach(function(x){ if(chs.some(function(k){ return k.id===x.id; })) c.channels[x.id]=true; });
     c.media=(post.media||[]).map(function(m){ return { key:m.key, kind:m.kind, url:m.url }; });
-    if(post.status==='scheduled' && post.scheduledAt){ c.later=true; c.at=post.scheduledAt; }
+    if(post.status==='scheduled' && post.scheduledAt){ c.mode='time'; c.at=post.scheduledAt; }
   } else if(_soc.filter){
     c.channels[_soc.filter]=true;
   } else if(chs.length===1){
@@ -36291,8 +36351,11 @@ function socCompose(post){
     +   '<input type="file" id="soc-file" multiple accept="image/*,video/mp4,video/quicktime,.mp4,.mov" style="display:none;" onchange="socFilesPicked(this)"/>'
     +   '<div class="soc-hint" id="soc-hint"></div>'
     +   '<div class="soc-lab">When</div>'
-    +   '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;"><div class="soc-seg"><button id="soc-now" onclick="socWhen(false)">Post now</button><button id="soc-later" onclick="socWhen(true)">Schedule</button></div>'
+    +   '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;"><div class="soc-seg">'
+    +     '<button id="soc-m-queue" onclick="socWhen(\'queue\')">Add to queue</button><button id="soc-m-next" onclick="socWhen(\'next\')">Post next</button>'
+    +     '<button id="soc-m-now" onclick="socWhen(\'now\')">Post now</button><button id="soc-m-time" onclick="socWhen(\'time\')">Pick a time</button></div>'
     +   '<input type="datetime-local" id="soc-at" onchange="socAtChanged()"/></div>'
+    +   '<div class="soc-hint" id="soc-when-note" style="margin-top:6px;"></div>'
     + '</div><div class="soc-pv"><div class="soc-lab">Preview</div><div id="soc-preview"></div></div></div>'
     + '<div class="soc-bar" id="soc-bar" style="display:none;"><div></div></div>'
     + '<div class="soc-mf"><div class="soc-say" id="soc-say"></div>'
@@ -36313,7 +36376,7 @@ function socCloseCompose(force){
   var c=_soc.c;
   if(!force && c && !c.id && (c.caption.trim() || c.media.length) && !confirm('Close without saving? What you wrote will be lost.')) return;
   if(c) c.media.forEach(function(m){ if(m.preview){ try { URL.revokeObjectURL(m.preview); } catch(e){} } });
-  _soc.c=null;
+  _soc.c=null; _soc.s=null;
   var box=document.getElementById('soc-compose'); if(box) box.classList.remove('on');
 }
 window.socCloseCompose=socCloseCompose;
@@ -36326,7 +36389,7 @@ function socCapInput(){
 window.socCapInput=socCapInput;
 function socPick(id){ var c=_soc.c; if(!c) return; if(c.channels[id]) delete c.channels[id]; else c.channels[id]=true; socComposeDraw(); }
 window.socPick=socPick;
-function socWhen(later){ var c=_soc.c; if(!c) return; c.later=!!later; socComposeDraw(); }
+function socWhen(mode){ var c=_soc.c; if(!c) return; if((mode==='queue'||mode==='next') && !(_socSchedule().slots||[]).length) return; c.mode=mode; socComposeDraw(); }
 window.socWhen=socWhen;
 function socAtChanged(){ var c=_soc.c; if(!c) return; var t=new Date(document.getElementById('soc-at').value||'').getTime(); if(t && !isNaN(t)) c.at=t; }
 window.socAtChanged=socAtChanged;
@@ -36382,10 +36445,22 @@ function socComposeDraw(light){
         return '<div class="soc-mt">'+inner+'<button onclick="socDropMedia('+i+')" aria-label="Remove">&times;</button></div>';
       }).join('') + ((hasVideo||c.media.length>=10)?'':'<button class="soc-madd" onclick="document.getElementById(\'soc-file\').click()"><span>+</span>'+(c.media.length?'Add photo':'Add')+'</button>');
     }
-    var nowB=document.getElementById('soc-now'), laterB=document.getElementById('soc-later'), at=document.getElementById('soc-at'), go=document.getElementById('soc-go');
-    if(nowB) nowB.className=c.later?'':'on'; if(laterB) laterB.className=c.later?'on':'';
-    if(at) at.style.display=c.later?'':'none';
-    if(go && !_soc.busy) go.textContent=c.later?'Schedule':'Post now';
+    var at=document.getElementById('soc-at'), go=document.getElementById('soc-go'), note=document.getElementById('soc-when-note');
+    var hasSched=(_socSchedule().slots||[]).length>0;
+    ['queue','next','now','time'].forEach(function(m){
+      var b=document.getElementById('soc-m-'+m); if(!b) return;
+      b.className=(c.mode===m)?'on':'';
+      b.disabled=(m==='queue'||m==='next') && !hasSched;
+    });
+    if(at) at.style.display=(c.mode==='time')?'':'none';
+    if(go && !_soc.busy) go.textContent={ queue:'Add to queue', next:'Post next', now:'Post now', time:'Schedule' }[c.mode];
+    if(note){
+      var nx=_socNextOpen(c.id), first=(_socSchedule().upcoming||[]).filter(function(ms){ return ms>Date.now()+2*60*1000; })[0];
+      note.textContent = !hasSched ? 'Set a posting schedule on the Social page and new posts can drop into the next open time by themselves.'
+        : (c.mode==='queue' ? (nx ? 'Goes out '+_socFmtWhen(nx)+', your next open time.' : 'Your queue is full for the next two weeks. It will take the first open time after that.')
+        : (c.mode==='next' ? (first ? 'Goes out '+_socFmtWhen(first)+'. Everything already in the queue moves back one place.' : '')
+        : (c.mode==='time' ? 'Times are in your own time zone.' : 'Goes out as soon as you press the button.')));
+    }
   }
   var hint=document.getElementById('soc-hint');
   if(hint){
@@ -36402,7 +36477,7 @@ function socComposeDraw(light){
       // The media element is kept between keystrokes so a video preview does not restart.
       var mediaHtml = src ? '<div class="m" data-src="'+partnerEsc(src)+'">'+(m.kind==='video'?'<video src="'+partnerEsc(src)+'" controls muted playsinline preload="metadata"></video>':'<img src="'+partnerEsc(src)+'" alt=""/>')+'</div>' : '';
       var old=pv.querySelector('.m'), keep=(light && old && src && old.getAttribute('data-src')===src) ? old : null;
-      pv.innerHTML='<div class="soc-pcard"><div class="h">'+_socAvatar(who)+'<div><b>'+partnerEsc(who.name)+'</b><span>'+(picked.length>1?'and '+(picked.length-1)+' more':(c.later?_socFmtWhen(c.at):'Just now'))+'</span></div></div>'
+      pv.innerHTML='<div class="soc-pcard"><div class="h">'+_socAvatar(who)+'<div><b>'+partnerEsc(who.name)+'</b><span>'+(picked.length>1?'and '+(picked.length-1)+' more':(c.mode==='time'?_socFmtWhen(c.at):(c.mode==='queue'&&_socNextOpen(c.id)?_socFmtWhen(_socNextOpen(c.id)):'Just now')))+'</span></div></div>'
         + '<div id="soc-pv-m"></div>'
         + (c.caption.trim()?'<div class="c">'+partnerEsc(c.caption)+'</div>':'')
         + '</div>'+(c.media.length>1?'<div class="soc-msg">'+c.media.length+' photos. People swipe through them in this order.</div>':'');
@@ -36477,7 +36552,7 @@ async function socSubmit(draft){
     if(!ids.length) return _socSay('Choose at least one account to post to.', true);
     if(!c.media.length && !caption) return _socSay('Add a photo, a video, or some words.', true);
     if(!c.media.length && chs.some(function(k){ return c.channels[k.id] && k.type==='instagram'; })) return _socSay('Instagram needs a photo or a video. Add one, or untick Instagram.', true);
-    if(c.later){
+    if(c.mode==='time'){
       socAtChanged(); at=c.at;
       if(!at || isNaN(at)) return _socSay('Pick the date and time to post.', true);
       if(at < Date.now()+2*60*1000) return _socSay('Pick a time at least a few minutes from now, or choose Post now.', true);
@@ -36505,14 +36580,15 @@ async function socSubmit(draft){
         m.key=up.key; m.url=up.url; delete m.file;
       }
     }
-    _socSay(draft?'Saving…':(c.later?'Scheduling…':'Posting…'));
+    _socSay(draft?'Saving…':(c.mode==='now'?'Posting…':'Scheduling…'));
     var out=await _socialApi('/api/v1/social/posts', 'POST', { id:c.id||undefined, draft:!!draft, channels:ids, caption:caption,
-      media:c.media.map(function(m){ return m.key; }), scheduledAt:(!draft&&c.later)?at:0 });
+      media:c.media.map(function(m){ return m.key; }), scheduledAt:(!draft&&c.mode==='time')?at:0,
+      when:(!draft&&(c.mode==='queue'||c.mode==='next'))?c.mode:'' });
     _soc.busy=false;
     socCloseCompose(true);
     var p=out.post||{};
     _soc.tab = draft ? 'drafts' : (p.status==='scheduled'||p.status==='publishing' ? 'queue' : 'sent');
-    _socToast(draft?'Draft saved.':(c.later?'Scheduled for '+_socFmtWhen(at)+'.':(p.status==='publishing'?'Sent. Instagram takes a few minutes to prepare a video.':(p.status==='done'?'Posted.':'Sent. Check the status in the list.'))));
+    _socToast(draft?'Draft saved.':(p.status==='scheduled'?'Scheduled for '+_socFmtWhen(p.scheduledAt)+'.':(p.status==='publishing'?'Sent. Instagram takes a few minutes to prepare a video.':(p.status==='done'?'Posted.':'Sent. Check the status in the list.'))));
     renderSocialPage();
   } catch(e){
     _socSay((e&&e.message)||'That did not go through. Try again.', true);
@@ -36524,6 +36600,91 @@ async function socSubmit(draft){
   }
 }
 window.socSubmit=socSubmit;
+
+// ── Posting schedule ──
+// _soc.s is the schedule being edited: a list of "<day 0-6, Sunday first>-<HH:MM>".
+var _socDays=[[1,'Monday'],[2,'Tuesday'],[3,'Wednesday'],[4,'Thursday'],[5,'Friday'],[6,'Saturday'],[0,'Sunday']];
+function _socSlotLabel(hm){
+  var h=+hm.slice(0,2), m=hm.slice(3);
+  return ((h%12)||12)+':'+m+(h<12?' AM':' PM');
+}
+function socScheduleOpen(){
+  if(_soc.busy) return;
+  _soc.c=null;
+  _soc.s=(_socSchedule().slots||[]).slice(); _soc.sAsk=null;
+  var box=document.getElementById('soc-compose'), modal=document.getElementById('soc-modal');
+  if(!box||!modal) return;
+  var tz=''; try { tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''; } catch(e){}
+  modal.innerHTML =
+      '<div class="soc-mh"><b>Posting schedule</b><button onclick="socCloseCompose(true)" aria-label="Close">&times;</button></div>'
+    + '<div style="overflow-y:auto;flex:1;"><div class="soc-ed">'
+    +   '<div class="soc-lab">How often do you want to post?</div>'
+    +   '<div class="soc-pick">'+[[3,'3 times a week'],[5,'Every weekday'],[7,'Every day'],[14,'Twice a day']].map(function(x){ return '<button class="soc-pk" style="padding:7px 14px;" onclick="socSchedPreset('+x[0]+')">'+x[1]+'</button>'; }).join('')+'</div>'
+    +   '<div class="soc-hint" style="margin-top:-6px;">Pick one to fill in the week, then change any day or time below. These are good general times; you know your own followers best.</div>'
+    +   '<div class="soc-lab">Your posting times</div><div id="soc-sched-days"></div>'
+    +   '<div class="soc-hint" style="margin-bottom:0;">Times are in your own time zone'+(tz?' ('+partnerEsc(tz.replace(/_/g,' '))+')':'')+'. Posts already scheduled keep the times they have.</div>'
+    + '</div></div>'
+    + '<div class="soc-mf"><div class="soc-say" id="soc-say"></div>'
+    +   '<button class="soc-draft" onclick="socCloseCompose(true)">Cancel</button>'
+    +   '<button class="soc-new" id="soc-go" onclick="socSchedSave()">Save schedule</button></div>';
+  box.classList.add('on');
+  socSchedDraw();
+}
+window.socScheduleOpen=socScheduleOpen;
+
+function socSchedDraw(){
+  var el=document.getElementById('soc-sched-days'); if(!el||!_soc.s) return;
+  el.innerHTML=_socDays.map(function(d){
+    var times=_soc.s.filter(function(x){ return +x.charAt(0)===d[0]; }).map(function(x){ return x.slice(2); }).sort();
+    return '<div class="soc-srow"><b>'+d[1]+'</b><div class="soc-stimes">'
+      + (times.length ? times.map(function(t){ return '<span class="soc-stime">'+_socSlotLabel(t)+'<i onclick="socSchedDrop(\''+d[0]+'-'+t+'\')" title="Remove">&times;</i></span>'; }).join('') : '<span class="soc-snone">No posts</span>')
+      + (_soc.sAsk===d[0]
+          ? '<span class="soc-sask"><input type="time" id="soc-sask-in" value="12:00"/><button onclick="socSchedAdd('+d[0]+',document.getElementById(\'soc-sask-in\').value)">Add</button></span>'
+          : '<button class="soc-sadd" onclick="socSchedAsk('+d[0]+')">+ Add time</button>')
+      + '</div></div>';
+  }).join('');
+  var n=_soc.s.length; _socSay(n ? n+' post'+(n===1?'':'s')+' a week' : 'No posting times yet');
+}
+function socSchedPreset(n){
+  if(!_soc.s) return;
+  var days = n===3 ? [1,3,5] : (n===5 ? [1,2,3,4,5] : [0,1,2,3,4,5,6]);
+  var times = n===14 ? ['09:00','18:00'] : ['11:00'];
+  _soc.s=[]; days.forEach(function(d){ times.forEach(function(t){ _soc.s.push(d+'-'+t); }); });
+  socSchedDraw();
+}
+function socSchedAdd(d, hm){
+  if(!_soc.s || !/^([01]\d|2[0-3]):[0-5]\d/.test(hm||'')) return;
+  var v=d+'-'+hm.slice(0,5);
+  if(_soc.s.length>=42){ _socSay('A schedule can have up to 42 posting times a week.', true); return; }
+  if(_soc.s.indexOf(v)===-1) _soc.s.push(v);
+  _soc.sAsk=null;
+  socSchedDraw();
+}
+function socSchedAsk(d){ _soc.sAsk=d; socSchedDraw(); var i=document.getElementById('soc-sask-in'); if(i) i.focus(); }
+window.socSchedAsk=socSchedAsk;
+function socSchedDrop(v){ if(!_soc.s) return; _soc.s=_soc.s.filter(function(x){ return x!==v; }); socSchedDraw(); }
+window.socSchedPreset=socSchedPreset; window.socSchedAdd=socSchedAdd; window.socSchedDrop=socSchedDrop;
+
+async function socSchedSave(){
+  if(!_soc.s || _soc.busy) return;
+  var tz=''; try { tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''; } catch(e){}
+  var go=document.getElementById('soc-go');
+  _soc.busy=true; if(go){ go.disabled=true; go.style.opacity='0.6'; }
+  try {
+    var j=await _socialApi('/api/v1/social/schedule', 'POST', { slots:_soc.s, tz:tz });
+    if(_soc.status) _soc.status.schedule=j.schedule;
+    _soc.busy=false;
+    socCloseCompose(true);
+    _soc.tab='queue';
+    _socToast('Posting schedule saved.');
+    socDraw();
+  } catch(e){
+    _socSay((e&&e.message)||'Could not save your schedule.', true);
+  } finally {
+    _soc.busy=false; if(go){ go.disabled=false; go.style.opacity=''; }
+  }
+}
+window.socSchedSave=socSchedSave;
 
 var _connectCreds = { slyEmail:'', slyCallerId:'', hasSlyPass:false, hasThanksio:false };
 
