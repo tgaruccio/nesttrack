@@ -1202,6 +1202,7 @@ setTimeout(function(){
     <div id="sp-social-wrap" style="display:none;margin-bottom:18px;">
       <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 10px;">Social accounts</div>
       <div id="sp-social-card"></div>
+      <div id="sp-social-posts"></div>
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:0 2px 10px;">Sending connections</div>
     <div id="sp-connect-tiles" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">
@@ -35922,6 +35923,7 @@ async function renderSocialCard(opts){
   if(!m.configured){
     el.innerHTML = '<div style="'+box+'"><div style="font-size:13px;font-weight:600;color:var(--text);">Facebook &amp; Instagram</div>'
       + '<div style="font-size:12px;color:var(--text3);margin-top:4px;line-height:1.5;">Not set up on the server yet. Add the Meta app secret in Cloudflare to switch this on.</div></div>';
+    try { renderSocialComposer(); } catch(e){}
     return;
   }
   if(!m.connected){
@@ -35931,6 +35933,7 @@ async function renderSocialCard(opts){
       + '<button id="sp-social-connect" onclick="socialConnectMeta()" style="margin-top:12px;background:#1877F2;border:none;border-radius:8px;padding:11px 18px;font-size:13.5px;font-weight:600;color:#fff;cursor:pointer;font-family:inherit;">Continue with Facebook</button>'
       + '<div id="sp-social-msg" style="font-size:12px;color:var(--text3);margin-top:10px;line-height:1.5;"></div>'
       + '</div>';
+    try { renderSocialComposer(); } catch(e){}
     return;
   }
   _socialStopPoll();
@@ -35973,6 +35976,8 @@ async function renderSocialCard(opts){
     + '<span id="sp-social-msg" style="font-size:12px;color:var(--text3);"></span></div>';
   h += '</div>';
   el.innerHTML = h;
+  // Keep what the agent has typed: only draw the post form if it is not already there.
+  try { if(!document.getElementById('sp-post-go') || (opts && opts.redraw)) renderSocialComposer(); } catch(e){ console.log('social composer err:', e.message); }
 }
 window.renderSocialCard = renderSocialCard;
 
@@ -35992,6 +35997,9 @@ async function socialConnectMeta(){
     if(tab && !tab.closed){ tab.location.href = j.url; }
     else { window.location.href = j.url; return; }
     if(msg) msg.textContent='Finish signing in on the Facebook tab. This updates by itself when you are done.';
+    // Leave the button usable. If the Facebook tab was closed or showed an error, the agent
+    // can start again straight away rather than waiting on a greyed-out button.
+    if(btn){ btn.disabled=false; btn.style.opacity=''; btn.textContent='Try again'; }
     // Watch for the connection to land: every few seconds, and the moment this tab is looked at again.
     _socialStopPoll();
     var startedAt = Date.now();
@@ -36032,7 +36040,7 @@ async function socialSelectPage(pageId){
   try {
     var j = await _socialApi('/api/v1/social/meta/select', 'POST', { pageId: pageId });
     if(_socialState) _socialState.meta = j.meta;
-    await renderSocialCard({quiet:true});
+    await renderSocialCard({quiet:true, redraw:true});
     if(typeof showToast==='function') showToast('Page changed.');
   } catch(e){
     if(typeof showToast==='function') showToast((e&&e.message)||'Could not change the Page.');
@@ -36055,6 +36063,188 @@ async function socialDisconnectMeta(){
   }
 }
 window.socialDisconnectMeta = socialDisconnectMeta;
+
+// ─── Social posts: upload a finished video, post now or schedule ───
+var _socialPosts = [];
+var _socialPostsTimer = null;
+var _socialUploading = false;
+
+function _socialFmtWhen(ms){
+  if(!ms) return '';
+  try { return new Date(ms).toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; }
+}
+function _socialLocalInput(ms){
+  var d=new Date(ms), p=function(n){ return (n<10?'0':'')+n; };
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+// Shown under the connection card once Facebook and Instagram are connected.
+function renderSocialComposer(){
+  var el=document.getElementById('sp-social-posts'); if(!el) return;
+  var m=(_socialState&&_socialState.meta)||{};
+  if(!m.connected){ el.innerHTML=''; if(_socialPostsTimer){ clearInterval(_socialPostsTimer); _socialPostsTimer=null; } return; }
+  var pages=m.pages||[];
+  var sel=pages.find(function(p){ return p.id===m.selectedPageId; })||pages[0]||{};
+  var fbOk = sel.canPost!==false, igOk = !!sel.instagram;
+  function tick(id, label, ok, why){
+    return '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:'+(ok?'var(--text)':'var(--text3)')+';padding:4px 0;cursor:'+(ok?'pointer':'default')+';">'
+      + '<input type="checkbox" id="'+id+'" '+(ok?'checked':'disabled')+' style="width:auto;margin:0;"/> '+label
+      + (ok?'':' <span style="font-size:11px;">— '+why+'</span>')+'</label>';
+  }
+  el.innerHTML = '<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;margin-top:10px;">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">New video post</div>'
+    + '<label class="flabel" style="color:var(--text2);font-weight:600;">Video <span style="font-weight:400;color:var(--text3);">(finished MP4 or MOV, up to 1 GB)</span></label>'
+    + '<input type="file" id="sp-post-file" accept="video/mp4,video/quicktime,.mp4,.mov" style="font-size:13px;"/>'
+    + '<label class="flabel" style="color:var(--text2);font-weight:600;margin-top:10px;">Caption</label>'
+    + '<textarea id="sp-post-caption" rows="4" maxlength="2200" oninput="var c=document.getElementById(\'sp-post-count\');if(c)c.textContent=this.value.length+\' / 2200\';" placeholder="What should the post say?" style="width:100%;font-size:13px;font-family:inherit;"></textarea>'
+    + '<div id="sp-post-count" style="font-size:10.5px;color:var(--text3);text-align:right;">0 / 2200</div>'
+    + '<div style="margin-top:6px;">'
+    +   tick('sp-post-fb', 'Facebook Page: <b>'+partnerEsc(sel.name||'Page')+'</b>', fbOk, 'your role cannot post')
+    +   tick('sp-post-ig', 'Instagram'+(sel.instagram?': <b>@'+partnerEsc(sel.instagram.username||'')+'</b>':''), igOk, 'none linked to this Page')
+    + '</div>'
+    + '<div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">'
+    +   '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="sp-post-when" value="now" checked onchange="socialWhenChanged()" style="width:auto;margin:0;"/> Post now</label>'
+    +   '<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="sp-post-when" value="later" onchange="socialWhenChanged()" style="width:auto;margin:0;"/> Schedule</label>'
+    +   '<input type="datetime-local" id="sp-post-at" value="'+_socialLocalInput(Date.now()+3600000)+'" style="display:none;width:auto;font-size:13px;"/>'
+    + '</div>'
+    + '<div id="sp-post-progress" style="display:none;height:6px;background:var(--surface2);border-radius:3px;margin-top:12px;overflow:hidden;"><div id="sp-post-bar" style="height:100%;width:0;background:#1D9E75;transition:width .2s;"></div></div>'
+    + '<div id="sp-post-msg" style="font-size:12px;color:var(--text3);margin-top:8px;line-height:1.5;"></div>'
+    + '<button class="btn btn-g" id="sp-post-go" onclick="socialSubmitPost()" style="margin-top:10px;width:100%;">Post now</button>'
+    + '</div>'
+    + '<div id="sp-post-list" style="margin-top:10px;"></div>';
+  loadSocialPosts();
+}
+window.renderSocialComposer = renderSocialComposer;
+
+function socialWhenChanged(){
+  var later=((document.querySelector('input[name="sp-post-when"]:checked')||{}).value==='later');
+  var at=document.getElementById('sp-post-at'), go=document.getElementById('sp-post-go');
+  if(at) at.style.display=later?'':'none';
+  if(go && !_socialUploading) go.textContent=later?'Schedule post':'Post now';
+}
+window.socialWhenChanged = socialWhenChanged;
+
+// The video goes up in pieces, so a large file is not lost to one dropped connection:
+// each piece is retried on its own before the whole upload is given up on.
+async function _socialUpload(file, onProgress){
+  var key = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
+  var type = file.type || (/\.mov$/i.test(file.name)?'video/quicktime':'video/mp4');
+  var st = await _socialApi('/api/v1/social/upload/start', 'POST', { name:file.name, size:file.size, type:type });
+  var size = st.partSize || (16*1024*1024), parts=[], n=0;
+  try {
+    for(var off=0; off<file.size; off+=size){
+      n++;
+      var chunk=file.slice(off, Math.min(off+size, file.size)), done=null, lastErr=null;
+      for(var attempt=0; attempt<3 && !done; attempt++){
+        try {
+          var r=await fetch(PROXY_URL+'/api/v1/social/upload/part?key='+encodeURIComponent(st.key)+'&uploadId='+encodeURIComponent(st.uploadId)+'&n='+n,
+            { method:'POST', headers:{ 'X-Api-Key':key, 'Content-Type':'application/octet-stream' }, body:chunk });
+          var j=await r.json();
+          if(j && j.ok) done=j; else lastErr=new Error((j&&j.error)||'Upload failed.');
+        } catch(e){ lastErr=e; }
+      }
+      if(!done) throw lastErr||new Error('Upload failed.');
+      parts.push({ partNumber:done.partNumber, etag:done.etag });
+      if(onProgress) onProgress(Math.min(1,(off+chunk.size)/file.size));
+    }
+    var fin = await _socialApi('/api/v1/social/upload/complete', 'POST', { key:st.key, uploadId:st.uploadId, parts:parts });
+    return fin.key;
+  } catch(e){
+    try { await _socialApi('/api/v1/social/upload/abort', 'POST', { key:st.key, uploadId:st.uploadId }); } catch(_e){}
+    throw e;
+  }
+}
+
+async function socialSubmitPost(){
+  if(_socialUploading) return;
+  var fileEl=document.getElementById('sp-post-file'), msg=document.getElementById('sp-post-msg'), go=document.getElementById('sp-post-go');
+  var bar=document.getElementById('sp-post-bar'), prog=document.getElementById('sp-post-progress');
+  function say(t, bad){ if(msg){ msg.style.color=bad?'#B91C1C':'var(--text3)'; msg.textContent=t; } }
+  var file=fileEl&&fileEl.files&&fileEl.files[0];
+  var caption=((document.getElementById('sp-post-caption')||{}).value||'').trim();
+  var targets=[];
+  if((document.getElementById('sp-post-fb')||{}).checked) targets.push('facebook');
+  if((document.getElementById('sp-post-ig')||{}).checked) targets.push('instagram');
+  var later=((document.querySelector('input[name="sp-post-when"]:checked')||{}).value==='later');
+  var at=0;
+  if(!file) return say('Choose the video to post.', true);
+  if(!/\.(mp4|mov)$/i.test(file.name) && ['video/mp4','video/quicktime'].indexOf(file.type)===-1) return say('Use an MP4 or MOV video.', true);
+  if(file.size > 1024*1024*1024) return say('That video is over 1 GB. Export a smaller version.', true);
+  if(!targets.length) return say('Tick Facebook, Instagram, or both.', true);
+  if(later){
+    at=new Date((document.getElementById('sp-post-at')||{}).value||'').getTime();
+    if(!at || isNaN(at)) return say('Pick the date and time to post.', true);
+    if(at < Date.now()+2*60*1000) return say('Pick a time at least a few minutes from now, or choose Post now.', true);
+  }
+  _socialUploading=true;
+  if(go){ go.disabled=true; go.style.opacity='0.6'; go.textContent='Uploading…'; }
+  if(prog) prog.style.display=''; if(bar) bar.style.width='0';
+  say('Uploading your video. Keep this page open.');
+  try {
+    var key=await _socialUpload(file, function(f){ if(bar) bar.style.width=Math.round(f*100)+'%'; say('Uploading your video… '+Math.round(f*100)+'%'); });
+    say(later?'Scheduling…':'Posting…');
+    await _socialApi('/api/v1/social/posts', 'POST', { key:key, caption:caption, targets:targets, scheduledAt:at });
+    if(fileEl) fileEl.value='';
+    var cap=document.getElementById('sp-post-caption'); if(cap) cap.value='';
+    var cnt=document.getElementById('sp-post-count'); if(cnt) cnt.textContent='0 / 2200';
+    say(later?'Scheduled for '+_socialFmtWhen(at)+'.':'Sent. Instagram takes a few minutes to prepare a video; the status below updates by itself.');
+    if(typeof showToast==='function') showToast(later?'Post scheduled.':'Post sent.');
+    loadSocialPosts();
+  } catch(e){
+    say((e&&e.message)||'That did not go through. Try again.', true);
+  } finally {
+    _socialUploading=false;
+    if(prog) prog.style.display='none';
+    if(go){ go.disabled=false; go.style.opacity=''; }
+    socialWhenChanged();
+  }
+}
+window.socialSubmitPost = socialSubmitPost;
+
+async function loadSocialPosts(){
+  var el=document.getElementById('sp-post-list'); if(!el) return;
+  try { _socialPosts=(await _socialApi('/api/v1/social/posts')).posts||[]; }
+  catch(e){ if(!_socialPosts.length) el.innerHTML=''; return; }
+  function chip(label, r){
+    if(!r) return '';
+    var map={ done:['#DDF3E7','#0F5A3C','Posted'], failed:['#FEE2E2','#991B1B','Failed'], processing:['#FEF3C7','#8A5A08','Preparing'], pending:['var(--surface2)','var(--text2)','Waiting'] };
+    var c=map[r.state]||map.pending;
+    var inner=label+' · '+c[2];
+    var style='display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:'+c[0]+';color:'+c[1]+';margin:0 6px 4px 0;text-decoration:none;';
+    return (r.state==='done'&&r.link&&/^https:\/\//.test(r.link)) ? '<a href="'+partnerEsc(r.link)+'" target="_blank" rel="noopener" style="'+style+'">'+inner+' ↗</a>' : '<span style="'+style+'">'+inner+'</span>';
+  }
+  if(!_socialPosts.length){ el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:4px 2px;">No posts yet.</div>'; }
+  else {
+    el.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;text-transform:uppercase;margin:6px 2px 8px;">Your posts</div>'
+      + _socialPosts.map(function(p){
+        var when = p.status==='scheduled' ? 'Scheduled for '+_socialFmtWhen(p.scheduledAt) : (p.status==='publishing' ? 'Publishing now' : _socialFmtWhen(p.publishedAt||p.scheduledAt));
+        var errs=[p.facebook, p.instagramResult].map(function(r,i){ return (r&&r.state==='failed'&&r.error) ? (i===0?'Facebook: ':'Instagram: ')+r.error : ''; }).filter(Boolean);
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;">'
+          + '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">'
+          +   '<div style="font-size:11.5px;color:var(--text3);">'+partnerEsc(when)+'</div>'
+          +   (p.status==='publishing' ? '' : '<a onclick="socialDeletePost(\''+partnerEsc(p.id)+'\',\''+(p.status==='scheduled'?'cancel':'remove')+'\')" style="font-size:11.5px;color:var(--text3);cursor:pointer;text-decoration:underline;flex-shrink:0;">'+(p.status==='scheduled'?'Cancel':'Remove')+'</a>')
+          + '</div>'
+          + '<div style="font-size:13px;color:var(--text);margin:5px 0 8px;line-height:1.45;word-break:break-word;">'+(p.caption?partnerEsc(p.caption.length>160?p.caption.slice(0,160)+'…':p.caption):'<span style="color:var(--text3);">No caption</span>')+'</div>'
+          + chip('Facebook', p.facebook) + chip('Instagram', p.instagramResult)
+          + errs.map(function(t){ return '<div style="font-size:11.5px;color:#991B1B;line-height:1.5;margin-top:2px;">'+partnerEsc(t)+'</div>'; }).join('')
+          + '</div>';
+      }).join('');
+  }
+  // While something is on its way out, keep the list fresh. Otherwise leave it alone.
+  var busy=_socialPosts.some(function(p){ return p.status==='publishing' || (p.status==='scheduled' && p.scheduledAt-Date.now() < 5*60*1000); });
+  if(busy && !_socialPostsTimer){ _socialPostsTimer=setInterval(function(){ if(document.getElementById('sp-post-list')) loadSocialPosts(); }, 20000); }
+  if(!busy && _socialPostsTimer){ clearInterval(_socialPostsTimer); _socialPostsTimer=null; }
+}
+window.loadSocialPosts = loadSocialPosts;
+
+async function socialDeletePost(id, kind){
+  var q = kind==='cancel' ? 'Cancel this scheduled post? It will not be published.' : 'Remove this from your list?\n\nAnything already published stays up on Facebook and Instagram. Delete it there if you want it taken down.';
+  if(!confirm(q)) return;
+  try { await _socialApi('/api/v1/social/posts/delete', 'POST', { id:id }); if(typeof showToast==='function') showToast(kind==='cancel'?'Post cancelled.':'Removed.'); }
+  catch(e){ if(typeof showToast==='function') showToast((e&&e.message)||'Could not do that.'); }
+  loadSocialPosts();
+}
+window.socialDeletePost = socialDeletePost;
 
 var _connectCreds = { slyEmail:'', slyCallerId:'', hasSlyPass:false, hasThanksio:false };
 
