@@ -2483,6 +2483,9 @@ textarea.pln-in{min-height:220px;line-height:1.6;resize:vertical;}
 .pln-list{margin:0;padding-left:20px;font-size:14px;line-height:1.65;color:var(--text);}
 .pln-cap{border:1px solid var(--border);border-radius:12px;padding:11px 13px;display:flex;flex-direction:column;gap:7px;}
 .pln-cap div:first-child{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--text);}
+.pln-film{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;color:var(--text);margin-bottom:14px;}
+.pln-film select,.pln-film input{border:1px solid var(--border2,var(--border));border-radius:8px;padding:6px 9px;font-size:13.5px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;min-height:36px;}
+.pln-film em{font-style:normal;color:var(--text2);font-size:12.5px;}
 .pln-cap p{margin:0;font-size:13.5px;line-height:1.55;color:var(--text);white-space:pre-wrap;word-break:break-word;}
 </style>
 <div class="page" id="page-social">
@@ -18877,6 +18880,7 @@ async function todoToggle(id) {
   }
   t.done = !t.done;
   if (t.done) t.doneAt = Date.now();
+  if (t.done && t.planId && typeof plnFilmedFromTodo === 'function') plnFilmedFromTodo(t);
   var completed = _todos.filter(function(x){ return x.done; });
   if (completed.length > 10) {
     completed.sort(function(a,b){ return (a.doneAt||0)-(b.doneAt||0); });
@@ -19184,12 +19188,14 @@ function todoItemHTML(t, today) {
   var clientRow = (t.clientUid && t.clientName && !t.done)
     ? '<div style="margin-top:4px;"><span onclick="openBuyerDetail(\''+t.clientUid+'\')" style="display:inline-flex;align-items:center;gap:4px;background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:500;cursor:pointer;">👤 '+partnerEsc(t.clientName)+'</span></div>'
     : '';
+  var planRow = (typeof _plnTodoRow === 'function') ? _plnTodoRow(t) : '';
   return '<div style="background:' + bg + ';border:1px solid var(--border);border-left:' + border + ';border-radius:var(--r);padding:10px 12px;display:flex;align-items:flex-start;gap:10px;margin-bottom:6px;">'
     + chk
     + '<div style="flex:1;min-width:0;">'
     + '<div style="font-size:13.5px;line-height:1.4;' + textStyle + '">' + t.text + '</div>'
     + dateRow
     + clientRow
+    + planRow
     + '</div>'
     + '<div style="display:flex;gap:4px;flex-shrink:0;">'
     + calBtn + bellBtn + delBtn
@@ -28697,10 +28703,13 @@ async function injectScheduleBlocks() {
   var dayName = _DAYS[today.getDay() === 0 ? 6 : today.getDay() - 1]; // Mon=0...Sun=6
   var todayStr = today.toISOString().split('T')[0];
   var injected = 0;
+  var filmBlock = null;
 
 
   _scheduleBlocks.forEach(function(b) {
     if (b.day !== dayName || !b.task) return;
+    // The Planner's filming block lists the videos to film instead of one plain line.
+    if (b.id === 'pln_film' && typeof _plnInjectFilming === 'function') { filmBlock = b; return; }
     var blockId = 'sb_' + b.id + '_' + todayStr;
     var exists = _todos.some(function(t){ return t.id === blockId; });
     if (exists) return;
@@ -28720,6 +28729,10 @@ async function injectScheduleBlocks() {
     });
     injected++;
   });
+
+  if (filmBlock) {
+    try { injected += await _plnInjectFilming(filmBlock, todayStr); } catch(e) { console.log('filming block:', e && e.message); }
+  }
 
   if (injected > 0) { await todoSave(); todoRender(); todoUpdateBadge(); }
 }
@@ -36559,7 +36572,7 @@ function plnBack(){ _pln.open=''; _pln.editVideo=null; _plnDraw(); }
 function plnSet(id, field, value){
   id=_plnId(id); var v=_plnFind(id); if(!v) return;
   var body={}; body[field]=!!value;
-  _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:body });
+  _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:body }, function(){ if(field==='filmed' && value) _plnTodoDone(id); });
 }
 async function plnRemove(id){
   id=_plnId(id); var v=_plnFind(id); if(!v) return;
@@ -36612,6 +36625,7 @@ async function _plnLinked(plan, post, draft){
     if(post.status==='done') body.posted=true;
     var j=await _socialApi('/api/v1/content/video', 'POST', { month:plan.month, id:plan.id, video:body });
     if(plan.month===_pln.month) _plnTake(j);
+    if(!draft) _plnTodoDone(plan.id);
   } catch(e){}
 }
 // A card whose post has gone out is marked posted without anyone ticking it.
@@ -36626,6 +36640,119 @@ async function _plnReconcile(){
   }
   _pln.recon=false;
   if(changed && !_plnTyping()) _plnDraw();
+}
+
+// ── To-dos and the filming block ──
+// A card can be put on the to-do list, and ticking either one ticks the other. The filming
+// block is a time block in the agent's weekly schedule: on that morning the to-do list gets
+// the next videos to film, by name.
+var PLN_FILM_ID = 'pln_film';
+function _plnTodoList(){ return (typeof _todos!=='undefined' && Array.isArray(_todos)) ? _todos : []; }
+function _plnTodoOf(v){ return _plnTodoList().filter(function(t){ return t.planId===v.id && !t.done; })[0] || null; }
+function _plnTodoBtn(v, dis){
+  if(v.filmed) return '';
+  if(_plnTodoOf(v)) return '<button class="pln-btn" disabled>On your to-do list ✓</button>';
+  return '<button class="pln-btn"'+dis+' onclick="plnTodo(\''+_plnId(v.id)+'\')">Add to my to-dos</button>';
+}
+async function plnTodo(id){
+  var v=_plnFind(_plnId(id)); if(!v || typeof _todos==='undefined') return;
+  if(_plnTodoOf(v)){ _socToast('Already on your to-do list.'); return; }
+  // To-do text is shown as written, so the title goes in escaped.
+  _todos.unshift({ id: Date.now()+'_'+Math.random().toString(36).substring(2,6), text:'Film: '+partnerEsc(v.title), date:'', time:'',
+                   done:false, createdAt:Date.now(), clientUid:null, clientName:null, planId:v.id, planMonth:_pln.month });
+  try { await todoSave(); if(typeof todoRender==='function') todoRender(); } catch(e){}
+  _socToast('Added to your to-dos.');
+  _plnDraw();
+}
+// A card marked filmed finishes its to-do.
+function _plnTodoDone(id){
+  var hit=false;
+  _plnTodoList().forEach(function(t){ if(t.planId===id && !t.done){ t.done=true; t.doneAt=Date.now(); hit=true; } });
+  if(!hit) return;
+  try { _todos.sort(function(a,b){ return a.done === b.done ? 0 : a.done ? 1 : -1; }); todoSave(); if(typeof todoRender==='function') todoRender(); } catch(e){}
+}
+// A to-do ticked off marks its card filmed.
+async function plnFilmedFromTodo(t){
+  var id=_plnId(t&&t.planId), month=String((t&&t.planMonth)||'');
+  if(!id || !/^\d{4}-\d{2}$/.test(month)) return;
+  try {
+    var j=await _socialApi('/api/v1/content/video', 'POST', { month:month, id:id, video:{ filmed:true } });
+    if(month===_pln.month){ _plnTake(j); if(!_plnTyping()) _plnDraw(); }
+  } catch(e){}
+}
+// From the to-do list straight to the card and its script.
+function plnOpenFromTodo(month, id){
+  id=_plnId(id); if(!id || !/^\d{4}-\d{2}$/.test(String(month))) return;
+  _soc.tab='planner';
+  if(_pln.month!==month){ _pln.month=month; _pln.plan=null; _pln.loaded=false; }
+  _pln.open=id; _pln.editVideo=null; _pln.addWeek=0; _pln.editProfile=false;
+  if(typeof go==='function') go('social', null); else renderSocialPage();
+}
+function _plnTodoRow(t){
+  var id=_plnId(t&&t.planId), month=String((t&&t.planMonth)||'');
+  if(!id || t.done || !/^\d{4}-\d{2}$/.test(month)) return '';
+  return '<div style="margin-top:4px;"><span onclick="plnOpenFromTodo(\''+month+'\',\''+id+'\')" style="display:inline-flex;align-items:center;gap:4px;background:var(--green-lt);color:var(--green-dk);border:1px solid var(--green-md);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:500;cursor:pointer;">Open the script</span></div>';
+}
+
+function _plnFilmBlock(){ return ((typeof _scheduleBlocks!=='undefined' && Array.isArray(_scheduleBlocks)) ? _scheduleBlocks : []).filter(function(b){ return b && b.id===PLN_FILM_ID; })[0] || null; }
+function _plnFilmHtml(){
+  var p=_pln.profile||{}, b=_plnFilmBlock(), days=(typeof _DAYS!=='undefined') ? _DAYS : ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var dis=_pln.busy?' disabled':'';
+  var pw=(_pln.perWeek||[2,3,5]).map(function(n){ return '<option value="'+n+'"'+(+p.perWeek===+n?' selected':'')+'>'+n+'</option>'; }).join('');
+  var dy='<option value="">no set day</option>'+days.map(function(d){ return '<option value="'+d+'"'+(b&&b.day===d?' selected':'')+'>'+d+'</option>'; }).join('');
+  return '<div class="pln-film"><label for="pln-f-n">I film</label><select id="pln-f-n"'+dis+' onchange="plnFilmSet(\'perWeek\',this.value)">'+pw+'</select>'
+    + '<label for="pln-f-day">videos every</label><select id="pln-f-day"'+dis+' onchange="plnFilmSet(\'day\',this.value)">'+dy+'</select>'
+    + (b ? '<input type="time" id="pln-f-start" aria-label="Filming starts" value="'+partnerEsc(b.startTime||'09:00')+'"'+dis+' onchange="plnFilmSet(\'start\',this.value)"/><span>to</span>'
+          + '<input type="time" id="pln-f-end" aria-label="Filming ends" value="'+partnerEsc(b.endTime||'')+'"'+dis+' onchange="plnFilmSet(\'end\',this.value)"/>' : '')
+    + '<em>'+(b ? 'That morning your to-do list shows the next '+(p.perWeek||3)+' to film.' : 'Pick a day and they show up on your to-do list that morning.')+'</em></div>';
+}
+async function plnFilmSet(field, value){
+  if(_pln.busy) return;
+  if(field==='perWeek'){
+    var ok=await _plnSend('/api/v1/content/profile', { perWeek:+value||3 });
+    if(ok){ await _plnLoad(true); _plnDraw(); }
+    return;
+  }
+  var cur=_plnFilmBlock();
+  var b=cur ? { id:PLN_FILM_ID, day:cur.day, startTime:cur.startTime||'09:00', endTime:cur.endTime||'', task:cur.task||'Film videos' }
+            : { id:PLN_FILM_ID, day:'', startTime:'09:00', endTime:'11:00', task:'Film videos' };
+  if(field==='day') b.day=String(value||'');
+  if(field==='start' && /^\d\d:\d\d$/.test(String(value))) b.startTime=value;
+  if(field==='end') b.endTime=/^\d\d:\d\d$/.test(String(value)) ? value : '';
+  if(b.endTime && b.endTime<=b.startTime) b.endTime='';
+  _pln.busy=true;
+  try {
+    // The schedule is read fresh before it is saved, so the agent's other time blocks are never lost.
+    var ref=fb.doc(fb.db,'agent_schedule',_profileUid());
+    var snap=await fb.getDoc(ref);
+    var list=(snap.exists() ? (snap.data().blocks||[]) : []).filter(function(x){ return x && x.id!==PLN_FILM_ID; });
+    if(b.day) list.push(b);
+    await fb.setDoc(ref, { blocks:list, updatedAt:Date.now() });
+    _scheduleBlocks=list;
+    if(typeof scheduleRender==='function') scheduleRender();
+    _socToast(b.day ? 'Saved. Your filming list shows up on '+b.day+' mornings.' : 'Filming day removed.');
+  } catch(e){ _socToast('That did not save. Check your connection and try again.'); }
+  _pln.busy=false;
+  _plnDraw();
+}
+// Called on the filming day, with the rest of the day's time blocks: one to-do for each of the
+// next videos to film. Returns how many were added.
+async function _plnInjectFilming(b, todayStr){
+  var month=_plnMonthOf(new Date());
+  var j=await _socialApi('/api/v1/content?month='+encodeURIComponent(month));
+  var n=(j.profile && j.profile.perWeek) || 3;
+  var vids=((j.plan && j.plan.videos) || []).filter(function(v){ return !v.filmed && !v.posted; }).slice(0, n);
+  var added=0, when=b.startTime+(b.endTime?'–'+b.endTime:'');
+  // Last first, so the first video to film ends up on top.
+  for(var i=vids.length-1;i>=0;i--){
+    var v=vids[i], tid='film_'+v.id+'_'+todayStr;
+    if(_todos.some(function(t){ return t.id===tid || (t.planId===v.id && !t.done); })) continue;
+    _todos.unshift({ id:tid, text:'🎬 '+when+' — Film: '+partnerEsc(v.title), date:todayStr, time:b.startTime, done:false, createdAt:Date.now(),
+                     isScheduleBlock:true, planId:v.id, planMonth:month,
+                     reminderSet:i===0, reminderTime:todayStr+'T'+b.startTime, reminderFired:false });
+    added++;
+  }
+  return added;
 }
 
 function plnCopyPart(what){
@@ -36705,6 +36832,7 @@ function _plnBoardHtml(){
       + '<p>Your AI researches what people in '+partnerEsc(p.market)+' are asking right now and plans '+target+' videos, with the first week scripted. First time? <a href="'+PLN_CONNECT_URL+'" target="_blank" rel="noopener" style="color:var(--green-dk);font-weight:600;">Connect NestTrack to Claude</a>.</p>'
       + '<button class="pln-btn dark" onclick="plnAsk(\'plan\')">Plan my month with Claude</button> <button class="pln-btn" onclick="plnAddOpen(1)">+ Add your own idea</button></div>';
   }
+  h+=_plnFilmHtml();
   h+='<div class="pln-grid">';
   for(var w=1;w<=4;w++){
     var list=vs.filter(function(v){ return v.week===w; });
@@ -36755,6 +36883,7 @@ function _plnDetailHtml(v){
         ? '<button class="pln-btn"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',false)">Filmed ✓ (undo)</button>'
           + (v.posted ? '<button class="pln-btn"'+dis+' onclick="plnSet(\''+id+'\',\'posted\',false)">Posted ✓ (undo)</button>' : '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'posted\',true)">Mark as posted</button>')
         : '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',true)">Mark as filmed</button>')
+    + _plnTodoBtn(v, dis)
     + _plnPostBtn(v, dis)
     + '</div>';
   if(!v.script){
@@ -36776,7 +36905,7 @@ window.plnAsk=plnAsk; window.plnReplan=plnReplan; window.plnMonth=plnMonth; wind
 window.plnEditProfile=plnEditProfile; window.plnField=plnField; window.plnVoice=plnVoice; window.plnPerWeek=plnPerWeek; window.plnSaveProfile=plnSaveProfile;
 window.plnOpen=plnOpen; window.plnBack=plnBack; window.plnSet=plnSet; window.plnRemove=plnRemove;
 window.plnAddOpen=plnAddOpen; window.plnAddType=plnAddType; window.plnAddKey=plnAddKey; window.plnAddSave=plnAddSave;
-window.plnSchedule=plnSchedule; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
+window.plnSchedule=plnSchedule; window.plnTodo=plnTodo; window.plnFilmSet=plnFilmSet; window.plnOpenFromTodo=plnOpenFromTodo; window.plnFilmedFromTodo=plnFilmedFromTodo; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
 
 function socTab(t){ _soc.tab=t; socDraw(); }
 function socFilter(id){ _soc.filter=id; socDraw(); }
