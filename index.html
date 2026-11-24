@@ -36321,7 +36321,7 @@ function socDraw(){
     // The list refresh would redraw the page under someone typing, so it rests while the planner is open.
     if(_soc.timer){ clearInterval(_soc.timer); _soc.timer=null; }
     root.innerHTML = '<div class="soc-shell">'+rail+'<div style="min-width:0;">'+tabs+'<div id="pln-root">'+_plnHtml()+'</div></div></div>';
-    if(!_pln.loaded && !_pln.loading) _plnLoad();
+    if(!_pln.loaded && !_pln.loading) _plnLoad(); else _plnReconcile();
     return;
   }
 
@@ -36449,6 +36449,7 @@ async function _plnLoad(quiet){
   catch(e){ if(!quiet) _pln.err=(e&&e.message)||'Your planner could not load.'; }
   _pln.loading=false; _pln.loaded=true;
   if(!quiet) _plnDraw();
+  if(ok) _plnReconcile();
   return ok;
 }
 // One place for every change: send it, take the plan that comes back, redraw.
@@ -36584,6 +36585,49 @@ async function plnSaveVideo(){
   if(!String(e.title||'').trim()){ _socToast('Give the video a title.'); return; }
   await _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:{ title:e.title, angle:e.angle, week:+e.week||1, format:e.format, script:e.script } }, function(){ _pln.editVideo=null; });
 }
+// ── From a card to the scheduler ──
+function _plnPostOf(v){ return (v && v.post_id) ? ((_soc.posts||[]).filter(function(p){ return p.id===v.post_id; })[0] || null) : null; }
+function _plnPostBtn(v, dis){
+  var id=_plnId(v.id), p=_plnPostOf(v);
+  if(p && (p.status==='scheduled' || p.status==='publishing' || p.status==='draft')){
+    var lab = p.status==='draft' ? 'Finish the draft post' : (p.status==='publishing' ? 'Posting now…' : 'Scheduled for '+_socFmtWhen(p.scheduledAt)+' · Edit');
+    return '<button class="pln-btn"'+(p.status==='publishing'?' disabled':dis)+' onclick="socEdit(\''+partnerEsc(p.id)+'\')">'+partnerEsc(lab)+'</button>';
+  }
+  if(v.posted) return '';
+  return '<button class="pln-btn'+(v.filmed?' dark':'')+'"'+dis+' onclick="plnSchedule(\''+id+'\')">Schedule this post</button>';
+}
+// Opens the scheduler with this card's caption and YouTube title filled in. The video is added there.
+function plnSchedule(id){
+  var v=_plnFind(_plnId(id)); if(!v) return;
+  if(!_socChannels().length){ _socToast('Connect an account first: add a Facebook Page, Instagram, TikTok or YouTube on the left.'); return; }
+  var c=v.captions||{};
+  var yt=String(c.youtube||'').split('\n')[0].trim() || v.title;
+  socCompose(null, 0, { caption: c.instagram || c.tiktok || '', ytTitle: yt, plan:{ month:_pln.month, id:v.id } });
+}
+// The post made from a card is remembered on the card, so the card can follow it out the door.
+async function _plnLinked(plan, post, draft){
+  try {
+    var body={ post_id: post.id };
+    if(!draft) body.filmed=true;
+    if(post.status==='done') body.posted=true;
+    var j=await _socialApi('/api/v1/content/video', 'POST', { month:plan.month, id:plan.id, video:body });
+    if(plan.month===_pln.month) _plnTake(j);
+  } catch(e){}
+}
+// A card whose post has gone out is marked posted without anyone ticking it.
+async function _plnReconcile(){
+  if(_pln.recon || !_pln.plan) return;
+  var due=_plnVideos().filter(function(v){ var p=_plnPostOf(v); return !v.posted && p && (p.status==='done' || p.status==='partial'); });
+  if(!due.length) return;
+  _pln.recon=true;
+  var month=_pln.month, changed=false;
+  for(var i=0;i<due.length;i++){
+    try { var j=await _socialApi('/api/v1/content/video', 'POST', { month:month, id:due[i].id, video:{ posted:true } }); if(month===_pln.month){ _plnTake(j); changed=true; } } catch(e){}
+  }
+  _pln.recon=false;
+  if(changed && !_plnTyping()) _plnDraw();
+}
+
 function plnCopyPart(what){
   var v=_plnFind(_pln.open); if(!v) return;
   var c=v.captions||{};
@@ -36711,6 +36755,7 @@ function _plnDetailHtml(v){
         ? '<button class="pln-btn"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',false)">Filmed ✓ (undo)</button>'
           + (v.posted ? '<button class="pln-btn"'+dis+' onclick="plnSet(\''+id+'\',\'posted\',false)">Posted ✓ (undo)</button>' : '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'posted\',true)">Mark as posted</button>')
         : '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',true)">Mark as filmed</button>')
+    + _plnPostBtn(v, dis)
     + '</div>';
   if(!v.script){
     return h+'<div class="soc-empty"><h3>No script yet</h3><p>Your AI writes the hooks, the script, the shots and the captions for every video in this week.</p>'
@@ -36731,7 +36776,7 @@ window.plnAsk=plnAsk; window.plnReplan=plnReplan; window.plnMonth=plnMonth; wind
 window.plnEditProfile=plnEditProfile; window.plnField=plnField; window.plnVoice=plnVoice; window.plnPerWeek=plnPerWeek; window.plnSaveProfile=plnSaveProfile;
 window.plnOpen=plnOpen; window.plnBack=plnBack; window.plnSet=plnSet; window.plnRemove=plnRemove;
 window.plnAddOpen=plnAddOpen; window.plnAddType=plnAddType; window.plnAddKey=plnAddKey; window.plnAddSave=plnAddSave;
-window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
+window.plnSchedule=plnSchedule; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
 
 function socTab(t){ _soc.tab=t; socDraw(); }
 function socFilter(id){ _soc.filter=id; socDraw(); }
@@ -36809,7 +36854,7 @@ window.socDeletePost=socDeletePost;
 // _soc.c holds the post being written:
 //   { id, channels:{id:true}, caption, media:[{key,kind,url} | {file,kind,preview}], mode, at,
 //     tt:{ <tiktok channel id>: the choices TikTok asks for }, ttInfo:{ <id>: what TikTok says about that account } }
-function socCompose(post, slotMs){
+function socCompose(post, slotMs, seed){
   var chs=_socChannels();
   var hasSched=(_socSchedule().slots||[]).length>0;
   // mode: queue (next open posting time) | next (front of the queue) | now | time (picked)
@@ -36829,6 +36874,12 @@ function socCompose(post, slotMs){
     c.channels[_soc.filter]=true;
   } else if(chs.length===1){
     c.channels[chs[0].id]=true;
+  }
+  // Opened from a card on the Planner: the caption and the YouTube title come filled in.
+  if(seed && !post){
+    c.caption=String(seed.caption||'').slice(0,2200);
+    c.plan=seed.plan||null;
+    if(seed.ytTitle) chs.forEach(function(k){ if(k.type==='youtube') c.yt[k.id]={ title:String(seed.ytTitle).slice(0,100), privacy:'', kids:null }; });
   }
   _soc.c=c;
   var box=document.getElementById('soc-compose'), modal=document.getElementById('soc-modal');
@@ -37295,6 +37346,7 @@ async function socSubmit(draft){
     _soc.busy=false;
     socCloseCompose(true);
     var p=out.post||{};
+    if(c.plan && p.id) _plnLinked(c.plan, p, !!draft);
     _soc.tab = draft ? 'drafts' : (p.status==='scheduled'||p.status==='publishing' ? 'queue' : 'sent');
     _socToast(draft?'Draft saved.':(p.status==='scheduled'?'Scheduled for '+_socFmtWhen(p.scheduledAt)+'.':(p.status==='publishing'?'Sent. A video takes a few minutes to process before it shows on the profile.':(p.status==='done'?'Posted.':'Sent. Check the status in the list.'))));
     renderSocialPage();
