@@ -2460,6 +2460,9 @@ textarea.pln-in{min-height:220px;line-height:1.6;resize:vertical;}
 .pln-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--text);}
 .pln-row select{border:1px solid var(--border2,var(--border));border-radius:8px;padding:7px 10px;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;}
 .pln-row em{font-style:normal;color:var(--text2);font-size:13px;}
+.pln-row input[type=time]{border:1px solid var(--border2,var(--border));border-radius:8px;padding:6px 9px;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;min-height:36px;}
+.pln-fold{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+.pln-fold .pln-fine{margin:0;}
 .pln-two{display:flex;gap:10px;flex-wrap:wrap;}
 .pln-two .pln-btn{flex:1 1 220px;min-height:50px;font-size:14.5px;border-radius:12px;}
 .pln-fine{font-size:12.5px;line-height:1.5;color:var(--text2);margin:0;}
@@ -36568,12 +36571,16 @@ function plnMonth(m){ if(m===_pln.month || _pln.busy) return; _pln.month=m; _pln
 function _plnFormStart(){
   var p=_pln.profile||{};
   _pln.form={ market:p.market||'', communities:(p.communities||[]).join(', '), focus:p.focus||'', voice:p.voice||'', cta:p.cta||'', perWeek:p.perWeek||3, own:false, say:'' };
+  var fbk=_plnFilmBlock();
+  _pln.form.filmDay=fbk?String(fbk.day||''):''; _pln.form.filmStart=(fbk&&fbk.startTime)||'09:00'; _pln.form.filmEnd=fbk?(fbk.endTime||''):'11:00'; _pln.form.filmOpen=false;
   _pln.form.own = !!(_pln.form.voice && _plnVoices.indexOf(_pln.form.voice)===-1);
 }
 function plnEditProfile(on){ _pln.editProfile=!!on; if(on) _plnFormStart(); else _pln.form=null; _plnDraw(); }
 function plnField(k, v){ if(_pln.form) _pln.form[k]=v; }
 function plnVoice(v){ if(!_pln.form) return; if(v==='__own'){ _pln.form.own=true; if(_plnVoices.indexOf(_pln.form.voice)!==-1) _pln.form.voice=''; } else { _pln.form.own=false; _pln.form.voice=v; } _plnDraw(); if(v==='__own'){ var i=document.getElementById('pln-voice'); if(i) i.focus(); } }
 function plnPerWeek(v){ if(_pln.form){ _pln.form.perWeek=+v||3; _plnDraw(); } }
+function plnFilmOpen(){ if(_pln.form){ _pln.form.filmOpen=!_pln.form.filmOpen; _plnDraw(); } }
+function plnFilmField(k, v){ if(!_pln.form) return; _pln.form[k]=String(v||''); if(k==='filmDay') _plnDraw(); }
 // andPlan: after saving, hand straight off to the AI.
 async function plnSaveProfile(andPlan){
   var f=_pln.form; if(!f || _pln.busy) return;
@@ -36583,10 +36590,11 @@ async function plnSaveProfile(andPlan){
   var ok=await _plnSend('/api/v1/content/profile', { market:f.market, communities:f.communities, focus:f.focus, voice:f.voice, cta:f.cta, perWeek:f.perWeek },
     function(){ _pln.editProfile=false; _pln.form=null; });
   if(!ok){ try { if(w) w.close(); } catch(e){} return; }
+  var filmOk=await _plnFilmSave(f);
   // The number of videos a month comes from the profile, so the plan is read again.
   await _plnLoad(true);
   if(andPlan){ var text=_plnPrompt('plan'); _plnCopy(text); _plnSendTab(w, text); _plnWaitStart(); }
-  else _socToast('Saved.');
+  else if(filmOk) _socToast('Saved.');
   _plnDraw();
 }
 
@@ -36751,32 +36759,29 @@ function _plnTodoRow(t){
 }
 
 function _plnFilmBlock(){ return ((typeof _scheduleBlocks!=='undefined' && Array.isArray(_scheduleBlocks)) ? _scheduleBlocks : []).filter(function(b){ return b && b.id===PLN_FILM_ID; })[0] || null; }
-function _plnFilmHtml(){
-  var p=_pln.profile||{}, b=_plnFilmBlock(), days=(typeof _DAYS!=='undefined') ? _DAYS : ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-  var dis=_pln.busy?' disabled':'';
-  var pw=(_pln.perWeek||[2,3,5]).map(function(n){ return '<option value="'+n+'"'+(+p.perWeek===+n?' selected':'')+'>'+n+'</option>'; }).join('');
-  var dy='<option value="">no set day</option>'+days.map(function(d){ return '<option value="'+d+'"'+(b&&b.day===d?' selected':'')+'>'+d+'</option>'; }).join('');
-  return '<div class="pln-film"><label for="pln-f-n">I film</label><select id="pln-f-n"'+dis+' onchange="plnFilmSet(\'perWeek\',this.value)">'+pw+'</select>'
-    + '<label for="pln-f-day">videos every</label><select id="pln-f-day"'+dis+' onchange="plnFilmSet(\'day\',this.value)">'+dy+'</select>'
-    + (b ? '<input type="time" id="pln-f-start" aria-label="Filming starts" value="'+partnerEsc(b.startTime||'09:00')+'"'+dis+' onchange="plnFilmSet(\'start\',this.value)"/><span>to</span>'
-          + '<input type="time" id="pln-f-end" aria-label="Filming ends" value="'+partnerEsc(b.endTime||'')+'"'+dis+' onchange="plnFilmSet(\'end\',this.value)"/>' : '')
-    + '<em>'+(b ? 'That morning your to-do list shows the next '+(p.perWeek||3)+' to film.' : 'Pick a day and they show up on your to-do list that morning.')+'</em></div>';
+function _plnClock(t){ var m=/^(\d\d):(\d\d)$/.exec(String(t||'')); if(!m) return ''; var h=+m[1]; return ((h%12)||12)+':'+m[2]+(h<12?' AM':' PM'); }
+// The filming day, inside the content profile form. Closed until asked for.
+function _plnFilmHtml(f){
+  var days=(typeof _DAYS!=='undefined') ? _DAYS : ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var n=+f.perWeek||3;
+  var sum=f.filmDay ? 'Filming day: '+partnerEsc(f.filmDay)+', '+_plnClock(f.filmStart)+(_plnClock(f.filmEnd)?' to '+_plnClock(f.filmEnd):'') : 'Set a filming day (optional)';
+  var h='<div class="pln-fold"><button type="button" class="pln-link" id="pln-f-toggle" aria-expanded="'+(f.filmOpen?'true':'false')+'" onclick="plnFilmOpen()">'+sum+' '+(f.filmOpen?'▴':'▾')+'</button>';
+  if(!f.filmOpen) return h+'</div>';
+  var dy='<option value="">No set day</option>'+days.map(function(d){ return '<option value="'+d+'"'+(f.filmDay===d?' selected':'')+'>'+d+'</option>'; }).join('');
+  return h+'<p class="pln-fine">Pick the day you usually film. That morning, your to-do list shows the next '+n+' videos to film, and the time is held on your schedule.</p>'
+    + '<div class="pln-row"><label for="pln-f-day">I film on</label><select id="pln-f-day" onchange="plnFilmField(\'filmDay\',this.value)">'+dy+'</select>'
+    + (f.filmDay ? '<label for="pln-f-start">from</label><input type="time" id="pln-f-start" value="'+partnerEsc(f.filmStart||'09:00')+'" onchange="plnFilmField(\'filmStart\',this.value)"/>'
+        + '<label for="pln-f-end">to</label><input type="time" id="pln-f-end" value="'+partnerEsc(f.filmEnd||'')+'" onchange="plnFilmField(\'filmEnd\',this.value)"/>' : '')
+    + '</div></div>';
 }
-async function plnFilmSet(field, value){
-  if(_pln.busy) return;
-  if(field==='perWeek'){
-    var ok=await _plnSend('/api/v1/content/profile', { perWeek:+value||3 });
-    if(ok){ await _plnLoad(true); _plnDraw(); }
-    return;
-  }
+// Saved with the profile. Returns false only when the save failed.
+async function _plnFilmSave(f){
   var cur=_plnFilmBlock();
-  var b=cur ? { id:PLN_FILM_ID, day:cur.day, startTime:cur.startTime||'09:00', endTime:cur.endTime||'', task:cur.task||'Film videos' }
-            : { id:PLN_FILM_ID, day:'', startTime:'09:00', endTime:'11:00', task:'Film videos' };
-  if(field==='day') b.day=String(value||'');
-  if(field==='start' && /^\d\d:\d\d$/.test(String(value))) b.startTime=value;
-  if(field==='end') b.endTime=/^\d\d:\d\d$/.test(String(value)) ? value : '';
-  if(b.endTime && b.endTime<=b.startTime) b.endTime='';
-  _pln.busy=true;
+  var day=String(f.filmDay||''), start=/^\d\d:\d\d$/.test(String(f.filmStart)) ? f.filmStart : '09:00', end=/^\d\d:\d\d$/.test(String(f.filmEnd)) ? f.filmEnd : '';
+  if(end && end<=start) end='';
+  if(!cur && !day) return true;
+  if(cur && cur.day===day && (cur.startTime||'09:00')===start && (cur.endTime||'')===end) return true;
+  var b={ id:PLN_FILM_ID, day:day, startTime:start, endTime:end, task:(cur&&cur.task)||'Film videos' };
   try {
     // The schedule is read fresh before it is saved, so the agent's other time blocks are never lost.
     var ref=fb.doc(fb.db,'agent_schedule',_profileUid());
@@ -36786,10 +36791,8 @@ async function plnFilmSet(field, value){
     await fb.setDoc(ref, { blocks:list, updatedAt:Date.now() });
     _scheduleBlocks=list;
     if(typeof scheduleRender==='function') scheduleRender();
-    _socToast(b.day ? 'Saved. Your filming list shows up on '+b.day+' mornings.' : 'Filming day removed.');
-  } catch(e){ _socToast('That did not save. Check your connection and try again.'); }
-  _pln.busy=false;
-  _plnDraw();
+    return true;
+  } catch(e){ _socToast('Your profile saved, but the filming day did not. Check your connection and try again.'); return false; }
 }
 // Called on the filming day, with the rest of the day's time blocks: one to-do for each of the
 // next videos to film. Returns how many were added.
@@ -36842,7 +36845,8 @@ function _plnFormHtml(){
     +   '<div class="pln-f"><div class="l">How you talk</div><div class="pln-chips">'+chips+'</div>'
     +     (f.own ? '<input class="pln-in" id="pln-voice" type="text" maxlength="160" aria-label="How you talk, in your own words" placeholder="In a few words" value="'+partnerEsc(f.voice)+'" oninput="plnField(\'voice\',this.value)"/>' : '')+'</div>'
     +   '<div class="pln-f"><label for="pln-cta">What should viewers do at the end of a video?</label><input class="pln-in" id="pln-cta" type="text" maxlength="200" placeholder="Book a call, send you a message, get a guide…" value="'+partnerEsc(f.cta)+'" oninput="plnField(\'cta\',this.value)"/></div>'
-    +   '<div class="pln-row"><label for="pln-pw">I film</label><select id="pln-pw" onchange="plnPerWeek(this.value)">'+opts+'</select><span>videos a week</span><em>That is '+((+f.perWeek||3)*4)+' for the month.</em></div>'
+    +   '<div class="pln-row"><label for="pln-pw">Videos a week</label><select id="pln-pw" onchange="plnPerWeek(this.value)">'+opts+'</select><em>That is '+((+f.perWeek||3)*4)+' for the month.</em></div>'
+    +   _plnFilmHtml(f)
     + '</div>'
     + '<div class="pln-say" role="alert">'+partnerEsc(f.say||'')+'</div>'
     + (first
@@ -36871,6 +36875,8 @@ function _plnBoardHtml(){
   var filmed=vs.filter(function(v){ return v.filmed; }).length, posted=vs.filter(function(v){ return v.posted; }).length;
   var open=Math.max(0, target-vs.length);
   var bits=[p.market].concat((p.communities||[]).length?[(p.communities||[]).join(', ')]:[]).concat(p.voice?[p.voice]:[]).concat(p.cta?['“'+p.cta+'”']:[]);
+  var fday=_plnFilmBlock();
+  bits.push((p.perWeek||3)+' videos a week'+(fday&&fday.day?', filmed on '+fday.day+'s':''));
   var months=_plnMonths();
   var h='<div class="pln-strip"><div><b>Your content profile</b>'+partnerEsc(bits.join(' · '))+'</div><button class="pln-btn sm" onclick="plnEditProfile(true)">Edit</button></div>';
   h+='<div class="pln-head"><div>'
@@ -36890,7 +36896,6 @@ function _plnBoardHtml(){
       + '<p>Your AI researches what people in '+partnerEsc(p.market)+' are asking right now and plans '+target+' videos, with the first week scripted. First time? <a href="'+PLN_CONNECT_URL+'" target="_blank" rel="noopener" style="color:var(--green-dk);font-weight:600;">Connect NestTrack to Claude</a>.</p>'
       + '<button class="pln-btn" onclick="plnAddOpen(1)">+ Add your own idea</button></div>';
   }
-  h+=_plnFilmHtml();
   h+='<div class="pln-grid">';
   for(var w=1;w<=4;w++){
     var list=vs.filter(function(v){ return v.week===w; });
@@ -36920,9 +36925,9 @@ function _plnStepsHtml(v, dis){
   return '<div class="pln-steps">'
     + step(1, 'Filmed', v.filmed, 'plnSet(\''+id+'\',\'filmed\','+(v.filmed?'false':'true')+')')
     + step(2, 'Edited', v.edited, 'plnSet(\''+id+'\',\'edited\','+(v.edited?'false':'true')+')')
-    + step(3, 'Scheduled', sched || v.posted, sched ? 'socEdit(\''+partnerEsc(p.id)+'\')' : 'plnSchedule(\''+id+'\')', v.posted || (p && p.status==='publishing'))
+    + step(3, (sched || v.posted) ? 'Scheduled' : 'Schedule', sched || v.posted, sched ? 'socEdit(\''+partnerEsc(p.id)+'\')' : 'plnSchedule(\''+id+'\')', v.posted || (p && p.status==='publishing'))
     + step(4, 'Posted', v.posted, 'plnSet(\''+id+'\',\'posted\','+(v.posted?'false':'true')+')')
-    + '</div><p class="pln-fine">Tap a step to mark it done or undo it. Scheduled and Posted also tick themselves when you post through NestTrack.</p>';
+    + '</div><p class="pln-fine">Tap Filmed, Edited or Posted to tick it. Schedule opens the scheduler, and the last two tick themselves when you post through NestTrack.</p>';
 }
 // The one thing to do next.
 function _plnNextHtml(v, dis){
@@ -37000,10 +37005,10 @@ function _plnDetailHtml(v){
 }
 
 window.plnAsk=plnAsk; window.plnReplan=plnReplan; window.plnMonth=plnMonth; window.plnWaitStop=plnWaitStop; window.plnCheckNow=plnCheckNow;
-window.plnEditProfile=plnEditProfile; window.plnField=plnField; window.plnVoice=plnVoice; window.plnPerWeek=plnPerWeek; window.plnSaveProfile=plnSaveProfile;
+window.plnEditProfile=plnEditProfile; window.plnField=plnField; window.plnVoice=plnVoice; window.plnPerWeek=plnPerWeek; window.plnFilmOpen=plnFilmOpen; window.plnFilmField=plnFilmField; window.plnSaveProfile=plnSaveProfile;
 window.plnOpen=plnOpen; window.plnBack=plnBack; window.plnSet=plnSet; window.plnRemove=plnRemove;
 window.plnAddOpen=plnAddOpen; window.plnAddType=plnAddType; window.plnAddKey=plnAddKey; window.plnAddSave=plnAddSave;
-window.plnMore=plnMore; window.plnShow=plnShow; window.plnMenu=plnMenu; window.plnPart=plnPart; window.plnPartType=plnPartType; window.plnPartSave=plnPartSave; window.plnSchedule=plnSchedule; window.plnTodo=plnTodo; window.plnFilmSet=plnFilmSet; window.plnOpenFromTodo=plnOpenFromTodo; window.plnFilmedFromTodo=plnFilmedFromTodo; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
+window.plnMore=plnMore; window.plnShow=plnShow; window.plnMenu=plnMenu; window.plnPart=plnPart; window.plnPartType=plnPartType; window.plnPartSave=plnPartSave; window.plnSchedule=plnSchedule; window.plnTodo=plnTodo; window.plnOpenFromTodo=plnOpenFromTodo; window.plnFilmedFromTodo=plnFilmedFromTodo; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
 
 function socTab(t){ _soc.tab=t; socDraw(); }
 function socFilter(id){ _soc.filter=id; socDraw(); }
