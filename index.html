@@ -2462,6 +2462,15 @@ textarea.pln-in{min-height:220px;line-height:1.6;resize:vertical;}
 .pln-row em{font-style:normal;color:var(--text2);font-size:13px;}
 .pln-row input[type=time]{border:1px solid var(--border2,var(--border));border-radius:8px;padding:6px 9px;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;min-height:36px;}
 .pln-f>.pln-row{margin-top:8px;}
+.pln-drop{border:2px dashed var(--border2,var(--border));border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;font-size:13.5px;color:var(--text2);}
+.pln-drop b{font-size:14.5px;font-weight:600;color:var(--text);word-break:break-word;}
+.pln-drop.over{border-color:var(--green);background:var(--green-lt);}
+.pln-drop label{cursor:pointer;}
+.pln-how{display:flex;flex-direction:column;gap:12px;}
+.pln-how p{margin:0;font-size:14px;line-height:1.55;color:var(--text);}
+.pln-how ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;color:var(--text);}
+.pln-how .pln-fine{color:var(--text2);font-size:12.5px;}
+.pln-how a{color:var(--green-dk);font-weight:600;}
 .pln-f>.pln-fine{margin:8px 0 0;}
 .pln-two{display:flex;gap:10px;flex-wrap:wrap;}
 .pln-two .pln-btn{flex:1 1 220px;min-height:50px;font-size:14.5px;border-radius:12px;}
@@ -2522,6 +2531,7 @@ textarea.pln-in.short{min-height:140px;}
       <div class="pt" style="margin-top:2px;">Social</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="soc-draft" id="soc-edit-btn" onclick="plnEditAsk()" style="display:none;">Edit with Claude</button>
       <button class="soc-draft" id="soc-sched-btn" onclick="socScheduleOpen()" style="display:none;">Posting schedule</button>
       <button class="soc-new" id="soc-new-btn" onclick="socCompose()" style="display:none;">+ New post</button>
     </div>
@@ -36320,6 +36330,7 @@ function socDraw(){
   }
   if(newBtn) newBtn.style.display = chs.length ? '' : 'none';
   var schedBtn=document.getElementById('soc-sched-btn'); if(schedBtn) schedBtn.style.display = chs.length ? '' : 'none';
+  var editBtn=document.getElementById('soc-edit-btn'); if(editBtn) editBtn.style.display='';
   if(_soc.filter && !chs.some(function(c){ return c.id===_soc.filter; })) _soc.filter='';
 
   var addBtns = '<button onclick="socAddChannel(\'facebook\')"><span class="soc-av fb" style="width:18px;height:18px;font-size:10px;">f</span> Add Facebook Page</button>'
@@ -36524,8 +36535,9 @@ function _plnSendTab(w, text){
   var w2=null; try { w2=window.open(url,'_blank'); } catch(e3){}
   if(!w2) _socToast('Your browser blocked the new tab. Allow pop-ups for NestTrack and try again. Your request was copied, so you can also paste it into Claude.');
 }
-function _plnWaitStart(){
-  _pln.waitUntil=Date.now()+25*60*1000;
+function _plnWaitStart(kind){
+  _pln.waitKind=kind==='edit' ? 'edit' : 'plan';
+  _pln.waitUntil=Date.now()+(kind==='edit' ? 90 : 25)*60*1000;
   _pln.waitStamp=(_pln.plan&&_pln.plan.updatedAt)||0;
   _pln.waitTold=false;
   if(_pln.wait) return;
@@ -36537,7 +36549,7 @@ function _plnWaitStart(){
     var now=(_pln.plan&&_pln.plan.updatedAt)||0;
     if(now && now!==before){
       _pln.waitStamp=now;
-      if(!_pln.waitTold){ _pln.waitTold=true; _socToast('Your plan is in.'); }
+      if(!_pln.waitTold){ _pln.waitTold=true; _socToast(_pln.waitKind==='edit' ? 'Claude updated your video.' : 'Your plan is in.'); }
       if(!_plnTyping()) _plnDraw();
     }
   }, 15000);
@@ -36673,13 +36685,72 @@ function _plnPostBtn(v, dis){
   return '<button class="pln-btn'+(v.filmed?' dark':'')+'"'+dis+' onclick="plnSchedule(\''+id+'\')">Schedule this post</button>';
 }
 // Opens the scheduler with this card's caption and YouTube title filled in. The video is added there.
-function plnSchedule(id){
+function plnSchedule(id, files){
   var v=_plnFind(_plnId(id)); if(!v) return;
   if(!_socChannels().length){ _socToast('Connect an account first: add a Facebook Page, Instagram, TikTok or YouTube on the left.'); return; }
   var c=v.captions||{};
   var yt=String(c.youtube||'').split('\n')[0].trim() || v.title;
-  socCompose(null, 0, { caption: c.instagram || c.tiktok || '', ytTitle: yt, plan:{ month:_pln.month, id:v.id } });
+  socCompose(null, 0, { caption: c.instagram || c.tiktok || '', ytTitle: yt, plan:{ month:_pln.month, id:v.id }, files: files||null });
 }
+
+// ── Edit with Claude ──
+// The edit happens in Claude, on the agent's own computer. NestTrack hands over the request and
+// takes the finished video back when it is dropped on the card.
+function _plnEditPrompt(v){
+  var tail=' If NestTrack is not connected yet, tell me to connect it here first: '+PLN_CONNECT_URL+' If you have no start_video_edit tool, tell me to disconnect and reconnect NestTrack in your connector settings, then ask again.';
+  if(v) return 'Use NestTrack to edit my video "'+v.title+'". Start with start_video_edit using month '+_pln.month+' and id '+v.id+', and follow its steps. The clip is attached or in the folder I connected.'+tail;
+  return 'Use NestTrack to edit a video for me. Start with start_video_edit and follow its steps. The clip is attached or in the folder I connected.'+tail;
+}
+function plnEditAsk(id){
+  if(_soc.busy) return;
+  var v=id ? _plnFind(_plnId(id)) : null;
+  var box=document.getElementById('soc-compose'), modal=document.getElementById('soc-modal');
+  if(!box||!modal) return;
+  _soc.c=null; _soc.s=null;
+  _pln.editAsk=v ? v.id : '';
+  _plnCopy(_plnEditPrompt(v));
+  modal.innerHTML =
+      '<div class="soc-mh"><b>Edit with Claude</b><button onclick="socCloseCompose(true)" aria-label="Close">&times;</button></div>'
+    + '<div style="overflow-y:auto;flex:1;"><div class="soc-ed pln-how">'
+    +   (v ? '<div class="pln-tags"><span>'+partnerEsc(v.title)+'</span></div>' : '')
+    +   '<p><b>Your request is copied.</b> Paste it into Claude and it edits the video: flubs and dead air cut, captions added, sound leveled.</p>'
+    +   '<ol>'
+    +     '<li>Open the <b>Claude app on your computer</b> and start a new chat.</li>'
+    +     '<li>Press <b>+</b>, then <b>Add folder</b>, and pick the folder your clip is in.</li>'
+    +     '<li><b>Paste</b> your request and press send.</li>'
+    +     '<li>When Claude is done, come back here and '+(v ? 'drop the finished video on this card.' : 'press <b>+ New post</b> to add the finished video.')+'</li>'
+    +   '</ol>'
+    +   '<div class="pln-acts"><button class="pln-btn go" onclick="plnEditCopy()">Copy the request again</button><button class="pln-btn" onclick="plnEditWeb()">Clip under 30 MB? Open Claude in the browser</button></div>'
+    +   '<p class="pln-fine">No Claude app yet? Get it at <a href="https://claude.ai/download" target="_blank" rel="noopener">claude.ai/download</a>. If Claude says it has no editing tool, disconnect and reconnect NestTrack in Claude\'s connector settings, then ask again.</p>'
+    + '</div></div>'
+    + '<div class="soc-mf"><div class="soc-say"></div><button class="soc-new" onclick="socCloseCompose(true)">Done</button></div>';
+  box.classList.add('on');
+  // The card ticks Edited by itself when Claude reports back.
+  if(v && _plnOnTab()){ _plnWaitStart('edit'); _plnDraw(); }
+}
+function _plnEditAsked(){ return _pln.editAsk ? _plnFind(_pln.editAsk) : null; }
+function plnEditCopy(){ _plnCopy(_plnEditPrompt(_plnEditAsked()), 'Copied.'); }
+function plnEditWeb(){ var text=_plnEditPrompt(_plnEditAsked()); _plnCopy(text); _plnSendTab(_plnOpenTab(), text); }
+// A finished video, dropped on a card or picked from it: the scheduler opens with it in place.
+function _plnTakeFile(id, f){
+  id=_plnId(id); var v=_plnFind(id); if(!v || !f) return;
+  if(!(/^video\//.test(f.type) || /\.(mp4|mov)$/i.test(f.name))){ _socToast('That is not a video. Drop the finished MP4 or MOV file.'); return; }
+  if(!_socChannels().length){ _socToast('Connect an account first: add a Facebook Page, Instagram, TikTok or YouTube on the left.'); return; }
+  if(!v.edited){
+    _socialApi('/api/v1/content/video', 'POST', { month:_pln.month, id:id, video:{ edited:true } }).then(function(j){ _plnTake(j); if(_pln.open===id && !_plnTyping()) _plnDraw(); }, function(){});
+  }
+  plnSchedule(id, [f]);
+}
+function plnPicked(input, id){ var f=(input.files||[])[0]; input.value=''; _plnTakeFile(id, f); }
+function plnDragOver(ev){ ev.preventDefault(); try { ev.dataTransfer.dropEffect='copy'; } catch(e){} var el=document.getElementById('pln-drop'); if(el) el.classList.add('over'); }
+function plnDragLeave(){ var el=document.getElementById('pln-drop'); if(el) el.classList.remove('over'); }
+function plnDropped(ev, id){
+  ev.preventDefault(); plnDragLeave();
+  var f=ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if(!f){ _socToast('Drop the video file itself, from your computer.'); return; }
+  _plnTakeFile(id, f);
+}
+window.plnEditAsk=plnEditAsk; window.plnEditCopy=plnEditCopy; window.plnEditWeb=plnEditWeb; window.plnPicked=plnPicked; window.plnDragOver=plnDragOver; window.plnDragLeave=plnDragLeave; window.plnDropped=plnDropped;
 // The post made from a card is remembered on the card, so the card can follow it out the door.
 async function _plnLinked(plan, post, draft){
   try {
@@ -36886,7 +36957,8 @@ function _plnBoardHtml(){
     + '<div class="pln-big"><button class="pln-btn dark" onclick="'+((open || !vs.length)?'plnAsk(\'plan\')':'plnReplan()')+'">'
     +   '<b>'+(!vs.length?'Plan my month with Claude':(open?'Plan '+open+' more with Claude':'Re-plan with Claude'))+'</b>'
     +   '<span>'+((open || !vs.length)?'Ideas and scripts for the month':'Swap the ideas you have not kept for fresh ones')+'</span></button></div>';
-  if(_pln.wait) h+='<div class="pln-wait"><span>Waiting for Claude. Press send there if you have not, and your plan shows up here on its own. If the box opened empty, paste: your request was copied.</span><span><button class="pln-btn sm" onclick="plnCheckNow()">Check now</button> <button class="pln-btn sm" onclick="plnWaitStop()">Stop waiting</button></span></div>';
+  if(_pln.wait && _pln.waitKind==='edit') h+='<div class="pln-wait"><span>Waiting for Claude to finish your edit. The video\'s card updates on its own when it is done.</span><span><button class="pln-btn sm" onclick="plnCheckNow()">Check now</button> <button class="pln-btn sm" onclick="plnWaitStop()">Stop waiting</button></span></div>';
+  else if(_pln.wait) h+='<div class="pln-wait"><span>Waiting for Claude. Press send there if you have not, and your plan shows up here on its own. If the box opened empty, paste: your request was copied.</span><span><button class="pln-btn sm" onclick="plnCheckNow()">Check now</button> <button class="pln-btn sm" onclick="plnWaitStop()">Stop waiting</button></span></div>';
   if(_pln.plan.headline) h+='<div class="pln-note"><b>This month:</b> '+partnerEsc(_pln.plan.headline)+'</div>';
   if(!vs.length && !_pln.addWeek){
     return h+'<div class="soc-empty"><h3>No videos planned for '+_plnMonthName(_pln.month)+' yet</h3>'
@@ -36915,7 +36987,7 @@ function _plnBoardHtml(){
 function _plnStepsHtml(v, dis){
   var id=_plnId(v.id), p=_plnPostOf(v);
   var sched=!!(p && (p.status==='scheduled' || p.status==='publishing'));
-  var cur = !v.filmed ? 1 : (v.posted ? 0 : (sched ? 4 : 3));
+  var cur = !v.filmed ? 1 : (v.posted ? 0 : (sched ? 4 : (v.edited ? 3 : 2)));
   function step(n, label, on, click, off){
     return '<button class="pln-step'+(on?' on':'')+(cur===n?' cur':'')+'" aria-pressed="'+(on?'true':'false')+'"'+(off?' disabled':dis)+(click?' onclick="'+click+'"':'')+'>'+(on?'✓ ':n+' ')+label+'</button>';
   }
@@ -36924,7 +36996,7 @@ function _plnStepsHtml(v, dis){
     + step(2, 'Edited', v.edited, 'plnSet(\''+id+'\',\'edited\','+(v.edited?'false':'true')+')')
     + step(3, (sched || v.posted) ? 'Scheduled' : 'Schedule', sched || v.posted, sched ? 'socEdit(\''+partnerEsc(p.id)+'\')' : 'plnSchedule(\''+id+'\')', v.posted || (p && p.status==='publishing'))
     + step(4, 'Posted', v.posted, 'plnSet(\''+id+'\',\'posted\','+(v.posted?'false':'true')+')')
-    + '</div><p class="pln-fine">Tap Filmed, Edited or Posted to tick it. Schedule opens the scheduler, and the last two tick themselves when you post through NestTrack.</p>';
+    + '</div><p class="pln-fine">Tap Filmed, Edited or Posted to tick it. Schedule opens the scheduler. Edited ticks itself when Claude finishes, and the last two when you post through NestTrack.</p>';
 }
 // The one thing to do next.
 function _plnNextHtml(v, dis){
@@ -36935,7 +37007,18 @@ function _plnNextHtml(v, dis){
   if(p && p.status==='scheduled') return box('Scheduled for '+partnerEsc(_socFmtWhen(p.scheduledAt)), '<button class="pln-btn"'+dis+' onclick="socEdit(\''+partnerEsc(p.id)+'\')">Open the post</button>');
   if(p && p.status==='draft') return box('Finish the draft post', '<button class="pln-btn go"'+dis+' onclick="socEdit(\''+partnerEsc(p.id)+'\')">Open the draft</button>');
   if(!v.filmed) return box('Film this video', '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',true)">Mark as filmed</button>');
+  if(!v.edited) return box('Edit this video', '<button class="pln-btn go"'+dis+' onclick="plnEditAsk(\''+id+'\')">Edit with Claude</button>');
   return box('Schedule this post', '<button class="pln-btn go"'+dis+' onclick="plnSchedule(\''+id+'\')">Schedule this post</button>');
+}
+// Where the finished video comes back in. Shown once it is filmed, until it has a post.
+function _plnDropHtml(v){
+  var id=_plnId(v.id), p=_plnPostOf(v);
+  if(!v.filmed || v.posted || p) return '';
+  var lead = v.edit_file ? 'Claude saved it as '+partnerEsc(v.edit_file)+'. Drop it here' : (v.edited ? 'Drop your finished video here' : 'Already edited? Drop your finished video here');
+  return '<div class="pln-drop" id="pln-drop" ondragover="plnDragOver(event)" ondragleave="plnDragLeave()" ondrop="plnDropped(event,\''+id+'\')">'
+    + '<b>'+lead+'</b>'
+    + '<span>or <label class="pln-link">choose the file<input type="file" id="pln-file" accept="video/mp4,video/quicktime,.mp4,.mov" style="display:none;" onchange="plnPicked(this,\''+id+'\')"/></label>. The scheduler opens with the video and your caption in place.</span>'
+    + '</div>';
 }
 function _plnMoreHtml(v){
   if(!_pln.more) return '';
@@ -36970,7 +37053,7 @@ function _plnDetailHtml(v){
     var why=(v.search?'Answers the search “'+v.search+'.” ':'')+(v.evidence||'');
     h+='<div class="pln-s" style="font-size:13.5px;">'+partnerEsc(why||'No source was saved for this one.')+'</div>';
   }
-  h+=_plnStepsHtml(v, dis)+_plnNextHtml(v, dis);
+  h+=_plnStepsHtml(v, dis)+_plnNextHtml(v, dis)+_plnDropHtml(v);
 
   if(_pln.part==='script'){
     return h+'<div class="pln-sec"><div class="pln-sh"><span>Script</span></div>'+_plnPartHtml('Script', dis)+'</div></div>';
@@ -37138,6 +37221,7 @@ function socCompose(post, slotMs, seed){
   document.getElementById('soc-at').value=_socLocalInput(c.at);
   box.classList.add('on');
   socComposeDraw();
+  if(seed && !post && seed.files && seed.files.length) _socAddFiles(seed.files);
 }
 window.socCompose=socCompose;
 
@@ -37172,8 +37256,12 @@ window.socDropMedia=socDropMedia;
 function _socSay(t, bad){ var el=document.getElementById('soc-say'); if(el){ el.className='soc-say'+(bad?' bad':''); el.textContent=t||''; } }
 
 function socFilesPicked(input){
-  var c=_soc.c; if(!c) return;
   var files=Array.prototype.slice.call(input.files||[]); input.value='';
+  _socAddFiles(files);
+}
+// Also used when a finished video is dropped on a Planner card.
+function _socAddFiles(files){
+  var c=_soc.c; if(!c) return;
   var problem='';
   files.forEach(function(f){
     var isVideo = /^video\//.test(f.type) || /\.(mp4|mov)$/i.test(f.name);
