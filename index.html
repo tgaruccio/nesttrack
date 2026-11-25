@@ -1197,7 +1197,7 @@ setTimeout(function(){
         <span style="font-size:13px;font-weight:600;color:#fff;">NestTracker <span onclick="event.stopPropagation();showHelp('nesttracker')" style="width:15px;height:15px;border-radius:50%;background:rgba(255,255,255,0.85);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;color:#555;vertical-align:middle;">?</span></span>
         <span style="font-size:11px;color:#C6A15B;">Home-value digest &mdash; monitor &amp; manage</span>
       </button>
-      <button id="sp-social-tile" onclick="go('social',null)" style="display:none;grid-column:1 / -1;background:linear-gradient(120deg,#1877F2 0%,#6228D7 48%,#EE2A7B 100%);border:none;border-radius:var(--r);padding:16px 14px;flex-direction:row;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left;">
+      <button id="sp-social-tile" onclick="go('social',null)" style="display:flex;grid-column:1 / -1;background:linear-gradient(120deg,#1877F2 0%,#6228D7 48%,#EE2A7B 100%);border:none;border-radius:var(--r);padding:16px 14px;flex-direction:row;align-items:center;gap:12px;cursor:pointer;font-family:inherit;text-align:left;">
         <span style="font-size:26px;">🗓️</span>
         <span style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0;">
           <span style="font-size:13px;font-weight:600;color:#fff;">Social</span>
@@ -17710,11 +17710,9 @@ window.removeNlBlock = removeNlBlock;
 // ── Social post block: a post sent through Social, shown in the email with its links ──
 var _nlSoc = { posts: null, loading: false, err: '', asked: false };
 var _nlSocNames = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' };
-// Offered in the newsletter builder only, and only to people who have Social.
+// Offered in the newsletter builder, to every agent.
 function _nlSocHere() {
-  if ((_nlContainerId || 'nl-blocks') !== 'nl-blocks') return false;
-  var owner = (typeof isPlatformOwner === 'function') && isPlatformOwner();
-  return !!(owner || (typeof _soc !== 'undefined' && _soc.status && _soc.status.public));
+  return (_nlContainerId || 'nl-blocks') === 'nl-blocks';
 }
 function _nlSocGate() {
   var b = document.getElementById('nl-soc-btn');
@@ -36347,9 +36345,9 @@ async function _socialApi(path, method, body){
   return j;
 }
 
+// Social is part of the platform for every agent.
 function _socAllowed(){
-  var owner = (typeof isPlatformOwner==='function') && isPlatformOwner();
-  return !!(_soc.status && (_soc.status.public || owner));
+  return !!_soc.status;
 }
 function _socToast(t){ if(typeof showToast==='function') showToast(t); }
 function _socChannels(){ return (_soc.status && _soc.status.channels) || []; }
@@ -36385,11 +36383,11 @@ function _socAvatar(ch, extra){
   return '<span class="soc-av '+t+'"'+(extra||'')+'>'+partnerEsc(letter)+'<i>'+(t==='ig'?'ig':(t==='tt'?'♪':(t==='yt'?'▶':'f')))+'</i></span>';
 }
 
-// The tile in Marketing. Hidden until the server says this agent may use Social.
+// The tile in Marketing. Every agent has Social; the status only fills in the line under it.
 async function socialTileCheck(){
   var tile=document.getElementById('sp-social-tile'); if(!tile) return;
-  try { _soc.status = await _socialApi('/api/v1/social/status'); } catch(e){ tile.style.display='none'; return; }
-  tile.style.display = _socAllowed() ? 'flex' : 'none';
+  tile.style.display='flex';
+  try { _soc.status = await _socialApi('/api/v1/social/status'); } catch(e){ return; }
   var sub=document.getElementById('sp-social-tile-sub');
   if(sub){
     var n=_socChannels().length;
