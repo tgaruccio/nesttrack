@@ -2631,6 +2631,7 @@ textarea.pln-in.short{min-height:140px;}
       <button onclick="addNlBlock('image')" class="btn btn-sm">+ Image</button>
       <button onclick="addNlBlock('pdf')" class="btn btn-sm">+ PDF</button>
       <button onclick="addNlBlock('divider')" class="btn btn-sm">+ Divider</button>
+      <button onclick="addNlBlock('social')" class="btn btn-sm" id="nl-soc-btn" style="display:none;">+ Social post</button>
     </div>
   </div>
 
@@ -17625,7 +17626,7 @@ window.nlInsertToken = nlInsertToken;
 
 function saveNlBlockValues() {
   _nlBlocks.forEach(function(block) {
-    if (block.type === 'text' || block.type === 'video' || block.type === 'image') {
+    if (block.type === 'text' || block.type === 'video' || block.type === 'image' || block.type === 'social') {
       var el = document.getElementById('nl-block-'+block.id);
       if (el) block.value = el.value;
     } else if (block.type === 'button' || block.type === 'pdf') {
@@ -17683,6 +17684,7 @@ window.nlToggleInsert = nlToggleInsert;
 function nlInsertRow(at) {
   if (_nlInsertAt === at) {
     var types = [['text','Text'],['button','Button'],['video','Video'],['image','Image'],['pdf','PDF'],['divider','Divider']];
+    if (_nlSocHere()) types.push(['social','Social post']);
     return '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 0;">'
       + types.map(function(t){ return '<button type="button" class="btn btn-sm" onclick="addNlBlock(\''+t[0]+'\','+at+')">+ '+t[1]+'</button>'; }).join('')
       + '<button type="button" onclick="nlToggleInsert('+at+')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11.5px;font-family:inherit;">cancel</button>'
@@ -17702,7 +17704,94 @@ function removeNlBlock(id) {
 }
 window.removeNlBlock = removeNlBlock;
 
+// ── Social post block: a post sent through Social, shown in the email with its links ──
+var _nlSoc = { posts: null, loading: false, err: '', asked: false };
+var _nlSocNames = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' };
+// Offered in the newsletter builder only, and only to people who have Social.
+function _nlSocHere() {
+  if ((_nlContainerId || 'nl-blocks') !== 'nl-blocks') return false;
+  var owner = (typeof isPlatformOwner === 'function') && isPlatformOwner();
+  return !!(owner || (typeof _soc !== 'undefined' && _soc.status && _soc.status.public));
+}
+function _nlSocGate() {
+  var b = document.getElementById('nl-soc-btn');
+  if (b) b.style.display = _nlSocHere() ? '' : 'none';
+}
+// Posts from the last 30 days that have a link to send people to. Older ones are cleared out.
+function _nlSocUsable(posts) {
+  var cut = Date.now() - 30 * 86400000;
+  return (posts || []).filter(function(p){ return (p.publishedAt || 0) > cut && (p.channels || []).some(function(c){ return c.state === 'done' && c.link; }); })
+    .sort(function(a, b){ return (b.publishedAt || 0) - (a.publishedAt || 0); }).slice(0, 30);
+}
+function _nlSocThumb(p) {
+  if (p.thumb) return p.thumb;
+  var y = (p.channels || []).filter(function(c){ return c.type === 'youtube' && c.link; })[0];
+  var m = y && /[?&]v=([A-Za-z0-9_-]{6,20})/.exec(y.link);
+  return m ? 'https://img.youtube.com/vi/' + m[1] + '/hqdefault.jpg' : '';
+}
+function _nlSocLoad() {
+  if (_nlSoc.loading) return;
+  _nlSoc.loading = true; _nlSoc.err = '';
+  _socialApi('/api/v1/social/posts').then(function(j){ _nlSoc.posts = _nlSocUsable(j.posts); },
+    function(e){ _nlSoc.posts = null; _nlSoc.err = (e && e.message) || 'Your posts could not be loaded.'; })
+  .then(function(){ _nlSoc.loading = false; _nlSoc.asked = true; saveNlBlockValues(); renderNlBlocks(); });
+}
+function _nlSocBlock(id) { return _nlBlocks.filter(function(b){ return b.id === id && b.type === 'social'; })[0] || null; }
+function nlSocPick(blockId, postId) {
+  var b = _nlSocBlock(blockId), p = (_nlSoc.posts || []).filter(function(x){ return x.id === postId; })[0];
+  if (!b || !p) return;
+  saveNlBlockValues();
+  b.postId = p.id;
+  b.thumbUrl = _nlSocThumb(p);
+  b.video = (p.media || []).some(function(m){ return m.kind === 'video'; });
+  b.value = String(p.caption || '').split('\n')[0].slice(0, 200);
+  b.links = (p.channels || []).filter(function(c){ return c.state === 'done' && c.link; }).map(function(c){ return { type: c.type, name: c.name || '', url: c.link, on: true }; });
+  renderNlBlocks();
+}
+function nlSocLink(blockId, i, on) { var b = _nlSocBlock(blockId); if (b && b.links && b.links[i]) b.links[i].on = !!on; }
+function nlSocClear(blockId) {
+  var b = _nlSocBlock(blockId); if (!b) return;
+  b.postId = ''; b.thumbUrl = ''; b.value = ''; b.links = []; b.video = false;
+  _nlSoc.posts = null; _nlSoc.asked = false;
+  renderNlBlocks();
+}
+function nlSocRetry() { _nlSoc.asked = false; _nlSoc.err = ''; renderNlBlocks(); }
+window.nlSocPick = nlSocPick; window.nlSocLink = nlSocLink; window.nlSocClear = nlSocClear; window.nlSocRetry = nlSocRetry;
+function _nlSocInner(block) {
+  var fine = 'font-size:11.5px;color:var(--text3);line-height:1.5;';
+  if (block.postId) {
+    var links = (block.links || []).map(function(l, i){
+      return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox"' + (l.on ? ' checked' : '') + ' onchange="nlSocLink(' + block.id + ',' + i + ',this.checked)"/>' + partnerEsc(_nlSocNames[l.type] || 'Link') + (l.name ? ' <span style="color:var(--text3);">(' + partnerEsc(l.name) + ')</span>' : '') + '</label>';
+    }).join('');
+    return '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;">'
+      + (block.thumbUrl ? '<img src="' + partnerEsc(block.thumbUrl) + '" alt="" style="width:84px;max-height:120px;border-radius:8px;object-fit:cover;flex-shrink:0;"/>' : '')
+      + '<div style="flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:8px;">'
+      +   '<label for="nl-block-' + block.id + '" style="' + fine + '">What it says under the picture</label>'
+      +   '<textarea id="nl-block-' + block.id + '" rows="2" maxlength="400" style="width:100%;box-sizing:border-box;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;resize:vertical;">' + partnerEsc(block.value || '') + '</textarea>'
+      +   '<div style="' + fine + '">Link to (tick the ones you want in the email)</div>'
+      +   '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;">' + links + '</div>'
+      +   '<div><button type="button" class="btn btn-sm" onclick="nlSocClear(' + block.id + ')">Choose a different post</button></div>'
+      + '</div></div>'
+      + '<div style="' + fine + 'margin-top:8px;">The picture is kept for 30 days after the post went out, so send this email while the post is fresh.</div>';
+  }
+  if (_nlSoc.err) return '<div style="font-size:13px;color:#B91C1C;">' + partnerEsc(_nlSoc.err) + '</div><div style="margin-top:6px;"><button type="button" class="btn btn-sm" onclick="nlSocRetry()">Try again</button></div>';
+  if (!_nlSoc.posts) {
+    if (!_nlSoc.loading && !_nlSoc.asked) _nlSocLoad();
+    return '<div style="font-size:13px;color:var(--text3);">Loading your posts…</div>';
+  }
+  if (!_nlSoc.posts.length) return '<div style="font-size:13px;color:var(--text2);line-height:1.5;">No posts sent through NestTrack in the last 30 days. For an older post, add an Image block and a Button block with its link.</div>';
+  return '<div style="' + fine + 'margin-bottom:6px;">Pick a post from the last 30 days.</div><div style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;">'
+    + _nlSoc.posts.map(function(p){
+        var t = _nlSocThumb(p), first = String(p.caption || '').split('\n')[0].slice(0, 90) || '(no caption)';
+        var where = (p.channels || []).filter(function(c){ return c.state === 'done' && c.link; }).map(function(c){ return _nlSocNames[c.type] || ''; }).filter(function(x, i, a){ return x && a.indexOf(x) === i; }).join(', ');
+        var when = new Date(p.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return '<button type="button" onclick="nlSocPick(' + block.id + ',\'' + partnerEsc(p.id) + '\')" style="display:flex;align-items:center;gap:10px;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;cursor:pointer;font-family:inherit;color:var(--text);min-height:44px;">'
+          + (t ? '<img src="' + partnerEsc(t) + '" alt="" style="width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;"/>' : '<span style="width:44px;height:44px;border-radius:6px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);">No pic</span>')
+          + '<span style="min-width:0;"><span style="display:block;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + partnerEsc(first) + '</span><span style="display:block;font-size:11.5px;color:var(--text3);">' + when + ' · ' + partnerEsc(where) + '</span></span></button>';
+      }).join('') + '</div>';
+}
 function renderNlBlocks() {
+  _nlSocGate();
   var container = document.getElementById(_nlContainerId||'nl-blocks');
   if (!container) return;
   if (!_nlBlocks.length) {
@@ -17724,6 +17813,8 @@ function renderNlBlocks() {
         + '<input type="text" id="nl-block-'+block.id+'-label" placeholder="Button label" value="'+(block.label||'')+'" style="flex:1;font-size:13px;"/>'
         + '<input type="url" id="nl-block-'+block.id+'-url" placeholder="https://..." value="'+(block.url||'')+'" style="flex:2;font-size:13px;"/>'
         + '</div>';
+    } else if (block.type === 'social') {
+      inner = _nlSocInner(block);
     } else if (block.type === 'video') {
       inner = '<div style="display:flex;flex-direction:column;gap:6px;">'
         + '<input type="url" id="nl-block-'+block.id+'" placeholder="Paste Loom, YouTube, or BombBomb URL" value="'+(block.value||'')+'" style="width:100%;box-sizing:border-box;font-size:13px;"/>'
@@ -17746,7 +17837,7 @@ function renderNlBlocks() {
     } else if (block.type === 'divider') {
       inner = '<div style="border-top:1px solid var(--border);margin:4px 0;"></div>';
     }
-    var labels = { text:'📝 Text', button:'🔗 Button', video:'🎥 Video', image:'🖼 Image', pdf:'📄 PDF', divider:'— Divider' };
+    var labels = { text:'📝 Text', button:'🔗 Button', video:'🎥 Video', image:'🖼 Image', pdf:'📄 PDF', divider:'— Divider', social:'📣 Social post' };
     // Arrows are dimmed and inert at the ends rather than hidden, so the control does not
     // jump around as blocks move — and nothing offers an action that would do nothing.
     var first = (idx === 0), last = (idx === _nlBlocks.length - 1);
@@ -17817,6 +17908,16 @@ function buildNlBodyHtml(previewMode) {
       if (purl) parts.push('<div style="text-align:center;margin:16px 0;"><a href="'+purl+'" target="_blank" style="background:#1D9E75;color:#fff;text-decoration:none;padding:11px 24px;border-radius:24px;font-size:14px;font-weight:500;display:inline-block;">📄 '+plabel+'</a></div>');
     } else if (block.type === 'divider') {
       parts.push('<hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;"/>');
+    } else if (block.type === 'social') {
+      var sLinks = (block.links || []).filter(function(l){ return l && l.on && /^https:\/\//.test(l.url || ''); });
+      if (block.postId && sLinks.length) {
+        var sCap = partnerEsc(String(block.value || '').trim()).replace(/\n/g, '<br/>');
+        var sVerb = block.video ? '\u25B6 Watch on ' : 'See it on ';
+        var sPic = /^https:\/\//.test(block.thumbUrl || '') ? '<a href="' + partnerEsc(sLinks[0].url) + '" target="_blank"><img src="' + partnerEsc(block.thumbUrl) + '" width="300" alt="' + (block.video ? 'Watch the video' : 'See the post') + '" style="max-width:100%;border-radius:10px;display:block;margin:0 auto;border:0;"/></a>' : '';
+        parts.push('<div style="margin:20px 0;text-align:center;">' + sPic
+          + (sCap ? '<p style="font-size:14px;color:#444;line-height:1.6;margin:12px 0 8px;">' + sCap + '</p>' : '')
+          + '<div>' + sLinks.map(function(l){ return '<a href="' + partnerEsc(l.url) + '" target="_blank" style="display:inline-block;margin:4px;background:#1D9E75;color:#fff;text-decoration:none;padding:9px 18px;border-radius:24px;font-size:13px;font-weight:500;">' + sVerb + (_nlSocNames[l.type] || 'social') + '</a>'; }).join('') + '</div></div>');
+      }
     }
   });
   return parts.join('');
@@ -37605,6 +37706,36 @@ async function _socToJpeg(file){
 
 // A file goes up in pieces, so a large video is not lost to one dropped connection: each
 // piece is retried on its own before the whole upload is given up on.
+// One small picture of a post (a frame of the video, or the first photo made small), kept for
+// 30 days so the post can be shown in an email. Gives null when one cannot be made.
+function _socStill(m){
+  return new Promise(function(resolve){
+    var done=false, timer=setTimeout(function(){ fin(null); }, 6000);
+    function fin(b){ if(done) return; done=true; clearTimeout(timer); resolve(b||null); }
+    function draw(el, w, h){
+      try {
+        if(!w || !h) return fin(null);
+        var s=Math.min(1, 640/Math.max(w, h)), cv=document.createElement('canvas');
+        cv.width=Math.max(1, Math.round(w*s)); cv.height=Math.max(1, Math.round(h*s));
+        cv.getContext('2d').drawImage(el, 0, 0, cv.width, cv.height);
+        cv.toBlob(function(b){ fin(b && b.size>0 ? b : null); }, 'image/jpeg', 0.8);
+      } catch(e){ fin(null); }
+    }
+    try {
+      var src=m.preview || (m.file ? URL.createObjectURL(m.file) : '');
+      if(!src) return fin(null);
+      if(m.kind==='video'){
+        var v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto';
+        v.onloadeddata=function(){ try { v.currentTime=Math.min(1, (v.duration||2)/2); } catch(e){ fin(null); } };
+        v.onseeked=function(){ draw(v, v.videoWidth, v.videoHeight); };
+        v.onerror=function(){ fin(null); };
+        v.src=src;
+      } else {
+        var im=new Image(); im.onload=function(){ draw(im, im.naturalWidth, im.naturalHeight); }; im.onerror=function(){ fin(null); }; im.src=src;
+      }
+    } catch(e){ fin(null); }
+  });
+}
 async function _socialUpload(blob, type, name, onProgress){
   var key = (typeof _ensureLeadToken==='function') ? await _ensureLeadToken() : ((userProfile&&userProfile.leadToken)||'');
   var st = await _socialApi('/api/v1/social/upload/start', 'POST', { name:name, size:blob.size, type:type });
@@ -37661,6 +37792,9 @@ async function socSubmit(draft){
     // Files not yet on the server go up first. Each one is remembered as it lands, so a
     // retry after a failure does not send the same file twice.
     var todo=c.media.filter(function(m){ return !m.key; });
+    // A small still of the post is made before the files go up, while they are still here.
+    var stillBlob=null;
+    if(todo.length && c.media[0] && !c.media[0].key){ try { stillBlob=await _socStill(c.media[0]); } catch(e){ stillBlob=null; } }
     if(todo.length){
       if(bar){ bar.style.display=''; bar.firstChild.style.width='0'; }
       for(var i=0;i<todo.length;i++){
@@ -37674,9 +37808,11 @@ async function socSubmit(draft){
         m.key=up.key; m.url=up.url; delete m.file;
       }
     }
+    // The still is a nicety: if it cannot be made or sent, the post goes out without one.
+    if(stillBlob){ try { c.thumbKey=(await _socialUpload(stillBlob, 'image/jpeg', 'still.jpg', function(){})).key; } catch(e){} }
     _socSay(draft?'Saving…':(c.mode==='now'?'Posting…':'Scheduling…'));
     var out=await _socialApi('/api/v1/social/posts', 'POST', { id:c.id||undefined, draft:!!draft, channels:ids, caption:caption,
-      media:c.media.map(function(m){ return m.key; }), scheduledAt:(!draft&&c.mode==='time')?at:0,
+      media:c.media.map(function(m){ return m.key; }), thumb:c.thumbKey||undefined, scheduledAt:(!draft&&c.mode==='time')?at:0,
       when:(!draft&&(c.mode==='queue'||c.mode==='next'))?c.mode:'', tiktok:_socTtPayload(c, ids), youtube:_socYtPayload(c, ids) });
     _soc.busy=false;
     socCloseCompose(true);
