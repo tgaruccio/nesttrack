@@ -2462,6 +2462,17 @@ textarea.pln-in{min-height:220px;line-height:1.6;resize:vertical;}
 .pln-row em{font-style:normal;color:var(--text2);font-size:13px;}
 .pln-row input[type=time]{border:1px solid var(--border2,var(--border));border-radius:8px;padding:6px 9px;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;min-height:36px;}
 .pln-f>.pln-row{margin-top:8px;}
+.pln-cl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin-bottom:10px;}
+.pln-cl i{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.pln-cl span{flex:1 1 220px;min-width:0;}
+.pln-cl b{color:var(--text);font-weight:600;}
+.pln-cl.warn,.pln-cl.off{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;font-size:13.5px;}
+.pln-cl.warn{border-color:#B7791F;}
+.pln-cl.warn i{background:#B7791F;border-radius:2px;}
+.pln-cl.off i{background:none;border:2px solid var(--text2);box-sizing:border-box;}
+.pln-clhow{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin:-4px 0 12px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;}
+.pln-clhow ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;line-height:1.5;color:var(--text);}
+.pln-clhow a{color:var(--green-dk);font-weight:600;}
 .pln-drop{border:2px dashed var(--border2,var(--border));border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;font-size:13.5px;color:var(--text2);}
 .pln-drop b{font-size:14.5px;font-weight:600;color:var(--text);word-break:break-word;}
 .pln-drop.over{border-color:var(--green);background:var(--green-lt);}
@@ -36484,7 +36495,31 @@ function _plnTake(j){
   if(j.plan) _pln.plan=j.plan;
   if(j.formats) _pln.formats=j.formats;
   if(j.perWeekChoices) _pln.perWeek=j.perWeekChoices;
+  if(j.claude) _pln.claude=j.claude;
 }
+// One line at the top of the Planner: is Claude connected, and does it have the latest tools.
+function _plnClaudeHtml(){
+  var s=(_pln.claude && _pln.claude.state) || '';
+  if(!s) return '';
+  if(s==='ready') return '<div class="pln-cl ok"><i aria-hidden="true"></i><span>Claude is connected and up to date.</span></div>';
+  if(s==='connected') return '<div class="pln-cl ok"><i aria-hidden="true"></i><span>Claude is connected.</span></div>';
+  var fresh=s==='refresh', open=!!_pln.help;
+  var h='<div class="pln-cl '+(fresh?'warn':'off')+'"><i aria-hidden="true"></i><span><b>'+(fresh?'Claude needs a quick refresh.':'Claude is not connected yet.')+'</b> '
+    + (fresh?'NestTrack added something new since you connected. It takes about 20 seconds.':'Three steps, about two minutes, done once.')+'</span>'
+    + '<button class="pln-btn sm" aria-expanded="'+(open?'true':'false')+'" onclick="plnHelp()">'+(open?'Hide':(fresh?'Show me how':'Set it up'))+'</button></div>';
+  if(!open) return h;
+  var steps = fresh
+    ? ['In Claude, open <b>Settings</b>, then <b>Connectors</b>.',
+       'Find <b>NestTrack</b> and choose <b>Disconnect</b>.',
+       'Press <b>Connect</b> on NestTrack again and sign in with your NestTrack email and password.',
+       'Start a <b>new chat</b>. Chats you already had open keep the old list.']
+    : ['<a href="'+PLN_CONNECT_URL+'" target="_blank" rel="noopener">Open NestTrack in Claude</a>. No Claude account yet? It asks you to make one first.',
+       'Press <b>Connect</b>, then sign in with your NestTrack email and password.',
+       'Come back here and press Check now. This line turns green once Claude has connected.'];
+  return h+'<div class="pln-clhow"><ol>'+steps.map(function(t){ return '<li>'+t+'</li>'; }).join('')+'</ol><button class="pln-btn sm" onclick="plnCheckNow()">Check now</button></div>';
+}
+function plnHelp(){ _pln.help=!_pln.help; _plnDraw(); }
+window.plnHelp=plnHelp;
 function _plnDraw(){ var el=document.getElementById('pln-root'); if(el && _soc.tab==='planner') el.innerHTML=_plnHtml(); }
 
 async function _plnLoad(quiet){
@@ -36925,7 +36960,7 @@ function _plnBoardHtml(){
   var fday=_plnFilmBlock();
   bits.push((p.perWeek||3)+' videos a week'+(fday&&fday.day?', filmed on '+fday.day+'s':''));
   var months=_plnMonths();
-  var h='<div class="pln-strip"><div><b>Your content profile</b>'+partnerEsc(bits.join(' · '))+'</div><button class="pln-btn sm" onclick="plnEditProfile(true)">Edit</button></div>';
+  var h=_plnClaudeHtml()+'<div class="pln-strip"><div><b>Your content profile</b>'+partnerEsc(bits.join(' · '))+'</div><button class="pln-btn sm" onclick="plnEditProfile(true)">Edit</button></div>';
   h+='<div class="pln-head"><div>'
     + '<div class="pln-months">'+months.map(function(m){ return '<button class="'+(m===_pln.month?'on':'')+'" onclick="plnMonth(\''+m+'\')">'+_plnMonthNames[(+m.slice(5,7))-1]+'</button>'; }).join('')+'</div>'
     + '<h2>'+_plnMonthName(_pln.month)+'</h2>'
@@ -37261,7 +37296,7 @@ function _socAddFiles(files){
     }
   });
   socComposeDraw();
-  _socSay(problem, true);
+  if(problem) _socSay(problem, true); else if(!_soc.gateSaid) _socSay('');
 }
 window.socFilesPicked=socFilesPicked;
 
@@ -37499,6 +37534,10 @@ function _socGate(c, picked){
   var go=document.getElementById('soc-go'); if(!go || _soc.busy) return;
   var why=_socTtProblem(c, picked) || _socYtProblem(c, picked);
   go.disabled=!!why; go.style.opacity=why?'0.5':''; go.title=why;
+  // The reason is written beside the button, in red, not left in a hover tip.
+  var say=document.getElementById('soc-say');
+  if(why){ _socSay(why, true); _soc.gateSaid=why; }
+  else if(_soc.gateSaid){ if(say && say.textContent===_soc.gateSaid) _socSay(''); _soc.gateSaid=''; }
 }
 // "light" is for typing in the title: the choice is kept and the button rechecked, but the
 // section is not redrawn, so the cursor stays where it is.
