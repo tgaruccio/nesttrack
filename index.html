@@ -2486,6 +2486,30 @@ textarea.pln-in{min-height:220px;line-height:1.6;resize:vertical;}
 .pln-film{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;color:var(--text);margin-bottom:14px;}
 .pln-film select,.pln-film input{border:1px solid var(--border2,var(--border));border-radius:8px;padding:6px 9px;font-size:13.5px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;min-height:36px;}
 .pln-film em{font-style:normal;color:var(--text2);font-size:12.5px;}
+.pln-big{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.pln-big .pln-btn{flex:1 1 260px;max-width:440px;text-align:left;padding:14px 18px;border-radius:12px;min-height:58px;}
+.pln-big .pln-btn b{display:block;font-size:15px;font-weight:600;}
+.pln-big .pln-btn span{display:block;font-size:12.5px;font-weight:400;opacity:.8;margin-top:2px;}
+.pln-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+.pln-step{background:var(--surface2);border:2px solid transparent;border-radius:10px;padding:11px 6px;font-size:13.5px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;min-height:46px;}
+.pln-step.cur{background:var(--surface);border-color:var(--text);color:var(--text);font-weight:700;}
+.pln-step.on{background:var(--green);border-color:var(--green);color:#fff;}
+.pln-step:disabled{cursor:default;}
+.pln-detail>.pln-fine{margin-top:-10px;}
+.pln-next{background:var(--bg);border-radius:14px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.pln-next span{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);}
+.pln-next b{display:block;font-size:16px;font-weight:600;color:var(--text);margin-top:2px;}
+.pln-next .pln-btn{min-height:48px;padding:12px 22px;font-size:14.5px;}
+.pln-morewrap{position:relative;}
+.pln-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:5;min-width:240px;background:var(--surface);border:1px solid var(--border2,var(--border));border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px;display:flex;flex-direction:column;}
+.pln-menu button{background:none;border:none;text-align:left;padding:11px 12px;border-radius:8px;font-size:13.5px;font-weight:500;color:var(--text);cursor:pointer;font-family:inherit;min-height:42px;}
+.pln-menu button:hover{background:var(--surface2);}
+.pln-menu button:disabled{color:var(--text2);cursor:default;background:none;}
+.pln-menu button.warn{color:var(--red-dk);}
+.pln-capt{font-size:14px;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;max-width:64ch;}
+textarea.pln-in.short{min-height:140px;}
+.pln-vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+@media (max-width:520px){.pln-step{font-size:12px;padding:10px 2px;}}
 .pln-cap p{margin:0;font-size:13.5px;line-height:1.55;color:var(--text);white-space:pre-wrap;word-break:break-word;}
 </style>
 <div class="page" id="page-social">
@@ -36441,7 +36465,7 @@ function _plnFind(id){ return _plnVideos().filter(function(v){ return v.id===id;
 function _plnStays(v){ return !!(v.keep||v.own||v.filmed||v.posted); }
 function _plnTarget(){ return (_pln.plan && _pln.plan.target) || ((_pln.profile && _pln.profile.perWeek) || 3)*4; }
 function _plnOnTab(){ var pg=document.getElementById('page-social'); return !!(pg && pg.classList.contains('active') && _soc.tab==='planner'); }
-function _plnTyping(){ return !!(_pln.editProfile || !_pln.hasProfile || _pln.editVideo || _pln.addWeek); }
+function _plnTyping(){ return !!(_pln.editProfile || !_pln.hasProfile || _pln.editVideo || _pln.addWeek || _pln.part); }
 
 function _plnTake(j){
   if(!j) return;
@@ -36567,10 +36591,11 @@ async function plnSaveProfile(andPlan){
 }
 
 // ── Videos ──
-function plnOpen(id){ _pln.open=_plnId(id); _pln.editVideo=null; _pln.addWeek=0; _plnDraw(); try { var r=document.getElementById('pln-root'); if(r && r.scrollIntoView) r.scrollIntoView({ block:'start' }); } catch(e){} }
-function plnBack(){ _pln.open=''; _pln.editVideo=null; _plnDraw(); }
+function plnOpen(id){ _pln.open=_plnId(id); _pln.editVideo=null; _pln.addWeek=0; _pln.more=false; _pln.part=''; _pln.show={}; _plnDraw(); try { var r=document.getElementById('pln-root'); if(r && r.scrollIntoView) r.scrollIntoView({ block:'start' }); } catch(e){} }
+function plnBack(){ _pln.open=''; _pln.editVideo=null; _pln.more=false; _pln.part=''; _pln.show={}; _plnDraw(); }
 function plnSet(id, field, value){
   id=_plnId(id); var v=_plnFind(id); if(!v) return;
+  _pln.more=false;
   var body={}; body[field]=!!value;
   _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:body }, function(){ if(field==='filmed' && value) _plnTodoDone(id); });
 }
@@ -36589,14 +36614,45 @@ async function plnAddSave(){
 }
 function plnEditVideo(on){
   var v=_plnFind(_pln.open); if(!v) return;
-  _pln.editVideo = on ? { title:v.title, angle:v.angle||'', week:v.week, format:v.format||'', script:v.script||'' } : null;
+  _pln.more=false; _pln.part='';
+  _pln.editVideo = on ? { title:v.title, week:v.week } : null;
   _plnDraw();
 }
 function plnVField(k, v){ if(_pln.editVideo) _pln.editVideo[k]=v; }
 async function plnSaveVideo(){
   var e=_pln.editVideo, id=_pln.open; if(!e || !_plnFind(id)) return;
   if(!String(e.title||'').trim()){ _socToast('Give the video a title.'); return; }
-  await _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:{ title:e.title, angle:e.angle, week:+e.week||1, format:e.format, script:e.script } }, function(){ _pln.editVideo=null; });
+  await _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:{ title:e.title, week:+e.week||1 } }, function(){ _pln.editVideo=null; });
+}
+// The More menu, and the small show/hide links on a card.
+function plnMore(){ _pln.more=!_pln.more; _plnDraw(); }
+function plnShow(k){ _pln.show=_pln.show||{}; _pln.show[k]=!_pln.show[k]; _pln.more=false; _plnDraw(); }
+function plnMenu(what){
+  var id=_pln.open, v=_plnFind(id);
+  _pln.more=false;
+  if(!v){ _plnDraw(); return; }
+  if(what==='title') plnEditVideo(true);
+  else if(what==='keep') plnSet(id, 'keep', !v.keep);
+  else if(what==='todo') plnTodo(id);
+  else if(what==='why') plnShow('why');
+  else if(what==='remove') plnRemove(id);
+  else _plnDraw();
+}
+// Editing the script or the caption right where it is shown.
+function plnPart(k){
+  var v=_plnFind(_pln.open); if(!v) return;
+  var c=v.captions||{};
+  _pln.part = (k==='script' || k==='caption') ? k : '';
+  _pln.partText = _pln.part==='script' ? (v.script||'') : (_pln.part==='caption' ? (c.instagram||c.tiktok||'') : '');
+  _pln.more=false;
+  _plnDraw();
+  if(_pln.part){ var t=document.getElementById('pln-part'); if(t) t.focus(); }
+}
+function plnPartType(x){ _pln.partText=x; }
+async function plnPartSave(){
+  var k=_pln.part, id=_pln.open; if(!k || !_plnFind(id)) return;
+  var body = k==='script' ? { script:_pln.partText } : { captions:{ instagram:_pln.partText } };
+  await _plnSend('/api/v1/content/video', { month:_pln.month, id:id, video:body }, function(){ _pln.part=''; _pln.partText=''; });
 }
 // ── From a card to the scheduler ──
 function _plnPostOf(v){ return (v && v.post_id) ? ((_soc.posts||[]).filter(function(p){ return p.id===v.post_id; })[0] || null) : null; }
@@ -36758,7 +36814,7 @@ async function _plnInjectFilming(b, todayStr){
 function plnCopyPart(what){
   var v=_plnFind(_pln.open); if(!v) return;
   var c=v.captions||{};
-  var text = what==='script' ? v.script : (what==='bullets' ? (v.bullets||[]).join('\n') : (c[what]||''));
+  var text = what==='script' ? v.script : (what==='caption' ? (c.instagram||c.tiktok||'') : (c[what]||''));
   if(text) _plnCopy(text, 'Copied.');
 }
 
@@ -36822,15 +36878,17 @@ function _plnBoardHtml(){
     + '<h2>'+_plnMonthName(_pln.month)+'</h2>'
     + (vs.length ? '<div class="pln-prog">'+filmed+' of '+vs.length+' filmed'+(posted?' · '+posted+' posted':'')+'</div><div class="pln-bar"><i style="width:'+Math.round(100*filmed/vs.length)+'%;"></i></div>' : '')
     + '</div><div class="pln-acts">'
-    + (vs.length ? '<button class="pln-link" onclick="plnReplan()">Re-plan</button>' : '')
-    + (open ? '<button class="pln-btn dark" onclick="plnAsk(\'plan\')">'+(vs.length?'Plan '+open+' more with Claude':'Plan my month with Claude')+'</button>' : '')
-    + '</div></div>';
+    + (vs.length && open ? '<button class="pln-link" onclick="plnReplan()">Re-plan</button>' : '')
+    + '</div></div>'
+    + '<div class="pln-big"><button class="pln-btn dark" onclick="'+((open || !vs.length)?'plnAsk(\'plan\')':'plnReplan()')+'">'
+    +   '<b>'+(!vs.length?'Plan my month with Claude':(open?'Plan '+open+' more with Claude':'Re-plan with Claude'))+'</b>'
+    +   '<span>'+((open || !vs.length)?'Ideas and scripts for the month':'Swap the ideas you have not kept for fresh ones')+'</span></button></div>';
   if(_pln.wait) h+='<div class="pln-wait"><span>Waiting for Claude. Press send there if you have not, and your plan shows up here on its own. If the box opened empty, paste: your request was copied.</span><span><button class="pln-btn sm" onclick="plnCheckNow()">Check now</button> <button class="pln-btn sm" onclick="plnWaitStop()">Stop waiting</button></span></div>';
   if(_pln.plan.headline) h+='<div class="pln-note"><b>This month:</b> '+partnerEsc(_pln.plan.headline)+'</div>';
   if(!vs.length && !_pln.addWeek){
     return h+'<div class="soc-empty"><h3>No videos planned for '+_plnMonthName(_pln.month)+' yet</h3>'
       + '<p>Your AI researches what people in '+partnerEsc(p.market)+' are asking right now and plans '+target+' videos, with the first week scripted. First time? <a href="'+PLN_CONNECT_URL+'" target="_blank" rel="noopener" style="color:var(--green-dk);font-weight:600;">Connect NestTrack to Claude</a>.</p>'
-      + '<button class="pln-btn dark" onclick="plnAsk(\'plan\')">Plan my month with Claude</button> <button class="pln-btn" onclick="plnAddOpen(1)">+ Add your own idea</button></div>';
+      + '<button class="pln-btn" onclick="plnAddOpen(1)">+ Add your own idea</button></div>';
   }
   h+=_plnFilmHtml();
   h+='<div class="pln-grid">';
@@ -36849,63 +36907,103 @@ function _plnBoardHtml(){
   return h+'</div>';
 }
 
+// ── A card, opened ──
+// Top to bottom: where it stands, what is next, how to open, the script, the caption.
+// Everything occasional sits under More.
+function _plnStepsHtml(v, dis){
+  var id=_plnId(v.id), p=_plnPostOf(v);
+  var sched=!!(p && (p.status==='scheduled' || p.status==='publishing'));
+  var cur = !v.filmed ? 1 : (v.posted ? 0 : (sched ? 4 : 3));
+  function step(n, label, on, click, off){
+    return '<button class="pln-step'+(on?' on':'')+(cur===n?' cur':'')+'" aria-pressed="'+(on?'true':'false')+'"'+(off?' disabled':dis)+(click?' onclick="'+click+'"':'')+'>'+(on?'✓ ':n+' ')+label+'</button>';
+  }
+  return '<div class="pln-steps">'
+    + step(1, 'Filmed', v.filmed, 'plnSet(\''+id+'\',\'filmed\','+(v.filmed?'false':'true')+')')
+    + step(2, 'Edited', v.edited, 'plnSet(\''+id+'\',\'edited\','+(v.edited?'false':'true')+')')
+    + step(3, 'Scheduled', sched || v.posted, sched ? 'socEdit(\''+partnerEsc(p.id)+'\')' : 'plnSchedule(\''+id+'\')', v.posted || (p && p.status==='publishing'))
+    + step(4, 'Posted', v.posted, 'plnSet(\''+id+'\',\'posted\','+(v.posted?'false':'true')+')')
+    + '</div><p class="pln-fine">Tap a step to mark it done or undo it. Scheduled and Posted also tick themselves when you post through NestTrack.</p>';
+}
+// The one thing to do next.
+function _plnNextHtml(v, dis){
+  var id=_plnId(v.id), p=_plnPostOf(v);
+  function box(what, btn){ return '<div class="pln-next"><div><span>Next</span><b>'+what+'</b></div>'+(btn||'')+'</div>'; }
+  if(v.posted) return '<div class="pln-next"><div><span>Done</span><b>This one is posted.</b></div></div>';
+  if(p && p.status==='publishing') return box('Posting now…', '');
+  if(p && p.status==='scheduled') return box('Scheduled for '+partnerEsc(_socFmtWhen(p.scheduledAt)), '<button class="pln-btn"'+dis+' onclick="socEdit(\''+partnerEsc(p.id)+'\')">Open the post</button>');
+  if(p && p.status==='draft') return box('Finish the draft post', '<button class="pln-btn go"'+dis+' onclick="socEdit(\''+partnerEsc(p.id)+'\')">Open the draft</button>');
+  if(!v.filmed) return box('Film this video', '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',true)">Mark as filmed</button>');
+  return box('Schedule this post', '<button class="pln-btn go"'+dis+' onclick="plnSchedule(\''+id+'\')">Schedule this post</button>');
+}
+function _plnMoreHtml(v){
+  if(!_pln.more) return '';
+  var todo = v.filmed ? '' : (_plnTodoOf(v) ? '<button disabled>On your to-do list ✓</button>' : '<button onclick="plnMenu(\'todo\')">Add to my to-dos</button>');
+  return '<div class="pln-menu" role="menu">'
+    + '<button onclick="plnMenu(\'title\')">Change the title or week</button>'
+    + (v.own ? '' : '<button onclick="plnMenu(\'keep\')">'+(v.keep?'Kept for re-plan ✓ (undo)':'Keep when I re-plan')+'</button>')
+    + todo
+    + (v.own ? '' : '<button onclick="plnMenu(\'why\')">Where this idea came from</button>')
+    + '<button class="warn" onclick="plnMenu(\'remove\')">Remove this video</button>'
+    + '</div>';
+}
+function _plnPartHtml(label, dis){
+  return '<label class="pln-vh" for="pln-part">'+label+'</label><textarea class="pln-in'+(_pln.part==='caption'?' short':'')+'" id="pln-part" maxlength="'+(_pln.part==='caption'?2200:3000)+'" oninput="plnPartType(this.value)">'+partnerEsc(_pln.partText||'')+'</textarea>'
+    + '<div class="pln-acts"><button class="pln-btn go"'+dis+' onclick="plnPartSave()">Save</button><button class="pln-btn"'+dis+' onclick="plnPart(\'\')">Cancel</button></div>';
+}
 function _plnDetailHtml(v){
-  var id=_plnId(v.id), e=_pln.editVideo, dis=_pln.busy?' disabled':'';
+  var id=_plnId(v.id), e=_pln.editVideo, dis=_pln.busy?' disabled':'', show=_pln.show||{};
   var back='<div><button class="pln-link" onclick="plnBack()">&larr; Back to '+_plnMonthNames[(+_pln.month.slice(5,7))-1]+'</button></div>';
   if(e){
-    var fm=Object.keys(_pln.formats||{}).map(function(k){ return '<option value="'+partnerEsc(k)+'"'+(e.format===k?' selected':'')+'>'+partnerEsc(_pln.formats[k])+'</option>'; }).join('');
     var wk=[1,2,3,4].map(function(n){ return '<option value="'+n+'"'+(+e.week===n?' selected':'')+'>Week '+n+'</option>'; }).join('');
     return back+'<div class="pln-detail">'
       + '<div class="pln-f"><label for="pln-e-title">Title</label><input class="pln-in" id="pln-e-title" type="text" maxlength="160" value="'+partnerEsc(e.title)+'" oninput="plnVField(\'title\',this.value)"/></div>'
-      + '<div class="pln-f"><label for="pln-e-angle">Angle <span>(one line)</span></label><input class="pln-in" id="pln-e-angle" type="text" maxlength="300" value="'+partnerEsc(e.angle)+'" oninput="plnVField(\'angle\',this.value)"/></div>'
-      + '<div class="pln-row"><label for="pln-e-week">Film it in</label><select id="pln-e-week" onchange="plnVField(\'week\',this.value)">'+wk+'</select>'
-      +   '<label for="pln-e-fmt">Format</label><select id="pln-e-fmt" onchange="plnVField(\'format\',this.value)"><option value="">Not set</option>'+fm+'</select></div>'
-      + '<div class="pln-f"><label for="pln-e-script">Script</label><textarea class="pln-in" id="pln-e-script" maxlength="3000" oninput="plnVField(\'script\',this.value)">'+partnerEsc(e.script)+'</textarea></div>'
+      + '<div class="pln-row"><label for="pln-e-week">Film it in</label><select id="pln-e-week" onchange="plnVField(\'week\',this.value)">'+wk+'</select></div>'
       + '<div class="pln-acts"><button class="pln-btn go"'+dis+' onclick="plnSaveVideo()">Save</button><button class="pln-btn"'+dis+' onclick="plnEditVideo(false)">Cancel</button></div></div>';
   }
-  var word={ idea:'Idea', scripted:'Scripted', filmed:'Filmed', posted:'Posted' }[v.status]||'Idea';
-  var c=v.captions||{};
-  var tags='<span>Video '+v.n+' · Week '+v.week+'</span>'
-    + (v.format_label?'<span class="pln-pill">'+partnerEsc(v.format_label)+'</span>':'')
-    + '<span class="pln-pill '+partnerEsc(v.status||'idea')+'">'+word+'</span>'
-    + (v.demand==='HIGH'?'<span class="pln-pill high">High demand</span>':'')
-    + (v.gap?'<span class="pln-pill">Nobody is answering this</span>':'');
-  var why = v.own ? 'Added by you.' : ((v.search?'Answers the search “'+v.search+'.” ':'')+(v.evidence||''));
-  var h=back+'<div class="pln-detail"><div class="pln-dh"><div style="min-width:0;flex:1 1 380px;"><div class="pln-tags">'+tags+'</div>'
-    + '<h2>'+partnerEsc(v.title)+'</h2>'
-    + (why?'<div class="pln-s" style="font-size:13.5px;">'+partnerEsc(why)+'</div>':'')
-    + (v.angle?'<div class="pln-s" style="font-size:13.5px;margin-top:4px;">'+partnerEsc(v.angle)+'</div>':'')
-    + '</div><div class="pln-acts">'
-    + (v.own?'':'<button class="pln-keep'+(v.keep?' on':'')+'" style="min-height:42px;padding:9px 15px;font-size:13px;" aria-pressed="'+(v.keep?'true':'false')+'"'+dis+' onclick="plnSet(\''+id+'\',\'keep\','+(v.keep?'false':'true')+')">'+(v.keep?'Kept':'Keep')+'</button>')
-    + '<button class="pln-btn"'+dis+' onclick="plnEditVideo(true)">Edit</button><button class="pln-btn warn"'+dis+' onclick="plnRemove(\''+id+'\')">Remove</button></div></div>';
-  h+='<div class="pln-do">'
-    + (v.filmed
-        ? '<button class="pln-btn"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',false)">Filmed ✓ (undo)</button>'
-          + (v.posted ? '<button class="pln-btn"'+dis+' onclick="plnSet(\''+id+'\',\'posted\',false)">Posted ✓ (undo)</button>' : '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'posted\',true)">Mark as posted</button>')
-        : '<button class="pln-btn go"'+dis+' onclick="plnSet(\''+id+'\',\'filmed\',true)">Mark as filmed</button>')
-    + _plnTodoBtn(v, dis)
-    + _plnPostBtn(v, dis)
-    + '</div>';
-  if(!v.script){
-    return h+'<div class="soc-empty"><h3>No script yet</h3><p>Your AI writes the hooks, the script, the shots and the captions for every video in this week.</p>'
-      + '<button class="pln-btn dark" onclick="plnAsk(\'scripts\','+v.week+')">Write week '+v.week+' scripts with Claude</button> <button class="pln-btn" onclick="plnEditVideo(true)">Write it myself</button></div></div>';
+  var c=v.captions||{}, cap=c.instagram||c.tiktok||'';
+  var h=back+'<div class="pln-detail">'
+    + '<div class="pln-dh"><div style="min-width:0;flex:1 1 300px;"><div class="pln-tags"><span>Video '+v.n+' · Week '+v.week+'</span></div><h2>'+partnerEsc(v.title)+'</h2></div>'
+    + '<div class="pln-morewrap"><button class="pln-btn" aria-haspopup="true" aria-expanded="'+(_pln.more?'true':'false')+'" onclick="plnMore()">More ▾</button>'+_plnMoreHtml(v)+'</div></div>';
+  if(show.why && !v.own){
+    var why=(v.search?'Answers the search “'+v.search+'.” ':'')+(v.evidence||'');
+    h+='<div class="pln-s" style="font-size:13.5px;">'+partnerEsc(why||'No source was saved for this one.')+'</div>';
   }
-  var hooks=(v.hooks||[]).map(function(t,i){ var best=(i===v.best_hook && v.hooks.length>1); return '<div class="pln-hook'+(best?' best':'')+'"><span>'+partnerEsc(t)+'</span>'+(best?'<u>Strongest</u>':'')+'</div>'; }).join('');
-  var left=(hooks?'<div class="pln-sec"><div class="pln-sh">The hook, '+((v.hooks||[]).length===1?'one way':(v.hooks||[]).length+' ways')+'</div>'+hooks+'</div>':'')
-    + '<div class="pln-sec"><div class="pln-sh"><span>Script · '+(v.script_words||0)+' words</span><button class="pln-btn sm" onclick="plnCopyPart(\'script\')">Copy</button></div><div class="pln-script">'+partnerEsc(v.script)+'</div></div>'
-    + ((v.bullets||[]).length?'<div class="pln-sec"><div class="pln-sh"><span>Or riff from these beats</span><button class="pln-btn sm" onclick="plnCopyPart(\'bullets\')">Copy</button></div><ol class="pln-list">'+v.bullets.map(function(b){ return '<li>'+partnerEsc(b)+'</li>'; }).join('')+'</ol></div>':'');
-  var caps=[['instagram','Instagram'],['tiktok','TikTok'],['youtube','YouTube Shorts']].filter(function(k){ return c[k[0]]; }).map(function(k){
-    return '<div class="pln-cap"><div><span>'+k[1]+'</span><button class="pln-btn sm" onclick="plnCopyPart(\''+k[0]+'\')">Copy</button></div><p>'+partnerEsc(c[k[0]])+'</p></div>'; }).join('');
-  var right=((v.shots||[]).length?'<div class="pln-sec"><div class="pln-sh">Shots to get</div><ul class="pln-list">'+v.shots.map(function(s){ return '<li>'+partnerEsc(s)+'</li>'; }).join('')+'</ul></div>':'')
-    + (caps?'<div class="pln-sec"><div class="pln-sh">Captions</div>'+caps+'</div>':'');
-  return h+'<div class="pln-cols"><div>'+left+'</div><div>'+right+'</div></div></div>';
+  h+=_plnStepsHtml(v, dis)+_plnNextHtml(v, dis);
+
+  if(_pln.part==='script'){
+    return h+'<div class="pln-sec"><div class="pln-sh"><span>Script</span></div>'+_plnPartHtml('Script', dis)+'</div></div>';
+  }
+  if(!v.script){
+    return h+'<div class="soc-empty"><h3>No script yet</h3><p>Your AI writes the opening line, the script and the caption for every video in this week.</p>'
+      + '<button class="pln-btn dark" onclick="plnAsk(\'scripts\','+v.week+')">Write week '+v.week+' scripts with Claude</button> <button class="pln-btn" onclick="plnPart(\'script\')">Write it myself</button></div></div>';
+  }
+  var hooks=v.hooks||[], best=(v.best_hook>=0 && v.best_hook<hooks.length) ? v.best_hook : 0;
+  if(hooks.length){
+    var rest=hooks.filter(function(t,i){ return i!==best; });
+    h+='<div class="pln-sec"><div class="pln-sh">Open with</div><div class="pln-hook best"><span>'+partnerEsc(hooks[best])+'</span></div>'
+      + (show.hooks ? rest.map(function(t){ return '<div class="pln-hook"><span>'+partnerEsc(t)+'</span></div>'; }).join('') : '')
+      + (rest.length ? '<div><button class="pln-link" onclick="plnShow(\'hooks\')">'+(show.hooks?'Hide the others':rest.length+' other way'+(rest.length===1?'':'s')+' to open')+'</button></div>' : '')
+      + '</div>';
+  }
+  h+='<div class="pln-sec"><div class="pln-sh"><span>Script · '+(v.script_words||0)+' words</span><span class="pln-acts"><button class="pln-btn sm"'+dis+' onclick="plnPart(\'script\')">Edit</button><button class="pln-btn sm" onclick="plnCopyPart(\'script\')">Copy</button></span></div>'
+    + '<div class="pln-script">'+partnerEsc(v.script)+'</div></div>';
+  h+='<div class="pln-sec"><div class="pln-sh"><span>Caption</span><span class="pln-acts">'
+    + (_pln.part==='caption' ? '' : '<button class="pln-btn sm"'+dis+' onclick="plnPart(\'caption\')">'+(cap?'Edit':'Write one')+'</button>'+(cap?'<button class="pln-btn sm" onclick="plnCopyPart(\'caption\')">Copy</button>':''))
+    + '</span></div>'
+    + (_pln.part==='caption' ? _plnPartHtml('Caption', dis) : (cap ? '<div class="pln-capt">'+partnerEsc(cap)+'</div>' : '<div class="pln-s">No caption yet.</div>'));
+  var others=[['tiktok','TikTok'],['youtube','YouTube']].filter(function(k){ return c[k[0]] && c[k[0]]!==cap; });
+  if(others.length && _pln.part!=='caption'){
+    h+='<div><button class="pln-link" onclick="plnShow(\'caps\')">'+(show.caps?'Hide the other versions':others.map(function(k){ return k[1]; }).join(' and ')+' version'+(others.length===1?'':'s'))+'</button></div>'
+      + (show.caps ? others.map(function(k){ return '<div class="pln-cap"><div><span>'+k[1]+'</span><button class="pln-btn sm" onclick="plnCopyPart(\''+k[0]+'\')">Copy</button></div><p>'+partnerEsc(c[k[0]])+'</p></div>'; }).join('') : '');
+  }
+  return h+'</div></div>';
 }
 
 window.plnAsk=plnAsk; window.plnReplan=plnReplan; window.plnMonth=plnMonth; window.plnWaitStop=plnWaitStop; window.plnCheckNow=plnCheckNow;
 window.plnEditProfile=plnEditProfile; window.plnField=plnField; window.plnVoice=plnVoice; window.plnPerWeek=plnPerWeek; window.plnSaveProfile=plnSaveProfile;
 window.plnOpen=plnOpen; window.plnBack=plnBack; window.plnSet=plnSet; window.plnRemove=plnRemove;
 window.plnAddOpen=plnAddOpen; window.plnAddType=plnAddType; window.plnAddKey=plnAddKey; window.plnAddSave=plnAddSave;
-window.plnSchedule=plnSchedule; window.plnTodo=plnTodo; window.plnFilmSet=plnFilmSet; window.plnOpenFromTodo=plnOpenFromTodo; window.plnFilmedFromTodo=plnFilmedFromTodo; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
+window.plnMore=plnMore; window.plnShow=plnShow; window.plnMenu=plnMenu; window.plnPart=plnPart; window.plnPartType=plnPartType; window.plnPartSave=plnPartSave; window.plnSchedule=plnSchedule; window.plnTodo=plnTodo; window.plnFilmSet=plnFilmSet; window.plnOpenFromTodo=plnOpenFromTodo; window.plnFilmedFromTodo=plnFilmedFromTodo; window.plnEditVideo=plnEditVideo; window.plnVField=plnVField; window.plnSaveVideo=plnSaveVideo; window.plnCopyPart=plnCopyPart;
 
 function socTab(t){ _soc.tab=t; socDraw(); }
 function socFilter(id){ _soc.filter=id; socDraw(); }
