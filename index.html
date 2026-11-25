@@ -2462,6 +2462,9 @@ textarea.pln-in{min-height:220px;line-height:1.6;resize:vertical;}
 .pln-row em{font-style:normal;color:var(--text2);font-size:13px;}
 .pln-row input[type=time]{border:1px solid var(--border2,var(--border));border-radius:8px;padding:6px 9px;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);font-family:inherit;min-height:36px;}
 .pln-f>.pln-row{margin-top:8px;}
+.soc-add .soc-soon{opacity:.6;cursor:default;}
+.soc-soon em,.soc-soonrow em{font-style:normal;font-size:11px;font-weight:600;color:var(--text2);background:var(--surface2);border-radius:999px;padding:2px 8px;margin-left:4px;}
+.soc-soonrow{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;margin-top:12px;font-size:13px;color:var(--text2);}
 .pln-cl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin-bottom:10px;}
 .pln-cl i{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;}
 .pln-cl span{flex:1 1 220px;min-width:0;}
@@ -36390,7 +36393,7 @@ async function socialTileCheck(){
   var sub=document.getElementById('sp-social-tile-sub');
   if(sub){
     var n=_socChannels().length;
-    sub.textContent = n ? (n+' account'+(n===1?'':'s')+' connected · plan, schedule and post') : ('Schedule posts to '+_socPlaces());
+    sub.textContent = n ? (n+' account'+(n===1?'':'s')+' connected · plan, schedule and post') : 'Plan, edit and post your videos with Claude';
   }
 }
 window.socialTileCheck = socialTileCheck;
@@ -36441,19 +36444,26 @@ function socDraw(){
   var editBtn=document.getElementById('soc-edit-btn'); if(editBtn) editBtn.style.display='';
   if(_soc.filter && !chs.some(function(c){ return c.id===_soc.filter; })) _soc.filter='';
 
-  var addBtns = '<button onclick="socAddChannel(\'facebook\')"><span class="soc-av fb" style="width:18px;height:18px;font-size:10px;">f</span> Add Facebook Page</button>'
-    + (st.instagram&&st.instagram.configured ? '<button onclick="socAddChannel(\'instagram\')"><span class="soc-av ig" style="width:18px;height:18px;font-size:8px;">ig</span> Add Instagram</button>' : '')
-    + (_socTtOn() ? '<button onclick="socAddChannel(\'tiktok\')"><span class="soc-av tt" style="width:18px;height:18px;font-size:10px;">♪</span> Add TikTok</button>' : '')
-    + (_socYtOn() ? '<button onclick="socAddChannel(\'youtube\')"><span class="soc-av yt" style="width:18px;height:18px;font-size:8px;">▶</span> Add YouTube</button>' : '');
+  // Each platform can be added, or is still waiting on its approval ("Coming soon").
+  var igOn=!!(st.instagram&&st.instagram.configured), ttOn=_socTtOn(), ytOn=_socYtOn();
+  var plats=[
+    { k:'facebook', on:true, soon:_socSoon('facebook'), small:'<span class="soc-av fb" style="width:18px;height:18px;font-size:10px;">f</span> Add Facebook Page', big:'Add a Facebook Page', name:'Facebook', bg:'#1877F2' },
+    { k:'instagram', on:igOn, soon:_socSoon('instagram'), small:'<span class="soc-av ig" style="width:18px;height:18px;font-size:8px;">ig</span> Add Instagram', big:'Add Instagram', name:'Instagram', bg:'linear-gradient(45deg,#F9CE34,#EE2A7B 55%,#6228D7)' },
+    { k:'tiktok', on:ttOn, soon:_socSoon('tiktok'), small:'<span class="soc-av tt" style="width:18px;height:18px;font-size:10px;">♪</span> Add TikTok', big:'Add TikTok', name:'TikTok', bg:'#111' },
+    { k:'youtube', on:ytOn, soon:false, small:'<span class="soc-av yt" style="width:18px;height:18px;font-size:8px;">▶</span> Add YouTube', big:'Add YouTube', name:'YouTube', bg:'#FF0000' }
+  ].filter(function(p){ return p.on; });
+  var ready=plats.filter(function(p){ return !p.soon; }), later=plats.filter(function(p){ return p.soon; });
+  var soonNames=later.map(function(p){ return p.name; });
+  var soonLine = soonNames.length ? (soonNames.length===1 ? soonNames[0] : soonNames.slice(0,-1).join(', ')+' and '+soonNames[soonNames.length-1])+' '+(soonNames.length===1?'is':'are')+' coming soon.' : '';
+  var addBtns = ready.map(function(p){ return '<button onclick="socAddChannel(\''+p.k+'\')">'+p.small+'</button>'; }).join('')
+    + later.map(function(p){ return '<button class="soc-soon" disabled>'+p.small.replace(' Add ', ' ')+' <em>Coming soon</em></button>'; }).join('');
 
   if(!chs.length && _soc.tab!=='planner'){
     root.innerHTML = '<div class="soc-empty">'
       + '<h3>Connect your first account</h3>'
-      + '<p>Add a Facebook Page, an Instagram professional account'+(_socTtOn()?', a TikTok account':'')+(_socYtOn()?', a YouTube channel':'')+', then write a post once and send it to any of them, now or on a schedule. You sign in on their own page; NestTrack never sees your password.</p>'
-      + '<button class="soc-big" style="background:#1877F2;" onclick="socAddChannel(\'facebook\')">Add a Facebook Page</button>'
-      + (st.instagram&&st.instagram.configured ? '<button class="soc-big" style="background:linear-gradient(45deg,#F9CE34,#EE2A7B 55%,#6228D7);" onclick="socAddChannel(\'instagram\')">Add Instagram</button>' : '')
-      + (_socTtOn() ? '<button class="soc-big" style="background:#111;" onclick="socAddChannel(\'tiktok\')">Add TikTok</button>' : '')
-      + (_socYtOn() ? '<button class="soc-big" style="background:#FF0000;" onclick="socAddChannel(\'youtube\')">Add YouTube</button>' : '')
+      + '<p>'+(ready.length ? 'Add '+ready.map(function(p){ return p.k==='facebook'?'a Facebook Page':(p.k==='instagram'?'an Instagram professional account':(p.k==='tiktok'?'a TikTok account':'a YouTube channel')); }).join(', ')+', then write a post once and send it, now or on a schedule. You sign in on their own page; NestTrack never sees your password.' : 'Posting to your accounts is coming soon.')+(soonLine?' '+soonLine:'')+'</p>'
+      + ready.map(function(p){ return '<button class="soc-big" style="background:'+p.bg+';" onclick="socAddChannel(\''+p.k+'\')">'+p.big+'</button>'; }).join('')
+      + (later.length ? '<div class="soc-soonrow">'+later.map(function(p){ return '<span>'+p.name+' <em>Coming soon</em></span>'; }).join('')+'</div>' : '')
       + '<div style="margin-top:10px;"><button class="soc-draft" onclick="socTab(\'planner\')">Or plan your videos first</button></div>'
       + '<div class="soc-msg" id="soc-conn-msg"></div></div>';
     return;
@@ -37214,8 +37224,14 @@ window.socTab=socTab; window.socFilter=socFilter;
 // that is opened after waiting on the network. If it is blocked anyway (some in-app browsers),
 // this window goes to the sign-in instead and comes back when it is done.
 function _socStopPoll(){ if(_soc.poll){ clearInterval(_soc.poll); _soc.poll=null; } }
+// True while this platform is waiting on its approval, for this agent. The server says which.
+function _socSoon(kind){
+  var s=_soc.status && _soc.status.soon; if(!s) return false;
+  return kind==='tiktok' ? !!s.tiktok : ((kind==='facebook' || kind==='instagram') ? !!s.meta : false);
+}
 async function socAddChannel(kind){
   var name = kind==='instagram' ? 'Instagram' : (kind==='tiktok' ? 'TikTok' : (kind==='youtube' ? 'YouTube' : 'Facebook'));
+  if(_socSoon(kind)){ _socToast(name+' is coming soon to NestTrack.'); return; }
   var say=function(t, bad){ var m=document.getElementById('soc-conn-msg'); if(m){ m.style.color=bad?'#B91C1C':''; m.textContent=t; } };
   var tab=null;
   try { tab = window.open('', '_blank'); } catch(e){ tab=null; }
